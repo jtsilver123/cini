@@ -20,6 +20,9 @@ struct ProfileScreen: View {
     @State private var followingCount = 0
     @State private var following = false
     @State private var matchPct: Double?
+    @State private var globalRank: Int?
+    @State private var watchlistCount = 0
+    @State private var profileTab = 0   // 0 = Activity, 1 = Taste Profile
     @State private var showImport = false
     @State private var detailMovie: Movie?
     @State private var loaded = false
@@ -34,10 +37,9 @@ struct ProfileScreen: View {
                 identity
                 statRow
                 buttonRow
-                streakCard
-                tasteSection
-                activitySection
-                rankedListSection
+                listRows
+                statCards
+                profileTabs
             }
             .padding(16)
         }
@@ -75,6 +77,9 @@ struct ProfileScreen: View {
         events = (try? await supabase.events(of: id)) ?? []
         followerCount = await supabase.followCount(of: id, direction: "following_id")
         followingCount = await supabase.followCount(of: id, direction: "follower_id")
+        globalRank = try? await supabase.globalRank(userID: id)
+        watchlistCount = isSelf ? store.watchlistCount
+            : ((try? await supabase.watchlist(userID: id))?.count ?? 0)
         loaded = true
     }
 
@@ -125,7 +130,7 @@ struct ProfileScreen: View {
         HStack {
             stat("\(followerCount)", "Followers")
             stat("\(followingCount)", "Following")
-            stat("\(rankings.count)", "Watched")
+            stat(globalRank.map { "#\($0)" } ?? "—", "Rank on Cini")
         }
     }
 
@@ -160,92 +165,214 @@ struct ProfileScreen: View {
         }
     }
 
-    // MARK: Streak
+    // MARK: List rows (Beli: Been / Want to Try / Recs for You)
 
-    @ViewBuilder
-    private var streakCard: some View {
-        if let p = profile, p.streakWeeks > 0 {
-            HairlineCard {
-                HStack(spacing: 14) {
-                    Image(systemName: "flame.fill")
-                        .font(.title2)
-                        .foregroundStyle(Theme.gold)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(p.streakWeeks)-week streak")
-                            .font(.subheadline.weight(.bold))
-                        Text(isSelf
-                             ? (p.hasLoggedThisWeek ? "This week is locked in."
-                                                    : "Rank one movie this week to keep it.")
-                             : "Ranks at least one movie every week.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                    Spacer()
-                    if isSelf && p.hasLoggedThisWeek {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Theme.scoreGreen)
-                    }
+    private var listRows: some View {
+        VStack(spacing: 0) {
+            NavigationLink {
+                RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
+                                 emptyHint: lockedHint)
+            } label: {
+                listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
+            }
+            .buttonStyle(.plain)
+            Divider()
+            NavigationLink {
+                WatchlistScreen(userID: resolvedID, isSelf: isSelf)
+            } label: {
+                listRow(icon: "bookmark", title: "Watchlist", count: watchlistCount)
+            }
+            .buttonStyle(.plain)
+            if isSelf {
+                Divider()
+                NavigationLink {
+                    RecsForYouScreen()
+                } label: {
+                    listRow(icon: "heart", title: "Recs for You", count: nil)
                 }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    // MARK: Taste Profile
+    private var lockedHint: String? {
+        (!isSelf && profile?.isPrivate == true && !following)
+            ? "This account is private — follow to see their rankings." : nil
+    }
+
+    private func listRow(icon: String, title: String, count: Int?) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon).font(.title3).frame(width: 30)
+                .foregroundStyle(Theme.ink)
+            Text(title).font(.headline).foregroundStyle(Theme.ink)
+            Spacer()
+            if let count {
+                Text("\(count)").font(.headline).foregroundStyle(Theme.ink)
+            }
+            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+        }
+        .padding(.vertical, 14)
+    }
+
+    // MARK: Stat cards (Rank on Cini · Current Streak)
+
+    private var statCards: some View {
+        HStack(spacing: 12) {
+            HairlineCard {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.teal)
+                    Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.teal)
+                    Text(globalRank.map { "#\($0)" } ?? "—")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Theme.teal)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HairlineCard {
+                VStack(alignment: .leading, spacing: 6) {
+                    Image(systemName: "flame.fill").font(.title3).foregroundStyle(Theme.gold)
+                    Text("Current Streak").font(.subheadline).foregroundStyle(Theme.teal)
+                    Text("\(profile?.streakWeeks ?? 0) weeks")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Theme.teal)
+                    if isSelf, let p = profile, p.streakWeeks > 0, !p.hasLoggedThisWeek {
+                        Text("Rank this week to keep it")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gold)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    // MARK: Activity | Taste Profile tabs
+
+    private var profileTabs: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                tabButton("Activity", icon: "list.bullet.rectangle", index: 0)
+                tabButton("Taste Profile", icon: "chart.bar", index: 1)
+            }
+            .padding(.bottom, 4)
+            Divider()
+            if profileTab == 0 {
+                activityContent
+            } else {
+                tasteContent
+            }
+        }
+    }
+
+    private func tabButton(_ title: String, icon: String, index: Int) -> some View {
+        Button {
+            withAnimation(.snappy) { profileTab = index }
+        } label: {
+            VStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon).font(.caption)
+                    Text(title).font(.subheadline.weight(profileTab == index ? .bold : .regular))
+                }
+                .foregroundStyle(profileTab == index ? Theme.ink : Theme.gray)
+                Rectangle()
+                    .fill(profileTab == index ? Theme.gold : .clear)
+                    .frame(height: 2)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var activityContent: some View {
+        if events.isEmpty && loaded {
+            Text(lockedHint ?? (isSelf ? "Rank or watchlist a movie and it shows up here."
+                                       : "No activity visible yet."))
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+        }
+        ForEach(events.prefix(12)) { event in
+            let movie = event.movies?.asMovie
+            HStack(spacing: 12) {
+                if let movie {
+                    PosterView(url: movie.posterURL, width: 36)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(activityLine(event)).font(.subheadline).lineLimit(2)
+                    Text(event.createdAt.formatted(.relative(presentation: .named)))
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture { if let movie { detailMovie = movie } }
+            Divider()
+        }
+    }
+
+    private func activityLine(_ event: FeedEventRow) -> AttributedString {
+        let who = isSelf ? "You" : "@\(profile?.username ?? username ?? "They")"
+        let title = event.movies?.title ?? "a movie"
+        let text: String
+        switch event.eventType {
+        case "ranked": text = "\(who) ranked **\(title)**"
+        case "watchlisted": text = "\(who) added **\(title)** to watchlist"
+        case "noted": text = "\(who) wrote about **\(title)**"
+        default: text = "\(who) shared an update"
+        }
+        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    }
 
     private var taste: TasteSummary {
         TasteSummary(rankings: rankings, movies: movies)
     }
 
     @ViewBuilder
-    private var tasteSection: some View {
-        if !rankings.isEmpty {
-            HairlineCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Taste Profile").font(.headline)
-
-                    // Sentiment split — the brand's three circles, quantified.
-                    HStack(spacing: 0) {
-                        sentimentStat(taste.lovedCount, Theme.sentimentLoved, "Liked")
-                        sentimentStat(taste.fineCount, Theme.sentimentFine, "Fine")
-                        sentimentStat(taste.dislikedCount, Theme.sentimentDisliked, "Didn't")
-                    }
-
-                    ForEach(taste.topGenres, id: \.name) { genre in
-                        HStack(spacing: 10) {
-                            Text(genre.name)
-                                .font(.subheadline.weight(.semibold))
-                                .frame(width: 92, alignment: .leading)
-                            GeometryReader { geo in
-                                Capsule().fill(Theme.fill)
-                                Capsule().fill(Theme.gold)
-                                    .frame(width: geo.size.width * genre.share)
-                            }
-                            .frame(height: 8)
-                            Text("\(Int(genre.share * 100))%")
-                                .font(.caption)
-                                .foregroundStyle(Theme.gray)
-                                .frame(width: 36, alignment: .trailing)
+    private var tasteContent: some View {
+        if rankings.isEmpty {
+            Text(lockedHint ?? "Rank a few movies and the taste profile appears here.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+        } else {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 0) {
+                    sentimentStat(taste.lovedCount, Theme.sentimentLoved, "Liked")
+                    sentimentStat(taste.fineCount, Theme.sentimentFine, "Fine")
+                    sentimentStat(taste.dislikedCount, Theme.sentimentDisliked, "Didn't")
+                }
+                ForEach(taste.topGenres, id: \.name) { genre in
+                    HStack(spacing: 10) {
+                        Text(genre.name)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 92, alignment: .leading)
+                        GeometryReader { geo in
+                            Capsule().fill(Theme.fill)
+                            Capsule().fill(Theme.gold)
+                                .frame(width: geo.size.width * genre.share)
                         }
-                    }
-
-                    if let decade = taste.favoriteDecade {
-                        HStack(spacing: 6) {
-                            Image(systemName: "film").font(.caption)
-                            Text("Lives in the \(String(decade))s")
-                                .font(.caption.weight(.semibold))
-                        }
-                        .foregroundStyle(Theme.teal)
+                        .frame(height: 8)
+                        Text("\(Int(genre.share * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                            .frame(width: 36, alignment: .trailing)
                     }
                 }
+                if let decade = taste.favoriteDecade {
+                    HStack(spacing: 6) {
+                        Image(systemName: "film").font(.caption)
+                        Text("Lives in the \(String(decade))s")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.teal)
+                }
             }
-        } else if loaded {
-            HairlineCard {
-                Text(isSelf ? "Rank a few movies and your taste profile appears here."
-                            : "No rankings visible yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-                    .frame(maxWidth: .infinity)
-            }
+            .padding(.vertical, 16)
         }
     }
 
@@ -259,66 +386,39 @@ struct ProfileScreen: View {
         }
         .frame(maxWidth: .infinity)
     }
+}
 
-    // MARK: Activity
+// MARK: - Pushed list screens
 
-    @ViewBuilder
-    private var activitySection: some View {
-        if !events.isEmpty {
+/// A user's ranked list, pushed from the Watched row.
+struct RankedListScreen: View {
+    let title: String
+    let rankings: [RankingRow]
+    let movies: [Int: Movie]
+    var emptyHint: String?
+
+    @State private var detailMovie: Movie?
+
+    var body: some View {
+        ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Activity").font(.headline).padding(.bottom, 4)
-                ForEach(events.prefix(8)) { event in
-                    let movie = event.movies?.asMovie
-                    HStack(spacing: 12) {
-                        if let movie {
-                            PosterView(url: movie.posterURL, width: 36)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(activityLine(event))
-                                .font(.subheadline)
-                                .lineLimit(2)
-                            Text(event.createdAt.formatted(.relative(presentation: .named)))
-                                .font(.caption)
-                                .foregroundStyle(Theme.gray)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
-                    .onTapGesture { if let movie { detailMovie = movie } }
-                    Divider()
+                if rankings.isEmpty {
+                    Text(emptyHint ?? "Nothing here yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func activityLine(_ event: FeedEventRow) -> AttributedString {
-        let title = event.movies?.title ?? "a movie"
-        let text: String
-        switch event.eventType {
-        case "ranked": text = "Ranked **\(title)**"
-        case "watchlisted": text = "Added **\(title)** to watchlist"
-        case "noted": text = "Wrote about **\(title)**"
-        default: text = "Shared an update"
-        }
-        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
-    }
-
-    // MARK: Ranked list
-
-    @ViewBuilder
-    private var rankedListSection: some View {
-        if !rankings.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Watched (\(rankings.count))").font(.headline).padding(.bottom, 4)
-                ForEach(Array(rankings.prefix(25).enumerated()), id: \.element.id) { index, row in
+                ForEach(Array(rankings.enumerated()), id: \.element.id) { index, row in
                     if let movie = movies[row.movieId] {
                         HStack(spacing: 12) {
+                            Text("\(index + 1)")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.gray)
+                                .frame(width: 22, alignment: .leading)
                             PosterView(url: movie.posterURL, width: 44)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(index + 1). \(movie.title)")
-                                    .font(.subheadline.weight(.semibold))
+                                Text(movie.title).font(.subheadline.weight(.semibold))
                                 Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
                             }
                             Spacer()
@@ -331,14 +431,119 @@ struct ProfileScreen: View {
                     }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else if loaded && !isSelf && profile?.isPrivate == true && !following {
-            VStack(spacing: 6) {
-                Image(systemName: "lock").font(.title2).foregroundStyle(Theme.gray)
-                Text("This account is private").font(.subheadline).foregroundStyle(Theme.gray)
-                Text("Follow to see their rankings.").font(.caption).foregroundStyle(Theme.gray)
+            .padding(16)
+        }
+        .background(Theme.background)
+        .navigationTitle("\(title) (\(rankings.count))")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+    }
+}
+
+/// A user's watchlist, pushed from the Watchlist row.
+struct WatchlistScreen: View {
+    let userID: UUID?
+    let isSelf: Bool
+
+    @Environment(RankingStore.self) private var store
+    @State private var rows: [WatchlistRow] = []
+    @State private var movies: [Int: Movie] = [:]
+    @State private var detailMovie: Movie?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                if rows.isEmpty {
+                    Text("Watchlist is empty.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                }
+                ForEach(rows) { row in
+                    if let movie = movies[row.movieId] ?? store.movie(row.movieId) {
+                        HStack(spacing: 12) {
+                            PosterView(url: movie.posterURL, width: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(movie.title).font(.subheadline.weight(.semibold))
+                                Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailMovie = movie }
+                        Divider()
+                    }
+                }
             }
-            .padding(.top, 12)
+            .padding(16)
+        }
+        .background(Theme.background)
+        .navigationTitle("Watchlist (\(rows.count))")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+        .task {
+            guard let userID else { return }
+            rows = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
+            let fetched = (try? await SupabaseService.shared.movies(ids: rows.map(\.movieId))) ?? []
+            for row in fetched { movies[row.tmdbId] = row.asMovie }
+        }
+    }
+}
+
+/// "Recs for You" pushed from the profile row (self only).
+struct RecsForYouScreen: View {
+    @Environment(RankingStore.self) private var store
+    @State private var recs: [RecRow] = []
+    @State private var detailMovie: Movie?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 4) {
+                if recs.isEmpty {
+                    Text("Follow friends and rank movies — personalized recs land here.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                }
+                ForEach(recs) { rec in
+                    if let movie = store.movie(rec.movieId) {
+                        HStack(spacing: 12) {
+                            PosterView(url: movie.posterURL, width: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(movie.title).font(.subheadline.weight(.semibold))
+                                Text(rec.topFriendUsername.map { "Loved by @\($0)" } ?? "Recommended")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.scoreGreen)
+                            }
+                            Spacer()
+                            ScoreBadge(score: rec.recScore, count: rec.friendCount, size: 44)
+                        }
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailMovie = movie }
+                        Divider()
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(Theme.background)
+        .navigationTitle("Recs for You")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+        .task {
+            recs = (try? await SupabaseService.shared.recsForUser()) ?? []
+            let rows = (try? await SupabaseService.shared.movies(ids: recs.map(\.movieId))) ?? []
+            for row in rows { store.cache(row.asMovie) }
         }
     }
 }

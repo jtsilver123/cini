@@ -767,12 +767,14 @@ function tasteFor(user){
   const decade=Object.entries(d).sort((a,b)=>b[1]-a[1])[0]?.[0];
   return {loved:counts.loved, fine:counts.fine, disliked:counts.disliked, genres, decade, streak:S.streak};
 }
+let profileTab=0; // 0 Activity, 1 Taste Profile
 function renderProfile(){
   const member = profileUser ? MEMBERS.find(x=>x.u===profileUser) : null;
   const isSelf = !member;
   const t = tasteFor(profileUser);
-  const watchedRows = isSelf ? scoredWatched() : member.top.map((k,i)=>({k, rank:i+1, score:9.8-i*0.7, b:"loved"}));
   const count = isSelf ? 529+S.watched.length : member.watched;
+  const wlCount = isSelf ? 170+S.watchlist.length : Math.round(member.watched/3.2);
+  const rank = isSelf ? "#20832" : "#"+(4000+member.u.length*973);
   const name = isSelf ? "Jake Silver" : member.n;
   const handle = isSelf ? "jtsilver123" : member.u;
   const av = isSelf ? "" : member.av;
@@ -780,29 +782,24 @@ function renderProfile(){
     ? S.activity
     : member.top.slice(0,2).map((k,i)=>({kind:i?"watchlisted":"ranked", k, when:["3h ago","yesterday"][i]}));
 
-  const streakCard = t.streak>0 ? `
-    <div class="card" style="margin:16px 18px 0; display:flex; gap:13px; align-items:center;">
-      <span style="color:var(--gold);">${I("flame",24,1.6)}</span>
-      <div style="flex:1;">
-        <b style="font-size:14px;">${t.streak}-week streak</b>
-        <div class="sub" style="margin-top:1px;">${isSelf
-          ? (S.rankedThisWeek ? "This week is locked in." : "Rank one movie this week to keep it.")
-          : "Ranks at least one movie every week."}</div>
-      </div>
-      ${isSelf && S.rankedThisWeek ? `<span class="gtxt">${I("check",20,2.2)}</span>`:""}
-    </div>` : "";
+  const listRow=(ic,label,n,action)=>`
+    <div class="listrow" style="align-items:center; cursor:pointer;" onclick="${action}">
+      <span style="color:var(--ink);">${I(ic,20)}</span>
+      <b style="flex:1; font-size:15.5px; margin-left:4px;">${label}</b>
+      ${n!==null?`<b>${n.toLocaleString()}</b>`:""}
+      <span class="sub" style="margin-left:8px;">${I("chevR",15)}</span>
+    </div>`;
 
-  const tasteCard = (t.loved+t.fine+t.disliked)>0 ? `
-    <div class="card" style="margin:14px 18px 0;">
-      <b style="font-size:15.5px;">Taste Profile</b>
-      <div style="display:flex; margin-top:14px;">
+  const tasteContent = (t.loved+t.fine+t.disliked)>0 ? `
+    <div style="padding:16px 18px;">
+      <div style="display:flex;">
         ${[["--s-loved",t.loved,"Liked"],["--s-fine",t.fine,"Fine"],["--s-disliked",t.disliked,"Didn't"]].map(([c,n,l])=>`
           <div style="flex:1; text-align:center;">
             <div style="width:46px;height:46px;border-radius:50%;background:var(${c});margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;">${n}</div>
             <div class="sub" style="margin-top:6px;">${l}</div>
           </div>`).join("")}
       </div>
-      <div style="margin-top:16px; display:flex; flex-direction:column; gap:10px;">
+      <div style="margin-top:18px; display:flex; flex-direction:column; gap:10px;">
         ${t.genres.map(([g,share])=>`
           <div style="display:flex; align-items:center; gap:10px;">
             <span style="width:84px; font-size:13px; font-weight:600;">${g}</span>
@@ -811,18 +808,17 @@ function renderProfile(){
             <span class="sub" style="width:34px; text-align:right;">${Math.round(share*100)}%</span>
           </div>`).join("")}
       </div>
-      ${t.decade?`<div style="margin-top:14px; color:var(--teal); font-size:12.5px; font-weight:700;">${I("film",14)} Lives in the ${t.decade}s</div>`:""}
-    </div>` : `
-    <div class="card" style="margin:14px 18px 0;"><span class="sub">Rank a few movies and the taste profile appears here.</span></div>`;
+      ${t.decade?`<div style="margin-top:16px; color:var(--teal); font-size:12.5px; font-weight:700;">${I("film",14)} Lives in the ${t.decade}s</div>`:""}
+    </div>`
+    : `<div class="sub" style="text-align:center; padding:28px;">Rank a few movies and the taste profile appears here.</div>`;
 
-  const activityHTML = activity.length ? `
-    <div class="pad" style="margin-top:20px;"><b style="font-size:15.5px;">Activity</b></div>
-    ${activity.map(a=>{const m=MOVIES[a.k]; return `
+  const activityContent = activity.length ? activity.map(a=>{const m=MOVIES[a.k]; return `
       <div class="listrow" style="cursor:pointer; align-items:center;" onclick="openDetail('${a.k}')">
         <div class="poster" style="width:34px;height:51px; background-image:url('${IMG(m.p)}');"></div>
-        <div style="flex:1;"><div style="font-size:14px;">${a.kind==="ranked"?"Ranked":"Added"} <b>${m.t}</b>${a.kind==="watchlisted"?" to watchlist":""}</div>
+        <div style="flex:1;"><div style="font-size:14px;">${isSelf?"You":"@"+handle} ${a.kind==="ranked"?"ranked":"added"} <b>${m.t}</b>${a.kind==="watchlisted"?" to watchlist":""}</div>
           <div class="sub" style="margin-top:2px;">${a.when}</div></div>
-      </div>`;}).join("")}` : "";
+      </div>`;}).join("")
+    : `<div class="sub" style="text-align:center; padding:28px;">Rank or watchlist a movie and it shows up here.</div>`;
 
   $("screen-profile").innerHTML = `
     <div class="pad" style="display:flex; align-items:center; padding-top:14px;">
@@ -836,7 +832,7 @@ function renderProfile(){
            <b style="flex:1; text-align:center; font-size:17px;">${name}</b><span style="width:30px;"></span>`}
     </div>
     <div style="text-align:center; margin-top:12px;">
-      <div class="avatar ${av}" style="width:104px;height:104px; margin:0 auto; font-size:36px;">${name[0]}</div>
+      <div class="avatar ${av}" style="width:100px;height:100px; margin:0 auto; font-size:34px;">${name[0]}</div>
       <div style="font-weight:700; font-size:17px; margin-top:10px;">@${handle}</div>
       <div class="sub" style="margin-top:2px;">Member since December 2022</div>
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
@@ -844,7 +840,7 @@ function renderProfile(){
     <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
       <div style="flex:1;"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
       <div style="flex:1;"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">${count.toLocaleString()}</b><div class="sub" style="margin-top:1px;">Watched</div></div>
+      <div style="flex:1;"><b style="font-size:18px;">${rank}</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
     </div>
     <div class="row-scroll" style="margin-top:14px; justify-content:center;">
       ${isSelf
@@ -852,18 +848,44 @@ function renderProfile(){
            <button class="pill ghost" onclick="share('My Cini profile — @${handle}')">Share profile</button>`
         : `<button class="pill ${S.followed[handle]?"ghost on":""}" onclick="toggleFollow('${handle}')">${S.followed[handle]?"Following":"Follow"}</button>`}
     </div>
-    ${streakCard}
-    ${tasteCard}
-    ${activityHTML}
-    <div class="pad" style="margin-top:20px;"><b style="font-size:15.5px;">Watched${isSelf?` (${count})`:""}</b></div>
-    ${watchedRows.slice(0,10).map(w=>{const m=MOVIES[w.k]; return `
-      <div class="listrow" style="cursor:pointer; align-items:center;" onclick="openDetail('${w.k}')">
-        <span style="color:var(--gray); width:18px; font-size:13px;">${w.rank}</span>
-        <div class="poster" style="width:40px;height:60px; background-image:url('${IMG(m.p)}');"></div>
-        <div style="flex:1;"><b style="font-size:14px;">${m.t}</b><div class="sub">${m.y} · ${m.dir}</div></div>
-        <div class="badge sm ${scoreClass(w.score)}">${w.score.toFixed(1)}</div>
-      </div>`;}).join("")}
+    <div style="margin-top:10px;">
+      ${listRow("check","Watched",count, isSelf?"S.subTab='watched'; save(); go('lists')":`openMemberList('${handle}')`)}
+      ${listRow("bookmark","Watchlist",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`toast('Their watchlist — follow-gated in the app')`)}
+      ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')"):""}
+    </div>
+    <div class="pad" style="display:flex; gap:12px; margin-top:14px;">
+      <div class="card" style="flex:1; margin:0;"><span style="color:var(--teal);">${I("trophy",22)}</span>
+        <div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Rank on Cini</div>
+        <b class="serif" style="font-size:21px; color:var(--teal);">${rank}</b></div>
+      <div class="card" style="flex:1; margin:0;"><span style="color:var(--gold);">${I("flame",22,1.6)}</span>
+        <div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Current Streak</div>
+        <b class="serif" style="font-size:21px; color:var(--teal);">${t.streak} weeks</b>
+        ${isSelf&&!S.rankedThisWeek?`<div style="color:var(--gold); font-size:10.5px; font-weight:700; margin-top:3px;">Rank this week to keep it</div>`:""}</div>
+    </div>
+    <div style="display:flex; margin-top:20px; padding:0 18px;">
+      ${[["Activity","comment",0],["Taste Profile","star",1]].map(([l,ic,i])=>`
+        <button class="subtab ${profileTab===i?"active":""}" style="flex:1; text-align:center;" onclick="profileTab=${i}; render();">${l}</button>`).join("")}
+    </div>
+    <div style="border-top:1px solid var(--hair);">
+      ${profileTab===0?activityContent:tasteContent}
+    </div>
     <div style="height:20px;"></div>`;
+}
+function openMemberList(u){
+  const p=MEMBERS.find(x=>x.u===u);
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">@${u} · Watched</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      ${p.top.map((k,i)=>{const m=MOVIES[k]; return `
+        <div style="display:flex; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--hair); cursor:pointer;" onclick="closeOverlay(); openDetail('${k}')">
+          <span style="color:var(--gray); width:16px;">${i+1}</span>
+          <div class="poster" style="width:38px;height:57px; background-image:url('${IMG(m.p)}');"></div>
+          <div style="flex:1;"><b style="font-size:14px;">${m.t}</b><div class="sub">${m.y}</div></div>
+          <div class="badge sm g">${(9.8-i*0.7).toFixed(1)}</div>
+        </div>`;}).join("")}
+      <div class="sub" style="text-align:center; padding:14px;">Top of ${p.watched.toLocaleString()} ranked films</div>
+    </div>`);
 }
 
 /* =================== DETAIL =================== */
