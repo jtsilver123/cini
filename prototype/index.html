@@ -406,7 +406,7 @@ function renderFeed(){
       ? `<b>${e.who}</b> ranked <b>${m.t}</b> <span class="gtxt" style="font-weight:800;">${e.score.toFixed(1)}</span>`
       : `<b>${e.who}</b> added <b>${m.t}</b> to their watchlist`;
     const comments=(S.comments[e.id]||[]);
-    return `<div class="listrow">
+    return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${e.movie}')">
       <div class="avatar ${e.av}" style="width:48px;height:48px;">${e.who[0].toUpperCase()}</div>
       <div style="flex:1;">
         <div style="font-size:14.5px;">${headline}</div>

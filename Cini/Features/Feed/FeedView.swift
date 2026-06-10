@@ -246,6 +246,12 @@ struct FeedCard: View {
                 .foregroundStyle(Theme.gray)
         }
         .padding(.vertical, 6)
+        // The whole card opens the referenced title; the action buttons
+        // inside still win their own taps.
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let movie { onOpenMovie(movie) }
+        }
         .sheet(isPresented: $showComments) {
             CommentsSheet(event: event)
                 .presentationDetents([.medium, .large])
