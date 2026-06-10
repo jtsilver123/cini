@@ -9,7 +9,7 @@ on:
         required: true
 
 env:
-  ASC_KEY_ID: J4369F4GMF
+  ASC_KEY_ID: 2S66TTGY5Q
   APPLE_TEAM_ID: VRPVPJAN9G
 
 jobs:
