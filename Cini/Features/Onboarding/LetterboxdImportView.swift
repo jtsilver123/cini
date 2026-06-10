@@ -72,20 +72,29 @@ struct LetterboxdImportView: View {
                 HairlineCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Label {
-                            Text("On letterboxd.com: **Settings → Data → Export your data**")
+                            Text("Tap below to open Letterboxd, then **Export your data** — Safari saves the .zip to Files")
                         } icon: {
                             Text("1").bold().foregroundStyle(Theme.teal)
                         }
                         Label {
-                            Text("Save the **.zip** it gives you (no need to unzip)")
+                            Text("Come back here and **choose that file** (no need to unzip)")
                         } icon: {
                             Text("2").bold().foregroundStyle(Theme.teal)
                         }
                         Label {
-                            Text("Pick that file below — IMDb ratings CSVs work too")
+                            Text("IMDb ratings CSVs work too")
                         } icon: {
                             Text("3").bold().foregroundStyle(Theme.teal)
                         }
+                        Link(destination: URL(string: "https://letterboxd.com/settings/data/")!) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "safari")
+                                Text("Open Letterboxd export page")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.teal)
+                        }
+                        .padding(.top, 2)
                     }
                     .font(.subheadline)
                 }

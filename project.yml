@@ -16,6 +16,9 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.9"
+    # Merge standard identity keys (CFBundleIdentifier, versions, executable)
+    # into the custom Info.plist that carries our config keys.
+    GENERATE_INFOPLIST_FILE: YES
     # Build with the latest (iOS 27 beta) SDK so Liquid Glass paths compile;
     # the app still runs back to iOS 17 via availability checks.
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
