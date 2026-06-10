@@ -11,7 +11,8 @@ struct SearchView: View {
     @State private var yearFilter = ""
     @State private var movieResults: [Movie] = []
     @State private var memberResults: [ProfileRow] = []
-    @State private var recents: [Movie] = []
+    @State private var followedFromSearch: Set<UUID> = []
+    @State private var recents: [Movie] = RecentSearches.load()
     @State private var maybeSeen: [Movie] = []
     @State private var dismissedMaybeSeen: Set<Int> = []
     @State private var showAllMaybeSeen = false
@@ -127,10 +128,25 @@ struct SearchView: View {
     private var quickPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                PillButton(title: "Where to Watch", systemImage: "play.rectangle")
-                PillButton(title: "Showtimes", systemImage: "ticket")
-                PillButton(title: "Recs", systemImage: "heart")
-                PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis")
+                PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis") {
+                    Task {
+                        movieResults = (try? await TMDBService.shared.trending()) ?? []
+                        for movie in movieResults { store.cache(movie) }
+                    }
+                }
+                NavigationLink {
+                    RecsForYouScreen()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "heart").font(.subheadline.weight(.semibold))
+                        Text("Recs").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.marquee)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                }
+                .buttonStyle(.plain)
             }
         }
         .scrollClipDisabled()
@@ -147,6 +163,8 @@ struct SearchView: View {
                     onOpen: {
                         recents.removeAll { $0.tmdbID == movie.tmdbID }
                         recents.insert(movie, at: 0)
+                        recents = Array(recents.prefix(10))
+                        RecentSearches.save(recents)
                         detailMovie = movie
                     }
                 )
@@ -170,8 +188,17 @@ struct SearchView: View {
                             Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray)
                         }
                         Spacer()
-                        PillButton(title: "Follow", style: .outlined) {
-                            Task { try? await SupabaseService.shared.follow(member.id) }
+                        PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
+                                   style: .outlined) {
+                            Task {
+                                if followedFromSearch.contains(member.id) {
+                                    try? await SupabaseService.shared.unfollow(member.id)
+                                    followedFromSearch.remove(member.id)
+                                } else {
+                                    try? await SupabaseService.shared.follow(member.id)
+                                    followedFromSearch.insert(member.id)
+                                }
+                            }
                         }
                     }
                     .padding(.vertical, 8)
@@ -197,6 +224,7 @@ struct SearchView: View {
                             Spacer()
                             Button {
                                 recents.removeAll { $0.tmdbID == movie.tmdbID }
+                                RecentSearches.save(recents)
                             } label: {
                                 Image(systemName: "xmark").foregroundStyle(Theme.gray)
                             }
@@ -397,5 +425,22 @@ struct MovieSuggestionRow: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
+    }
+}
+
+
+/// Recent searches persist across launches (UserDefaults, newest first).
+enum RecentSearches {
+    private static let key = "cini.recentSearches"
+
+    static func load() -> [Movie] {
+        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        return (try? JSONDecoder().decode([Movie].self, from: data)) ?? []
+    }
+
+    static func save(_ movies: [Movie]) {
+        if let data = try? JSONEncoder().encode(Array(movies.prefix(10))) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 }

@@ -45,6 +45,40 @@ final class SupabaseService {
         try await client.auth.resend(email: email, type: .signup)
     }
 
+    var currentEmail: String? { client.auth.currentUser?.email }
+
+    /// Sends a confirmation link to the new address; the change applies
+    /// once it's tapped.
+    func updateEmail(_ email: String) async throws {
+        try await client.auth.update(user: UserAttributes(email: email))
+    }
+
+    func updatePassword(_ password: String) async throws {
+        try await client.auth.update(user: UserAttributes(password: password))
+    }
+
+    /// Permanently deletes the auth user; cascades wipe all app data.
+    func deleteAccount() async throws {
+        try await client.rpc("delete_account").execute()
+        try? await client.auth.signOut()
+    }
+
+    /// Upload (or replace) the avatar and point the profile at it.
+    func uploadAvatar(_ jpegData: Data) async throws -> URL {
+        guard let id = currentUserID else { throw URLError(.userAuthenticationRequired) }
+        let path = "\(id.uuidString.lowercased()).jpg"
+        try await client.storage.from("avatars").upload(
+            path,
+            data: jpegData,
+            options: FileOptions(cacheControl: "3600", contentType: "image/jpeg", upsert: true)
+        )
+        let publicURL = try client.storage.from("avatars").getPublicURL(path: path)
+        // Cache-bust so the new photo shows immediately everywhere.
+        let busted = URL(string: publicURL.absoluteString + "?t=\(Int(Date.now.timeIntervalSince1970))") ?? publicURL
+        try await updateProfile(ProfileUpdate(avatar_url: busted.absoluteString))
+        return busted
+    }
+
     func signOut() async throws {
         try await client.auth.signOut()
     }

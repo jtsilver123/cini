@@ -301,6 +301,8 @@ const ICONS = {
   tag:'<path d="M3 11V4a1 1 0 0 1 1-1h7l10 10-8 8z"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>',
   pencil:'<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 0 1 3 3L8 19z"/>',
   star:'<polygon points="12 3 14.7 8.6 21 9.5 16.5 13.8 17.6 20 12 17 6.4 20 7.5 13.8 3 9.5 9.3 8.6"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  key:'<circle cx="8" cy="14" r="4.2"/><path d="M11.2 11.2 20 2.5M16 6.5l3 3M13.5 9l2.2 2.2"/>',
   users:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.4a3.2 3.2 0 0 1 0 5.9M18.6 14.9c1.9.8 3.4 2.4 3.4 4.6"/>',
   clock:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
   film:'<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="8" y1="4" x2="8" y2="20"/><line x1="16" y1="4" x2="16" y2="20"/><line x1="3" y1="9" x2="8" y2="9"/><line x1="3" y1="15" x2="8" y2="15"/><line x1="16" y1="9" x2="21" y2="9"/><line x1="16" y1="15" x2="21" y2="15"/>',
@@ -629,8 +631,7 @@ function renderLists(){
       <button class="iconbtn" onclick="openSearchForRank()">${I("search",18)}</button>
     </div>
     <div style="margin-top:4px;">${content}</div>
-    ${sub==="watched" && S.category==="Movies" ? `<div style="position:absolute; bottom:104px; right:18px; z-index:20;">
-      <button class="pill" onclick="openTimeline()">View Timeline</button></div>`:""}`;
+`;
 }
 function surprise(){
   const recs=Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k));
@@ -1257,26 +1258,6 @@ function openCategorySheet(){
     </div>`);
 }
 
-function openTimeline(){
-  const counts={};
-  scoredWatched().forEach(w=>{ const d=Math.floor(MOVIES[w.k].y/10)*10; counts[d]=(counts[d]||0)+1; });
-  const max=Math.max(...Object.values(counts),1);
-  renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Your timeline</b>
-      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
-    <div class="sheet-body">
-      <div class="sub" style="margin-bottom:14px;">Your watched list by decade</div>
-      ${Object.entries(counts).sort().map(([d,n])=>`
-        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-          <b style="width:52px; font-size:14px;">${d}s</b>
-          <div style="flex:1; height:18px; background:rgba(255,255,255,.1); border-radius:999px;">
-            <div style="width:${Math.max(8,100*n/max)}%; height:100%; background:linear-gradient(90deg,#E8B64C,#A87E2A); border-radius:999px;"></div></div>
-          <span class="sub">${n}</span>
-        </div>`).join("")}
-      <div class="sub" style="margin-top:8px;">Rank older films to stretch your timeline back.</div>
-    </div>`);
-}
-
 function openComments(id){
   const list=(S.comments[id]||[]);
   renderSheet(`
@@ -1335,10 +1316,10 @@ function openMenu(){
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Menu</b><button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="erow" onclick="closeOverlay(); openImport()"><span class="ic">${I("download",18)}</span><span style="flex:1;">Import from Letterboxd</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" onclick="window.open('https://jtsilver123.github.io/cini/privacy.html','_blank')"><span class="ic">${I("shield",18)}</span><span style="flex:1;">Privacy policy</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" onclick="localStorage.removeItem('cini-proto-v4'); location.reload();"><span class="ic">${I("refresh",18)}</span><span style="flex:1;">Reset demo data</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" style="border-bottom:none;" onclick="toast('Signed out (demo)')"><span class="ic" style="color:var(--red);">${I("logout",18)}</span><span style="flex:1; color:var(--red);">Sign out</span></div>
+      <div class="erow" onclick="closeOverlay(); toast('Account settings — change email, password, delete account (in the app)')"><span class="ic">${I("gear",18)}</span><span style="flex:1;">Settings</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openImport()"><span class="ic">${I("download",18)}</span><span style="flex:1;">Import Existing List</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); toast('Change password — in the app')"><span class="ic">${I("key",18)}</span><span style="flex:1;">Change Password</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" style="border-bottom:none;" onclick="toast('Logged out (demo)')"><span class="ic" style="color:var(--red);">${I("logout",18)}</span><span style="flex:1; color:var(--red);">Log Out</span></div>
     </div>`);
 }
 
@@ -1354,7 +1335,7 @@ function importPick(){return `
     <div class="sub" style="font-size:14px; line-height:1.5;">Cini queues every film you've logged so you can rank them — favorites first.</div>
   </div>
   <div style="background:var(--surface-2); border-radius:16px; padding:16px; margin:16px 0;">
-    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">Tap below to open Letterboxd, then <b>Export your data</b> — Safari saves the .zip to Files</span></div>
+    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">In Letterboxd, open your <b>Profile</b>, tap the <b>gear icon</b> top left, scroll to <b>Advanced settings</b>, then <b>Export your data</b> — the .zip saves to Files</span></div>
     <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">2</b><span style="font-size:14px;">Come back and <b>choose that file</b> (no need to unzip)</span></div>
     <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">3</b><span style="font-size:14px;">IMDb ratings CSVs work too</span></div>
     <button class="lnk" style="font-size:14px;" onclick="window.open('https://letterboxd.com/settings/data/','_blank')">Open Letterboxd export page ${I("chevR",13)}</button>

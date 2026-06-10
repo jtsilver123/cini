@@ -2,7 +2,7 @@ import SwiftUI
 import RankingEngine
 
 /// "MY LISTS": category switcher, Watched/Watchlist/Recs/Guides sub-tabs,
-/// filter pills, sort control, ranked rows, and the floating View Timeline pill.
+/// filter pills, sort control, and ranked rows.
 struct YourListsView: View {
     @Environment(RankingStore.self) private var store
 
@@ -15,7 +15,6 @@ struct YourListsView: View {
     @State private var runtimeFilter: Int?       // max minutes
     @State private var streamingFilter = false
     @State private var languageFilter: String?   // ISO 639-1 code
-    @State private var showTimeline = false
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
@@ -47,18 +46,9 @@ struct YourListsView: View {
                 listContent
             }
             .background(Theme.background)
-            .overlay(alignment: .bottom) {
-                PillButton(title: "View Timeline", systemImage: "chart.bar.xaxis") {
-                    showTimeline = true
-                }
-                .padding(.bottom, 18)
-            }
             .sheet(isPresented: $showCategorySheet) {
                 CategorySheet(selection: $category)
                     .presentationDetents([.height(260)])
-            }
-            .sheet(isPresented: $showTimeline) {
-                TimelineView()
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
@@ -523,56 +513,3 @@ struct CategorySheet: View {
     }
 }
 
-// MARK: - View Timeline (Beli's View Map → decade/year breakdown)
-
-struct TimelineView: View {
-    @Environment(RankingStore.self) private var store
-
-    private var decadeCounts: [(decade: Int, count: Int)] {
-        var counts: [Int: Int] = [:]
-        for item in store.watchedItems {
-            if let year = store.movie(item.id)?.releaseYear {
-                counts[year / 10 * 10, default: 0] += 1
-            }
-        }
-        return counts.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Your watched list by decade")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-
-                    let maxCount = decadeCounts.map(\.count).max() ?? 1
-                    ForEach(decadeCounts, id: \.decade) { entry in
-                        HStack(spacing: 12) {
-                            Text("\(String(entry.decade))s")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(width: 56, alignment: .leading)
-                            GeometryReader { geo in
-                                Capsule()
-                                    .fill(Theme.marquee)
-                                    .frame(width: max(8, geo.size.width * CGFloat(entry.count) / CGFloat(maxCount)))
-                            }
-                            .frame(height: 18)
-                            Text("\(entry.count)")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.gray)
-                        }
-                    }
-
-                    if decadeCounts.isEmpty {
-                        Text("Rank some movies to see your timeline.")
-                            .foregroundStyle(Theme.gray)
-                    }
-                }
-                .padding(20)
-            }
-            .navigationTitle("Timeline")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}

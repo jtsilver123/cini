@@ -1,12 +1,16 @@
 import SwiftUI
+import PhotosUI
 
-/// Edit profile: identity, bio, socials (shown openly on the profile —
-/// no lock icons), and the private-account switch.
+/// Edit profile, Beli-style: photo up top, identity rows, socials (shown
+/// openly on the profile — no lock icons), privacy, then Account settings.
 struct EditProfileView: View {
     let profile: Profile
     var onSaved: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @State private var photoItem: PhotosPickerItem?
+    @State private var avatarURL: URL?
+    @State private var isUploadingPhoto = false
 
     @State private var displayName: String
     @State private var username: String
@@ -41,6 +45,27 @@ struct EditProfileView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    VStack(spacing: 12) {
+                        AvatarView(url: avatarURL ?? profile.avatarURL, size: 96)
+                        PhotosPicker(selection: $photoItem, matching: .images) {
+                            if isUploadingPhoto {
+                                ProgressView()
+                            } else {
+                                Text("Edit profile photo")
+                                    .font(.subheadline.weight(.bold))
+                                    .foregroundStyle(Theme.marquee)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
+                .onChange(of: photoItem) { _, item in
+                    guard let item else { return }
+                    Task { await uploadPhoto(item) }
+                }
+
                 Section("Identity") {
                     TextField("Display name", text: $displayName)
                     TextField("Username", text: $username)
@@ -72,6 +97,16 @@ struct EditProfileView: View {
                         .tint(Theme.velvet)
                 } footer: {
                     Text("Private accounts only share rankings and activity with approved followers.")
+                }
+
+                Section {
+                    NavigationLink {
+                        AccountSettingsView()
+                    } label: {
+                        Text("Account settings")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
                 }
 
                 if let errorMessage {
@@ -110,6 +145,33 @@ struct EditProfileView: View {
             TextField("handle", text: text)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+        }
+    }
+
+    private func uploadPhoto(_ item: PhotosPickerItem) async {
+        isUploadingPhoto = true
+        defer { isUploadingPhoto = false }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            errorMessage = "Couldn't read that photo — try another."
+            return
+        }
+        // Avatars render at ~100pt; 512px keeps uploads tiny and sharp.
+        let side: CGFloat = 512
+        let scale = max(side / image.size.width, side / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
+            errorMessage = "Couldn't process that photo — try another."
+            return
+        }
+        do {
+            avatarURL = try await SupabaseService.shared.uploadAvatar(jpeg)
+            onSaved()
+        } catch {
+            errorMessage = "Photo upload failed — check your connection."
         }
     }
 

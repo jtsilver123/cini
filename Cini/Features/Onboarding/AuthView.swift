@@ -116,10 +116,16 @@ struct AuthView: View {
             Spacer()
         }
         .padding(28)
-        .background(Theme.background)
-        // Tapping anywhere outside the fields puts the keyboard away.
-        .contentShape(Rectangle())
-        .onTapGesture { focusedField = nil }
+        // Keyboard dismissal lives on a layer BEHIND the content: taps on
+        // empty space reach it, taps on controls don't. A tap gesture on
+        // the container itself swallows touches on SignInWithAppleButton
+        // (UIKit-backed), making the Apple button completely dead.
+        .background(
+            Theme.background
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = nil }
+                .ignoresSafeArea()
+        )
     }
 
     private func field(_ placeholder: String, text: Binding<String>,

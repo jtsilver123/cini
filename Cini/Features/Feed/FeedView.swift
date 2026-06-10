@@ -12,6 +12,9 @@ struct FeedView: View {
     @State private var memberTarget: MemberRef?
     @State private var showImport = false
     @State private var showRankSheet = false
+    @State private var showMenuImport = false
+    @State private var showSettings = false
+    @State private var showChangePassword = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +46,15 @@ struct FeedView: View {
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
             }
+            .sheet(isPresented: $showMenuImport) {
+                LetterboxdImportView()
+            }
+            .navigationDestination(isPresented: $showSettings) {
+                AccountSettingsView()
+            }
+            .navigationDestination(isPresented: $showChangePassword) {
+                ChangePasswordView()
+            }
         }
     }
 
@@ -70,7 +82,30 @@ struct FeedView: View {
                             }
                         }
                 }
-                Image(systemName: "line.3.horizontal")
+                Menu {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    Button {
+                        showMenuImport = true
+                    } label: {
+                        Label("Import Existing List", systemImage: "square.and.arrow.down")
+                    }
+                    Button {
+                        showChangePassword = true
+                    } label: {
+                        Label("Change Password", systemImage: "key")
+                    }
+                    Button(role: .destructive) {
+                        Task { await session.signOut() }
+                    } label: {
+                        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                }
             }
             .font(.title3)
             .foregroundStyle(Theme.ink)

@@ -103,7 +103,7 @@ struct LetterboxdImportView: View {
                 HairlineCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Label {
-                            Text("Tap below to open Letterboxd, then **Export your data** — Safari saves the .zip to Files")
+                            Text("In Letterboxd, open your **Profile**, tap the **gear icon** in the top left, scroll down to **Advanced settings**, and tap **Export your data** — the .zip saves to Files")
                         } icon: {
                             Text("1").bold().foregroundStyle(Theme.marquee)
                         }

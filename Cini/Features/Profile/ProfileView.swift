@@ -27,6 +27,8 @@ struct ProfileScreen: View {
     @State private var profileTab = 0   // 0 = Activity, 1 = Taste Profile
     @State private var showImport = false
     @State private var showEditProfile = false
+    @State private var showSettings = false
+    @State private var showChangePassword = false
     @State private var detailMovie: Movie?
     @State private var loaded = false
 
@@ -62,6 +64,12 @@ struct ProfileScreen: View {
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
+        }
+        .navigationDestination(isPresented: $showSettings) {
+            AccountSettingsView()
+        }
+        .navigationDestination(isPresented: $showChangePassword) {
+            ChangePasswordView()
         }
         .task { await load() }
     }
@@ -115,12 +123,24 @@ struct ProfileScreen: View {
                 }
                 Menu {
                     Button {
+                        showSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+                    Button {
                         showImport = true
                     } label: {
-                        Label("Import from Letterboxd or Notes", systemImage: "square.and.arrow.down")
+                        Label("Import Existing List", systemImage: "square.and.arrow.down")
                     }
-                    Button("Sign out", role: .destructive) {
+                    Button {
+                        showChangePassword = true
+                    } label: {
+                        Label("Change Password", systemImage: "key")
+                    }
+                    Button(role: .destructive) {
                         Task { await session.signOut() }
+                    } label: {
+                        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal").foregroundStyle(Theme.ink)
