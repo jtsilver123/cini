@@ -277,10 +277,10 @@ struct MovieLookupTool: Tool {
         var title: String
     }
 
-    func call(arguments: Arguments) async throws -> ToolOutput {
+    func call(arguments: Arguments) async throws -> String {
         let results = (try? await TMDBService.shared.search(query: arguments.title)) ?? []
         guard let movie = results.first else {
-            return ToolOutput("No movie found called \"\(arguments.title)\".")
+            return "No movie found called \"\(arguments.title)\"."
         }
         var summary = "\(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) — \(movie.genres.joined(separator: ", "))"
         if let detail = try? await TMDBService.shared.details(for: movie.tmdbID) {
@@ -290,7 +290,7 @@ struct MovieLookupTool: Tool {
                 summary += ". Streaming on " + providers.streamingNames.prefix(3).joined(separator: ", ")
             }
         }
-        return ToolOutput(summary)
+        return summary
     }
 }
 
