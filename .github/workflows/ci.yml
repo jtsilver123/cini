@@ -32,16 +32,17 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Build app (no signing)
+      - name: Build app + run app tests on simulator
         run: |
           set -o pipefail
-          xcodebuild build \
+          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE "iPhone [0-9][^(]*" | head -1 | xargs)
+          echo "Using simulator: $DEVICE"
+          xcodebuild test \
             -project Cini.xcodeproj \
             -scheme Cini \
-            -destination 'generic/platform=iOS Simulator' \
+            -destination "platform=iOS Simulator,name=$DEVICE" \
             CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=YES \
-            | tail -200
+            | tail -300
 
       - name: Engine tests (macOS)
         run: swift test --package-path RankingEngine

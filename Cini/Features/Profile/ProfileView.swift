@@ -9,6 +9,7 @@ struct ProfileView: View {
     @State private var followerCount = 0
     @State private var followingCount = 0
     @State private var showGoalEditor = false
+    @State private var showImport = false
 
     private var profile: Profile? { session.profile }
 
@@ -31,6 +32,9 @@ struct ProfileView: View {
                 GoalEditorSheet()
                     .presentationDetents([.height(240)])
             }
+            .sheet(isPresented: $showImport) {
+                LetterboxdImportView()
+            }
         }
     }
 
@@ -42,6 +46,11 @@ struct ProfileView: View {
             HStack(spacing: 18) {
                 Image(systemName: "square.and.arrow.up")
                 Menu {
+                    Button {
+                        showImport = true
+                    } label: {
+                        Label("Import from Letterboxd", systemImage: "square.and.arrow.down")
+                    }
                     Button("Sign out", role: .destructive) {
                         Task { await session.signOut() }
                     }

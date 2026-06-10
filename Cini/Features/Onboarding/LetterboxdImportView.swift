@@ -1,124 +1,236 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Letterboxd CSV / IMDb ratings import. Parsed titles are matched against
-/// TMDB and seed the "Movies you may have seen" queue — the user still ranks
-/// each one through the comparison flow (we never import star ratings).
+/// Letterboxd / IMDb import. Accepts the actual Letterboxd export ZIP
+/// (or any single CSV), matches every title against TMDB with live
+/// progress, auto-imports the Letterboxd watchlist, and seeds the
+/// persistent "Movies you may have seen" ranking queue — favorites first.
 struct LetterboxdImportView: View {
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    @State private var phase: Phase = .pick
+    @State private var importWatchlist = true
+    @State private var result: LetterboxdImporter.Result?
+    @State private var progressText = ""
+    @State private var progressFraction: Double = 0
+    @State private var errorMessage: String?
     @State private var showPicker = false
-    @State private var imported: [ImportedTitle] = []
-    @State private var matching = false
 
-    struct ImportedTitle: Identifiable {
-        let id = UUID()
-        let title: String
-        let year: Int?
-        var match: Movie?
+    enum Phase {
+        case pick, working, summary
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 18) {
-                Image(systemName: "square.and.arrow.down")
+            Group {
+                switch phase {
+                case .pick: pickStep
+                case .working: workingStep
+                case .summary: summaryStep
+                }
+            }
+            .background(Theme.background)
+            .navigationTitle("Import")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if phase != .working {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(phase == .summary ? "Done" : "Cancel") { dismiss() }
+                    }
+                }
+            }
+            .fileImporter(
+                isPresented: $showPicker,
+                allowedContentTypes: [.zip, .commaSeparatedText, .plainText]
+            ) { pickResult in
+                if case .success(let url) = pickResult {
+                    Task { await runImport(from: url) }
+                }
+            }
+        }
+        .interactiveDismissDisabled(phase == .working)
+    }
+
+    // MARK: Step 1 — pick the file
+
+    private var pickStep: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                Image(systemName: "square.and.arrow.down.on.square")
                     .font(.system(size: 44))
                     .foregroundStyle(Theme.teal)
-                Text("Import your history")
-                    .font(Theme.serif(28))
-                Text("Upload a Letterboxd export (watched.csv) or IMDb ratings CSV. We'll queue everything under \"Movies you may have seen\" so you can rank them your way.")
+                    .padding(.top, 28)
+                Text("Bring your history")
+                    .font(Theme.serif(30))
+                Text("Import your Letterboxd export and Cini queues every film you've logged so you can rank them — favorites first. Your Letterboxd watchlist comes along too.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
 
-                PillButton(title: "Choose CSV file", systemImage: "doc") {
+                HairlineCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label {
+                            Text("On letterboxd.com: **Settings → Data → Export your data**")
+                        } icon: {
+                            Text("1").bold().foregroundStyle(Theme.teal)
+                        }
+                        Label {
+                            Text("Save the **.zip** it gives you (no need to unzip)")
+                        } icon: {
+                            Text("2").bold().foregroundStyle(Theme.teal)
+                        }
+                        Label {
+                            Text("Pick that file below — IMDb ratings CSVs work too")
+                        } icon: {
+                            Text("3").bold().foregroundStyle(Theme.teal)
+                        }
+                    }
+                    .font(.subheadline)
+                }
+
+                Toggle(isOn: $importWatchlist) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Also import my watchlist").font(.subheadline.weight(.semibold))
+                        Text("Letterboxd watchlist → Cini watchlist, instantly")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+                .tint(Theme.teal)
+                .padding(.horizontal, 4)
+
+                PillButton(title: "Choose export file", systemImage: "folder") {
                     showPicker = true
                 }
 
-                if matching {
-                    ProgressView("Matching \(imported.count) titles against TMDB…")
-                }
+                Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
 
-                if !imported.isEmpty && !matching {
-                    let matched = imported.filter { $0.match != nil }.count
-                    Text("Matched \(matched) of \(imported.count) titles")
-                        .font(.subheadline.weight(.semibold))
-                    PillButton(title: "Done") { dismiss() }
-                }
-
-                Spacer()
-            }
-            .padding(28)
-            .background(Theme.background)
-            .fileImporter(
-                isPresented: $showPicker,
-                allowedContentTypes: [.commaSeparatedText, .plainText]
-            ) { result in
-                if case .success(let url) = result {
-                    Task { await importCSV(from: url) }
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
                 }
             }
+            .padding(20)
         }
     }
 
-    private func importCSV(from url: URL) async {
-        guard url.startAccessingSecurityScopedResource(),
-              let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return }
-        defer { url.stopAccessingSecurityScopedResource() }
+    // MARK: Step 2 — progress
 
-        imported = Self.parse(csv: text)
-        matching = true
-        // Match a bounded batch immediately; the rest match lazily later.
-        for index in imported.prefix(40).indices {
-            let entry = imported[index]
-            let results = (try? await TMDBService.shared.search(query: entry.title, year: entry.year)) ?? []
-            if let best = results.first {
-                imported[index].match = best
-                store.cache(best)
-            }
+    private var workingStep: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            ProgressView(value: progressFraction)
+                .progressViewStyle(.linear)
+                .tint(Theme.teal)
+                .padding(.horizontal, 48)
+            Text(progressText)
+                .font(.subheadline.weight(.semibold))
+            Text("Matching every title against TMDB — big libraries take a minute.")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+            Spacer()
         }
-        matching = false
+        .frame(maxWidth: .infinity)
     }
 
-    /// Parses both Letterboxd (Date,Name,Year,Letterboxd URI) and IMDb
-    /// (Const,Your Rating,...,Title,...,Year) export shapes.
-    static func parse(csv: String) -> [ImportedTitle] {
-        let lines = csv.split(whereSeparator: \.isNewline).map(String.init)
-        guard let headerLine = lines.first else { return [] }
-        let header = splitCSVRow(headerLine).map { $0.lowercased() }
+    // MARK: Step 3 — summary
 
-        let titleIndex = header.firstIndex { $0 == "name" || $0 == "title" }
-        let yearIndex = header.firstIndex { $0 == "year" }
-        guard let titleIndex else { return [] }
+    private var summaryStep: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 48))
+                    .foregroundStyle(Theme.scoreGreen)
+                    .padding(.top, 24)
+                Text("Import complete")
+                    .font(Theme.serif(30))
 
-        return lines.dropFirst().compactMap { line in
-            let fields = splitCSVRow(line)
-            guard fields.indices.contains(titleIndex) else { return nil }
-            let title = fields[titleIndex].trimmingCharacters(in: .whitespaces)
-            guard !title.isEmpty else { return nil }
-            let year = yearIndex.flatMap { fields.indices.contains($0) ? Int(fields[$0]) : nil }
-            return ImportedTitle(title: title, year: year)
+                if let result {
+                    VStack(spacing: 0) {
+                        summaryRow(icon: "film.stack", count: result.watched.count,
+                                   label: "films queued to rank",
+                                   detail: "Find them under Search → \"Movies you may have seen\" — your favorites are first.")
+                        Divider()
+                        summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
+                                   label: "added to your watchlist",
+                                   detail: importWatchlist ? nil : "Watchlist import was off.")
+                        if !result.unmatched.isEmpty {
+                            Divider()
+                            summaryRow(icon: "questionmark.circle", count: result.unmatched.count,
+                                       label: "couldn't be matched",
+                                       detail: result.unmatched.prefix(5).map(\.title).joined(separator: ", ")
+                                           + (result.unmatched.count > 5 ? "…" : ""))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    .floatingCard()
+                }
+
+                PillButton(title: "Start ranking", systemImage: "arrow.right") {
+                    dismiss()
+                }
+            }
+            .padding(20)
         }
     }
 
-    /// Minimal CSV field splitter with quoted-field support.
-    static func splitCSVRow(_ row: String) -> [String] {
-        var fields: [String] = []
-        var current = ""
-        var inQuotes = false
-        for char in row {
-            switch char {
-            case "\"": inQuotes.toggle()
-            case "," where !inQuotes:
-                fields.append(current)
-                current = ""
-            default:
-                current.append(char)
+    private func summaryRow(icon: String, count: Int, label: String, detail: String?) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: icon).foregroundStyle(Theme.teal).frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(count) \(label)").font(.subheadline.weight(.bold))
+                if let detail {
+                    Text(detail).font(.caption).foregroundStyle(Theme.gray)
+                }
             }
+            Spacer()
         }
-        fields.append(current)
-        return fields
+        .padding(14)
+    }
+
+    // MARK: Pipeline
+
+    private func runImport(from url: URL) async {
+        errorMessage = nil
+        withAnimation(.snappy) { phase = .working }
+        progressText = "Reading export…"
+        progressFraction = 0
+
+        do {
+            let outcome = try await LetterboxdImporter.run(fileURL: url) { progress in
+                switch progress {
+                case .reading:
+                    progressText = "Reading export…"
+                case .matching(let done, let total):
+                    progressText = "Matching \(done) of \(total)"
+                    progressFraction = Double(done) / Double(max(total, 1))
+                }
+            }
+
+            // Seed the persistent ranking queue (favorites first).
+            ImportQueue.shared.seed(with: outcome.watched, store: store)
+
+            // Letterboxd watchlist → Cini watchlist.
+            if importWatchlist {
+                for match in outcome.watchlist
+                where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
+                    await store.toggleWatchlist(movie: match.movie)
+                }
+            }
+
+            result = outcome
+            withAnimation(.snappy) { phase = .summary }
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Something went wrong reading that file."
+            withAnimation(.snappy) { phase = .pick }
+        }
     }
 }

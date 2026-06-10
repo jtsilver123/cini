@@ -5,6 +5,7 @@ import SwiftUI
 struct SearchView: View {
     @Environment(RankingStore.self) private var store
 
+    @State private var importQueue = ImportQueue.shared
     @State private var tab = 0   // 0 = Movies, 1 = Members
     @State private var query = ""
     @State private var yearFilter = ""
@@ -14,6 +15,7 @@ struct SearchView: View {
     @State private var maybeSeen: [Movie] = []
     @State private var dismissedMaybeSeen: Set<Int> = []
     @State private var showAllMaybeSeen = false
+    @State private var showImport = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
@@ -42,6 +44,9 @@ struct SearchView: View {
             .background(Theme.background)
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
+            }
+            .sheet(isPresented: $showImport) {
+                LetterboxdImportView()
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -200,16 +205,88 @@ struct SearchView: View {
 
     // MARK: "Movies you may have seen"
 
+    /// Imported queue first (persistent, favorites-first); popular titles
+    /// only as a cold-start fallback before any import.
+    private var queueEntries: [ImportQueue.Entry] {
+        importQueue.entries.filter { !store.isWatched($0.movieID) }
+    }
+
     private var visibleMaybeSeen: [Movie] {
         maybeSeen.filter { !dismissedMaybeSeen.contains($0.tmdbID) && !store.isWatched($0.tmdbID) }
     }
 
+    @ViewBuilder
     private var maybeSeenSection: some View {
+        if !queueEntries.isEmpty {
+            importedQueueSection
+        } else {
+            popularFallbackSection
+        }
+    }
+
+    private var importedQueueSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Movies you may have seen").font(.headline)
-            Text("Based on your import (Ranked \(store.watchedCount) of \(store.watchedCount + visibleMaybeSeen.count))")
+            HStack {
+                Text("Movies you may have seen").font(.headline)
+                Spacer()
+                Button("Import more") { showImport = true }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.teal)
+            }
+            Text("From your import (Ranked \(importQueue.rankedFromImport) of \(importQueue.totalImported))")
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
+
+            ForEach(queueEntries.prefix(showAllMaybeSeen ? 200 : 4)) { entry in
+                let movie = store.movie(entry.movieID)
+                    ?? Movie(tmdbID: entry.movieID, mediaKind: "movie", title: entry.title,
+                             releaseYear: entry.year, posterPath: nil, backdropPath: nil,
+                             genres: [], certification: nil, runtimeMinutes: nil,
+                             director: nil, overview: nil)
+                MovieSuggestionRow(
+                    movie: movie,
+                    onRank: { logMovie = movie },
+                    onOpen: { detailMovie = movie },
+                    onDismiss: { importQueue.dismiss(entry.movieID) }
+                )
+                .task { await store.enrich(entry.movieID) }
+                Divider()
+            }
+
+            if queueEntries.count > 4 && !showAllMaybeSeen {
+                seeAllButton(count: queueEntries.count)
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private var popularFallbackSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Movies you may have seen").font(.headline)
+
+            Button {
+                showImport = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.title3)
+                        .foregroundStyle(Theme.teal)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Import from Letterboxd or IMDb")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                        Text("Queue your whole history to rank — favorites first")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                }
+                .padding(14)
+            }
+            .buttonStyle(.plain)
+            .floatingCard(cornerRadius: 14)
+            .padding(.vertical, 6)
 
             ForEach(visibleMaybeSeen.prefix(showAllMaybeSeen ? 100 : 4)) { movie in
                 MovieSuggestionRow(
@@ -222,21 +299,25 @@ struct SearchView: View {
             }
 
             if visibleMaybeSeen.count > 4 && !showAllMaybeSeen {
-                Button {
-                    withAnimation { showAllMaybeSeen = true }
-                } label: {
-                    HStack {
-                        Text("See All (\(visibleMaybeSeen.count))").font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Image(systemName: "chevron.down")
-                    }
-                    .foregroundStyle(Theme.teal)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 4)
+                seeAllButton(count: visibleMaybeSeen.count)
             }
         }
         .padding(.top, 8)
+    }
+
+    private func seeAllButton(count: Int) -> some View {
+        Button {
+            withAnimation { showAllMaybeSeen = true }
+        } label: {
+            HStack {
+                Text("See All (\(count))").font(.subheadline.weight(.semibold))
+                Spacer()
+                Image(systemName: "chevron.down")
+            }
+            .foregroundStyle(Theme.teal)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 4)
     }
 
     // MARK: Data

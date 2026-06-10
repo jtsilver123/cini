@@ -81,6 +81,7 @@ final class RankingStore {
         guard session.isComplete else { return nil }
         let scored = list.commit(session)
         watchlist.removeAll { $0.movieID == session.newItemID }
+        ImportQueue.shared.markRanked(session.newItemID)
         do {
             if let movie = movies[session.newItemID] {
                 try? await supabase.cacheMovie(movie)

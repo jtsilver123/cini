@@ -47,3 +47,17 @@ targets:
       path: Cini/Resources/Cini.entitlements
       properties:
         com.apple.developer.applesignin: [Default]
+    scheme:
+      testTargets:
+        - CiniTests
+
+  CiniTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - CiniTests
+    dependencies:
+      - target: Cini
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.cini.ios.tests
