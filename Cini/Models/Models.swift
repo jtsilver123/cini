@@ -50,6 +50,8 @@ struct Movie: Identifiable, Codable, Hashable {
     var runtimeMinutes: Int?
     var director: String?
     var overview: String?
+    /// ISO 639-1 original language code from TMDB (e.g. "en", "ko").
+    var originalLanguage: String?
     /// "On Netflix, Max" — filled from the TMDB watch-provider endpoint.
     var streamingOn: [String] = []
 
@@ -80,6 +82,11 @@ struct Movie: Identifiable, Codable, Hashable {
 
     var availabilityText: String? {
         streamingOn.isEmpty ? nil : "On " + streamingOn.prefix(2).joined(separator: ", ")
+    }
+
+    /// "Korean", "French" — localized display name for the language filter.
+    var languageName: String? {
+        originalLanguage.flatMap { Locale.current.localizedString(forLanguageCode: $0) }
     }
 }
 

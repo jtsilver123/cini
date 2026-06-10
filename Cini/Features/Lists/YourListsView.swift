@@ -12,16 +12,26 @@ struct YourListsView: View {
     @State private var sortDescending = true
     @State private var genreFilter: String?
     @State private var decadeFilter: Int?
+    @State private var runtimeFilter: Int?       // max minutes
+    @State private var streamingFilter = false
+    @State private var languageFilter: String?   // ISO 639-1 code
     @State private var showTimeline = false
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
-    @State private var recs: [Movie] = []
+    @State private var recCandidates: [RecCandidate] = []
+    @State private var recsLoaded = false
+
+    struct RecCandidate: Identifiable, Hashable {
+        let movie: Movie
+        let reason: String
+        var id: Int { movie.tmdbID }
+    }
 
     enum SubTab: String, CaseIterable {
         case watched = "Watched"
         case watchlist = "Watchlist"
         case recs = "Recs"
-        case guides = "Guides"
+        case shared = "Shared"
     }
 
     var body: some View {
@@ -30,8 +40,10 @@ struct YourListsView: View {
                 header
                 categoryRow
                 subTabs
-                filterRow
-                sortRow
+                if subTab != .shared {
+                    filterRow
+                    sortRow
+                }
                 listContent
             }
             .background(Theme.background)
@@ -144,8 +156,30 @@ struct YourListsView: View {
                 } label: {
                     FilterPill(title: decadeFilter.map { "\(String($0))s" } ?? "Decade")
                 }
-                FilterPill(title: "Streaming")
-                FilterPill(title: "Runtime", hasChevron: false)
+                Menu {
+                    Button("Anywhere") { streamingFilter = false }
+                    Button("Streaming now") { streamingFilter = true }
+                } label: {
+                    FilterPill(title: streamingFilter ? "Streaming now" : "Streaming")
+                }
+                Menu {
+                    Button("Any runtime") { runtimeFilter = nil }
+                    Button("Under 100 min") { runtimeFilter = 100 }
+                    Button("Under 2 hours") { runtimeFilter = 120 }
+                    Button("Under 2½ hours") { runtimeFilter = 150 }
+                } label: {
+                    FilterPill(title: runtimeFilter.map { "< \($0) min" } ?? "Runtime")
+                }
+                Menu {
+                    Button("All Languages") { languageFilter = nil }
+                    ForEach(allLanguages, id: \.code) { language in
+                        Button(language.name) { languageFilter = language.code }
+                    }
+                } label: {
+                    FilterPill(title: languageFilter.flatMap {
+                        Locale.current.localizedString(forLanguageCode: $0)
+                    } ?? "Language")
+                }
             }
             .padding(.horizontal, 16)
         }
@@ -180,23 +214,38 @@ struct YourListsView: View {
         case .watched: watchedList
         case .watchlist: watchlistList
         case .recs: recsList
-        case .guides: guidesPlaceholder
+        case .shared: SharedListsView()
         }
+    }
+
+    /// Shared filter predicate: genre, decade, runtime, streaming, language.
+    private func passesFilters(_ movie: Movie) -> Bool {
+        if movie.mediaKind != category.mediaKind && !(category == .movies && movie.mediaKind == "movie") {
+            return false
+        }
+        if let genreFilter, !movie.genres.contains(genreFilter) { return false }
+        if let decadeFilter, let year = movie.releaseYear,
+           !(decadeFilter..<decadeFilter + 10).contains(year) { return false }
+        if let runtimeFilter, let runtime = movie.runtimeMinutes, runtime > runtimeFilter { return false }
+        if streamingFilter && movie.streamingOn.isEmpty { return false }
+        if let languageFilter, movie.originalLanguage != languageFilter { return false }
+        return true
     }
 
     private var filteredWatched: [ScoredItem<Int>] {
         let items = sortDescending ? store.watchedItems : store.watchedItems.reversed()
         return items.filter { item in
             guard let movie = store.movie(item.id) else { return true }
-            if movie.mediaKind != category.mediaKind && !(category == .movies && movie.mediaKind == "movie") {
-                return false
-            }
-            if let genreFilter, !movie.genres.contains(genreFilter) { return false }
-            if let decadeFilter, let year = movie.releaseYear, !(decadeFilter..<decadeFilter + 10).contains(year) {
-                return false
-            }
-            return true
+            return passesFilters(movie)
         }
+    }
+
+    private var allLanguages: [(code: String, name: String)] {
+        let codes = Set(store.movies.values.compactMap(\.originalLanguage))
+        return codes.compactMap { code in
+            Locale.current.localizedString(forLanguageCode: code).map { (code, $0) }
+        }
+        .sorted { $0.1 < $1.1 }
     }
 
     private var watchedList: some View {
@@ -239,40 +288,101 @@ struct YourListsView: View {
         }
     }
 
+    private var filteredRecs: [RecCandidate] {
+        recCandidates.filter { passesFilters($0.movie) }
+    }
+
+    /// Recs: friends' loves weighted by taste match, then TMDB-similar to the
+    /// user's #1, then trending — first match wins per movie. The filter
+    /// pills above (genre/decade/runtime/streaming/language) apply here too,
+    /// so "what should I watch tonight?" is just Recs + a couple of taps.
     private var recsList: some View {
         List {
-            ForEach(recs) { movie in
-                WatchlistRowView(movie: movie) {
-                    logMovie = movie
+            Button {
+                guard let pick = filteredRecs.randomElement() else { return }
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                detailMovie = pick.movie
+            } label: {
+                Label("Surprise me", systemImage: "dice")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.teal)
+            }
+            .listRowBackground(Theme.background)
+
+            ForEach(filteredRecs) { candidate in
+                VStack(alignment: .leading, spacing: 4) {
+                    WatchlistRowView(movie: candidate.movie) {
+                        logMovie = candidate.movie
+                    }
+                    Text(candidate.reason)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.scoreGreen)
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { detailMovie = movie }
+                .onTapGesture { detailMovie = candidate.movie }
                 .listRowBackground(Theme.background)
             }
         }
         .listStyle(.plain)
-        .task {
-            // Personalized recs: TMDB similar-titles seeded by the user's
-            // top-ranked movies (friend-weighted recs land with taste graph).
-            guard recs.isEmpty, let top = store.watchedItems.first else {
-                if recs.isEmpty { recs = (try? await TMDBService.shared.trending()) ?? [] }
-                return
+        .overlay {
+            if recsLoaded && filteredRecs.isEmpty {
+                emptyList("No recs match these filters — loosen one, or follow more friends.")
             }
-            let similar = (try? await TMDBService.shared.similar(to: top.id)) ?? []
-            recs = similar.filter { !store.isWatched($0.tmdbID) }
         }
+        .task { await loadRecs() }
     }
 
-    private var guidesPlaceholder: some View {
-        VStack(spacing: 10) {
-            Spacer()
-            Image(systemName: "book").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text("Guides are coming soon")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-            Spacer()
+    private func loadRecs() async {
+        guard recCandidates.isEmpty else { return }
+        var result: [RecCandidate] = []
+        var seen = Set<Int>()
+
+        // 1. Friend-powered (taste-match weighted) from the database.
+        if let friendRecs = try? await SupabaseService.shared.recsForUser() {
+            let rows = (try? await SupabaseService.shared.movies(ids: friendRecs.map(\.movieId))) ?? []
+            for row in rows { store.cache(row.asMovie) }
+            for rec in friendRecs where seen.insert(rec.movieId).inserted {
+                await store.enrich(rec.movieId)
+                if let movie = store.movie(rec.movieId) {
+                    let who = rec.topFriendUsername.map { "@\($0)" } ?? "friends"
+                    result.append(RecCandidate(
+                        movie: movie,
+                        reason: rec.friendCount > 1
+                            ? "Loved by \(who) + \(rec.friendCount - 1) more"
+                            : "Loved by \(who)"
+                    ))
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
+
+        // 2. Similar to the user's current #1.
+        if let top = store.watchedItems.first,
+           let similar = try? await TMDBService.shared.similar(to: top.id) {
+            let topTitle = store.movie(top.id)?.title ?? "your #1"
+            for movie in similar.prefix(10)
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+                store.cache(movie)
+                await store.enrich(movie.tmdbID)
+                if let enriched = store.movie(movie.tmdbID) {
+                    result.append(RecCandidate(movie: enriched, reason: "Because you loved \(topTitle)"))
+                }
+            }
+        }
+
+        // 3. Trending keeps the tab alive while the social graph is small.
+        if result.count < 10, let trending = try? await TMDBService.shared.trending() {
+            for movie in trending.prefix(10)
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+                store.cache(movie)
+                await store.enrich(movie.tmdbID)
+                if let enriched = store.movie(movie.tmdbID) {
+                    result.append(RecCandidate(movie: enriched, reason: "Trending this week"))
+                }
+            }
+        }
+
+        recCandidates = result
+        recsLoaded = true
     }
 
     private func emptyList(_ message: String) -> some View {

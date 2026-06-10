@@ -147,6 +147,7 @@ struct FeedCard: View {
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
+    @State private var showComments = false
 
     private var movie: Movie? { event.movies?.asMovie }
     private var actorName: String { event.profiles?.username ?? "someone" }
@@ -200,8 +201,13 @@ struct FeedCard: View {
                     Image(systemName: liked ? "heart.fill" : "heart")
                         .foregroundStyle(liked ? .red : Theme.ink)
                 }
-                Image(systemName: "bubble.right")
-                Image(systemName: "paperplane")
+                Button { showComments = true } label: {
+                    Image(systemName: "bubble.right")
+                }
+                ShareLink(item: URL(string: "https://cini.app/movie/\(movie?.tmdbID ?? 0)")!) {
+                    Image(systemName: "paperplane")
+                        .foregroundStyle(Theme.ink)
+                }
                 Spacer()
                 if let movie {
                     Button { onQuickAdd(movie) } label: {
@@ -224,6 +230,85 @@ struct FeedCard: View {
                 .foregroundStyle(Theme.gray)
         }
         .padding(.vertical, 6)
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(event: event)
+                .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+// MARK: - Comments
+
+struct CommentsSheet: View {
+    let event: FeedEventRow
+
+    @State private var comments: [CommentRow] = []
+    @State private var draft = ""
+    @State private var loaded = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if comments.isEmpty && loaded {
+                    Spacer()
+                    Text("No comments yet — say something nice.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                    Spacer()
+                } else {
+                    List(comments) { comment in
+                        HStack(alignment: .top, spacing: 12) {
+                            AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36)
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Text("@\(comment.profiles?.username ?? "member")")
+                                        .font(.caption.weight(.bold))
+                                    Text(comment.createdAt.formatted(.relative(presentation: .named)))
+                                        .font(.caption2)
+                                        .foregroundStyle(Theme.gray)
+                                }
+                                Text(comment.body).font(.subheadline)
+                            }
+                        }
+                        .listRowBackground(Theme.background)
+                    }
+                    .listStyle(.plain)
+                }
+
+                HStack(spacing: 10) {
+                    TextField("Add a comment…", text: $draft, axis: .vertical)
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 18).fill(Color.black.opacity(0.05)))
+                    Button {
+                        Task { await post() }
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.title)
+                            .foregroundStyle(Theme.teal)
+                    }
+                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(12)
+                .background(.thinMaterial)
+            }
+            .background(Theme.background)
+            .navigationTitle("Comments")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .task { await reload() }
+    }
+
+    private func reload() async {
+        comments = (try? await SupabaseService.shared.comments(eventID: event.id)) ?? []
+        loaded = true
+    }
+
+    private func post() async {
+        let body = draft.trimmingCharacters(in: .whitespaces)
+        guard !body.isEmpty else { return }
+        draft = ""
+        try? await SupabaseService.shared.comment(eventID: event.id, body: body)
+        await reload()
     }
 }
 

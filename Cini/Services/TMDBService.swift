@@ -148,6 +148,7 @@ private struct MovieDTO: Codable {
     let backdropPath: String?
     let overview: String?
     let genreIds: [Int]?
+    let originalLanguage: String?
 
     var asMovie: Movie {
         Movie(
@@ -161,7 +162,8 @@ private struct MovieDTO: Codable {
             certification: nil,
             runtimeMinutes: nil,
             director: nil,
-            overview: overview
+            overview: overview,
+            originalLanguage: originalLanguage
         )
     }
 
@@ -192,6 +194,7 @@ private struct DetailDTO: Codable {
     let overview: String?
     let runtime: Int?
     let genres: [Genre]
+    let originalLanguage: String?
     let credits: CreditsDTO?
     let releaseDates: ReleaseDates?
 
@@ -211,7 +214,8 @@ private struct DetailDTO: Codable {
             certification: usCert,
             runtimeMinutes: runtime,
             director: credits?.crew.first { $0.job == "Director" }?.name,
-            overview: overview
+            overview: overview,
+            originalLanguage: originalLanguage
         )
     }
 }

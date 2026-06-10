@@ -264,6 +264,83 @@ final class SupabaseService {
         try await client.from("comments").insert(Row(user_id: me, event_id: eventID, body: body)).execute()
     }
 
+    // MARK: - Recommendations
+
+    /// Friend-powered recs: movies friends loved (weighted by taste match)
+    /// that the user hasn't watched or watchlisted.
+    func recsForUser(limit: Int = 30) async throws -> [RecRow] {
+        struct Params: Encodable { let p_limit: Int }
+        return try await client.rpc("recs_for_user", params: Params(p_limit: limit))
+            .execute().value
+    }
+
+    // MARK: - Shared watchlists
+
+    func sharedLists() async throws -> [SharedListRow] {
+        try await client.from("shared_lists")
+            .select()
+            .order("created_at", ascending: false)
+            .execute().value
+    }
+
+    func createSharedList(name: String, emoji: String) async throws -> SharedListRow {
+        guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
+        struct Row: Encodable { let owner_id: UUID; let name: String; let emoji: String }
+        return try await client.from("shared_lists")
+            .insert(Row(owner_id: me, name: name, emoji: emoji))
+            .select().single()
+            .execute().value
+    }
+
+    func sharedListMovies(listID: UUID) async throws -> [SharedListMovieRow] {
+        try await client.from("shared_list_movies")
+            .select("*, profiles(username)")
+            .eq("list_id", value: listID)
+            .order("created_at", ascending: false)
+            .execute().value
+    }
+
+    func sharedListMembers(listID: UUID) async throws -> [ProfileRow] {
+        struct Edge: Codable {
+            let userId: UUID
+            enum CodingKeys: String, CodingKey { case userId = "user_id" }
+        }
+        let edges: [Edge] = try await client.from("shared_list_members")
+            .select("user_id")
+            .eq("list_id", value: listID)
+            .execute().value
+        guard !edges.isEmpty else { return [] }
+        return try await client.from("profiles")
+            .select().in("id", values: edges.map(\.userId))
+            .execute().value
+    }
+
+    func addToSharedList(listID: UUID, movieID: Int) async throws {
+        guard let me = currentUserID else { return }
+        struct Row: Encodable { let list_id: UUID; let movie_id: Int; let added_by: UUID }
+        try await client.from("shared_list_movies")
+            .upsert(Row(list_id: listID, movie_id: movieID, added_by: me),
+                    onConflict: "list_id,movie_id")
+            .execute()
+    }
+
+    func inviteToSharedList(listID: UUID, userID: UUID) async throws {
+        struct Row: Encodable { let list_id: UUID; let user_id: UUID }
+        try await client.from("shared_list_members")
+            .upsert(Row(list_id: listID, user_id: userID), onConflict: "list_id,user_id")
+            .execute()
+    }
+
+    // MARK: - Comments
+
+    func comments(eventID: UUID) async throws -> [CommentRow] {
+        try await client.from("comments")
+            .select("*, profiles(username, display_name, avatar_url)")
+            .eq("event_id", value: eventID)
+            .order("created_at")
+            .execute().value
+    }
+
     // MARK: - Detail page aggregates
 
     func communityScore(movieID: Int) async throws -> CommunityScore? {
@@ -554,4 +631,84 @@ struct PerformanceCount: Codable, Hashable {
 private struct Row2: Codable {
     let eventId: UUID
     enum CodingKeys: String, CodingKey { case eventId = "event_id" }
+}
+
+struct RecRow: Codable, Identifiable, Hashable {
+    let movieId: Int
+    let recScore: Double
+    let friendCount: Int
+    let topFriendUsername: String?
+
+    var id: Int { movieId }
+
+    enum CodingKeys: String, CodingKey {
+        case movieId = "movie_id"
+        case recScore = "rec_score"
+        case friendCount = "friend_count"
+        case topFriendUsername = "top_friend_username"
+    }
+}
+
+struct SharedListRow: Codable, Identifiable, Hashable {
+    let id: UUID
+    let ownerId: UUID
+    let name: String
+    let emoji: String
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, emoji
+        case ownerId = "owner_id"
+        case createdAt = "created_at"
+    }
+}
+
+struct SharedListMovieRow: Codable, Identifiable, Hashable {
+    let listId: UUID
+    let movieId: Int
+    let addedBy: UUID
+    let createdAt: Date
+    let profiles: AddedByProfile?
+
+    struct AddedByProfile: Codable, Hashable {
+        let username: String
+    }
+
+    var id: String { "\(listId)-\(movieId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case profiles
+        case listId = "list_id"
+        case movieId = "movie_id"
+        case addedBy = "added_by"
+        case createdAt = "created_at"
+    }
+}
+
+struct CommentRow: Codable, Identifiable, Hashable {
+    let id: UUID
+    let userId: UUID
+    let eventId: UUID
+    let body: String
+    let createdAt: Date
+    let profiles: CommentProfile?
+
+    struct CommentProfile: Codable, Hashable {
+        let username: String
+        let displayName: String?
+        let avatarUrl: String?
+
+        enum CodingKeys: String, CodingKey {
+            case username
+            case displayName = "display_name"
+            case avatarUrl = "avatar_url"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, body, profiles
+        case userId = "user_id"
+        case eventId = "event_id"
+        case createdAt = "created_at"
+    }
 }
