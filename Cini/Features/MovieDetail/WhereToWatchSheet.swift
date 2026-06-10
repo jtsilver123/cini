@@ -55,11 +55,13 @@ struct WhereToWatchSheet: View {
                         }
                         Spacer()
                         Button {
-                            // TMDB terms require linking through their watch page,
-                            // which deep-links to the provider.
-                            if let link = providers?.link, let url = URL(string: link) {
-                                UIApplication.shared.open(url)
-                            }
+                            // Best-effort direct link: a universal link into the
+                            // provider's app/site search for this title (opens the
+                            // native app when installed). Falls back to TMDB's
+                            // watch page, which satisfies their attribution terms.
+                            let url = Self.deepLink(provider: provider.providerName, title: movie.title)
+                                ?? providers?.link.flatMap(URL.init)
+                            if let url { UIApplication.shared.open(url) }
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "play.circle")
@@ -76,6 +78,28 @@ struct WhereToWatchSheet: View {
                 }
             }
         }
+    }
+
+    /// Universal-link search on the provider for this title. Keyed by
+    /// case-insensitive provider-name fragments since TMDB names vary
+    /// ("Amazon Video", "Amazon Prime Video", "Max", "HBO Max"…).
+    static func deepLink(provider: String, title: String) -> URL? {
+        let query = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? title
+        let name = provider.lowercased()
+        let template: String? = switch true {
+        case name.contains("netflix"): "https://www.netflix.com/search?q=\(query)"
+        case name.contains("max"): "https://play.max.com/search?q=\(query)"
+        case name.contains("hulu"): "https://www.hulu.com/search?q=\(query)"
+        case name.contains("disney"): "https://www.disneyplus.com/search?q=\(query)"
+        case name.contains("amazon") || name.contains("prime"):
+            "https://www.amazon.com/s?k=\(query)&i=instant-video"
+        case name.contains("apple tv"): "https://tv.apple.com/search?term=\(query)"
+        case name.contains("peacock"): "https://www.peacocktv.com/watch/search?q=\(query)"
+        case name.contains("paramount"): "https://www.paramountplus.com/search/\(query)/"
+        case name.contains("youtube"): "https://www.youtube.com/results?search_query=\(query)%20movie"
+        default: nil
+        }
+        return template.flatMap(URL.init)
     }
 
     private var unavailable: some View {

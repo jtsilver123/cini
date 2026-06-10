@@ -74,12 +74,13 @@ final class LetterboxdImporterTests: XCTestCase {
         XCTAssertEqual(titles[0].rating, 4.5, "IMDb 9/10 normalizes to 4.5 stars")
     }
 
-    func testCRLFLineEndings() {
+    func testCRLFLineEndings() throws {
         let csv = "Date,Name,Year,Letterboxd URI\r\n2024-01-01,Heat,1995,uri\r\n"
         let titles = LetterboxdImporter.parse(csv: csv)
         XCTAssertEqual(titles.count, 1)
-        XCTAssertEqual(titles[0].title, "Heat")
-        XCTAssertEqual(titles[0].year, 1995)
+        let first = try XCTUnwrap(titles.first)
+        XCTAssertEqual(first.title, "Heat")
+        XCTAssertEqual(first.year, 1995)
     }
 
     // MARK: Matching

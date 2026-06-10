@@ -185,7 +185,9 @@ enum LetterboxdImporter {
                 endField()
             case "\r" where !inQuotes:
                 continue
-            case "\n" where !inQuotes:
+            // In Swift, "\r\n" is a single Character (grapheme cluster),
+            // so CRLF files hit this case — not "\r" then "\n".
+            case "\n" where !inQuotes, "\r\n" where !inQuotes:
                 endRow()
             default:
                 field.append(char)
