@@ -74,9 +74,21 @@ struct FeedView: View {
     private var quickActions: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
+                NavigationLink {
+                    CiniChatView()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles").font(.subheadline.weight(.semibold))
+                        Text("Ask Cini").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(Theme.teal))
+                }
+                .buttonStyle(.plain)
                 PillButton(title: "Where to Watch", systemImage: "play.rectangle")
                 PillButton(title: "Showtimes", systemImage: "ticket")
-                PillButton(title: "Recs Nearby", systemImage: "location")
             }
         }
         .scrollClipDisabled()
