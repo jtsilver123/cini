@@ -26,7 +26,7 @@ struct EnrichmentDraft {
 struct LogFlowView: View {
     let movie: Movie
 
-    @Environment(AppSession.self) private var session
+    @Environment(AppSession.self) private var appSession
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
@@ -353,7 +353,7 @@ struct LogFlowView: View {
         Task {
             let result = await store.commit(finished, watchDate: draft.watchDate)
             await persistDraft()
-            await session.loadProfile()    // streak may have just grown
+            await appSession.loadProfile()    // streak may have just grown
             withAnimation(.snappy) {
                 session = nil
                 scored = result
@@ -392,7 +392,7 @@ struct LogFlowView: View {
                 .font(.system(size: 10, weight: .bold))
                 .tracking(3.5)
                 .foregroundStyle(Theme.gray)
-            if let streak = session.profile?.streakWeeks, streak > 0 {
+            if let streak = appSession.profile?.streakWeeks, streak > 0 {
                 HStack(spacing: 5) {
                     Image(systemName: "flame.fill").font(.caption)
                     Text(streak == 1 ? "Streak started" : "\(streak)-week streak alive")
