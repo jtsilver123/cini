@@ -1,8 +1,16 @@
 name: TestFlight
 
-# Manual trigger — run this from the Actions tab once your 4 secrets are set.
+# Triggered by Claude once the ASC_KEY_P8 secret is set.
 on:
   workflow_dispatch:
+    inputs:
+      issuer_id:
+        description: "App Store Connect API Issuer ID"
+        required: true
+
+env:
+  ASC_KEY_ID: J4369F4GMF
+  APPLE_TEAM_ID: VRPVPJAN9G
 
 jobs:
   deploy:
@@ -20,7 +28,6 @@ jobs:
       - name: Write App Store Connect API key
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
         run: |
           # altool/xcodebuild search these dirs for AuthKey_<id>.p8
           mkdir -p ~/.private_keys ~/.appstoreconnect/private_keys
@@ -30,9 +37,7 @@ jobs:
 
       - name: Archive (cloud-managed signing)
         env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_ISSUER_ID: ${{ inputs.issuer_id }}
         run: |
           xcodebuild archive \
             -project Cini.xcodeproj \
@@ -50,9 +55,7 @@ jobs:
 
       - name: Export IPA
         env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_ISSUER_ID: ${{ inputs.issuer_id }}
         run: |
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -78,8 +81,7 @@ jobs:
 
       - name: Upload to TestFlight
         env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_ISSUER_ID: ${{ inputs.issuer_id }}
         run: |
           IPA=$(find "$RUNNER_TEMP/export" -name '*.ipa' | head -1)
           echo "Uploading $IPA"
