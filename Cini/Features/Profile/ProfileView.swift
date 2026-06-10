@@ -26,6 +26,7 @@ struct ProfileScreen: View {
     @State private var bothWantToWatch: [WatchlistRow] = []
     @State private var profileTab = 0   // 0 = Activity, 1 = Taste Profile
     @State private var showImport = false
+    @State private var showEditProfile = false
     @State private var detailMovie: Movie?
     @State private var loaded = false
 
@@ -48,6 +49,16 @@ struct ProfileScreen: View {
         .background(Theme.background)
         .sheet(isPresented: $showImport) {
             LetterboxdImportView()
+        }
+        .sheet(isPresented: $showEditProfile) {
+            if let profile {
+                EditProfileView(profile: profile) {
+                    Task {
+                        await load()
+                        await session.loadProfile()
+                    }
+                }
+            }
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
@@ -126,6 +137,29 @@ struct ProfileScreen: View {
             AvatarView(url: profile?.avatarURL, size: 104)
             Text("@\(profile?.username ?? username ?? "—")").font(.headline)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
+            if let bio = profile?.bio, !bio.isEmpty {
+                Text(bio)
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+            }
+            if let links = profile?.socialLinks, !links.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(links, id: \.platform) { link in
+                        Link(destination: link.url) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold))
+                                Text(link.platform).font(.caption.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.marquee)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(Theme.marqueeSoft))
+                        }
+                    }
+                }
+                .padding(.top, 2)
+            }
             if let matchPct, !isSelf {
                 Text("+\(Int(matchPct))% Match")
                     .font(.caption.weight(.bold))
@@ -154,8 +188,19 @@ struct ProfileScreen: View {
     private var buttonRow: some View {
         if isSelf {
             HStack(spacing: 10) {
-                PillButton(title: "Edit profile", style: .outlined)
-                PillButton(title: "Share profile", style: .outlined)
+                PillButton(title: "Edit profile", style: .outlined) {
+                    showEditProfile = true
+                }
+                ShareLink(item: URL(string: "https://cini.app/@\(profile?.username ?? "")")
+                          ?? URL(string: "https://cini.app")!) {
+                    Text("Share profile")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                }
+                .buttonStyle(.plain)
             }
         } else if let id = resolvedID {
             PillButton(title: following ? "Following" : "Follow",
@@ -451,7 +496,15 @@ struct ActivityMovieRow: View {
                 }
             }
             Spacer(minLength: 8)
-            if showsQuickActions { quickActions }
+            if showsQuickActions {
+                if store.isWatched(movie.tmdbID) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.title3)
+                        .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                } else {
+                    quickActions
+                }
+            }
             if let score {
                 ScoreBadge(score: score, size: 44)
             }
@@ -461,7 +514,7 @@ struct ActivityMovieRow: View {
 
     private var quickActions: some View {
         HStack(spacing: 16) {
-            if !store.isWatched(movie.tmdbID), let onLog {
+            if let onLog {
                 Button {
                     onLog(movie)
                 } label: {
@@ -493,18 +546,64 @@ struct RankedListScreen: View {
 
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
+    @State private var searchText = ""
+    @State private var showSearch = false
+
+    /// Rank numbers come from the full list, then the filter applies, so
+    /// "#14" stays #14 while searching.
+    private var visible: [(index: Int, row: RankingRow)] {
+        let all = Array(rankings.enumerated()).map { (index: $0.offset, row: $0.element) }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return all }
+        return all.filter { movies[$0.row.movieId]?.title.lowercased().contains(query) == true }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
+                        Text("Score").font(.subheadline.weight(.bold))
+                    }
+                    .foregroundStyle(Theme.marquee)
+                    Spacer()
+                    Button {
+                        withAnimation(.snappy) { showSearch.toggle() }
+                        if !showSearch { searchText = "" }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.bottom, 10)
+                if showSearch {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                        TextField("Filter this list", text: $searchText)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                    .padding(.bottom, 10)
+                }
                 if rankings.isEmpty {
                     Text(emptyHint ?? "Nothing here yet.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
+                } else if visible.isEmpty {
+                    Text("No titles match \"\(searchText)\".")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
                 }
-                ForEach(Array(rankings.enumerated()), id: \.element.id) { index, row in
+                ForEach(visible, id: \.row.id) { index, row in
                     if let movie = movies[row.movieId] {
                         ActivityMovieRow(
                             rank: index + 1,

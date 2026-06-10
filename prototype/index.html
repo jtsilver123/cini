@@ -328,7 +328,7 @@ const MOVIES = {
 };
 
 const MEMBERS = [
-  {u:"maddyc", n:"maddy", av:"av1", match:38, watched:642, top:["dune2","past","poor"]},
+  {u:"maddyc", n:"maddy", av:"av1", match:38, watched:642, top:["dune2","past","poor"], socials:{ig:"maddy.c", lb:"maddyc"}},
   {u:"emilyq", n:"Emily", av:"av2", match:21, watched:289, top:["past","hold","zone"]},
   {u:"allynevias", n:"Ally Nevias", av:"av1", match:24, watched:1810, top:["opp","anat","zone"]},
   {u:"jzjackjz", n:"Jack Z", av:"av3", match:34, watched:1802, top:["dune2","opp","poor"]},
@@ -353,6 +353,7 @@ const DEFAULT_STATE = {
   watchlist:["poor","zone"],
   queue:["anat"],
   liked:{}, followed:{}, comments:{f1:[{u:"jtsilver123", t:"so good in IMAX"}]},
+  me:{name:"Jake Silver", bio:"", ig:"", tt:"", x:"", lb:""},
   category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93, onboarded:false,
   rankedThisWeek:false,
   activity:[
@@ -368,7 +369,7 @@ const DEFAULT_STATE = {
   ],
 };
 let S;
-try { S = JSON.parse(localStorage.getItem("cini-proto-v4")) || structuredClone(DEFAULT_STATE); }
+try { S = JSON.parse(localStorage.getItem("cini-proto-v4")) || structuredClone(DEFAULT_STATE); S.me = S.me || structuredClone(DEFAULT_STATE.me); }
 catch(e){ S = structuredClone(DEFAULT_STATE); }
 function save(){ try{ localStorage.setItem("cini-proto-v4", JSON.stringify(S)); }catch(e){} }
 
@@ -783,7 +784,7 @@ function renderProfile(){
   const count = isSelf ? 529+S.watched.length : member.watched;
   const wlCount = isSelf ? 170+S.watchlist.length : Math.round(member.watched/3.2);
   const rank = isSelf ? "#20832" : "#"+(4000+member.u.length*973);
-  const name = isSelf ? "Jake Silver" : member.n;
+  const name = isSelf ? S.me.name : member.n;
   const handle = isSelf ? "jtsilver123" : member.u;
   const av = isSelf ? "" : member.av;
   const activity = isSelf
@@ -843,6 +844,8 @@ function renderProfile(){
       <div class="avatar ${av}" style="width:100px;height:100px; margin:0 auto; font-size:34px;">${name[0]}</div>
       <div style="font-weight:700; font-size:17px; margin-top:10px;">@${handle}</div>
       <div class="sub" style="margin-top:2px;">Member since December 2022</div>
+      ${isSelf && S.me.bio ? `<div style="font-size:13.5px; margin-top:8px; padding:0 36px;">${esc(S.me.bio)}</div>`:""}
+      ${socialChips(isSelf ? S.me : (member.socials||{}))}
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
     </div>
     <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
@@ -852,7 +855,7 @@ function renderProfile(){
     </div>
     <div class="row-scroll" style="margin-top:14px; justify-content:center;">
       ${isSelf
-        ? `<button class="pill ghost" onclick="toast('Profile editing — in the app')">Edit profile</button>
+        ? `<button class="pill ghost" onclick="openEditProfile()">Edit profile</button>
            <button class="pill ghost" onclick="share('My Cini profile — @${handle}')">Share profile</button>`
         : `<button class="pill ${S.followed[handle]?"ghost on":""}" onclick="toggleFollow('${handle}')">${S.followed[handle]?"Following":"Follow"}</button>`}
     </div>
@@ -880,6 +883,45 @@ function renderProfile(){
     </div>
     <div style="height:20px;"></div>`;
 }
+/* Socials are public — plain link chips, no lock icons. */
+const SOCIAL_PLATFORMS=[["ig","Instagram","https://instagram.com/"],["tt","TikTok","https://tiktok.com/@"],["x","X","https://x.com/"],["lb","Letterboxd","https://letterboxd.com/"]];
+function socialChips(s){
+  const chips=SOCIAL_PLATFORMS.filter(([k])=>s&&s[k]).map(([k,label,base])=>
+    `<a href="${base}${encodeURIComponent(s[k])}" target="_blank" rel="noopener"
+        style="display:inline-flex;align-items:center;gap:4px;background:var(--marquee-soft);color:var(--marquee);
+               border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:700;text-decoration:none;">↗ ${label}</a>`);
+  return chips.length?`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:9px;">${chips.join("")}</div>`:"";
+}
+function openEditProfile(){
+  const field=(id,label,val,ph)=>`
+    <label style="display:block;">
+      <span class="sub" style="font-weight:700;">${label}</span>
+      <input id="${id}" value="${esc(val||"")}" placeholder="${ph||""}" autocapitalize="off"
+             style="width:100%;margin-top:5px;background:var(--surface-2);border:1px solid var(--hair);
+                    border-radius:11px;padding:11px 13px;color:var(--ink);font-size:14px;outline:none;">
+    </label>`;
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Edit Profile</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body" style="display:flex; flex-direction:column; gap:12px; padding-bottom:24px;">
+      ${field("ep-name","Display name",S.me.name)}
+      ${field("ep-bio","Bio",S.me.bio,"A line about your taste")}
+      <div class="sub" style="font-weight:800; letter-spacing:.06em; margin-top:4px;">SOCIALS</div>
+      ${field("ep-ig","Instagram",S.me.ig,"handle")}
+      ${field("ep-tt","TikTok",S.me.tt,"handle")}
+      ${field("ep-x","X",S.me.x,"handle")}
+      ${field("ep-lb","Letterboxd",S.me.lb,"handle")}
+      <button class="pill" style="justify-content:center; margin-top:6px;" onclick="saveProfileEdits()">Save</button>
+    </div>`);
+}
+function saveProfileEdits(){
+  const v=id=>($(id)?.value||"").trim().replace(/^@/,"");
+  S.me.name=$("ep-name").value.trim()||S.me.name;
+  S.me.bio=$("ep-bio").value.trim().slice(0,160);
+  S.me.ig=v("ep-ig"); S.me.tt=v("ep-tt"); S.me.x=v("ep-x"); S.me.lb=v("ep-lb");
+  save(); closeOverlay(); toast("Profile updated"); render();
+}
+
 /* Member lists use the SAME row UI as your own lists: poster, bold title,
    cert | genres, year · dir, quick log/save actions, score badge. */
 function memberWatchlistOf(u){
@@ -899,11 +941,12 @@ function memberListRow(k,{rank=null, score=null, context=null, contextColor=null
       <div class="meta">${m.cert} | ${m.g.join(", ")}</div>
       <div class="meta">${m.y} · Dir. ${m.dir}</div>
       ${context?`<div style="font-size:12px; font-weight:700; margin-top:3px; color:${contextColor||"var(--gray)"};">${context}</div>`:""}
-      <div style="display:flex; gap:18px; margin-top:8px;">
-        ${ranked?"":`<button class="iconbtn" onclick="closeOverlay(); openLog('${k}')">${I("plus")}</button>`}
+      ${ranked?"":`<div style="display:flex; gap:18px; margin-top:8px;">
+        <button class="iconbtn" onclick="closeOverlay(); openLog('${k}')">${I("plus")}</button>
         <button class="iconbtn" onclick="sheetToggleWatchlist('${k}')">${bmIcon(k)}</button>
-      </div>
+      </div>`}
     </div>
+    ${ranked?`<span style="color:var(--green); opacity:.85;">${I("check",20,1.8)}</span>`:""}
     ${score!==null?`<div class="badge ${scoreClass(score)}">${score.toFixed(1)}</div>`:""}
   </div>`;
 }

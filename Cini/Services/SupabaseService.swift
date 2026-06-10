@@ -492,9 +492,14 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let streakWeeks: Int
     let lastLoggedWeek: String?
     let annualGoal: Int?
+    let bio: String?
+    let instagramHandle: String?
+    let tiktokHandle: String?
+    let xHandle: String?
+    let letterboxdHandle: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, username, school
+        case id, username, school, bio
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
         case gradYear = "grad_year"
@@ -503,6 +508,10 @@ struct ProfileRow: Codable, Identifiable, Hashable {
         case streakWeeks = "streak_weeks"
         case lastLoggedWeek = "last_logged_week"
         case annualGoal = "annual_goal"
+        case instagramHandle = "instagram_handle"
+        case tiktokHandle = "tiktok_handle"
+        case xHandle = "x_handle"
+        case letterboxdHandle = "letterboxd_handle"
     }
 
     var asProfile: Profile {
@@ -511,7 +520,10 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 memberSince: memberSince, isPrivate: isPrivate,
                 streakWeeks: streakWeeks,
                 lastLoggedWeek: lastLoggedWeek.flatMap { ISO8601DateFormatter.dateOnly.date(from: $0) },
-                annualGoal: annualGoal)
+                annualGoal: annualGoal,
+                bio: bio,
+                instagramHandle: instagramHandle, tiktokHandle: tiktokHandle,
+                xHandle: xHandle, letterboxdHandle: letterboxdHandle)
     }
 }
 
@@ -523,6 +535,11 @@ struct ProfileUpdate: Encodable {
     var grad_year: Int?
     var annual_goal: Int?
     var is_private: Bool?
+    var bio: String?
+    var instagram_handle: String?
+    var tiktok_handle: String?
+    var x_handle: String?
+    var letterboxd_handle: String?
 }
 
 struct MovieRow: Codable, Hashable {

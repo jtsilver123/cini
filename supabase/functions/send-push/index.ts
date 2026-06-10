@@ -32,12 +32,26 @@ function b64url(data: Uint8Array | string): string {
     .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
+async function apnsCreds(): Promise<{ pem: string; keyID: string; teamID: string }> {
+  let pem = Deno.env.get("APNS_KEY_P8");
+  let keyID = Deno.env.get("APNS_KEY_ID");
+  let teamID = Deno.env.get("APNS_TEAM_ID");
+  if (!pem || !keyID || !teamID) {
+    // Fall back to Vault (service-role-only accessor).
+    const { data } = await supabase.rpc("get_apns_secrets");
+    for (const row of data ?? []) {
+      if (row.name === "APNS_KEY_P8") pem ??= row.secret;
+      if (row.name === "APNS_KEY_ID") keyID ??= row.secret;
+      if (row.name === "APNS_TEAM_ID") teamID ??= row.secret;
+    }
+  }
+  if (!pem || !keyID || !teamID) throw new Error("APNS secrets not configured");
+  return { pem, keyID, teamID };
+}
+
 async function apnsJWT(): Promise<string> {
   if (cached && Date.now() - cached.at < 40 * 60 * 1000) return cached.jwt;
-  const pem = Deno.env.get("APNS_KEY_P8");
-  const keyID = Deno.env.get("APNS_KEY_ID");
-  const teamID = Deno.env.get("APNS_TEAM_ID");
-  if (!pem || !keyID || !teamID) throw new Error("APNS secrets not configured");
+  const { pem, keyID, teamID } = await apnsCreds();
 
   const der = Uint8Array.from(
     atob(pem.replace(/-----[^-]+-----/g, "").replace(/\s/g, "")),

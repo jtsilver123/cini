@@ -104,6 +104,25 @@ struct Profile: Identifiable, Codable, Hashable {
     var streakWeeks: Int = 0
     var lastLoggedWeek: Date?
     var annualGoal: Int?
+    var bio: String?
+    var instagramHandle: String?
+    var tiktokHandle: String?
+    var xHandle: String?
+    var letterboxdHandle: String?
+
+    /// (label, handle, profile URL) for every linked social, in display order.
+    var socialLinks: [(platform: String, handle: String, url: URL)] {
+        func link(_ platform: String, _ handle: String?, _ base: String) -> (String, String, URL)? {
+            guard let handle, !handle.isEmpty, let url = URL(string: base + handle) else { return nil }
+            return (platform, handle, url)
+        }
+        return [
+            link("Instagram", instagramHandle, "https://instagram.com/"),
+            link("TikTok", tiktokHandle, "https://tiktok.com/@"),
+            link("X", xHandle, "https://x.com/"),
+            link("Letterboxd", letterboxdHandle, "https://letterboxd.com/"),
+        ].compactMap { $0 }
+    }
 
     var memberSinceText: String {
         "Member since " + memberSince.formatted(.dateTime.month(.wide).year())
