@@ -37,6 +37,8 @@ struct LogFlowView: View {
     @State private var session: InsertionSession<Int>?
     @State private var scored: ScoredItem<Int>?
     @State private var pairID = 0
+    @State private var enrichRow: EnrichmentCard.Row?
+    @State private var movieCast: [CastMember] = []
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -63,8 +65,10 @@ struct LogFlowView: View {
                                 movie: movie,
                                 draft: $draft,
                                 isLocked: phase != .enrich,
-                                onOkay: { startComparisons() }
+                                onOkay: { startComparisons() },
+                                activeRow: $enrichRow
                             )
+                            .id("enrich")
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
@@ -86,6 +90,7 @@ struct LogFlowView: View {
                 }
                 .onChange(of: phase) { _, newPhase in
                     withAnimation(.snappy) {
+                        if newPhase == .enrich { proxy.scrollTo("enrich", anchor: .bottom) }
                         if newPhase == .comparing { proxy.scrollTo("compare", anchor: .bottom) }
                         if newPhase == .result { proxy.scrollTo("result", anchor: .bottom) }
                     }
@@ -94,6 +99,14 @@ struct LogFlowView: View {
         }
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
+        // Editors present from the top of the flow, not from inside the
+        // scrolling card stack — nested presentation was silently failing.
+        .sheet(item: $enrichRow) { row in
+            EnrichmentRowSheet(row: row, draft: $draft, cast: movieCast)
+        }
+        .task {
+            movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
+        }
     }
 
     /// Abandoning mid-flow: re-sync from the server in case a re-rank

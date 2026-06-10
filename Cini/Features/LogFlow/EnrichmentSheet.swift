@@ -15,10 +15,13 @@ struct EnrichmentCard: View {
 
     private let supabase = SupabaseService.shared
 
+    /// Which editor is open — owned by LogFlowView, which presents the
+    /// sheet at the top of the hierarchy (sheets attached deep inside the
+    /// clear-background cover silently fail to present on device).
+    @Binding var activeRow: Row?
+
     @State private var friends: [ProfileRow] = []
-    @State private var cast: [CastMember] = []
     @State private var friendScores: [FriendScoreRow] = []
-    @State private var activeRow: Row?
 
     enum Row: String, Identifiable {
         case labels, date, notes, performances, personalNotes
@@ -69,12 +72,8 @@ struct EnrichmentCard: View {
         .padding(.bottom, isLocked ? 10 : 0)
         .frame(maxWidth: .infinity)
         .floatingCard()
-        .sheet(item: $activeRow) { row in
-            rowSheet(row)
-        }
         .task {
             friends = (try? await supabase.following()) ?? []
-            cast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
             friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
     }
@@ -175,32 +174,48 @@ struct EnrichmentCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Row sheets
+}
 
-    @ViewBuilder
-    private func rowSheet(_ row: Row) -> some View {
+/// One editor sheet per details row — presented by LogFlowView at the top
+/// of the hierarchy so it reliably appears over the stacked cards.
+struct EnrichmentRowSheet: View {
+    let row: EnrichmentCard.Row
+    @Binding var draft: EnrichmentDraft
+    let cast: [CastMember]
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
         NavigationStack {
-            switch row {
-            case .labels:
-                LabelPicker(selected: $draft.labels)
-            case .date:
-                DatePicker(
-                    "Watch date",
-                    selection: Binding(get: { draft.watchDate ?? .now }, set: { draft.watchDate = $0 }),
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .padding()
-                .navigationTitle("Watch date")
-            case .notes:
-                NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $draft.notes)
-            case .performances:
-                CastPicker(cast: cast, selected: $draft.cast)
-            case .personalNotes:
-                NoteEditor(title: "Personal Notes", subtitle: "Only you can see these", text: $draft.personalNotes)
+            Group {
+                switch row {
+                case .labels:
+                    LabelPicker(selected: $draft.labels)
+                case .date:
+                    DatePicker(
+                        "Watch date",
+                        selection: Binding(get: { draft.watchDate ?? .now }, set: { draft.watchDate = $0 }),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .padding()
+                    .navigationTitle("Watch date")
+                case .notes:
+                    NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $draft.notes)
+                case .performances:
+                    CastPicker(cast: cast, selected: $draft.cast)
+                case .personalNotes:
+                    NoteEditor(title: "Personal Notes", subtitle: "Only you can see these", text: $draft.personalNotes)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.bold()
+                }
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
