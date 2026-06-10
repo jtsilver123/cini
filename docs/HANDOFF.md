@@ -7,16 +7,26 @@ TestFlight loop below.
 ## Current blocker (the ONLY open thread)
 
 The `TestFlight` GitHub Actions workflow (`.github/workflows/testflight.yml`)
-has failed 4 times, each failure narrower:
+has failed 5 times, each failure narrower — archive ✓ and export ✓ since
+run 4; we are now iterating on Apple's upload validator only:
 
 1. Run 1: dev-profile/devices error → fixed (distribution path)
 2. Run 2: CLI signing override leaked to SPM targets → fixed (archive unsigned)
 3. Run 3: archive ✓ → export failed: "Cloud signing permission error" —
    API key was App Manager; needs **Admin** → user created Admin key
-4. Run 4 (id **27310404254**, commit b44ac6c): failed after ~3min —
-   **logs not yet inspected**. NEXT STEP: pull failed-job logs for run
-   27310404254 via the GitHub MCP `get_job_logs` (failed_only), diagnose,
-   fix workflow, re-trigger, repeat until green.
+4. Run 4 (id 27310404254): upload → ITMS-90474 "no orientations specified"
+   → added Portrait to Info.plist
+5. Run 5 (id 27310939967): upload → ITMS-90474 variant: bundle is
+   iPad-capable so Portrait-only is rejected (iPad multitasking needs all
+   four). Root cause: XcodeGen writes a TARGET-level default
+   TARGETED_DEVICE_FAMILY="1,2" that overrode our project-level "1".
+   → fixed: TARGETED_DEVICE_FAMILY "1" moved into the Cini target settings
+   in project.yml, UIRequiresFullScreen=true added,
+   UIApplicationSupportsMultipleScenes set false, committed pbxproj patched.
+   Round 6 triggered. NEXT STEP: find the latest testflight.yml run via
+   `actions_list` (list_workflow_runs, resource_id testflight.yml,
+   per_page 1 — parse the oversized JSON overflow file with python),
+   then `get_job_logs` (failed_only) if red; repeat until green.
 
 ### How to re-trigger a build (Claude can do this via MCP)
 

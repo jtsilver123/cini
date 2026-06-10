@@ -42,6 +42,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.cini.ios
         INFOPLIST_FILE: Cini/Resources/Info.plist
+        # Must live at the TARGET level: XcodeGen writes its own per-target
+        # default of "1,2" (iPhone+iPad) which overrides the project setting,
+        # and an iPad-capable bundle trips ITMS-90474 (iPad multitasking
+        # requires all four orientations).
+        TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.0.0"
