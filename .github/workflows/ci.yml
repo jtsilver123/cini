@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  engine-tests:
+    name: RankingEngine tests (Linux)
+    runs-on: ubuntu-latest
+    container: swift:5.10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run unit tests
+        run: swift test --package-path RankingEngine
+
+  ios-build:
+    name: iOS app build (Xcode)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          sudo xcode-select -p
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i ios || true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build app (no signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Cini.xcodeproj \
+            -scheme Cini \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            | tail -200
+
+      - name: Engine tests (macOS)
+        run: swift test --package-path RankingEngine
