@@ -24,7 +24,26 @@ struct OnboardingView: View {
     @State private var logMovie: Movie?
 
     private var usernameValid: Bool {
-        username.range(of: "^[a-z0-9_.]{3,30}$", options: .regularExpression) != nil
+        username.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
+    }
+
+    private enum Availability { case unknown, checking, available, taken }
+    @State private var availability: Availability = .unknown
+    @State private var availabilityTask: Task<Void, Never>?
+
+    /// Debounced live check against the username_available RPC.
+    private func checkAvailability() {
+        availabilityTask?.cancel()
+        guard usernameValid else { availability = .unknown; return }
+        availability = .checking
+        let candidate = username
+        availabilityTask = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            let free = await SupabaseService.shared.usernameAvailable(candidate)
+            guard candidate == username else { return }
+            availability = free ? .available : .taken
+        }
     }
 
     var body: some View {
@@ -137,12 +156,21 @@ struct OnboardingView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: username) { _, new in
-                            username = new.lowercased()
+                            username = new.lowercased().filter { $0.isLowercase || $0.isNumber || $0 == "_" }
                             usernameError = nil
+                            checkAvailability()
                         }
-                    if usernameValid {
+                    switch availability {
+                    case .available:
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(Theme.scoreGreen)
+                    case .taken:
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(Theme.scoreRed)
+                    case .checking:
+                        ProgressView().controlSize(.small)
+                    case .unknown:
+                        EmptyView()
                     }
                 }
                 .padding(14)
@@ -154,17 +182,35 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 28)
 
-            Text(usernameError ?? "Lowercase letters, numbers, dots, underscores.")
+            Text(usernameHint)
                 .font(.caption)
-                .foregroundStyle(usernameError == nil ? Theme.gray : Theme.scoreRed)
+                .foregroundStyle(usernameHintColor)
 
             Spacer()
             PillButton(title: saving ? "Saving…" : "That's me") {
                 Task { await saveUsername() }
             }
-            .disabled(!usernameValid || saving)
+            .disabled(!usernameValid || availability == .taken || saving)
             .padding(.bottom, 36)
         }
+    }
+
+    private var usernameHint: String {
+        if let usernameError { return usernameError }
+        if !username.isEmpty && username.count < 3 {
+            return "At least 3 characters — \(3 - username.count) more to go."
+        }
+        switch availability {
+        case .taken: return "@\(username) is taken — try another."
+        case .available: return "@\(username) is yours."
+        default: return "3–20 characters: lowercase letters, numbers, underscores."
+        }
+    }
+
+    private var usernameHintColor: Color {
+        if usernameError != nil || availability == .taken { return Theme.scoreRed }
+        if availability == .available { return Theme.scoreGreen }
+        return Theme.gray
     }
 
     private func saveUsername() async {

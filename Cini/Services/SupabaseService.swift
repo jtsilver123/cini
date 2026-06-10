@@ -89,6 +89,13 @@ final class SupabaseService {
         try await client.from("profiles").select().eq("id", value: id).single().execute().value
     }
 
+    /// Case-insensitive availability check (your own name counts as free).
+    func usernameAvailable(_ username: String) async -> Bool {
+        struct Params: Encodable { let p_username: String }
+        return (try? await client.rpc("username_available", params: Params(p_username: username))
+            .execute().value) ?? true   // on network failure, let the DB constraint decide
+    }
+
     func updateProfile(_ update: ProfileUpdate) async throws {
         guard let id = currentUserID else { return }
         try await client.from("profiles").update(update).eq("id", value: id).execute()

@@ -22,6 +22,8 @@ struct EditProfileView: View {
     @State private var isPrivate: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var usernameTaken = false
+    @State private var checkTask: Task<Void, Never>?
 
     init(profile: Profile, onSaved: @escaping () -> Void = {}) {
         self.profile = profile
@@ -68,11 +70,34 @@ struct EditProfileView: View {
 
                 Section("Identity") {
                     TextField("Display name", text: $displayName)
-                    TextField("Username", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    HStack {
+                        TextField("Username", text: $username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .onChange(of: username) { _, _ in
+                                usernameTaken = false
+                                checkTask?.cancel()
+                                guard usernameValid, username.lowercased() != profile.username else { return }
+                                let candidate = username.lowercased()
+                                checkTask = Task {
+                                    try? await Task.sleep(for: .milliseconds(350))
+                                    guard !Task.isCancelled else { return }
+                                    let free = await SupabaseService.shared.usernameAvailable(candidate)
+                                    if candidate == username.lowercased() { usernameTaken = !free }
+                                }
+                            }
+                        if usernameTaken {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.scoreRed)
+                        } else if usernameValid && username.lowercased() != profile.username {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                        }
+                    }
                     if !usernameValid {
-                        Text("3–20 characters: lowercase letters, numbers, underscores.")
+                        Text("At least 3 characters (max 20): lowercase letters, numbers, underscores.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.scoreRed)
+                    } else if usernameTaken {
+                        Text("That username is taken — try another.")
                             .font(.caption)
                             .foregroundStyle(Theme.scoreRed)
                     }
@@ -130,7 +155,8 @@ struct EditProfileView: View {
                     } label: {
                         if isSaving { ProgressView() } else { Text("Save").bold() }
                     }
-                    .disabled(isSaving || !usernameValid || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(isSaving || !usernameValid || usernameTaken
+                              || displayName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
