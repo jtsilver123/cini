@@ -7,24 +7,36 @@ import SwiftUI
 /// bar renders as floating Liquid Glass, minimizes on scroll, and splits the
 /// search tab into its own lens — the platform-native take on Beli's raised
 /// center button. Earlier OSes get the classic raised teal +.
+/// Lets any screen jump tabs (the feed's search bar opens the Search tab,
+/// so every entry point lands on ONE search interface).
+@Observable
+@MainActor
+final class TabRouter {
+    var selection: RootTabView.Tab = .feed
+}
+
 struct RootTabView: View {
-    @State private var selectedTab: Tab = .feed
+    @State private var router = TabRouter()
 
     enum Tab: Hashable {
         case feed, lists, search, leaderboard, profile
     }
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            modernTabs
-        } else {
-            legacyTabs
+        Group {
+            if #available(iOS 26.0, *) {
+                modernTabs
+            } else {
+                legacyTabs
+            }
         }
+        .environment(router)
     }
 
     @available(iOS 26.0, *)
     private var modernTabs: some View {
-        TabView(selection: $selectedTab) {
+        @Bindable var router = router
+        return TabView(selection: $router.selection) {
             SwiftUI.Tab("Feed", systemImage: "newspaper", value: Tab.feed) {
                 FeedView()
             }
@@ -45,7 +57,8 @@ struct RootTabView: View {
     }
 
     private var legacyTabs: some View {
-        TabView(selection: $selectedTab) {
+        @Bindable var router = router
+        return TabView(selection: $router.selection) {
             FeedView()
                 .tabItem { Label("Feed", systemImage: "newspaper") }
                 .tag(Tab.feed)
@@ -67,9 +80,9 @@ struct RootTabView: View {
                 .tag(Tab.profile)
         }
         .overlay(alignment: .bottom) {
-            RaisedSearchButton { selectedTab = .search }
-                .allowsHitTesting(selectedTab != .search)
-                .opacity(selectedTab == .search ? 0 : 1)
+            RaisedSearchButton { router.selection = .search }
+                .allowsHitTesting(router.selection != .search)
+                .opacity(router.selection == .search ? 0 : 1)
         }
     }
 }

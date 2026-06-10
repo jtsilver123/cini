@@ -668,18 +668,19 @@ function renderSearch(){
   };
 
   $("screen-search").innerHTML = `
-    <div style="display:flex; margin-top:8px;">
-      <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--marquee); color:var(--marquee); font-weight:700;">${I("film",17)} Movies</div>
-      <div style="flex:1; text-align:center; padding-bottom:10px; color:var(--gray); cursor:pointer;" onclick="searchTab='members'; render();">${I("users",17)} Members</div>
-    </div>
-    <div class="pad" style="margin-top:16px;">
-      <div class="searchfield">${I("search",17)}<input id="searchInput" placeholder="Search movie, genre, mood" value="${esc(searchQ)}" oninput="searchQ=this.value; renderSearchKeepFocus()">
-        ${searchQ?`<button class="iconbtn" style="color:var(--gray);" onclick="searchQ=''; render();">${I("x",15)}</button>`:""}</div>
-    </div>
-    <div class="row-scroll" style="margin-top:12px;">
-      <button class="pill" onclick="go('chat')">${I("spark",16)} Ask Cini</button>
-      <button class="pill" onclick="openWatchSheet('dune2')">${I("tv",16)} Where to Watch</button>
-      <button class="pill" onclick="toast('Trending: Dune: Part Two')">Trending</button>
+    <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
+      <div style="display:flex; margin-top:8px;">
+        <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--marquee); color:var(--marquee); font-weight:700;">${I("film",17)} Movies</div>
+        <div style="flex:1; text-align:center; padding-bottom:10px; color:var(--gray); cursor:pointer;" onclick="searchTab='members'; render();">${I("users",17)} Members</div>
+      </div>
+      <div class="pad" style="margin-top:16px;">
+        <div class="searchfield">${I("search",17)}<input id="searchInput" placeholder="Search movie, genre, mood" value="${esc(searchQ)}" oninput="searchQ=this.value; renderSearchKeepFocus()">
+          ${searchQ?`<button class="iconbtn" style="color:var(--gray);" onclick="searchQ=''; render();">${I("x",15)}</button>`:""}</div>
+      </div>
+      <div class="row-scroll" style="margin-top:12px;">
+        <button class="pill" onclick="go('chat')">${I("spark",16)} Ask Cini</button>
+        <button class="pill" onclick="toast('Trending: Dune: Part Two')">Trending</button>
+      </div>
     </div>
     <div id="searchResults">${results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)

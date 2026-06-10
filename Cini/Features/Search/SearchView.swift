@@ -8,7 +8,6 @@ struct SearchView: View {
     @State private var importQueue = ImportQueue.shared
     @State private var tab = 0   // 0 = Movies, 1 = Members
     @State private var query = ""
-    @State private var yearFilter = ""
     @State private var movieResults: [Movie] = []
     @State private var memberResults: [ProfileRow] = []
     @State private var followedFromSearch: Set<UUID> = []
@@ -24,24 +23,33 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            // Tabs, the search field, and the pill row stay frozen; only
+            // results/recents scroll underneath.
+            VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 16) {
                     tabsRow
                     searchFields
                     quickPills
-
-                    if tab == 0 {
-                        if !movieResults.isEmpty {
-                            resultsSection
-                        } else {
-                            recentsSection
-                            maybeSeenSection
-                        }
-                    } else {
-                        membersSection
-                    }
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+                .background(Theme.background)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if tab == 0 {
+                            if !movieResults.isEmpty {
+                                resultsSection
+                            } else {
+                                recentsSection
+                                maybeSeenSection
+                            }
+                        } else {
+                            membersSection
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
             }
             .background(Theme.background)
             .fullScreenCover(item: $logMovie) { movie in
@@ -103,25 +111,6 @@ struct SearchView: View {
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
-
-            if tab == 0 {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar").foregroundStyle(Theme.gray)
-                    TextField("Year / Decade", text: $yearFilter)
-                        .keyboardType(.numberPad)
-                        .onChange(of: yearFilter) { _, _ in scheduleSearch() }
-                    if !yearFilter.isEmpty {
-                        Button {
-                            yearFilter = ""
-                            scheduleSearch()
-                        } label: {
-                            Image(systemName: "xmark").foregroundStyle(Theme.gray)
-                        }
-                    }
-                }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
-            }
         }
     }
 
@@ -369,8 +358,7 @@ struct SearchView: View {
             try? await Task.sleep(for: .milliseconds(250))   // debounce
             guard !Task.isCancelled else { return }
             if tab == 0 {
-                let year = Int(yearFilter)
-                movieResults = (try? await TMDBService.shared.search(query: text, year: year)) ?? []
+                movieResults = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
                 for movie in movieResults { store.cache(movie) }
             } else {
                 memberResults = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []

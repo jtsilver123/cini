@@ -3,9 +3,9 @@ import SwiftUI
 struct FeedView: View {
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var events: [FeedEventRow] = []
-    @State private var searchText = ""
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
@@ -113,13 +113,21 @@ struct FeedView: View {
         .padding(.top, 8)
     }
 
+    /// Not a field — every search entry point opens the one Search screen.
     private var searchBar: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
-            TextField("Search a movie, member, etc.", text: $searchText)
+        Button {
+            tabRouter.selection = .search
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                Text("Search a movie, member, etc.")
+                    .foregroundStyle(Theme.gray)
+                Spacer()
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+        .buttonStyle(.plain)
     }
 
     private var quickActions: some View {
