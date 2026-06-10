@@ -28,6 +28,9 @@ targets:
     platform: iOS
     sources:
       - Cini
+    configFiles:
+      Debug: Cini/Resources/Secrets.xcconfig
+      Release: Cini/Resources/Secrets.xcconfig
     dependencies:
       - package: RankingEngine
       - package: Supabase
