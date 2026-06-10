@@ -14,19 +14,22 @@ distribution signing (auth-key flags + `-allowProvisioningUpdates` on the
 ARCHIVE step; `CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution` at
 the Cini TARGET level in project.yml so SPM targets stay automatic).
 Round 7 FAILED (automatic signing rejects a manual distribution
-identity). Round 8 strategy: unsigned archive + ad-hoc entitlement stamp
-before export + a CI step that verifies the final IPA contains
-applesignin/aps-environment (fails the build otherwise).
+identity). Round 8 (run 27312970128) SUCCEEDED with the final strategy:
+unsigned archive -> ad-hoc entitlement stamp -> distribution export -> a
+verify step that fails the build if the IPA lacks applesignin or
+aps-environment. Build 8 on TestFlight has Apple sign-in + push
+registration. Round 9 (edit profile + socials) triggered after f013b80.
 
 Push notifications: full pipeline shipped — device_tokens table + RPC
 (migration 0007), notifications trigger -> pg_net -> send-push edge
 function (deployed, verify_jwt false), PushManager registers tokens after
-sign-in, aps-environment entitlement added. BLOCKED ON USER: APNs auth key
-(.p8) — set function secrets APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID via
-`supabase secrets` or Dashboard -> Edge Functions -> send-push -> Secrets.
+sign-in, aps-environment entitlement added. APNs key 24TJV4TPU4 is in
+Supabase Vault (service-role accessor get_apns_secrets(); send-push falls
+back to it) and was validated against production APNs (BadDeviceToken =
+auth OK). Push is end-to-end once a build-8+ device registers a token.
 
-Email confirmation: branded template at supabase/templates/confirm_signup.html
-(user pastes into Dashboard -> Auth -> Emails -> Confirm signup);
+Email confirmation: user kept Supabase's default template (branded one
+still in supabase/templates/confirm_signup.html if wanted later);
 app handles unconfirmed accounts with a Resend button. Edge-case audit
 recorded in docs/EDGE_CASES.md.
 
