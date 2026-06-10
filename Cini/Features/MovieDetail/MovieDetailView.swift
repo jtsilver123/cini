@@ -19,6 +19,7 @@ struct MovieDetailView: View {
     @State private var showLogFlow = false
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
+    @State private var memberTarget: MemberRef?
 
     private var myItem: ScoredItem<Int>? { store.scoredItem(for: movie.tmdbID) }
 
@@ -63,14 +64,30 @@ struct MovieDetailView: View {
 
     // MARK: Sections
 
+    @State private var heroAppeared = false
+
     private var hero: some View {
-        CachedAsyncImage(url: movie.backdropURL) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            Rectangle().fill(Theme.gray.opacity(0.2))
+        ZStack {
+            Color.black
+            CachedAsyncImage(url: movie.backdropURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Rectangle().fill(Theme.gray.opacity(0.2))
+            }
+            .scaleEffect(heroAppeared ? 1 : 1.06)
+            .opacity(heroAppeared ? 1 : 0.6)
+            // Letterbox bars — the screening-room frame.
+            VStack {
+                Rectangle().fill(.black).frame(height: 12)
+                Spacer()
+                Rectangle().fill(.black).frame(height: 12)
+            }
         }
         .frame(height: 230)
         .clipped()
+        .onAppear {
+            withAnimation(.snappy(duration: 0.5)) { heroAppeared = true }
+        }
     }
 
     private var titleBlock: some View {
@@ -294,7 +311,9 @@ struct MovieDetailView: View {
                     .foregroundStyle(Theme.gray)
             }
             ForEach(friends) { friend in
-                FriendThinkRow(friend: friend)
+                FriendThinkRow(friend: friend) { tapped in
+                    memberTarget = MemberRef(id: tapped.userId, username: tapped.username)
+                }
                 Divider()
             }
         }

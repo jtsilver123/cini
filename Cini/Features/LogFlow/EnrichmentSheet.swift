@@ -109,7 +109,7 @@ struct EnrichmentCard: View {
                                     .padding(.vertical, 9)
                                     .background(
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(isOn ? Theme.teal : Color.black.opacity(0.05))
+                                            .fill(isOn ? Theme.teal : Theme.fill)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -294,17 +294,28 @@ struct CastPicker: View {
 }
 
 /// Friend row with avatar, username, score badge, notes, like + comment.
+/// Tapping the identity opens their profile where navigation is available.
 struct FriendThinkRow: View {
     let friend: FriendScoreRow
+    var onOpenProfile: ((FriendScoreRow) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(friend.displayName ?? friend.username).font(.subheadline.weight(.semibold))
-                    Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                Button {
+                    onOpenProfile?(friend)
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(friend.displayName ?? friend.username).font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .disabled(onOpenProfile == nil)
                 Spacer()
                 ScoreBadge(score: friend.score, size: 44)
             }

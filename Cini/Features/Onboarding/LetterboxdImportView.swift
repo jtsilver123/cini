@@ -16,6 +16,8 @@ struct LetterboxdImportView: View {
     @State private var progressFraction: Double = 0
     @State private var errorMessage: String?
     @State private var showPicker = false
+    @State private var showPaste = false
+    @State private var pastedText = ""
 
     enum Phase {
         case pick, working, summary
@@ -39,6 +41,35 @@ struct LetterboxdImportView: View {
                         Button(phase == .summary ? "Done" : "Cancel") { dismiss() }
                     }
                 }
+            }
+            .sheet(isPresented: $showPaste) {
+                NavigationStack {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Copy your movie list in Notes, then paste it here — one title per line. Bullets, numbering, and years like \"Dune (2021)\" all work.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                        TextEditor(text: $pastedText)
+                            .frame(minHeight: 220)
+                            .padding(8)
+                            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+                        PillButton(title: "Import list") {
+                            showPaste = false
+                            Task { await runPastedImport() }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Spacer()
+                    }
+                    .padding()
+                    .navigationTitle("Paste from Notes")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showPaste = false }
+                        }
+                    }
+                }
+                .presentationDetents([.large])
             }
             .fileImporter(
                 isPresented: $showPicker,
@@ -113,6 +144,17 @@ struct LetterboxdImportView: View {
                 PillButton(title: "Choose export file", systemImage: "folder") {
                     showPicker = true
                 }
+
+                Button {
+                    showPaste = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "note.text")
+                        Text("Or paste from Apple Notes").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.teal)
+                }
+                .buttonStyle(.plain)
 
                 Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
                     .font(.caption)
@@ -205,6 +247,31 @@ struct LetterboxdImportView: View {
     }
 
     // MARK: Pipeline
+
+    private func runPastedImport() async {
+        errorMessage = nil
+        withAnimation(.snappy) { phase = .working }
+        progressText = "Reading your list…"
+        progressFraction = 0
+        do {
+            let outcome = try await LetterboxdImporter.runText(pastedText) { progress in
+                switch progress {
+                case .reading:
+                    progressText = "Reading your list…"
+                case .matching(let done, let total):
+                    progressText = "Matching \(done) of \(total)"
+                    progressFraction = Double(done) / Double(max(total, 1))
+                }
+            }
+            ImportQueue.shared.seed(with: outcome.watched, store: store)
+            result = outcome
+            withAnimation(.snappy) { phase = .summary }
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription
+                ?? "Couldn't read that list."
+            withAnimation(.snappy) { phase = .pick }
+        }
+    }
 
     private func runImport(from url: URL) async {
         errorMessage = nil

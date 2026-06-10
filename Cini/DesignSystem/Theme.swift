@@ -6,26 +6,34 @@ enum Theme {
 
     // MARK: Colors
 
-    /// Primary deep teal: pills, active states, fills.
-    static let teal = Color(red: 0x14 / 255, green: 0x55 / 255, blue: 0x5A / 255)
-    /// Lighter teal for tints and pressed states.
-    static let tealSoft = Color(red: 0x14 / 255, green: 0x55 / 255, blue: 0x5A / 255).opacity(0.10)
-    /// Ink for primary text.
-    static let ink = Color(red: 0x12 / 255, green: 0x14 / 255, blue: 0x16 / 255)
-    /// Warm ivory app background.
-    static let background = Color(red: 0xFA / 255, green: 0xF7 / 255, blue: 0xF2 / 255)
-    /// Card surface.
-    static let surface = Color.white
+    /// Celluloid teal — links, active states; brighter for dark surfaces.
+    static let teal = Color(red: 0x3C / 255, green: 0xA0 / 255, blue: 0xA8 / 255)
+    /// Deep teal for filled pills and gradients.
+    static let tealDeep = Color(red: 0x14 / 255, green: 0x55 / 255, blue: 0x5A / 255)
+    /// Soft teal tint for pressed/selected states.
+    static let tealSoft = Color(red: 0x3C / 255, green: 0xA0 / 255, blue: 0xA8 / 255).opacity(0.16)
+    /// Projector-cream primary text.
+    static let ink = Color(red: 0xF2 / 255, green: 0xEF / 255, blue: 0xE9 / 255)
+    /// Screening-room charcoal background.
+    static let background = Color(red: 0x10 / 255, green: 0x12 / 255, blue: 0x14 / 255)
+    /// Elevated card surface.
+    static let surface = Color(red: 0x1A / 255, green: 0x1D / 255, blue: 0x21 / 255)
+    /// Higher-elevation surface (badges, inputs).
+    static let surface2 = Color(red: 0x22 / 255, green: 0x26 / 255, blue: 0x2B / 255)
+    /// Subtle fill for fields and inactive chips.
+    static let fill = Color.white.opacity(0.07)
     /// Gray metadata text.
-    static let gray = Color(red: 0x8A / 255, green: 0x8F / 255, blue: 0x98 / 255)
+    static let gray = Color(red: 0x9B / 255, green: 0xA1 / 255, blue: 0xA8 / 255)
     /// Score green for high scores and match lines.
-    static let scoreGreen = Color(red: 0x1F / 255, green: 0x9D / 255, blue: 0x55 / 255)
+    static let scoreGreen = Color(red: 0x2F / 255, green: 0xBF / 255, blue: 0x71 / 255)
     /// Amber for mid scores.
-    static let scoreAmber = Color(red: 0xC9 / 255, green: 0x88 / 255, blue: 0x1A / 255)
+    static let scoreAmber = Color(red: 0xE0 / 255, green: 0xA9 / 255, blue: 0x3E / 255)
     /// Muted red for low scores.
-    static let scoreRed = Color(red: 0xB5 / 255, green: 0x4A / 255, blue: 0x4A / 255)
+    static let scoreRed = Color(red: 0xD9 / 255, green: 0x6B / 255, blue: 0x6B / 255)
+    /// Marquee gold — premiere moments: result ticket, flash highlights.
+    static let gold = Color(red: 0xD4 / 255, green: 0xAF / 255, blue: 0x37 / 255)
     /// Hairline borders on cards and badges.
-    static let hairline = Color.black.opacity(0.10)
+    static let hairline = Color.white.opacity(0.10)
 
     /// Sentiment circles (the soft Beli trio).
     static let sentimentLoved = Color(red: 0x53 / 255, green: 0xB1 / 255, blue: 0x7C / 255)
@@ -54,8 +62,8 @@ enum Theme {
 
     // MARK: Elevation
 
-    /// Soft card shadow used across stacked cards and posters.
-    static let cardShadow = Color.black.opacity(0.07)
+    /// Card shadow tuned for the dark screening room.
+    static let cardShadow = Color.black.opacity(0.45)
 }
 
 /// Floating card used by the log-flow stack and elsewhere.

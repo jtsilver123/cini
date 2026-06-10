@@ -385,22 +385,42 @@ struct LogFlowView: View {
     // MARK: Card 6 — result
 
     private func resultCard(_ scored: ScoredItem<Int>) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
+            Text("ADMIT ONE · CINI")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(3.5)
+                .foregroundStyle(Theme.gray)
             HStack(spacing: 14) {
                 PosterView(url: movie.posterURL, width: 52)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Ranked #\(scored.rank)").font(.title3.weight(.bold))
+                    (Text("Ranked ") + Text("#\(scored.rank)").foregroundStyle(Theme.gold))
+                        .font(.title3.weight(.bold))
                     Text("on your Watched list").font(.subheadline).foregroundStyle(Theme.gray)
                 }
                 Spacer()
                 ScoreBadge(score: scored.score, size: 56)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
             }
+            // Ticket perforation
+            Line()
+                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                .foregroundStyle(Theme.hairline)
+                .frame(height: 1)
             PillButton(title: "Done") { dismiss() }
                 .frame(maxWidth: .infinity)
         }
         .padding(20)
         .frame(maxWidth: .infinity)
         .floatingCard()
+    }
+}
+
+struct Line: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return path
     }
 }
 

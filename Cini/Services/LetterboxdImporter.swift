@@ -44,7 +44,7 @@ enum LetterboxdImporter {
         var errorDescription: String? {
             switch self {
             case .unreadableFile: return "Couldn't read that file. Export from Letterboxd: Settings → Data → Export."
-            case .noTitlesFound: return "No movies found in that file — is it a Letterboxd or IMDb export?"
+            case .noTitlesFound: return "No movie titles found — try a Letterboxd/IMDb export, or paste your list one title per line."
             }
         }
     }
@@ -68,12 +68,67 @@ enum LetterboxdImporter {
             guard let text = String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .isoLatin1) else { throw ImportError.unreadableFile }
             titles = parse(csv: text, assumeWatchlist: fileURL.lastPathComponent.lowercased().contains("watchlist"))
+            if titles.isEmpty {
+                // Not a CSV export — treat it as a plain list of titles
+                // (an Apple Notes export, a .txt, whatever).
+                titles = parseFreeText(text)
+            }
         }
 
         titles = dedupe(titles)
         guard !titles.isEmpty else { throw ImportError.noTitlesFound }
 
         return try await match(titles: titles, tmdb: tmdb, onProgress: onProgress)
+    }
+
+    /// Pasted text (Apple Notes flow): copy the note, paste in Cini.
+    static func runText(
+        _ text: String,
+        tmdb: TMDBService = .shared,
+        onProgress: @escaping @MainActor (Progress) -> Void
+    ) async throws -> Result {
+        await onProgress(.reading)
+        var titles = parse(csv: text)
+        if titles.isEmpty { titles = parseFreeText(text) }
+        titles = dedupe(titles)
+        guard !titles.isEmpty else { throw ImportError.noTitlesFound }
+        return try await match(titles: titles, tmdb: tmdb, onProgress: onProgress)
+    }
+
+    // MARK: - Free text (Apple Notes and friends)
+
+    /// Parses a human movie list: one title per line, tolerating bullets,
+    /// checkboxes, numbering, and years in "(2021)" / "- 2021" / ", 2021".
+    static func parseFreeText(_ text: String) -> [ImportedTitle] {
+        let headers: Set<String> = ["movies", "movies to watch", "watchlist", "to watch",
+                                    "films", "film list", "movie list", "watch list"]
+        var titles: [ImportedTitle] = []
+        for raw in text.components(separatedBy: .newlines) {
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty else { continue }
+            // List decorations: bullets, dashes, checkboxes, "12." / "12)"
+            line = line.replacingOccurrences(
+                of: "^[-*\u{2022}\u{2023}\u{25E6}\u{2013}\u{2014}\u{25A2}\u{2610}\u{2611}\u{2705}\u{274F}]+\\s*",
+                with: "", options: .regularExpression)
+            line = line.replacingOccurrences(
+                of: "^\\d{1,3}[.)]\\s+", with: "", options: .regularExpression)
+            line = line.trimmingCharacters(in: .whitespaces)
+            guard line.count >= 2, line.count <= 120 else { continue }
+            guard !headers.contains(line.lowercased()) else { continue }
+
+            var year: Int?
+            if let range = line.range(of: "[(\\[](19|20)\\d{2}[)\\]]\\s*$", options: .regularExpression) {
+                year = Int(line[range].filter(\.isNumber))
+                line = String(line[..<range.lowerBound])
+            } else if let range = line.range(of: "[,\\-\u{2013}]\\s*(19|20)\\d{2}\\s*$", options: .regularExpression) {
+                year = Int(line[range].filter(\.isNumber))
+                line = String(line[..<range.lowerBound])
+            }
+            line = line.trimmingCharacters(in: CharacterSet(charactersIn: " -\u{2013},.\t"))
+            guard line.count >= 2 else { continue }
+            titles.append(ImportedTitle(title: line, year: year))
+        }
+        return dedupe(titles)
     }
 
     // MARK: - ZIP container (native: central directory + Compression inflate)
@@ -111,7 +166,7 @@ enum LetterboxdImporter {
         normalize(title.title) + "|" + (title.year.map(String.init) ?? "")
     }
 
-    private static func dedupe(_ titles: [ImportedTitle]) -> [ImportedTitle] {
+    static func dedupe(_ titles: [ImportedTitle]) -> [ImportedTitle] {
         var seen = Set<String>()
         var result: [ImportedTitle] = []
         // Watched entries win over watchlist duplicates.

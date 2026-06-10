@@ -165,7 +165,7 @@ struct SegmentedPillControl: View {
             }
         }
         .padding(4)
-        .background(Capsule().fill(Color.black.opacity(0.05)))
+        .background(Capsule().fill(Theme.fill))
     }
 
     @ViewBuilder
@@ -173,7 +173,7 @@ struct SegmentedPillControl: View {
         if #available(iOS 26.0, *) {
             Capsule().fill(.clear).glassEffect(.regular, in: .capsule)
         } else {
-            Capsule().fill(Color.white)
+            Capsule().fill(Theme.surface)
                 .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
         }
     }
@@ -190,7 +190,7 @@ struct HairlineCard<Content: View>: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white)
+                    .fill(Theme.surface)
                     .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
             )
     }

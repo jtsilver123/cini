@@ -113,3 +113,47 @@ final class LetterboxdImporterTests: XCTestCase {
         XCTAssertNil(LetterboxdImporter.bestMatch(for: imported, in: candidates))
     }
 }
+
+// MARK: - Apple Notes / free-text parsing
+
+extension LetterboxdImporterTests {
+    func testFreeTextAppleNotesShapes() {
+        let note = """
+        Movies to watch
+
+        - Dune (2021)
+        • Oppenheimer
+        ☐ Past Lives, 2023
+        3. The Holdovers - 2023
+        ✅ Poor Things [2023]
+        Anatomy of a Fall
+        """
+        let titles = LetterboxdImporter.parseFreeText(note)
+        XCTAssertEqual(titles.count, 6)
+        XCTAssertEqual(titles[0].title, "Dune");            XCTAssertEqual(titles[0].year, 2021)
+        XCTAssertEqual(titles[1].title, "Oppenheimer");     XCTAssertNil(titles[1].year)
+        XCTAssertEqual(titles[2].title, "Past Lives");      XCTAssertEqual(titles[2].year, 2023)
+        XCTAssertEqual(titles[3].title, "The Holdovers");   XCTAssertEqual(titles[3].year, 2023)
+        XCTAssertEqual(titles[4].title, "Poor Things");     XCTAssertEqual(titles[4].year, 2023)
+        XCTAssertEqual(titles[5].title, "Anatomy of a Fall")
+    }
+
+    func testFreeTextSkipsHeadersAndDedupes() {
+        let note = """
+        Watchlist
+        Dune (2021)
+        - Dune (2021)
+        Films
+        """
+        let titles = LetterboxdImporter.parseFreeText(note)
+        XCTAssertEqual(titles.count, 1)
+        XCTAssertEqual(titles[0].title, "Dune")
+    }
+
+    func testFreeTextKeepsNumbersInTitles() {
+        // "2001: A Space Odyssey" must not be eaten by the numbering stripper.
+        let titles = LetterboxdImporter.parseFreeText("2001: A Space Odyssey (1968)")
+        XCTAssertEqual(titles.first?.title, "2001: A Space Odyssey")
+        XCTAssertEqual(titles.first?.year, 1968)
+    }
+}

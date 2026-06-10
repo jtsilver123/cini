@@ -729,6 +729,7 @@ struct SharedListMovieRow: Codable, Identifiable, Hashable {
 struct NotificationRow: Codable, Identifiable, Hashable {
     let id: UUID
     let kind: String
+    let actorId: UUID?
     let movieId: Int?
     let readAt: Date?
     let createdAt: Date
@@ -759,6 +760,7 @@ struct NotificationRow: Codable, Identifiable, Hashable {
 
     enum CodingKeys: String, CodingKey {
         case id, kind, actor, movies
+        case actorId = "actor_id"
         case movieId = "movie_id"
         case readAt = "read_at"
         case createdAt = "created_at"

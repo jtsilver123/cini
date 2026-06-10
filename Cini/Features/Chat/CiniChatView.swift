@@ -143,7 +143,7 @@ struct CiniChatAvailableView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(message.isUser ? Theme.teal : Color.white)
+                        .fill(message.isUser ? Theme.teal : Theme.surface)
                         .shadow(color: Theme.cardShadow, radius: 4, y: 2)
                 )
             if !message.isUser { Spacer(minLength: 48) }
@@ -179,7 +179,7 @@ struct CiniChatAvailableView: View {
         HStack(spacing: 10) {
             TextField("Ask for a movie…", text: $draft, axis: .vertical)
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 18).fill(Color.black.opacity(0.05)))
+                .background(RoundedRectangle(cornerRadius: 18).fill(Theme.fill))
                 .onSubmit { Task { await send() } }
             Button {
                 Task { await send() }

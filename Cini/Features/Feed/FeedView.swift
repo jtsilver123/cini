@@ -9,6 +9,7 @@ struct FeedView: View {
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
+    @State private var memberTarget: MemberRef?
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,9 @@ struct FeedView: View {
             .task { await loadFeed() }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
+            }
+            .navigationDestination(item: $memberTarget) { member in
+                MemberProfileView(userID: member.id, username: member.username)
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
@@ -71,7 +75,7 @@ struct FeedView: View {
             TextField("Search a movie, member, etc.", text: $searchText)
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.05)))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
     }
 
     private var quickActions: some View {
@@ -115,7 +119,7 @@ struct FeedView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Capsule().fill(Color.black.opacity(0.05)))
+                    .background(Capsule().fill(Theme.fill))
             }
 
             if events.isEmpty {
@@ -126,7 +130,8 @@ struct FeedView: View {
                 FeedCard(
                     event: event,
                     onOpenMovie: { detailMovie = $0 },
-                    onQuickAdd: { logMovie = $0 }
+                    onQuickAdd: { logMovie = $0 },
+                    onOpenMember: { memberTarget = $0 }
                 )
                 Divider()
             }
@@ -156,10 +161,17 @@ struct FeedView: View {
 
 // MARK: - Activity card
 
+/// Lightweight navigation handle for a member profile.
+struct MemberRef: Identifiable, Hashable {
+    let id: UUID
+    let username: String
+}
+
 struct FeedCard: View {
     let event: FeedEventRow
     var onOpenMovie: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
+    var onOpenMember: (MemberRef) -> Void = { _ in }
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
@@ -189,7 +201,12 @@ struct FeedCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48)
+                Button {
+                    onOpenMember(MemberRef(id: event.userId, username: actorName))
+                } label: {
+                    AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48)
+                }
+                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
                     headline.font(.subheadline)
@@ -280,7 +297,13 @@ struct CommentsSheet: View {
                 } else {
                     List(comments) { comment in
                         HStack(alignment: .top, spacing: 12) {
-                            AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36)
+                            NavigationLink {
+                                MemberProfileView(userID: comment.userId,
+                                                  username: comment.profiles?.username ?? "member")
+                            } label: {
+                                AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36)
+                            }
+                            .buttonStyle(.plain)
                             VStack(alignment: .leading, spacing: 3) {
                                 HStack(spacing: 6) {
                                     Text("@\(comment.profiles?.username ?? "member")")
@@ -300,7 +323,7 @@ struct CommentsSheet: View {
                 HStack(spacing: 10) {
                     TextField("Add a comment…", text: $draft, axis: .vertical)
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 18).fill(Color.black.opacity(0.05)))
+                        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.fill))
                     Button {
                         Task { await post() }
                     } label: {
@@ -361,6 +384,8 @@ struct ReleaseCalendarView: View {
 struct NotificationsView: View {
     @State private var rows: [NotificationRow] = []
     @State private var loaded = false
+    @State private var detailMovie: Movie?
+    @State private var memberTarget: MemberRef?
 
     var body: some View {
         List {
@@ -379,7 +404,14 @@ struct NotificationsView: View {
             }
             ForEach(rows) { row in
                 HStack(spacing: 12) {
-                    AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42)
+                    Button {
+                        if let actorId = row.actorId, let actor = row.actor {
+                            memberTarget = MemberRef(id: actorId, username: actor.username)
+                        }
+                    } label: {
+                        AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42)
+                    }
+                    .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(headline(row)).font(.subheadline)
                         Text(row.createdAt.formatted(.relative(presentation: .named)))
@@ -395,11 +427,28 @@ struct NotificationsView: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if let movieId = row.movieId, let stub = row.movies {
+                        detailMovie = Movie(tmdbID: movieId, mediaKind: "movie", title: stub.title,
+                                            releaseYear: nil, posterPath: stub.posterPath,
+                                            backdropPath: nil, genres: [], certification: nil,
+                                            runtimeMinutes: nil, director: nil, overview: nil)
+                    } else if let actorId = row.actorId, let actor = row.actor {
+                        memberTarget = MemberRef(id: actorId, username: actor.username)
+                    }
+                }
                 .listRowBackground(Theme.background)
             }
         }
         .listStyle(.plain)
         .background(Theme.background)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+        .navigationDestination(item: $memberTarget) { member in
+            MemberProfileView(userID: member.id, username: member.username)
+        }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .task {
