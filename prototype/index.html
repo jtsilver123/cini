@@ -347,7 +347,7 @@ const DEFAULT_STATE = {
   watchlist:["poor","zone"],
   queue:["anat"],
   liked:{}, followed:{}, comments:{f1:[{u:"jtsilver123", t:"so good in IMAX"}]},
-  category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93,
+  category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93, onboarded:false,
   notifs:[
     {kind:"like", who:"maddyc", movie:"dune2", when:"1h ago", unread:true},
     {kind:"new_follower", who:"oliviafang", when:"3h ago", unread:true},
@@ -1247,8 +1247,79 @@ function askCini(q){
   }, 900);
 }
 
+/* =================== ONBOARDING (first run) =================== */
+let obStep=0, obName="";
+function obValid(){ return /^[a-z0-9_.]{3,30}$/.test(obName); }
+function renderOnboarding(){
+  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4].map(i=>
+    `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
+  let body="";
+  if(obStep===0) body=`
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
+      <div class="serif" style="font-size:54px; font-weight:700;">cini</div>
+      <div style="font-size:11px; letter-spacing:.35em; color:var(--gray); font-weight:700;">EVERY FILM · RANKED</div>
+      <div class="sub" style="font-size:14px;">Rank what you watch. No star ratings, ever.</div>
+      <button style="margin-top:22px; background:#fff; color:#000; border:none; border-radius:999px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="obNext()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#000"><path d="M16.4 12.9c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.8-2-1.6-.2-3.1 1-3.9 1-.8 0-2-.9-3.4-.9C5.8 7.1 4.1 8.1 3.2 9.7c-1.9 3.3-.5 8.1 1.4 10.8.9 1.3 2 2.8 3.4 2.7 1.4-.1 1.9-.9 3.5-.9s2.1.9 3.5.9c1.5 0 2.4-1.3 3.3-2.6 1-1.5 1.5-3 1.5-3.1-.1 0-2.9-1.1-2.9-4.4zM13.7 4.4c.7-.9 1.2-2.1 1.1-3.4-1 0-2.3.7-3 1.6-.7.8-1.3 2-1.1 3.2 1.1.1 2.3-.6 3-1.4z"/></svg>
+        Continue with Apple</button>
+      <div style="display:flex; align-items:center; gap:10px;"><div style="flex:1;height:1px;background:var(--hair);"></div><span class="sub">or with email</span><div style="flex:1;height:1px;background:var(--hair);"></div></div>
+      <input placeholder="Email" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;">
+      <input placeholder="Password" type="password" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;">
+      <button class="pill" style="justify-content:center; padding:13px;" onclick="obNext()">Sign in</button>
+    </div>`;
+  else if(obStep===1) body=`
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; padding:0 32px; text-align:center;">
+      <b style="font-size:21px;">No star ratings. Ever.</b>
+      <div class="sub" style="font-size:14px; line-height:1.55;">You'll answer one question — <b style="color:var(--ink);">"Which did you like more?"</b> — and Cini builds your perfectly ordered list, with scores that come from your own taste.</div>
+      <div style="display:flex; justify-content:center; gap:22px; margin-top:8px;">
+        ${[["--s-loved","Liked it"],["--s-fine","Fine"],["--s-disliked","Didn't"]].map(([c,l])=>
+          `<div><div style="width:52px;height:52px;border-radius:50%;background:var(${c});margin:0 auto;"></div><div class="sub" style="margin-top:7px;">${l}</div></div>`).join("")}
+      </div>
+      <button class="pill" style="justify-content:center; padding:13px; margin-top:18px;" onclick="obNext()">Get started</button>
+    </div>`;
+  else if(obStep===2) body=`
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
+      <div class="serif" style="font-size:32px; font-weight:700;">Claim your @</div>
+      <div class="sub">This is how friends find and follow you.</div>
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border-radius:12px; padding:13px;">
+        <span class="sub">@</span>
+        <input id="obUser" value="${obName}" placeholder="username" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;"
+          oninput="obName=this.value.toLowerCase(); $('obCheck').style.opacity=obValid()?1:0; $('obGo').style.opacity=obValid()?1:.5;">
+        <span id="obCheck" class="gtxt" style="opacity:${obValid()?1:0}; transition:.2s;">${I("check",17,2.4)}</span>
+      </div>
+      <div class="sub" style="font-size:11.5px;">Lowercase letters, numbers, dots, underscores.</div>
+      <button id="obGo" class="pill" style="justify-content:center; padding:13px; opacity:${obValid()?1:.5};" onclick="if(obValid())obNext(); else toast('Pick a valid username first')">That's me</button>
+    </div>`;
+  else if(obStep===3) body=`
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
+      <span style="color:var(--gold);">${I("download",38,1.5)}</span>
+      <div class="serif" style="font-size:32px; font-weight:700;">Bring your history</div>
+      <div class="sub" style="line-height:1.5;">Already track movies somewhere? Cini queues your whole history so you can rank it — favorites first.</div>
+      <button class="pill" style="justify-content:center; padding:13px; margin-top:8px;" onclick="finishOnboarding(); openImport();">Import Letterboxd or IMDb</button>
+      <button class="pill out" style="justify-content:center; padding:13px;" onclick="finishOnboarding(); openImport(); importPaste();">Paste from Apple Notes</button>
+      <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer; margin-top:10px;" onclick="obNext()">I'm starting fresh</button>
+    </div>`;
+  else body=`
+    <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
+      <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
+      <div class="sub">Pick anything you've seen — your first one takes zero comparisons.</div>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
+        ${Object.keys(MOVIES).slice(0,6).map(k=>`
+          <div style="cursor:pointer;" onclick="finishOnboarding(); openLog('${k}')">
+            <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(MOVIES[k].p)}');"></div>
+            <div style="font-size:11px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${MOVIES[k].t}</div>
+          </div>`).join("")}
+      </div>
+      <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer; padding:16px 0 24px;" onclick="finishOnboarding()">I'll explore first</button>
+    </div>`;
+  $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
+}
+function obNext(){ buzz(); obStep++; if(obStep>4){ finishOnboarding(); return; } renderOnboarding(); }
+function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
+
 /* =================== BOOT =================== */
 go("feed");
+if(!S.onboarded) renderOnboarding();
 </script>
 </body>
 </html>

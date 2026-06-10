@@ -10,6 +10,7 @@ struct FeedView: View {
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var memberTarget: MemberRef?
+    @State private var showImport = false
 
     var body: some View {
         NavigationStack {
@@ -140,16 +141,35 @@ struct FeedView: View {
 
     private var emptyState: some View {
         HairlineCard {
-            VStack(spacing: 8) {
-                Image(systemName: "person.2").font(.title).foregroundStyle(Theme.teal)
-                Text("Follow friends to fill your feed")
-                    .font(.subheadline.weight(.semibold))
-                Text("Search members and see what they're watching and ranking.")
+            VStack(spacing: 10) {
+                Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gold)
+                Text("Your feed starts with friends")
+                    .font(.subheadline.weight(.bold))
+                Text("Follow members from the Search tab to see what they rank — or build your own list first.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
+                HStack(spacing: 10) {
+                    NavigationLink {
+                        CiniChatView()
+                    } label: {
+                        Text("Ask Cini")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.teal)
+                            .padding(.horizontal, 14).padding(.vertical, 9)
+                            .overlay(Capsule().strokeBorder(Theme.teal, lineWidth: 1.2))
+                    }
+                    .buttonStyle(.plain)
+                    PillButton(title: "Import history", systemImage: "square.and.arrow.down") {
+                        showImport = true
+                    }
+                }
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity)
+        }
+        .sheet(isPresented: $showImport) {
+            LetterboxdImportView()
         }
     }
 
@@ -386,6 +406,7 @@ struct NotificationsView: View {
     @State private var loaded = false
     @State private var detailMovie: Movie?
     @State private var memberTarget: MemberRef?
+    @State private var showImport = false
 
     var body: some View {
         List {

@@ -3,12 +3,18 @@ import SwiftUI
 @main
 struct CiniApp: App {
     @State private var session = AppSession()
+    @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if session.isAuthenticated {
                     RootTabView()
+                        .fullScreenCover(isPresented: needsOnboarding) {
+                            OnboardingView {
+                                hasOnboarded = true
+                            }
+                        }
                 } else {
                     AuthView()
                 }
@@ -19,6 +25,19 @@ struct CiniApp: App {
             .preferredColorScheme(.dark)
             .task { await session.bootstrap() }
         }
+    }
+
+    /// First run: authenticated, never onboarded on this device, and the
+    /// account has no rankings yet (an existing user on a new phone skips).
+    private var needsOnboarding: Binding<Bool> {
+        Binding(
+            get: {
+                !hasOnboarded
+                    && session.rankingStore.isLoaded
+                    && session.rankingStore.watchedCount == 0
+            },
+            set: { if !$0 { hasOnboarded = true } }
+        )
     }
 }
 

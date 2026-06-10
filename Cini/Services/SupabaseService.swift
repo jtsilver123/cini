@@ -464,6 +464,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
 }
 
 struct ProfileUpdate: Encodable {
+    var username: String?
     var display_name: String?
     var avatar_url: String?
     var school: String?
