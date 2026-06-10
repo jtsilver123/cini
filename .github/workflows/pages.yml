@@ -1,0 +1,40 @@
+name: Deploy Pages
+
+on:
+  push:
+    branches: [claude/ecstatic-cori-k7s2n0]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site (same URLs as before)
+        run: |
+          mkdir -p _site/prototype
+          cp prototype/index.html _site/prototype/index.html
+          cp privacy.html _site/privacy.html
+          # Root redirects to the prototype
+          cat > _site/index.html <<'EOF'
+          <!DOCTYPE html><meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=prototype/">
+          <title>Cini</title><a href="prototype/">Cini prototype</a>
+          EOF
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
