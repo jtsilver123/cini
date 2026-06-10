@@ -1,0 +1,18 @@
+# Xcode
+*.xcodeproj
+!project.yml
+xcuserdata/
+DerivedData/
+*.xcuserstate
+.swiftpm/
+.build/
+
+# SPM
+Package.resolved
+
+# Secrets
+Cini/Resources/Secrets.xcconfig
+.env
+
+# macOS
+.DS_Store
