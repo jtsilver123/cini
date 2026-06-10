@@ -104,14 +104,15 @@ struct ScoreBadge: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Circle()
-                .strokeBorder(Theme.hairline, lineWidth: 1.5)
-                .background(Circle().fill(Color.white))
+                .strokeBorder(Theme.scoreColor(score).opacity(0.45), lineWidth: 1.8)
+                .background(Circle().fill(Theme.surface))
                 .frame(width: size, height: size)
                 .overlay(
                     Text(score.formatted(.number.precision(.fractionLength(1))))
                         .font(.system(size: size * 0.34, weight: .bold))
                         .foregroundStyle(Theme.scoreColor(score))
                 )
+                .shadow(color: Theme.cardShadow, radius: 4, y: 2)
             if let countLabel {
                 Text(countLabel)
                     .font(.system(size: 10, weight: .bold))

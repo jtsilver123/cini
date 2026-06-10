@@ -26,7 +26,7 @@ struct FeedView: View {
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
             }
-            .sheet(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
             }
         }

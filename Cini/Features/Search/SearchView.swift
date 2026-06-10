@@ -40,7 +40,7 @@ struct SearchView: View {
                 .padding(16)
             }
             .background(Theme.background)
-            .sheet(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
             }
             .navigationDestination(item: $detailMovie) { movie in

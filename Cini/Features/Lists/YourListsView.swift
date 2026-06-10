@@ -48,7 +48,7 @@ struct YourListsView: View {
             .sheet(isPresented: $showTimeline) {
                 TimelineView()
             }
-            .sheet(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
             }
             .navigationDestination(item: $detailMovie) { movie in
@@ -298,6 +298,7 @@ struct WatchedRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            PosterView(url: movie.posterURL, width: 52)
             VStack(alignment: .leading, spacing: 3) {
                 Text("\(rank). \(movie.title)")
                     .font(.headline)
@@ -330,6 +331,7 @@ struct WatchlistRowView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            PosterView(url: movie.posterURL, width: 52)
             VStack(alignment: .leading, spacing: 3) {
                 Text(movie.title).font(.headline)
                 Text(movie.metadataLine)

@@ -1,10 +1,11 @@
 import SwiftUI
 import RankingEngine
 
-/// Post-rank enrichment — mirrors Beli's post-log screen: optional rows for
-/// labels, friends, watch date, notes, favorite performances, and personal
-/// notes, with "What your friends think" below.
-struct EnrichmentSheet: View {
+/// Post-rank enrichment card — bottom of the log-flow stack, mirroring
+/// Beli: "Who did you watch with?" chips, labels, notes, favorite
+/// performances, watch date, personal notes, a Stealth-mode toggle that
+/// keeps the rank off the feed, and a single Okay to finish.
+struct EnrichmentCard: View {
     let movie: Movie
     let scored: ScoredItem<Int>
     var onDone: () -> Void
@@ -12,6 +13,8 @@ struct EnrichmentSheet: View {
     @Environment(RankingStore.self) private var store
     private let supabase = SupabaseService.shared
 
+    @State private var friends: [ProfileRow] = []
+    @State private var watchedWith: Set<UUID> = []
     @State private var watchDate: Date?
     @State private var notes = ""
     @State private var personalNotes = ""
@@ -19,76 +22,121 @@ struct EnrichmentSheet: View {
     @State private var selectedCast: Set<CastMember> = []
     @State private var cast: [CastMember] = []
     @State private var friendScores: [FriendScoreRow] = []
+    @State private var stealthMode = false
     @State private var activeRow: Row?
 
     enum Row: String, Identifiable {
-        case labels, friends, date, notes, performances, personalNotes
+        case labels, date, notes, performances, personalNotes
         var id: String { rawValue }
     }
 
     var body: some View {
-        List {
-            Section {
-                rankedBanner
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+        VStack(spacing: 0) {
+            rankedBanner
+                .padding(.bottom, 6)
+
+            watchedWithSection
+            divider
+            enrichmentRow(.labels, icon: "tag", title: "Add labels (date night, etc.)",
+                          detail: selectedLabels.isEmpty ? nil : selectedLabels.sorted().joined(separator: ", "))
+            divider
+            enrichmentRow(.notes, icon: "square.and.pencil", title: "Add notes",
+                          detail: notes.isEmpty ? nil : notes)
+            divider
+            enrichmentRow(.performances, icon: "star", title: "Add favorite performances",
+                          detail: selectedCast.isEmpty ? nil : selectedCast.map(\.name).joined(separator: ", "))
+            divider
+            enrichmentRow(.date, icon: "calendar", title: "Add watch date",
+                          detail: watchDate?.formatted(date: .abbreviated, time: .omitted))
+            divider
+            enrichmentRow(.personalNotes, icon: "eye.slash", title: "Add personal notes",
+                          detail: personalNotes.isEmpty ? nil : "Private")
+            divider
+            stealthRow
+
+            if !friendScores.isEmpty {
+                divider
+                friendsSection
             }
 
-            Section {
-                enrichmentRow(.labels, icon: "tag", title: "Add Guides and Labels",
-                              detail: selectedLabels.isEmpty ? nil : selectedLabels.sorted().joined(separator: ", "))
-                enrichmentRow(.friends, icon: "person.2", title: "Tag friends")
-                enrichmentRow(.date, icon: "calendar", title: "Add watch date",
-                              detail: watchDate?.formatted(date: .abbreviated, time: .omitted))
-                enrichmentRow(.notes, icon: "square.and.pencil", title: "Add Notes",
-                              detail: notes.isEmpty ? nil : notes)
-                enrichmentRow(.performances, icon: "star", title: "Add Favorite Performances",
-                              detail: selectedCast.isEmpty ? nil : selectedCast.map(\.name).joined(separator: ", "))
-                enrichmentRow(.personalNotes, icon: "eye.slash", title: "Add Personal Notes",
-                              detail: personalNotes.isEmpty ? nil : "Private")
-            }
-
-            Section("What your friends think") {
-                if friendScores.isEmpty {
-                    Text("None of your friends have ranked \(movie.title) yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-                } else {
-                    ForEach(friendScores) { friend in
-                        FriendThinkRow(friend: friend)
-                    }
-                }
-            }
-        }
-        .listStyle(.plain)
-        .safeAreaInset(edge: .bottom) {
-            PillButton(title: "Done") {
+            Button {
                 Task { await save() }
+            } label: {
+                Text("Okay")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.teal)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
             }
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(.thinMaterial)
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, 18)
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity)
+        .floatingCard()
         .sheet(item: $activeRow) { row in
             rowSheet(row)
         }
         .task {
+            friends = (try? await supabase.following()) ?? []
             cast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
             friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
     }
 
+    private var divider: some View {
+        Divider().overlay(Theme.hairline)
+    }
+
     private var rankedBanner: some View {
-        HStack(spacing: 14) {
-            PosterView(url: movie.posterURL, width: 56)
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 12) {
+            PosterView(url: movie.posterURL, width: 44)
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Ranked #\(scored.rank)").font(.headline)
                 Text("on your Watched list").font(.subheadline).foregroundStyle(Theme.gray)
             }
             Spacer()
-            ScoreBadge(score: scored.score)
+            ScoreBadge(score: scored.score, size: 48)
         }
-        .padding(.vertical, 8)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: Who did you watch with?
+
+    private var watchedWithSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Image(systemName: "person.2").frame(width: 28)
+                Text("Who did you watch with?")
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            if !friends.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(friends) { friend in
+                            let isOn = watchedWith.contains(friend.id)
+                            Button {
+                                if isOn { watchedWith.remove(friend.id) } else { watchedWith.insert(friend.id) }
+                            } label: {
+                                Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
+                                    .font(.subheadline)
+                                    .foregroundStyle(isOn ? .white : Theme.ink)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(isOn ? Theme.teal : Color.black.opacity(0.05))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+        .padding(.vertical, 12)
     }
 
     private func enrichmentRow(_ row: Row, icon: String, title: String, detail: String? = nil) -> some View {
@@ -96,9 +144,7 @@ struct EnrichmentSheet: View {
             activeRow = row
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .frame(width: 28)
-                    .foregroundStyle(Theme.ink)
+                Image(systemName: icon).frame(width: 28).foregroundStyle(Theme.ink)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).foregroundStyle(Theme.ink)
                     if let detail {
@@ -108,10 +154,42 @@ struct EnrichmentSheet: View {
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 14)
         }
         .buttonStyle(.plain)
     }
+
+    private var stealthRow: some View {
+        HStack(spacing: 14) {
+            Image(systemName: "lock").frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("Stealth mode")
+                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(Theme.teal)
+                }
+                Text("Hide this activity from the feed")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            Spacer()
+            Toggle("", isOn: $stealthMode).labelsHidden().tint(Theme.teal)
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("What your friends think")
+                .font(.headline)
+                .padding(.top, 12)
+            ForEach(friendScores.prefix(3)) { friend in
+                FriendThinkRow(friend: friend)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Row sheets
 
     @ViewBuilder
     private func rowSheet(_ row: Row) -> some View {
@@ -119,10 +197,6 @@ struct EnrichmentSheet: View {
             switch row {
             case .labels:
                 LabelPicker(selected: $selectedLabels)
-            case .friends:
-                Text("Tag friends you watched with")
-                    .foregroundStyle(Theme.gray)
-                    .navigationTitle("Tag friends")
             case .date:
                 DatePicker(
                     "Watch date",
@@ -153,13 +227,21 @@ struct EnrichmentSheet: View {
         for member in selectedCast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
         }
+        if !watchedWith.isEmpty || watchDate != nil {
+            try? await supabase.updateRanking(movieID: movie.tmdbID,
+                                              watchedWith: Array(watchedWith),
+                                              watchDate: watchDate)
+        }
+        if stealthMode {
+            try? await supabase.hideRankEvent(movieID: movie.tmdbID)
+        }
         onDone()
     }
 }
 
 // MARK: - Sub-pickers
 
-private struct LabelPicker: View {
+struct LabelPicker: View {
     @Binding var selected: Set<String>
 
     private let builtIns = ["Date Night", "Plane Movie", "Mindblower", "Slow Burn",
@@ -192,12 +274,12 @@ private struct LabelPicker: View {
                 .disabled(custom.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .navigationTitle("Guides and Labels")
+        .navigationTitle("Labels")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
 
-private struct NoteEditor: View {
+struct NoteEditor: View {
     let title: String
     let subtitle: String
     @Binding var text: String
@@ -217,7 +299,7 @@ private struct NoteEditor: View {
     }
 }
 
-private struct CastPicker: View {
+struct CastPicker: View {
     let cast: [CastMember]
     @Binding var selected: Set<CastMember>
 

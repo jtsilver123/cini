@@ -48,7 +48,7 @@ struct MovieDetailView: View {
                 Image(systemName: "ellipsis")
             }
         }
-        .sheet(isPresented: $showLogFlow) {
+        .fullScreenCover(isPresented: $showLogFlow) {
             LogFlowView(movie: movie)
         }
         .sheet(isPresented: $showWhereToWatch) {

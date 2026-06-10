@@ -173,7 +173,51 @@ final class SupabaseService {
         return counts.values.sorted { $0.count > $1.count }
     }
 
+    // MARK: - Ranking enrichment
+
+    func updateRanking(movieID: Int, watchedWith: [UUID], watchDate: Date?) async throws {
+        guard let me = currentUserID else { return }
+        struct Update: Encodable {
+            let watched_with: [UUID]
+            let watch_date: String?
+        }
+        let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
+        try await client.from("rankings")
+            .update(Update(watched_with: watchedWith, watch_date: dateString))
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .execute()
+    }
+
+    /// Stealth mode: pull the 'ranked' event for this movie off the feed.
+    func hideRankEvent(movieID: Int) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("feed_events")
+            .delete()
+            .eq("user_id", value: me)
+            .eq("movie_id", value: movieID)
+            .eq("event_type", value: "ranked")
+            .execute()
+    }
+
     // MARK: - Social
+
+    /// Profiles the current user follows (for "Who did you watch with?").
+    func following() async throws -> [ProfileRow] {
+        guard let me = currentUserID else { return [] }
+        struct Edge: Codable {
+            let followingId: UUID
+            enum CodingKeys: String, CodingKey { case followingId = "following_id" }
+        }
+        let edges: [Edge] = try await client.from("follows")
+            .select("following_id")
+            .eq("follower_id", value: me)
+            .execute().value
+        guard !edges.isEmpty else { return [] }
+        return try await client.from("profiles")
+            .select()
+            .in("id", values: edges.map(\.followingId))
+            .execute().value
+    }
 
     func follow(_ userID: UUID) async throws {
         guard let me = currentUserID else { return }

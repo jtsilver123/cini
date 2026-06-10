@@ -4,188 +4,224 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#175E63">
+<meta name="theme-color" content="#14555A">
 <title>Cini — Prototype</title>
 <style>
   :root{
-    --teal:#175E63; --ink:#111; --bg:#FCFBF9; --gray:#8A8F98;
-    --green:#1F9D55; --amber:#C9881A; --red:#B54A4A; --hair:rgba(0,0,0,.12);
+    --teal:#14555A; --teal-soft:rgba(20,85,90,.10); --ink:#121416; --bg:#FAF7F2;
+    --gray:#8A8F98; --green:#1F9D55; --amber:#C9881A; --red:#B54A4A;
+    --hair:rgba(0,0,0,.09);
+    --s-loved:#53B17C; --s-fine:#F4C95C; --s-disliked:#EE9E9E;
+    --shadow:0 8px 28px rgba(20,30,30,.10);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; padding:0; background:#e9e6e0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
-  .serif{font-family:Georgia,"Times New Roman",serif;}
+  html,body{margin:0; padding:0; background:#e7e3dc;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink);}
+  .serif{font-family:"New York","Iowan Old Style",Georgia,"Times New Roman",serif;}
 
-  /* Phone frame on desktop; full-bleed on real phones */
-  #phone{
-    position:relative; width:100%; max-width:430px; margin:0 auto; height:100vh;
+  #phone{position:relative; width:100%; max-width:430px; margin:0 auto; height:100vh;
     background:var(--bg); overflow:hidden; display:flex; flex-direction:column;
-    box-shadow:0 0 40px rgba(0,0,0,.18);
-  }
+    box-shadow:0 0 60px rgba(0,0,0,.25);}
   @media(min-width:480px){
     body{display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;}
-    #phone{height:880px; border-radius:44px; border:12px solid #111; overflow:hidden;}
+    #phone{height:880px; border-radius:48px; border:12px solid #0c0c0c;}
   }
 
-  /* Status bar */
   .statusbar{display:flex; justify-content:space-between; align-items:center;
-    padding:10px 22px 4px; font-size:13px; font-weight:700; color:var(--ink); flex:0 0 auto;}
-  .statusbar .icons{display:flex; gap:6px; font-size:12px;}
+    padding:12px 24px 4px; font-size:14px; font-weight:700; flex:0 0 auto;}
 
-  .screen{flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:96px;}
-  .pad{padding:0 16px;}
+  .screen{flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:104px;}
+  .pad{padding:0 18px;}
   .hidden{display:none !important;}
 
-  /* Tab bar */
-  .tabbar{position:absolute; bottom:0; left:0; right:0; height:84px;
-    background:rgba(255,255,255,.92); backdrop-filter:blur(18px);
+  /* ---------- Tab bar ---------- */
+  .tabbar{position:absolute; bottom:0; left:0; right:0; height:86px; z-index:30;
+    background:rgba(252,250,246,.88); backdrop-filter:blur(20px) saturate(1.4);
     border-top:1px solid var(--hair); display:flex; align-items:flex-start;
-    justify-content:space-around; padding-top:8px;}
-  .tab{display:flex; flex-direction:column; align-items:center; gap:3px; font-size:11px;
-    color:var(--gray); border:none; background:none; flex:1; cursor:pointer; padding-top:2px;}
-  .tab.active{color:var(--ink); font-weight:700;}
-  .tab .ic{font-size:21px; line-height:1;}
-  .tab.center .ic{width:54px; height:54px; border-radius:50%; background:var(--teal); color:#fff;
-    display:flex; align-items:center; justify-content:center; font-size:28px; margin-top:-22px;
-    box-shadow:0 6px 14px rgba(23,94,99,.4);}
+    justify-content:space-around; padding-top:9px;}
+  .tab{display:flex; flex-direction:column; align-items:center; gap:4px; font-size:10.5px;
+    color:var(--gray); border:none; background:none; flex:1; cursor:pointer; font-weight:500;}
+  .tab.active{color:var(--teal); font-weight:700;}
+  .tab svg{width:23px; height:23px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;}
+  .tab.center .plus{width:56px; height:56px; border-radius:50%; margin-top:-26px;
+    background:linear-gradient(160deg,#1A6B71,#0F4347); color:#fff; display:flex; align-items:center;
+    justify-content:center; font-size:30px; font-weight:300;
+    box-shadow:0 8px 20px rgba(20,85,90,.45), inset 0 1px 0 rgba(255,255,255,.25);}
 
-  /* Pills & badges */
-  .pill{display:inline-flex; align-items:center; gap:6px; background:var(--teal); color:#fff;
-    border:none; border-radius:999px; padding:9px 16px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;}
-  .pill.out{background:transparent; color:var(--teal); border:1.4px solid var(--teal);}
-  .pill.ghost{background:#fff; color:var(--ink); border:1px solid var(--hair);}
-  .row-scroll{display:flex; gap:10px; overflow-x:auto; padding:4px 16px 2px; scrollbar-width:none;}
+  /* ---------- Pills, badges, cards ---------- */
+  .pill{display:inline-flex; align-items:center; gap:7px; background:var(--teal); color:#fff;
+    border:none; border-radius:999px; padding:10px 17px; font-size:13.5px; font-weight:600;
+    cursor:pointer; white-space:nowrap; box-shadow:0 3px 10px rgba(20,85,90,.25);}
+  .pill.out{background:#fff; color:var(--teal); border:1.4px solid var(--teal); box-shadow:none;}
+  .pill.ghost{background:#fff; color:var(--ink); border:1px solid var(--hair); box-shadow:0 1px 4px rgba(0,0,0,.04);}
+  .row-scroll{display:flex; gap:10px; overflow-x:auto; padding:6px 18px 8px; scrollbar-width:none;}
   .row-scroll::-webkit-scrollbar{display:none;}
 
-  .badge{width:52px; height:52px; border-radius:50%; background:#fff; border:1.5px solid var(--hair);
-    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; position:relative; flex:0 0 auto;}
-  .badge .chip{position:absolute; bottom:-4px; right:-4px; background:var(--teal); color:#fff;
-    font-size:9px; font-weight:800; padding:2px 5px; border-radius:999px;}
-  .g{color:var(--green);} .a{color:var(--amber);} .r{color:var(--red);}
+  .badge{width:52px; height:52px; border-radius:50%; background:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17.5px;
+    position:relative; flex:0 0 auto; box-shadow:0 2px 8px rgba(0,0,0,.07);}
+  .badge.g{border:1.8px solid rgba(31,157,85,.45); color:var(--green);}
+  .badge.a{border:1.8px solid rgba(201,136,26,.45); color:var(--amber);}
+  .badge.r{border:1.8px solid rgba(181,74,74,.45); color:var(--red);}
+  .badge .chip{position:absolute; bottom:-3px; right:-4px; background:var(--teal); color:#fff;
+    font-size:9px; font-weight:800; padding:2.5px 6px; border-radius:999px; border:1.5px solid #fff;}
+  .gtxt{color:var(--green);}
 
-  /* Generic poster */
-  .poster{border-radius:12px; background:linear-gradient(150deg,#2b4a4d,#0f2f31); color:#fff;
-    display:flex; align-items:flex-end; padding:8px; font-size:11px; font-weight:700; line-height:1.2;
-    box-shadow:0 6px 16px rgba(0,0,0,.18); flex:0 0 auto; overflow:hidden;}
-  .p1{background:linear-gradient(150deg,#3a2e4d,#1a1030);}
-  .p2{background:linear-gradient(150deg,#4d3a2b,#2e1c10);}
-  .p3{background:linear-gradient(150deg,#2b4a4d,#0f2f31);}
-  .p4{background:linear-gradient(150deg,#4d2b34,#2e1018);}
-  .p5{background:linear-gradient(150deg,#2b394d,#101a2e);}
-  .p6{background:linear-gradient(150deg,#33502f,#142810);}
+  .poster{border-radius:10px; background-size:cover; background-position:center;
+    box-shadow:0 5px 14px rgba(0,0,0,.18); flex:0 0 auto; background-color:#22383a;}
 
-  h2.section{font-size:12px; letter-spacing:.04em; color:var(--gray); font-weight:700; margin:16px 16px 8px;}
-  .wordmark{font-size:30px; color:var(--teal); font-weight:700;}
+  .card{background:#fff; border-radius:20px; padding:18px; margin:0 18px; box-shadow:var(--shadow);}
+  h2.section{font-size:11.5px; letter-spacing:.08em; color:var(--gray); font-weight:700; margin:20px 18px 10px;}
+  .wordmark{font-size:32px; color:var(--teal); font-weight:700; letter-spacing:-.5px;}
 
-  .avatar{border-radius:50%; background:#cdd2d6 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><text y="18" x="4" font-size="18">🙂</text></svg>') center/cover; flex:0 0 auto;}
+  .avatar{border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; flex:0 0 auto; background:linear-gradient(140deg,#88aab0,#5d818a);}
+  .av1{background:linear-gradient(140deg,#c98ba8,#9a5677);} .av2{background:linear-gradient(140deg,#8ba8c9,#56779a);}
+  .av3{background:linear-gradient(140deg,#c9b08b,#9a8156);} .av4{background:linear-gradient(140deg,#9dc98b,#6f9a56);}
 
-  .card{background:#fff; border:1px solid var(--hair); border-radius:14px; padding:16px; margin:0 16px;}
-  .listrow{display:flex; gap:12px; padding:14px 16px; border-bottom:1px solid var(--hair); align-items:flex-start;}
-  .meta{color:var(--ink); opacity:.8; font-size:14px;} .sub{color:var(--gray); font-size:12px;}
-  .divider{height:1px; background:var(--hair); margin:0 16px;}
-  .iconrow{display:flex; gap:18px; font-size:19px; color:var(--ink); align-items:center;}
+  .listrow{display:flex; gap:13px; padding:15px 18px; border-bottom:1px solid var(--hair); align-items:flex-start;}
+  .meta{opacity:.78; font-size:13.5px; margin-top:1px;} .sub{color:var(--gray); font-size:12px;}
+  .iconrow{display:flex; gap:18px; font-size:18px; align-items:center;}
   .spacer{flex:1;}
 
-  /* Sub-tabs */
-  .subtabs{display:flex; gap:22px; padding:10px 16px 0; overflow-x:auto; scrollbar-width:none;}
-  .subtab{font-size:14px; color:var(--gray); padding-bottom:8px; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap;}
+  .subtabs{display:flex; gap:24px; padding:12px 18px 0; overflow-x:auto; scrollbar-width:none;}
+  .subtab{font-size:14.5px; color:var(--gray); padding-bottom:9px; border-bottom:2.5px solid transparent; cursor:pointer; white-space:nowrap;}
   .subtab.active{color:var(--ink); font-weight:700; border-color:var(--ink);}
 
-  /* Log flow */
-  .sheet{position:absolute; inset:0; background:var(--bg); z-index:50; display:flex; flex-direction:column;}
-  .sheet-head{display:flex; align-items:center; padding:14px 16px; border-bottom:1px solid var(--hair); font-weight:600;}
-  .sheet-body{flex:1; overflow-y:auto; padding:20px 16px;}
-  .sent-card{display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--hair);
-    border-radius:16px; padding:20px; font-size:19px; font-weight:600; margin-bottom:14px; cursor:pointer;}
-  .vs{display:flex; gap:16px; justify-content:center; margin:20px 0;}
-  .vs .opt{flex:1; text-align:center; cursor:pointer;}
-  .dots{display:flex; gap:6px; justify-content:center; margin:8px 0 16px;}
-  .dot{width:7px; height:7px; border-radius:50%; background:rgba(0,0,0,.18);}
-  .dot.on{background:var(--teal);}
-  .seg{display:flex; background:rgba(0,0,0,.05); border-radius:999px; padding:4px; margin:0 16px;}
-  .seg button{flex:1; border:none; background:none; padding:9px; border-radius:999px; font-size:13px; color:var(--ink); cursor:pointer;}
-  .seg button.active{background:#fff; font-weight:600; box-shadow:0 1px 3px rgba(0,0,0,.1);}
-  .toast{position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff;
-    padding:10px 18px; border-radius:999px; font-size:13px; z-index:60; opacity:0; transition:.3s; white-space:nowrap;}
+  .seg{display:flex; background:rgba(0,0,0,.05); border-radius:999px; padding:4px; margin:0 18px;}
+  .seg button{flex:1; border:none; background:none; padding:9px; border-radius:999px; font-size:13px; cursor:pointer; color:var(--ink);}
+  .seg button.active{background:#fff; font-weight:700; box-shadow:0 2px 6px rgba(0,0,0,.1);}
+
+  .searchfield{display:flex; gap:9px; align-items:center; background:#fff; border:1px solid var(--hair);
+    border-radius:14px; padding:13px 14px; color:var(--gray); font-size:14px; box-shadow:0 1px 4px rgba(0,0,0,.03);}
+
+  /* ---------- Log flow overlay ---------- */
+  #logOverlay{position:absolute; inset:0; z-index:50; overflow-y:auto;
+    background:rgba(15,22,23,.62); backdrop-filter:blur(3px);
+    padding:16px 14px 40px; display:flex; flex-direction:column; gap:11px;}
+  .fcard{background:#fff; border-radius:22px; padding:18px 20px; box-shadow:0 14px 38px rgba(10,20,20,.22);
+    animation:rise .28s cubic-bezier(.2,.9,.3,1);}
+  @keyframes rise{from{transform:translateY(26px); opacity:0;} to{transform:none; opacity:1;}}
+
+  .circles{display:flex; margin-top:16px;}
+  .circ-opt{flex:1; display:flex; flex-direction:column; align-items:center; gap:11px; cursor:pointer;}
+  .circ{width:66px; height:66px; border-radius:50%; transition:.2s; display:flex; align-items:center;
+    justify-content:center; color:#fff; font-size:26px; font-weight:700; box-shadow:inset 0 -3px 8px rgba(0,0,0,.06);}
+  .circ-opt span{font-size:14px; color:var(--ink); text-align:center;}
+  .circ-opt.dim .circ{opacity:.4;} .circ-opt.dim span{color:var(--gray);}
+  .circ-opt.sel .circ{transform:scale(1.08); box-shadow:0 4px 14px rgba(0,0,0,.18);}
+  .circ-opt.sel span{font-weight:700;}
+
+  .vswrap{display:flex; align-items:stretch; margin:18px 0 4px; position:relative;}
+  .vscard{flex:1; border:1.5px solid rgba(20,85,90,.75); border-radius:18px; min-height:172px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;
+    cursor:pointer; padding:14px; transition:.15s; background:#fff;}
+  .vscard:active{background:var(--teal-soft); transform:scale(.97);}
+  .orb{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:46px; height:46px;
+    border-radius:50%; background:var(--teal); color:#fff; display:flex; align-items:center;
+    justify-content:center; font-size:13px; font-weight:900; z-index:2; box-shadow:0 3px 10px rgba(20,85,90,.4);}
+  .vsctrl{display:flex; align-items:center; justify-content:space-between; margin-top:18px; padding:0 6px;}
+  .vsctrl .lnk{color:var(--teal); font-weight:700; font-size:15px; cursor:pointer; background:none; border:none; display:flex; gap:7px; align-items:center;}
+  .vsctrl .lnk.off{color:rgba(138,143,152,.5);}
+  .tough{border:1.5px solid var(--teal); border-radius:999px; padding:10px 20px; color:var(--teal);
+    font-weight:700; font-size:15px; cursor:pointer; background:#fff;}
+
+  .erow{display:flex; gap:15px; align-items:center; padding:15px 0; border-bottom:1px solid var(--hair); cursor:pointer;}
+  .erow .ic{width:26px; text-align:center; font-size:18px;}
+  .erow .chev{color:var(--gray); font-size:14px;}
+  .chips{display:flex; gap:8px; overflow-x:auto; padding:2px 0 14px 41px; scrollbar-width:none; border-bottom:1px solid var(--hair);}
+  .chips::-webkit-scrollbar{display:none;}
+  .chip-f{background:rgba(0,0,0,.05); border-radius:11px; padding:9px 15px; font-size:13.5px; white-space:nowrap; cursor:pointer;}
+  .chip-f.on{background:var(--teal); color:#fff;}
+  .switch{width:50px; height:30px; border-radius:999px; background:rgba(0,0,0,.12); position:relative; cursor:pointer; transition:.2s; flex:0 0 auto;}
+  .switch::after{content:""; position:absolute; top:2.5px; left:3px; width:25px; height:25px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.25); transition:.2s;}
+  .switch.on{background:var(--teal);} .switch.on::after{left:22px;}
+  .okay{width:100%; border:none; background:none; color:var(--teal); font-size:18px; font-weight:800;
+    padding:17px 0 6px; cursor:pointer;}
+
+  .toast{position:absolute; bottom:104px; left:50%; transform:translateX(-50%); background:var(--ink);
+    color:#fff; padding:11px 20px; border-radius:999px; font-size:13px; z-index:70; opacity:0;
+    transition:.3s; white-space:nowrap; box-shadow:0 6px 18px rgba(0,0,0,.3);}
   .toast.show{opacity:1;}
-  .backbtn{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink);}
-  .hist{display:flex; align-items:flex-end; gap:5px; height:90px; margin-top:10px;}
-  .hist .bar{flex:1; background:var(--teal); border-radius:3px 3px 0 0; opacity:.85;}
-  .barlabel{display:flex; gap:5px; font-size:10px; color:var(--gray); margin-top:4px;}
+  .backbtn{background:none; border:none; font-size:24px; cursor:pointer; color:var(--ink); padding:0;}
+  .hist{display:flex; align-items:flex-end; gap:5px; height:92px; margin-top:12px;}
+  .hist .bar{flex:1; background:linear-gradient(180deg,#1A6B71,#14555A); border-radius:4px 4px 0 0;}
+  .barlabel{display:flex; gap:5px; font-size:10px; color:var(--gray); margin-top:5px;}
   .barlabel span{flex:1; text-align:center;}
+  .dotbadge{position:absolute; top:-2px; right:-3px; width:8px; height:8px; border-radius:50%; background:#e2574c; border:1.5px solid var(--bg);}
 </style>
 </head>
 <body>
 <div id="phone">
-  <div class="statusbar">
-    <span>1:37</span>
-    <span class="icons">📶 📡 🔋</span>
-  </div>
+  <div class="statusbar"><span>1:37</span><span style="letter-spacing:2px;">▍▍▍ ⌔ ▐▆</span></div>
 
   <!-- ============ FEED ============ -->
   <div class="screen" data-screen="feed">
-    <div class="pad" style="display:flex; align-items:center; padding-top:8px;">
+    <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
       <span class="wordmark serif">cini</span>
       <span class="spacer"></span>
-      <span class="iconrow">📅 🔔 ☰</span>
+      <span class="iconrow" style="font-size:20px; gap:20px;">
+        <span style="position:relative;">🗓<span class="dotbadge"></span></span>
+        <span>🔔</span><span>☰</span>
+      </span>
     </div>
-    <div class="pad" style="margin-top:12px;">
-      <div style="display:flex; gap:8px; align-items:center; background:rgba(0,0,0,.05); border-radius:12px; padding:12px;">
-        <span>🔍</span><span class="sub" style="font-size:14px;">Search a movie, member, etc.</span>
-      </div>
+    <div class="pad" style="margin-top:14px;">
+      <div class="searchfield">🔍&ensp;Search a movie, member, etc.</div>
     </div>
-    <div class="row-scroll" style="margin-top:12px;">
+    <div class="row-scroll" style="margin-top:10px;">
       <button class="pill">▶ Where to Watch</button>
       <button class="pill">🎟 Showtimes</button>
       <button class="pill">📍 Recs Nearby</button>
     </div>
     <h2 class="section">YOUR FEED</h2>
     <div class="pad" style="display:flex; gap:12px; align-items:center;">
-      <div class="avatar" style="width:44px;height:44px;"></div>
-      <div style="flex:1; background:rgba(0,0,0,.05); border-radius:999px; padding:12px 16px; color:var(--gray); font-size:14px;">Ask your friends for recs</div>
+      <div class="avatar" style="width:44px;height:44px;">J</div>
+      <div style="flex:1; background:rgba(0,0,0,.045); border-radius:999px; padding:13px 17px; color:var(--gray); font-size:14px;">Ask your friends for recs</div>
     </div>
 
-    <div style="margin-top:16px;">
+    <div style="margin-top:14px;">
       <div class="listrow">
-        <div class="avatar" style="width:48px;height:48px;"></div>
+        <div class="avatar av1" style="width:48px;height:48px;">M</div>
         <div style="flex:1;">
-          <div><b>maddy</b> ranked <b>Dune: Part Two</b> <span class="g" style="font-weight:800;">9.2</span></div>
-          <div class="sub">Sci-Fi · 2024</div>
-          <div class="iconrow" style="margin-top:10px; font-size:18px;">🤍 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
-          <div class="sub" style="margin-top:6px;">58 minutes ago</div>
+          <div style="font-size:14.5px;"><b>maddy</b> ranked <b>Dune: Part Two</b> <span class="gtxt" style="font-weight:800;">9.2</span></div>
+          <div class="sub" style="margin-top:2px;">Sci-Fi · 2024</div>
+          <div class="iconrow" style="margin-top:11px;">♡ 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
+          <div class="sub" style="margin-top:7px;">58 minutes ago</div>
         </div>
-        <div class="poster p3" style="width:52px;height:78px;">Dune</div>
+        <div class="poster" style="width:54px;height:81px; background-image:url('https://image.tmdb.org/t/p/w342/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg');" onclick="go('detail')"></div>
       </div>
       <div class="listrow">
-        <div class="avatar" style="width:48px;height:48px;"></div>
+        <div class="avatar av2" style="width:48px;height:48px;">E</div>
         <div style="flex:1;">
-          <div><b>Emily</b> added <b>Past Lives</b> to their watchlist</div>
-          <div class="sub">Drama · 2023</div>
-          <div class="iconrow" style="margin-top:10px; font-size:18px;">🤍 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
-          <div class="sub" style="margin-top:6px;">3 hours ago</div>
+          <div style="font-size:14.5px;"><b>Emily</b> added <b>Past Lives</b> to their watchlist</div>
+          <div class="sub" style="margin-top:2px;">Drama · 2023</div>
+          <div class="iconrow" style="margin-top:11px;">♡ 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
+          <div class="sub" style="margin-top:7px;">3 hours ago</div>
         </div>
-        <div class="poster p1" style="width:52px;height:78px;">Past Lives</div>
+        <div class="poster" style="width:54px;height:81px; background-image:url('https://image.tmdb.org/t/p/w342/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg');"></div>
       </div>
       <div class="listrow">
-        <div class="avatar" style="width:48px;height:48px;"></div>
+        <div class="avatar av3" style="width:48px;height:48px;">J</div>
         <div style="flex:1;">
-          <div><b>jzjackjz</b> ranked <b>Oppenheimer</b> <span class="g" style="font-weight:800;">8.7</span></div>
-          <div class="sub">Drama · 2023</div>
-          <div class="iconrow" style="margin-top:10px; font-size:18px;">❤️ 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
-          <div class="sub" style="margin-top:6px;">yesterday</div>
+          <div style="font-size:14.5px;"><b>jzjackjz</b> ranked <b>Oppenheimer</b> <span class="gtxt" style="font-weight:800;">8.7</span></div>
+          <div class="sub" style="margin-top:2px;">Drama · 2023</div>
+          <div class="iconrow" style="margin-top:11px;">❤️ 💬 ➤ <span class="spacer"></span> ⊕ 🔖</div>
+          <div class="sub" style="margin-top:7px;">yesterday</div>
         </div>
-        <div class="poster p2" style="width:52px;height:78px;">Oppen-heimer</div>
+        <div class="poster" style="width:54px;height:81px; background-image:url('https://image.tmdb.org/t/p/w342/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg');"></div>
       </div>
     </div>
   </div>
 
   <!-- ============ LISTS ============ -->
   <div class="screen hidden" data-screen="lists">
-    <div class="pad" style="text-align:center; padding-top:10px; position:relative;">
-      <b style="font-size:14px;">MY LISTS</b>
-      <span style="position:absolute; right:16px; top:10px;">↗ ⋯</span>
+    <div class="pad" style="text-align:center; padding-top:12px; position:relative;">
+      <b style="font-size:13px; letter-spacing:.08em;">MY LISTS</b>
+      <span style="position:absolute; right:18px; top:12px; font-size:16px;">↗ ⋯</span>
     </div>
-    <div class="pad" style="margin-top:6px; display:flex; align-items:center; gap:6px;">
-      <span class="serif" style="font-size:28px; font-weight:700;">Movies</span><span>▾</span>
+    <div class="pad" style="margin-top:8px; display:flex; align-items:center; gap:7px;">
+      <span class="serif" style="font-size:30px; font-weight:700;">Movies</span><span style="font-size:14px;">▾</span>
     </div>
     <div class="subtabs">
       <div class="subtab active">Watched</div>
@@ -194,73 +230,73 @@
       <div class="subtab">Guides</div>
       <div class="subtab">More ▾</div>
     </div>
-    <div class="row-scroll" style="margin-top:10px;">
-      <button class="pill ghost">⚙</button>
+    <div class="row-scroll" style="margin-top:12px;">
+      <button class="pill ghost">⛭</button>
       <button class="pill ghost">Genre ▾</button>
       <button class="pill ghost">Decade ▾</button>
       <button class="pill ghost">Streaming ▾</button>
       <button class="pill ghost">Runtime</button>
     </div>
-    <div class="pad" style="display:flex; align-items:center; margin-top:12px;">
-      <span style="color:var(--teal); font-weight:600;">↓↑ Score</span><span class="spacer"></span>🔍
+    <div class="pad" style="display:flex; align-items:center; margin-top:10px;">
+      <span style="color:var(--teal); font-weight:700; font-size:14px;">↓↑ Score</span><span class="spacer"></span>🔍
     </div>
 
-    <div style="margin-top:8px;">
-      <div class="listrow" onclick="showDetail()">
+    <div style="margin-top:6px;">
+      <div class="listrow" onclick="go('detail')">
+        <div class="poster" style="width:52px;height:78px; background-image:url('https://image.tmdb.org/t/p/w342/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg');"></div>
         <div style="flex:1;">
-          <div style="font-weight:700;">1. Dune: Part Two</div>
+          <div style="font-weight:700; font-size:15.5px;">1. Dune: Part Two</div>
           <div class="meta">PG-13 | Sci-Fi, Adventure</div>
           <div class="meta">2024 · Dir. Denis Villeneuve</div>
-          <div class="sub" style="margin-top:2px;">2h 46m · On Max</div>
+          <div class="sub" style="margin-top:3px;">2h 46m · On Max</div>
         </div>
-        <div class="badge"><span class="g">9.2</span></div>
+        <div class="badge g">9.2</div>
       </div>
       <div class="listrow">
+        <div class="poster" style="width:52px;height:78px; background-image:url('https://image.tmdb.org/t/p/w342/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg');"></div>
         <div style="flex:1;">
-          <div style="font-weight:700;">2. Oppenheimer</div>
+          <div style="font-weight:700; font-size:15.5px;">2. Oppenheimer</div>
           <div class="meta">R | Drama, History</div>
           <div class="meta">2023 · Dir. Christopher Nolan</div>
-          <div class="sub" style="margin-top:2px;">3h 0m · On Peacock</div>
+          <div class="sub" style="margin-top:3px;">3h 0m · On Peacock</div>
         </div>
-        <div class="badge"><span class="g">8.7</span></div>
+        <div class="badge g">8.7</div>
       </div>
       <div class="listrow">
+        <div class="poster" style="width:52px;height:78px; background-image:url('https://image.tmdb.org/t/p/w342/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg');"></div>
         <div style="flex:1;">
-          <div style="font-weight:700;">3. Past Lives</div>
+          <div style="font-weight:700; font-size:15.5px;">3. Past Lives</div>
           <div class="meta">PG-13 | Drama, Romance</div>
           <div class="meta">2023 · Dir. Celine Song</div>
-          <div class="sub" style="margin-top:2px;">1h 45m · On Showtime</div>
+          <div class="sub" style="margin-top:3px;">1h 45m · On Showtime</div>
         </div>
-        <div class="badge"><span class="g">8.1</span></div>
+        <div class="badge g">8.1</div>
       </div>
       <div class="listrow">
+        <div class="poster" style="width:52px;height:78px; background-image:url('https://image.tmdb.org/t/p/w342/VHSzNBTwxV8vh7wylo7O9CLdac.jpg');"></div>
         <div style="flex:1;">
-          <div style="font-weight:700;">4. The Holdovers</div>
+          <div style="font-weight:700; font-size:15.5px;">4. The Holdovers</div>
           <div class="meta">R | Comedy, Drama</div>
           <div class="meta">2023 · Dir. Alexander Payne</div>
-          <div class="sub" style="margin-top:2px;">2h 13m · On Peacock</div>
+          <div class="sub" style="margin-top:3px;">2h 13m · On Peacock</div>
         </div>
-        <div class="badge"><span class="a">6.2</span></div>
+        <div class="badge a">6.2</div>
       </div>
     </div>
-    <div style="position:absolute; bottom:100px; right:18px;">
-      <button class="pill">🗺 View Timeline</button>
+    <div style="position:absolute; bottom:104px; right:18px; z-index:20;">
+      <button class="pill">▦ View Timeline</button>
     </div>
   </div>
 
   <!-- ============ SEARCH ============ -->
   <div class="screen hidden" data-screen="search">
-    <div style="display:flex; margin-top:6px;">
-      <div style="flex:1; text-align:center; padding-bottom:8px; border-bottom:2.5px solid var(--teal); color:var(--teal); font-weight:700;">🎬 Movies</div>
-      <div style="flex:1; text-align:center; padding-bottom:8px; border-bottom:2.5px solid transparent; color:var(--gray);">👥 Members</div>
+    <div style="display:flex; margin-top:8px;">
+      <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--teal); color:var(--teal); font-weight:700;">🎬 Movies</div>
+      <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid transparent; color:var(--gray);">👥 Members</div>
     </div>
-    <div class="pad" style="margin-top:14px;">
-      <div style="display:flex; gap:8px; align-items:center; border:1px solid var(--hair); border-radius:12px; padding:12px;">
-        <span>🔍</span><span class="sub" style="font-size:14px;">Search movie, genre, mood</span>
-      </div>
-      <div style="display:flex; gap:8px; align-items:center; border:1px solid var(--hair); border-radius:12px; padding:12px; margin-top:10px;">
-        <span>📅</span><span class="sub" style="font-size:14px;">Year / Decade</span>
-      </div>
+    <div class="pad" style="margin-top:16px; display:flex; flex-direction:column; gap:10px;">
+      <div class="searchfield">🔍&ensp;Search movie, genre, mood</div>
+      <div class="searchfield">🗓&ensp;Year / Decade<span class="spacer"></span>✕</div>
     </div>
     <div class="row-scroll" style="margin-top:12px;">
       <button class="pill">Where to Watch</button>
@@ -268,172 +304,236 @@
       <button class="pill">Recs</button>
       <button class="pill">Trending</button>
     </div>
-    <h2 class="section" style="margin-left:16px;">MOVIES YOU MAY HAVE SEEN</h2>
-    <div class="pad sub" style="margin-top:-4px;">Based on your import (Ranked 52 of 93)</div>
-    <div style="margin-top:8px;">
+    <h2 class="section">MOVIES YOU MAY HAVE SEEN</h2>
+    <div class="pad sub" style="margin-top:-4px; font-size:13px;">Based on your import (Ranked 52 of 93)</div>
+    <div style="margin-top:6px;">
       <div class="listrow">
-        <div class="poster p4" style="width:40px;height:60px;">Anatomy</div>
-        <div style="flex:1;"><div style="font-weight:600;">Anatomy of a Fall</div><div class="sub">2023 · Justine Triet</div></div>
-        <div class="iconrow">⊕ 🔖 ✕</div>
+        <div class="poster" style="width:42px;height:63px; background-image:url('https://image.tmdb.org/t/p/w342/kQs6keheMwCxJxrzV83VUwFtHkB.jpg');"></div>
+        <div style="flex:1;"><div style="font-weight:600;">Anatomy of a Fall</div><div class="sub" style="margin-top:2px;">2023 · Justine Triet</div></div>
+        <div class="iconrow" style="font-size:19px;"><span onclick="openLog()">⊕</span> 🔖 <span style="color:var(--gray);">✕</span></div>
       </div>
       <div class="listrow">
-        <div class="poster p5" style="width:40px;height:60px;">Poor Things</div>
-        <div style="flex:1;"><div style="font-weight:600;">Poor Things</div><div class="sub">2023 · Yorgos Lanthimos</div></div>
-        <div class="iconrow">⊕ 🔖 ✕</div>
+        <div class="poster" style="width:42px;height:63px; background-image:url('https://image.tmdb.org/t/p/w342/kCGlIMHnOm8JPXq3rXM6c5wMxcT.jpg');"></div>
+        <div style="flex:1;"><div style="font-weight:600;">Poor Things</div><div class="sub" style="margin-top:2px;">2023 · Yorgos Lanthimos</div></div>
+        <div class="iconrow" style="font-size:19px;"><span onclick="openLog()">⊕</span> 🔖 <span style="color:var(--gray);">✕</span></div>
       </div>
       <div class="listrow">
-        <div class="poster p6" style="width:40px;height:60px;">Zone</div>
-        <div style="flex:1;"><div style="font-weight:600;">The Zone of Interest</div><div class="sub">2023 · Jonathan Glazer</div></div>
-        <div class="iconrow">⊕ 🔖 ✕</div>
+        <div class="poster" style="width:42px;height:63px; background-image:url('https://image.tmdb.org/t/p/w342/hUu9zyZmDd8VZegKi1iK1Vk0RYS.jpg');"></div>
+        <div style="flex:1;"><div style="font-weight:600;">The Zone of Interest</div><div class="sub" style="margin-top:2px;">2023 · Jonathan Glazer</div></div>
+        <div class="iconrow" style="font-size:19px;"><span onclick="openLog()">⊕</span> 🔖 <span style="color:var(--gray);">✕</span></div>
       </div>
-      <div class="pad" style="margin-top:10px; color:var(--teal); font-weight:600; display:flex;">See All (41) <span class="spacer"></span> ▾</div>
+      <div class="pad" style="margin-top:12px; color:var(--teal); font-weight:700; display:flex; font-size:14px;">See All (41) <span class="spacer"></span> ▾</div>
     </div>
   </div>
 
   <!-- ============ LEADERBOARD ============ -->
   <div class="screen hidden" data-screen="leaderboard">
-    <div class="pad" style="display:flex; align-items:center; padding-top:14px;">
+    <div class="pad" style="display:flex; align-items:center; padding-top:16px;">
       <span class="serif" style="font-size:38px; font-weight:700;">Leaderboard</span>
       <span class="spacer"></span>
-      <button class="pill">👤+ Invite</button>
+      <button class="pill">👤⁺ Invite</button>
     </div>
-    <div class="seg" style="margin-top:16px;">
+    <div class="seg" style="margin-top:18px;">
       <button class="active">Watched</button><button>Influence</button><button>Notes</button><button>Photos</button>
     </div>
-    <div class="pad sub" style="margin-top:12px;">Number of movies on your watched list</div>
-    <div class="row-scroll" style="margin-top:8px;">
+    <div class="pad sub" style="margin-top:13px; font-size:13.5px;">Number of movies on your watched list</div>
+    <div class="row-scroll" style="margin-top:6px;">
       <button class="pill ghost">Vanderbilt University ▾</button>
       <button class="pill ghost">All Genres ▾</button>
     </div>
-    <div class="card" style="margin-top:14px; display:flex; align-items:center; gap:14px;">
-      <span style="font-size:24px;">🎓</span>
-      <div><div style="color:var(--teal); font-weight:700;">Your school's ranking</div><div class="sub">See the overall school leaderboard</div></div>
-      <span class="spacer"></span><span class="sub">›</span>
+    <div class="card" style="margin-top:12px; display:flex; align-items:center; gap:14px;">
+      <span style="font-size:26px;">🎓</span>
+      <div><div style="color:var(--teal); font-weight:700;">Your school's ranking</div><div class="sub" style="margin-top:2px;">See the overall school leaderboard</div></div>
+      <span class="spacer"></span><span class="sub" style="font-size:18px;">›</span>
     </div>
-    <div style="margin-top:14px;">
-      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:24px;">1</span><div class="avatar" style="width:46px;height:46px;"></div><div style="flex:1;"><div style="font-weight:600;">@allynevias</div><div class="g" style="font-weight:700; font-size:13px;">+24% Match</div></div><b style="font-size:18px;">1810</b></div>
-      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:24px;">2</span><div class="avatar" style="width:46px;height:46px;"></div><div style="flex:1;"><div style="font-weight:600;">@jzjackjz</div><div class="g" style="font-weight:700; font-size:13px;">+34% Match</div></div><b style="font-size:18px;">1802</b></div>
-      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:24px;">3</span><div class="avatar" style="width:46px;height:46px;"></div><div style="flex:1;"><div style="font-weight:600;">@tthom1088</div><div class="g" style="font-weight:700; font-size:13px;">+33% Match</div></div><b style="font-size:18px;">1380</b></div>
-      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:24px;">4</span><div class="avatar" style="width:46px;height:46px;"></div><div style="flex:1;"><div style="font-weight:600;">@oliviafang</div><div class="g" style="font-weight:700; font-size:13px;">+44% Match</div></div><b style="font-size:18px;">1188</b></div>
+    <div style="margin-top:10px;">
+      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:22px; font-size:15px;">1</span><div class="avatar av1" style="width:46px;height:46px;">A</div><div style="flex:1;"><div style="font-weight:600;">@allynevias</div><div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:1px;">+24% Match</div></div><b style="font-size:18px;">1810</b></div>
+      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:22px; font-size:15px;">2</span><div class="avatar av3" style="width:46px;height:46px;">J</div><div style="flex:1;"><div style="font-weight:600;">@jzjackjz</div><div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:1px;">+34% Match</div></div><b style="font-size:18px;">1802</b></div>
+      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:22px; font-size:15px;">3</span><div class="avatar av2" style="width:46px;height:46px;">T</div><div style="flex:1;"><div style="font-weight:600;">@tthom1088</div><div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:1px;">+33% Match</div></div><b style="font-size:18px;">1380</b></div>
+      <div class="listrow" style="align-items:center;"><span style="color:var(--gray); width:22px; font-size:15px;">4</span><div class="avatar av4" style="width:46px;height:46px;">O</div><div style="flex:1;"><div style="font-weight:600;">@oliviafang</div><div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:1px;">+44% Match</div></div><b style="font-size:18px;">1188</b></div>
     </div>
   </div>
 
   <!-- ============ PROFILE ============ -->
   <div class="screen hidden" data-screen="profile">
-    <div class="pad" style="display:flex; align-items:center; padding-top:12px;">
-      <b style="font-size:22px;">Jake Silver</b><span class="spacer"></span><span class="iconrow">↗ ☰</span>
+    <div class="pad" style="display:flex; align-items:center; padding-top:14px;">
+      <b style="font-size:21px;">Jake Silver</b><span class="spacer"></span><span class="iconrow" style="font-size:19px;">↗ ☰</span>
     </div>
-    <div style="text-align:center; margin-top:10px;">
-      <div class="avatar" style="width:110px;height:110px; margin:0 auto;"></div>
-      <div style="font-weight:700; font-size:17px; margin-top:8px;">@jtsilver123</div>
-      <div class="sub">Member since December 2022</div>
-      <div style="font-weight:600; margin-top:2px;">🎓 Vanderbilt University '25</div>
+    <div style="text-align:center; margin-top:12px;">
+      <div class="avatar" style="width:108px;height:108px; margin:0 auto; font-size:38px; box-shadow:0 6px 18px rgba(0,0,0,.12);">J</div>
+      <div style="font-weight:700; font-size:17px; margin-top:10px;">@jtsilver123</div>
+      <div class="sub" style="margin-top:2px;">Member since December 2022</div>
+      <div style="font-weight:600; margin-top:4px; font-size:14.5px;">🎓 Vanderbilt University '25</div>
     </div>
-    <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
-      <div style="flex:1;"><b style="font-size:18px;">81</b><div class="sub">Followers</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">75</b><div class="sub">Following</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">#20832</b><div class="sub">Rank on Cini</div></div>
+    <div class="pad" style="display:flex; margin-top:18px; text-align:center;">
+      <div style="flex:1;"><b style="font-size:18px;">81</b><div class="sub" style="margin-top:1px;">Followers</div></div>
+      <div style="flex:1;"><b style="font-size:18px;">75</b><div class="sub" style="margin-top:1px;">Following</div></div>
+      <div style="flex:1;"><b style="font-size:18px;">#20832</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
     </div>
-    <div class="row-scroll" style="margin-top:14px; justify-content:center;">
+    <div class="row-scroll" style="margin-top:16px; justify-content:center;">
       <button class="pill ghost">Edit profile</button>
       <button class="pill ghost">Share profile</button>
       <button class="pill ghost">▾</button>
     </div>
-    <div style="margin-top:16px;">
-      <div class="listrow" style="align-items:center;"><span style="font-size:20px;">✓</span><b style="flex:1;">Watched</b><b>533</b> <span class="sub">›</span></div>
-      <div class="listrow" style="align-items:center;"><span style="font-size:20px;">🔖</span><b style="flex:1;">Watchlist</b><b>172</b> <span class="sub">›</span></div>
-      <div class="listrow" style="align-items:center;"><span style="font-size:20px;">♥</span><b style="flex:1;">Recs for You</b><span class="sub">›</span></div>
+    <div style="margin-top:14px;">
+      <div class="listrow" style="align-items:center;"><span style="font-size:19px; color:var(--teal);">✓</span><b style="flex:1; font-size:15.5px;">Watched</b><b>533</b> <span class="sub" style="font-size:16px;">&ensp;›</span></div>
+      <div class="listrow" style="align-items:center;"><span style="font-size:19px; color:var(--teal);">🔖</span><b style="flex:1; font-size:15.5px;">Watchlist</b><b>172</b> <span class="sub" style="font-size:16px;">&ensp;›</span></div>
+      <div class="listrow" style="align-items:center;"><span style="font-size:19px; color:var(--teal);">♥</span><b style="flex:1; font-size:15.5px;">Recs for You</b><span class="sub" style="font-size:16px;">›</span></div>
     </div>
-    <div class="pad" style="display:flex; gap:12px; margin-top:14px;">
-      <div class="card" style="flex:1; margin:0;"><div style="color:var(--teal);">🏆 Rank on Cini</div><b class="serif" style="font-size:20px; color:var(--teal);">#20832</b></div>
-      <div class="card" style="flex:1; margin:0;"><div style="color:var(--teal);">🔥 Current Streak</div><b class="serif" style="font-size:20px; color:var(--teal);">16 weeks</b></div>
+    <div class="pad" style="display:flex; gap:12px; margin-top:16px;">
+      <div class="card" style="flex:1; margin:0;"><div style="font-size:20px;">🏆</div><div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Rank on Cini</div><b class="serif" style="font-size:22px; color:var(--teal);">#20832</b></div>
+      <div class="card" style="flex:1; margin:0;"><div style="font-size:20px;">🔥</div><div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Current Streak</div><b class="serif" style="font-size:22px; color:var(--teal);">16 weeks</b></div>
     </div>
     <div class="card" style="margin-top:14px;">
       <div style="display:flex;"><span style="color:var(--teal); font-weight:700;">2026 Movie Challenge</span><span class="spacer"></span>↗</div>
-      <b style="font-size:18px;">86 of 200 movies</b>
-      <div style="height:8px; background:rgba(0,0,0,.08); border-radius:999px; margin:10px 0;"><div style="width:43%; height:100%; background:var(--teal); border-radius:999px;"></div></div>
-      <div style="display:flex;"><span class="sub">205 days left</span><span class="spacer"></span><span style="color:var(--teal); font-weight:600;">Your 2026 progress ›</span></div>
+      <b style="font-size:18px; display:block; margin-top:6px;">86 of 200 movies</b>
+      <div style="height:9px; background:rgba(0,0,0,.07); border-radius:999px; margin:12px 0;"><div style="width:43%; height:100%; background:linear-gradient(90deg,#1A6B71,#14555A); border-radius:999px;"></div></div>
+      <div style="display:flex; font-size:13.5px;"><span class="sub">205 days left</span><span class="spacer"></span><span style="color:var(--teal); font-weight:700;">Your 2026 progress ›</span></div>
     </div>
   </div>
 
   <!-- ============ MOVIE DETAIL ============ -->
-  <div class="screen hidden" data-screen="detail">
-    <div class="poster p3" style="width:100%; height:200px; border-radius:0; position:relative; padding:0;">
-      <button class="backbtn" style="position:absolute; top:14px; left:14px; color:#fff; font-size:24px;" onclick="go('lists')">‹</button>
-      <span style="position:absolute; top:16px; right:16px; color:#fff;">↗ ⋯</span>
+  <div class="screen hidden" data-screen="detail" style="padding-top:0;">
+    <div style="width:100%; height:215px; background:url('https://image.tmdb.org/t/p/w780/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg') center/cover; position:relative;">
+      <div style="position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.25),transparent 40%,rgba(250,247,242,.95) 96%);"></div>
+      <button class="backbtn" style="position:absolute; top:14px; left:16px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.5);" onclick="go('lists')">‹</button>
+      <span style="position:absolute; top:16px; right:16px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.5);">↗ ⋯</span>
     </div>
-    <div class="pad" style="margin-top:14px;">
-      <div class="serif" style="font-size:34px; font-weight:700;">Dune: Part Two</div>
-      <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-        <span style="background:var(--green); color:#fff; padding:5px 10px; border-radius:8px; font-weight:800;">8.4</span>
-        <span class="sub" style="font-size:14px;">(3,294 ratings)</span>
+    <div class="pad" style="margin-top:-6px; position:relative;">
+      <div class="serif" style="font-size:36px; font-weight:700; letter-spacing:-.5px;">Dune: Part Two</div>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+        <span style="background:var(--green); color:#fff; padding:6px 11px; border-radius:9px; font-weight:800; font-size:15px; box-shadow:0 2px 8px rgba(31,157,85,.35);">8.4</span>
+        <span style="font-size:14px;">(3,294 ratings)</span>
         <span class="spacer"></span>
         <button class="pill ghost" onclick="openLog()">Rank again</button>
-        <span class="g" style="font-size:22px;">✓</span>
+        <span class="gtxt" style="font-size:24px;">✓</span>
       </div>
-      <div style="color:var(--teal); font-weight:600; margin-top:12px;">Mindblower · Slow Burn · Rewatchable</div>
-      <div style="margin-top:8px;">R | Sci-Fi, Adventure</div>
-      <div class="sub">2024 · 2h 46m · Dir. Denis Villeneuve</div>
-      <div style="display:flex; align-items:center; gap:8px; margin-top:10px;"><div class="avatar" style="width:24px;height:24px;"></div><span class="sub">1 friend wants to watch</span></div>
+      <div style="color:var(--teal); font-weight:700; margin-top:14px; font-size:14.5px;">Mindblower · Slow Burn · Rewatchable</div>
+      <div style="margin-top:9px; font-size:14.5px;">R | Sci-Fi, Adventure</div>
+      <div class="sub" style="font-size:13.5px; margin-top:2px;">2024 · 2h 46m · Dir. Denis Villeneuve</div>
+      <div style="display:flex; align-items:center; gap:9px; margin-top:12px;"><div class="avatar av2" style="width:24px;height:24px; font-size:11px;">E</div><span style="font-size:13.5px;">1 friend wants to watch</span></div>
     </div>
     <div class="row-scroll" style="margin-top:14px;">
       <button class="pill out">▶ Trailer</button>
-      <button class="pill out" onclick="openWatch()">📺 Where to Watch</button>
+      <button class="pill out">📺 Where to Watch</button>
       <button class="pill out">🎟 Showtimes</button>
       <button class="pill out">↗ Share</button>
     </div>
-    <div class="pad" style="margin-top:18px; display:flex; align-items:center;"><b style="font-size:18px;">Scores</b><span class="spacer"></span><span style="color:var(--teal); font-weight:600;">See all scores</span></div>
-    <div class="pad" style="display:flex; gap:12px; margin-top:12px; text-align:center;">
-      <div style="flex:1;"><div class="badge" style="margin:0 auto;"><span class="g">9.2</span></div><div style="font-size:11px; font-weight:700; margin-top:6px;">Your Cini Rating</div><div class="sub" style="font-size:10px;">#1 on your Watched list</div></div>
-      <div style="flex:1;"><div class="badge" style="margin:0 auto;"><span class="g">9.5</span><span class="chip">2</span></div><div style="font-size:11px; font-weight:700; margin-top:6px;">Friend Score</div><div class="sub" style="font-size:10px;">What friends think</div></div>
-      <div style="flex:1;"><div class="badge" style="margin:0 auto;"><span class="g">8.4</span><span class="chip">3k</span></div><div style="font-size:11px; font-weight:700; margin-top:6px;">Average Score</div><div class="sub" style="font-size:10px;">All of Cini</div></div>
+    <div class="pad" style="margin-top:20px; display:flex; align-items:center;"><b style="font-size:18px;">Scores</b><span class="spacer"></span><span style="color:var(--teal); font-weight:700; font-size:13.5px;">See all scores</span></div>
+    <div class="pad" style="display:flex; gap:10px; margin-top:14px; text-align:center;">
+      <div style="flex:1;"><div class="badge g" style="margin:0 auto; width:58px; height:58px; font-size:19px;">9.2</div><div style="font-size:11.5px; font-weight:700; margin-top:8px;">Your Cini Rating</div><div class="sub" style="font-size:10.5px; margin-top:1px;">#1 on your Watched list</div></div>
+      <div style="flex:1;"><div class="badge g" style="margin:0 auto; width:58px; height:58px; font-size:19px;">9.5<span class="chip">2</span></div><div style="font-size:11.5px; font-weight:700; margin-top:8px;">Friend Score</div><div class="sub" style="font-size:10.5px; margin-top:1px;">What your friends think</div></div>
+      <div style="flex:1;"><div class="badge g" style="margin:0 auto; width:58px; height:58px; font-size:19px;">8.4<span class="chip">3k</span></div><div style="font-size:11.5px; font-weight:700; margin-top:8px;">Average Score</div><div class="sub" style="font-size:10.5px; margin-top:1px;">What all of Cini thinks</div></div>
     </div>
-    <div class="pad" style="margin-top:18px; display:flex; align-items:center;"><b style="font-size:18px;">Top Performances</b><span class="spacer"></span><span style="color:var(--teal); font-weight:600;">See all</span></div>
-    <div class="row-scroll" style="margin-top:10px;">
-      <div><div class="poster p2" style="width:130px;height:130px;">Timothée Chalamet</div><div style="font-weight:600; font-size:13px; margin-top:4px;">T. Chalamet</div><div class="sub">58 recommended</div></div>
-      <div><div class="poster p4" style="width:130px;height:130px;">Zendaya</div><div style="font-weight:600; font-size:13px; margin-top:4px;">Zendaya</div><div class="sub">41 recommended</div></div>
+    <div class="pad" style="margin-top:22px; display:flex; align-items:center;"><b style="font-size:18px;">Top Performances</b><span class="spacer"></span><span style="color:var(--teal); font-weight:700; font-size:13.5px;">See all</span></div>
+    <div class="row-scroll" style="margin-top:12px;">
+      <div><div class="poster" style="width:132px;height:132px; border-radius:14px; background-image:url('https://image.tmdb.org/t/p/w342/BE2sdjpgsa2rNTFa66f7upkaOP.jpg'); background-position:center 20%;"></div><div style="font-weight:600; font-size:13px; margin-top:7px;">Timothée Chalamet</div><div class="sub">58 recommended</div></div>
+      <div><div class="poster" style="width:132px;height:132px; border-radius:14px; background-image:url('https://image.tmdb.org/t/p/w342/6TE2AlOUqcrs7CyJiWYgodmee1r.jpg'); background-position:center 20%;"></div><div style="font-weight:600; font-size:13px; margin-top:7px;">Zendaya</div><div class="sub">41 recommended</div></div>
     </div>
-    <div class="pad" style="margin-top:18px;"><b style="font-size:18px;">Ratings Breakdown</b>
-      <div class="hist"><div class="bar" style="height:15%;"></div><div class="bar" style="height:10%;"></div><div class="bar" style="height:20%;"></div><div class="bar" style="height:35%;"></div><div class="bar" style="height:55%;"></div><div class="bar" style="height:70%;"></div><div class="bar" style="height:100%;"></div><div class="bar" style="height:85%;"></div><div class="bar" style="height:60%;"></div></div>
+    <div class="pad" style="margin-top:22px;"><b style="font-size:18px;">Ratings Breakdown</b>
+      <div class="hist"><div class="bar" style="height:14%;"></div><div class="bar" style="height:9%;"></div><div class="bar" style="height:19%;"></div><div class="bar" style="height:34%;"></div><div class="bar" style="height:54%;"></div><div class="bar" style="height:71%;"></div><div class="bar" style="height:100%;"></div><div class="bar" style="height:84%;"></div><div class="bar" style="height:58%;"></div></div>
       <div class="barlabel"><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span></div>
     </div>
-    <div class="pad" style="margin-top:18px;"><b style="font-size:18px;">What your friends think</b></div>
+    <div class="pad" style="margin-top:22px;"><b style="font-size:18px;">What your friends think</b></div>
     <div class="listrow">
-      <div class="avatar" style="width:44px;height:44px;"></div>
-      <div style="flex:1;"><div style="font-weight:600;">maddy</div><div class="sub">@maddyc</div><div style="margin-top:6px; font-size:14px;"><b>Notes:</b> Saw it in IMAX twice. The Feyd-Rautha arena scene is unreal.</div></div>
-      <div class="badge" style="width:44px;height:44px;"><span class="g">9.2</span></div>
+      <div class="avatar av1" style="width:44px;height:44px;">M</div>
+      <div style="flex:1;"><div style="font-weight:600;">maddy</div><div class="sub">@maddyc</div><div style="margin-top:7px; font-size:14px; line-height:1.45;"><b>Notes:</b> Saw it in IMAX twice. The Feyd-Rautha arena scene is unreal.</div>
+      <div class="iconrow" style="margin-top:9px; font-size:17px;">♡ 💬</div></div>
+      <div class="badge g" style="width:44px;height:44px; font-size:15px;">9.2</div>
     </div>
   </div>
 
-  <!-- ============ WHERE TO WATCH SHEET ============ -->
-  <div class="sheet hidden" id="watchSheet">
-    <div class="sheet-head"><b style="flex:1;">Where to watch</b><button class="backbtn" onclick="closeWatch()">✕</button></div>
-    <div class="sheet-body">
-      <div class="sub" style="font-weight:700; margin-bottom:8px;">STREAM</div>
-      <div class="listrow" style="padding-left:0; padding-right:0;"><div class="poster p6" style="width:44px;height:44px; border-radius:10px;">Max</div><div style="flex:1;"><b>Max</b><div class="sub"><i>Subscription</i></div></div><button class="pill ghost">▶ Watch</button></div>
-      <div class="sub" style="font-weight:700; margin:14px 0 8px;">RENT</div>
-      <div class="listrow" style="padding-left:0; padding-right:0;"><div class="poster p5" style="width:44px;height:44px; border-radius:10px;">Prime</div><div style="flex:1;"><b>Amazon Video</b><div class="sub"><i>From $3.99</i></div></div><button class="pill ghost">▶ Watch</button></div>
-      <div class="listrow" style="padding-left:0; padding-right:0;"><div class="poster p1" style="width:44px;height:44px; border-radius:10px;">tv</div><div style="flex:1;"><b>Apple TV</b><div class="sub"><i>From $3.99</i></div></div><button class="pill ghost">▶ Watch</button></div>
-      <div class="sub" style="font-weight:700; margin:14px 0 8px;">BUY</div>
-      <div class="listrow" style="padding-left:0; padding-right:0;"><div class="poster p5" style="width:44px;height:44px; border-radius:10px;">Prime</div><div style="flex:1;"><b>Amazon Video</b><div class="sub"><i>$14.99</i></div></div><button class="pill ghost">▶ Watch</button></div>
+  <!-- ============ LOG FLOW (stacked cards, Beli-faithful) ============ -->
+  <div id="logOverlay" class="hidden">
+    <!-- Card 1: title -->
+    <div class="fcard" style="display:flex; align-items:flex-start; gap:12px;">
+      <div style="flex:1;">
+        <div class="serif" style="font-size:25px; font-weight:700;">Dune: Part Two</div>
+        <div class="sub" style="font-size:14px; margin-top:2px;">2024 | Sci-Fi, Adventure</div>
+      </div>
+      <button class="backbtn" onclick="closeLog()">✕</button>
     </div>
-  </div>
-
-  <!-- ============ LOG FLOW SHEET ============ -->
-  <div class="sheet hidden" id="logSheet">
-    <div class="sheet-head"><button class="backbtn" onclick="closeLog()">✕</button><b style="flex:1; text-align:center;">Dune: Part Two</b><span style="width:22px;"></span></div>
-    <div class="sheet-body" id="logBody"></div>
+    <!-- Card 2: category -->
+    <div class="fcard" style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:15.5px;">Add to my list of</span>
+      <span style="display:inline-flex; align-items:center; gap:8px; border:1.4px solid var(--ink); border-radius:13px; padding:9px 15px; font-weight:700; font-size:15px;">🎬 Movies ▾</span>
+    </div>
+    <!-- Card 3: sentiment -->
+    <div class="fcard">
+      <div style="text-align:center; font-size:18px; font-weight:800;">How was it?</div>
+      <div class="circles">
+        <div class="circ-opt" id="s-loved" onclick="pickSentiment('loved')"><div class="circ" style="background:var(--s-loved);"></div><span>I liked it!</span></div>
+        <div class="circ-opt" id="s-fine" onclick="pickSentiment('fine')"><div class="circ" style="background:var(--s-fine);"></div><span>It was fine</span></div>
+        <div class="circ-opt" id="s-disliked" onclick="pickSentiment('disliked')"><div class="circ" style="background:var(--s-disliked);"></div><span>I didn't like it</span></div>
+      </div>
+    </div>
+    <!-- Card 4: comparison -->
+    <div class="fcard hidden" id="compareCard">
+      <div style="text-align:center; font-size:18px; font-weight:800;">Which do you prefer?</div>
+      <div class="vswrap">
+        <div class="vscard" onclick="answer()" style="margin-right:8px;">
+          <div class="serif" style="font-size:20px; font-weight:700; text-align:center;">Dune: Part Two</div>
+          <div class="sub" style="font-size:14px;">2024</div>
+        </div>
+        <div class="orb">OR</div>
+        <div class="vscard" onclick="answer()" style="margin-left:8px;">
+          <div class="serif" id="oppName" style="font-size:20px; font-weight:700; text-align:center;">Oppenheimer</div>
+          <div class="sub" style="font-size:14px;"><span id="oppYear">2023</span> · <b class="gtxt" id="oppScore">8.7</b></div>
+        </div>
+      </div>
+      <div class="vsctrl">
+        <button class="lnk off" id="undoBtn" onclick="undoCompare()">↩ Undo</button>
+        <button class="tough" onclick="finishCompare()">Too tough</button>
+        <button class="lnk" onclick="skipCompare()">Skip ➾</button>
+      </div>
+    </div>
+    <!-- Card 5: enrichment -->
+    <div class="fcard hidden" id="enrichCard">
+      <div style="display:flex; gap:13px; align-items:center; padding-bottom:14px; border-bottom:1px solid var(--hair);">
+        <div class="poster" style="width:46px;height:69px; background-image:url('https://image.tmdb.org/t/p/w342/8b8R8l88Qje9dn9OE8PY05Nxl1X.jpg');"></div>
+        <div style="flex:1;"><b style="font-size:16px;">Ranked #1</b><div class="sub" style="margin-top:1px;">on your Watched list</div></div>
+        <div class="badge g" style="width:48px;height:48px; font-size:16px;">9.2</div>
+      </div>
+      <div class="erow" style="border-bottom:none; padding-bottom:8px;">
+        <span class="ic">👥</span><span style="flex:1;">Who did you watch with?</span><span class="chev">›</span>
+      </div>
+      <div class="chips">
+        <span class="chip-f" onclick="this.classList.toggle('on')">Mark Overby</span>
+        <span class="chip-f" onclick="this.classList.toggle('on')">Sam Johnson</span>
+        <span class="chip-f" onclick="this.classList.toggle('on')">Justin Hershey</span>
+        <span class="chip-f" onclick="this.classList.toggle('on')">Maddy C</span>
+      </div>
+      <div class="erow"><span class="ic">🏷</span><span style="flex:1;">Add labels (date night, etc.)</span><span class="chev">›</span></div>
+      <div class="erow"><span class="ic">✏️</span><span style="flex:1;">Add notes</span><span class="chev">›</span></div>
+      <div class="erow"><span class="ic">⭐</span><span style="flex:1;">Add favorite performances</span><span class="chev">›</span></div>
+      <div class="erow"><span class="ic">🗓</span><span style="flex:1;">Add watch date</span><span class="chev">›</span></div>
+      <div class="erow"><span class="ic">🙈</span><span style="flex:1;">Add personal notes</span><span class="chev">›</span></div>
+      <div class="erow" style="cursor:default;">
+        <span class="ic">🔒</span>
+        <span style="flex:1;">Stealth mode<div class="sub" style="margin-top:1px;">Hide this activity from the feed</div></span>
+        <div class="switch" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <button class="okay" onclick="finishLog()">Okay</button>
+    </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <!-- ============ TAB BAR ============ -->
   <div class="tabbar">
-    <button class="tab active" data-go="feed"><span class="ic">📰</span>Feed</button>
-    <button class="tab" data-go="lists"><span class="ic">≣</span>Your Lists</button>
-    <button class="tab center" onclick="openLog()"><span class="ic">+</span></button>
-    <button class="tab" data-go="leaderboard"><span class="ic">🏆</span>Leaderboard</button>
-    <button class="tab" data-go="profile"><span class="ic">👤</span>Profile</button>
+    <button class="tab active" data-go="feed">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="17" y2="17"/></svg>
+      Feed</button>
+    <button class="tab" data-go="lists">
+      <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      Your Lists</button>
+    <button class="tab center" onclick="openLog()"><span class="plus">+</span></button>
+    <button class="tab" data-go="leaderboard">
+      <svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0z"/><path d="M7 6H4a1 1 0 0 0-1 1 4 4 0 0 0 4 4"/><path d="M17 6h3a1 1 0 0 1 1 1 4 4 0 0 1-4 4"/></svg>
+      Leaderboard</button>
+    <button class="tab" data-go="profile">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Profile</button>
   </div>
 </div>
 
@@ -443,53 +543,52 @@
     document.querySelectorAll('.tab[data-go]').forEach(t=>t.classList.toggle('active', t.dataset.go===name));
   }
   document.querySelectorAll('.tab[data-go]').forEach(t=>t.onclick=()=>go(t.dataset.go));
-  function showDetail(){ go('detail'); }
-  function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1600); }
+  function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
 
-  function openWatch(){ document.getElementById('watchSheet').classList.remove('hidden'); }
-  function closeWatch(){ document.getElementById('watchSheet').classList.add('hidden'); }
+  // ---- Log flow: sentiment -> comparisons (undo/too tough/skip) -> enrichment
+  const opponents=[
+    {name:'Oppenheimer', year:'2023', score:'8.7'},
+    {name:'Past Lives', year:'2023', score:'8.1'},
+    {name:'The Holdovers', year:'2023', score:'6.2'},
+  ];
+  let step=0, historyDepth=0;
 
-  // --- Log flow state machine (sentiment -> comparisons -> done) ---
-  let comp=0; const compMovies=['Oppenheimer','Past Lives','The Holdovers'];
-  function openLog(){ comp=0; document.getElementById('logSheet').classList.remove('hidden'); renderSentiment(); }
-  function closeLog(){ document.getElementById('logSheet').classList.add('hidden'); }
-
-  function renderSentiment(){
-    document.getElementById('logBody').innerHTML = `
-      <div style="text-align:center;"><div class="poster p3" style="width:120px;height:180px; margin:0 auto;">Dune: Part Two</div>
-      <div class="serif" style="font-size:26px; margin:20px 0;">How was it?</div></div>
-      <div class="sent-card" onclick="renderCompare()"><span style="font-size:26px;">❤️</span> Loved it</div>
-      <div class="sent-card" onclick="renderCompare()"><span style="font-size:26px;">🙂</span> It was fine</div>
-      <div class="sent-card" onclick="renderCompare()"><span style="font-size:26px;">😕</span> Didn't like it</div>`;
+  function openLog(){
+    step=0; historyDepth=0;
+    document.getElementById('logOverlay').classList.remove('hidden');
+    ['loved','fine','disliked'].forEach(s=>document.getElementById('s-'+s).className='circ-opt');
+    document.getElementById('compareCard').classList.add('hidden');
+    document.getElementById('enrichCard').classList.add('hidden');
   }
-  function renderCompare(){
-    if(comp>=compMovies.length){ renderDone(); return; }
-    const dots = compMovies.map((_,i)=>`<div class="dot ${i<comp?'on':''}"></div>`).join('');
-    const other = compMovies[comp];
-    document.getElementById('logBody').innerHTML = `
-      <div class="dots">${dots}</div>
-      <div class="serif" style="font-size:24px; text-align:center;">Which did you like more?</div>
-      <div class="vs">
-        <div class="opt" onclick="nextCompare()"><div class="poster p3" style="width:130px;height:195px; margin:0 auto;">Dune: Part Two</div><div style="font-weight:600; margin-top:8px;">Dune: Part Two</div><div class="sub">2024</div></div>
-        <div class="opt" onclick="nextCompare()"><div class="poster p${(comp%5)+1}" style="width:130px;height:195px; margin:0 auto;">${other}</div><div style="font-weight:600; margin-top:8px;">${other}</div><div class="sub">2023</div></div>
-      </div>
-      <div style="text-align:center; margin-top:10px;"><span style="color:var(--gray); font-weight:600;" onclick="renderDone()">Too tough to call</span></div>`;
+  function closeLog(){ document.getElementById('logOverlay').classList.add('hidden'); }
+
+  function pickSentiment(which){
+    ['loved','fine','disliked'].forEach(s=>{
+      const el=document.getElementById('s-'+s);
+      el.className='circ-opt ' + (s===which?'sel':'dim');
+    });
+    const sel=document.getElementById('s-'+which);
+    sel.querySelector('.circ').innerHTML='✓';
+    document.getElementById('enrichCard').classList.add('hidden');
+    step=0; historyDepth=0;
+    renderOpponent();
+    document.getElementById('compareCard').classList.remove('hidden');
+    document.getElementById('compareCard').scrollIntoView({behavior:'smooth', block:'end'});
   }
-  function nextCompare(){ comp++; renderCompare(); }
-  function renderDone(){
-    document.getElementById('logBody').innerHTML = `
-      <div style="display:flex; gap:14px; align-items:center; margin-bottom:18px;">
-        <div class="poster p3" style="width:56px;height:84px;">Dune</div>
-        <div style="flex:1;"><b style="font-size:17px;">Ranked #1</b><div class="sub">on your Watched list</div></div>
-        <div class="badge"><span class="g">9.2</span></div>
-      </div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">🏷</span> Add Guides and Labels <span class="spacer"></span> ›</div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">👥</span> Tag friends <span class="spacer"></span> ›</div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">📅</span> Add watch date <span class="spacer"></span> ›</div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">✏️</span> Add Notes <span class="spacer"></span> ›</div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">⭐</span> Add Favorite Performances <span class="spacer"></span> ›</div>
-      <div class="listrow" style="padding-left:0;"><span style="width:28px;">🙈</span> Add Personal Notes <span class="spacer"></span> ›</div>
-      <button class="pill" style="width:100%; justify-content:center; margin-top:20px; padding:14px;" onclick="finishLog()">Done</button>`;
+  function renderOpponent(){
+    const o=opponents[Math.min(step, opponents.length-1)];
+    document.getElementById('oppName').textContent=o.name;
+    document.getElementById('oppYear').textContent=o.year;
+    document.getElementById('oppScore').textContent=o.score;
+    document.getElementById('undoBtn').className='lnk'+(historyDepth>0?'':' off');
+  }
+  function answer(){ historyDepth++; step++; if(step>=opponents.length){ finishCompare(); } else { renderOpponent(); } }
+  function skipCompare(){ step++; if(step>=opponents.length){ finishCompare(); } else { renderOpponent(); } }
+  function undoCompare(){ if(historyDepth<=0) return; historyDepth--; step=Math.max(0, step-1); renderOpponent(); }
+  function finishCompare(){
+    document.getElementById('compareCard').classList.add('hidden');
+    document.getElementById('enrichCard').classList.remove('hidden');
+    document.getElementById('enrichCard').scrollIntoView({behavior:'smooth', block:'end'});
   }
   function finishLog(){ closeLog(); go('lists'); toast('Dune: Part Two ranked #1 · 9.2'); }
 </script>
