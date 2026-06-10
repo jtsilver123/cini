@@ -56,6 +56,7 @@ struct SharedListsView: View {
             CreateSharedListSheet { newList in
                 lists.insert(newList, at: 0)
             }
+            .swipeDismissesKeyboard()
             .presentationDetents([.height(300)])
         }
         .task {

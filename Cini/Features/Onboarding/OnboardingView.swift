@@ -67,6 +67,7 @@ struct OnboardingView: View {
         }) { movie in
             LogFlowView(movie: movie)
         }
+        .swipeDismissesKeyboard()
         .task {
             username = session.profile?.username.hasPrefix("user_") == false
                 ? (session.profile?.username ?? "") : ""

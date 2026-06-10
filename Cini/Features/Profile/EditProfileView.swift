@@ -142,6 +142,7 @@ struct EditProfileView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)

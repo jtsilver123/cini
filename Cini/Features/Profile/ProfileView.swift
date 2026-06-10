@@ -641,6 +641,7 @@ struct RankedListScreen: View {
             }
             .padding(16)
         }
+        .scrollDismissesKeyboard(.immediately)
         .background(Theme.background)
         .navigationTitle("\(title) (\(rankings.count))")
         .navigationBarTitleDisplayMode(.inline)

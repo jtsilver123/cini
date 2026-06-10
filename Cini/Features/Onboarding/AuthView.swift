@@ -126,6 +126,7 @@ struct AuthView: View {
                 .onTapGesture { focusedField = nil }
                 .ignoresSafeArea()
         )
+        .swipeDismissesKeyboard()
     }
 
     private func field(_ placeholder: String, text: Binding<String>,

@@ -50,6 +50,7 @@ struct SearchView: View {
                     }
                     .padding(.horizontal, 16)
                 }
+                .scrollDismissesKeyboard(.immediately)
             }
             .background(Theme.background)
             .fullScreenCover(item: $logMovie) { movie in

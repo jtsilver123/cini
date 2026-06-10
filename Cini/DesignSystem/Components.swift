@@ -21,6 +21,22 @@ extension View {
     }
 }
 
+// MARK: - Keyboard
+
+extension View {
+    /// Swiping anywhere puts the keyboard away (complements tap-outside).
+    /// Simultaneous + a real drag threshold so taps on buttons — including
+    /// UIKit-backed ones like SignInWithAppleButton — are never intercepted.
+    func swipeDismissesKeyboard() -> some View {
+        simultaneousGesture(
+            DragGesture(minimumDistance: 24).onEnded { _ in
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
+        )
+    }
+}
+
 // MARK: - Pill buttons
 
 /// Fully-rounded pill button. Filled velvet = primary, outlined/glass =

@@ -102,6 +102,7 @@ struct CiniChatAvailableView: View {
                     }
                     .padding(.vertical, 16)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: messages) { _, _ in
                     if let last = messages.last {
                         withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }

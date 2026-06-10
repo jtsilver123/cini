@@ -66,6 +66,7 @@ struct AccountSettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
         .background(Theme.background)
         .navigationTitle("Account Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -155,6 +156,7 @@ struct ChangePasswordView: View {
     var body: some View {
         Form { ChangePasswordSection() }
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
             .navigationTitle("Change Password")
             .navigationBarTitleDisplayMode(.inline)

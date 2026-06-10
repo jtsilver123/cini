@@ -33,6 +33,7 @@ struct LetterboxdImportView: View {
                 }
             }
             .background(Theme.background)
+            .swipeDismissesKeyboard()
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

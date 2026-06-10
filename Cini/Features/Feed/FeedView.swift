@@ -416,6 +416,7 @@ struct CommentsSheet: View {
                         .listRowBackground(Theme.background)
                     }
                     .listStyle(.plain)
+                    .scrollDismissesKeyboard(.interactively)
                 }
 
                 HStack(spacing: 10) {

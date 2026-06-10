@@ -22,6 +22,7 @@ struct ShowtimesSheet: View {
                 controls
                 content
             }
+            .swipeDismissesKeyboard()
             .background(Theme.background)
             .navigationTitle("Showtimes")
             .navigationBarTitleDisplayMode(.inline)
