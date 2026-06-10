@@ -5,6 +5,8 @@ import RankingEngine
 /// filter pills, sort control, and ranked rows.
 struct YourListsView: View {
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
+    @State private var importQueue = ImportQueue.shared
 
     @State private var category: MediaCategory = .movies
     @State private var showCategorySheet = false
@@ -238,8 +240,48 @@ struct YourListsView: View {
         .sorted { $0.1 < $1.1 }
     }
 
+    /// Imported titles waiting to be ranked — Letterboxd stars are never
+    /// copied, so everything from an import sits here until it goes
+    /// through head-to-head ranking (favorites first).
+    private var pendingImportCount: Int {
+        importQueue.entries.filter { !store.isWatched($0.movieID) }.count
+    }
+
     private var watchedList: some View {
         List {
+            if pendingImportCount > 0 {
+                Button {
+                    tabRouter.selection = .search
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "film.stack")
+                            .font(.title3)
+                            .foregroundStyle(Theme.gold)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(pendingImportCount) imported films pending")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Theme.ink)
+                            Text("Rank them head-to-head — favorites first")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Theme.gold.opacity(0.10))
+                            .overlay(RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
+                    )
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Theme.background)
+                .listRowSeparator(.hidden)
+            }
             ForEach(filteredWatched, id: \.id) { item in
                 if let movie = store.movie(item.id) {
                     WatchedRowView(rank: item.rank, movie: movie, score: item.score)
