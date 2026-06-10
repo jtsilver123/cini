@@ -486,22 +486,24 @@ function renderFeed(){
   }).join("");
 
   $("screen-feed").innerHTML = `
-    <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
-      <span><span class="wordmark serif">cini</span><span class="tagline">EVERY FILM · RANKED</span></span>
-      <span class="spacer"></span>
-      <span style="display:flex; gap:20px; align-items:center;">
-        <button class="iconbtn" onclick="toast('Release calendar — in the app')">${I("calendar",21)}</button>
-        <button class="iconbtn" style="position:relative;" onclick="openNotifications()">${I("bell",21)}${S.notifs.some(n=>n.unread)?'<span class="dotbadge"></span>':''}</button>
-        <button class="iconbtn" onclick="openMenu()">${I("menu",21)}</button>
-      </span>
-    </div>
-    <div class="pad" style="margin-top:14px;">
-      <div class="searchfield" onclick="openSearchForRank()" style="color:var(--gray); cursor:pointer;">${I("search",17)}&ensp;Search a movie, member, etc.</div>
-    </div>
-    <div class="row-scroll" style="margin-top:10px;">
-      <button class="pill" onclick="go('chat')">${I("spark",16)} Ask Cini</button>
-      <button class="pill" onclick="openWatchSheet('dune2')">${I("tv",16)} Where to Watch</button>
-      <button class="pill" onclick="toast('Showtimes coming soon')">${I("clock",16)} Showtimes</button>
+    <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
+      <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
+        <span><span class="wordmark serif">cini</span><span class="tagline">EVERY FILM · RANKED</span></span>
+        <span class="spacer"></span>
+        <span style="display:flex; gap:20px; align-items:center;">
+          <button class="iconbtn" onclick="toast('Release calendar — in the app')">${I("calendar",21)}</button>
+          <button class="iconbtn" style="position:relative;" onclick="openNotifications()">${I("bell",21)}${S.notifs.some(n=>n.unread)?'<span class="dotbadge"></span>':''}</button>
+          <button class="iconbtn" onclick="openMenu()">${I("menu",21)}</button>
+        </span>
+      </div>
+      <div class="pad" style="margin-top:14px;">
+        <div class="searchfield" onclick="openSearchForRank()" style="color:var(--gray); cursor:pointer;">${I("search",17)}&ensp;Search a movie, member, etc.</div>
+      </div>
+      <div class="row-scroll" style="margin-top:10px;">
+        <button class="pill" onclick="go('chat')">${I("spark",16)} Ask Cini</button>
+        <button class="pill" onclick="openWatchSheet('dune2')">${I("tv",16)} Where to Watch</button>
+        <button class="pill" onclick="toast('Showtimes coming soon')">${I("clock",16)} Showtimes</button>
+      </div>
     </div>
     ${S.streak>0 && !S.rankedThisWeek ? `
     <div class="card" style="margin-top:16px; display:flex; gap:13px; align-items:center;">
@@ -850,8 +852,9 @@ function renderProfile(){
     </div>
     <div style="margin-top:10px;">
       ${listRow("check","Watched",count, isSelf?"S.subTab='watched'; save(); go('lists')":`openMemberList('${handle}')`)}
-      ${listRow("bookmark","Watchlist",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`toast('Their watchlist — follow-gated in the app')`)}
-      ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')"):""}
+      ${listRow("bookmark","Watchlist",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`openMemberWatchlist('${handle}')`)}
+      ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')")
+              :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
     </div>
     <div class="pad" style="display:flex; gap:12px; margin-top:14px;">
       <div class="card" style="flex:1; margin:0;"><span style="color:var(--teal);">${I("trophy",22)}</span>
@@ -871,21 +874,70 @@ function renderProfile(){
     </div>
     <div style="height:20px;"></div>`;
 }
+/* Member lists use the SAME row UI as your own lists: poster, bold title,
+   cert | genres, year · dir, quick log/save actions, score badge. */
+function memberWatchlistOf(u){
+  const p=MEMBERS.find(x=>x.u===u);
+  return Object.keys(MOVIES).filter(k=>!p.top.includes(k)).slice(0,4);
+}
+function bothWantToWatch(u){
+  return memberWatchlistOf(u).filter(k=>S.watchlist.includes(k));
+}
+function memberListRow(k,{rank=null, score=null, context=null, contextColor=null}={}){
+  const m=MOVIES[k];
+  const ranked=S.watched.some(w=>w.k===k);
+  return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button')){closeOverlay(); openDetail('${k}')}">
+    <div class="poster" style="width:52px;height:78px; background-image:url('${IMG(m.p)}');"></div>
+    <div style="flex:1; min-width:0;">
+      <div style="font-weight:700; font-size:15.5px;">${rank!==null?rank+". ":""}${m.t}</div>
+      <div class="meta">${m.cert} | ${m.g.join(", ")}</div>
+      <div class="meta">${m.y} · Dir. ${m.dir}</div>
+      ${context?`<div style="font-size:12px; font-weight:700; margin-top:3px; color:${contextColor||"var(--gray)"};">${context}</div>`:""}
+      <div style="display:flex; gap:18px; margin-top:8px;">
+        ${ranked?"":`<button class="iconbtn" onclick="closeOverlay(); openLog('${k}')">${I("plus")}</button>`}
+        <button class="iconbtn" onclick="sheetToggleWatchlist('${k}')">${bmIcon(k)}</button>
+      </div>
+    </div>
+    ${score!==null?`<div class="badge ${scoreClass(score)}">${score.toFixed(1)}</div>`:""}
+  </div>`;
+}
+/* Toggle a save from inside a sheet and redraw just the sheet body so the
+   slide-up animation doesn't replay. */
+let _sheetBody=null;
+function sheetToggleWatchlist(k){
+  toggleWatchlist(k);
+  const body=document.querySelector("#overlayRoot .sheet-body");
+  if(body && _sheetBody) body.innerHTML=_sheetBody();
+}
+function memberSheet(title, bodyFn){
+  _sheetBody=bodyFn;
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">${title}</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">${bodyFn()}</div>`);
+}
 function openMemberList(u){
   const p=MEMBERS.find(x=>x.u===u);
-  renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">@${u} · Watched</b>
-      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
-    <div class="sheet-body">
-      ${p.top.map((k,i)=>{const m=MOVIES[k]; return `
-        <div style="display:flex; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--hair); cursor:pointer;" onclick="closeOverlay(); openDetail('${k}')">
-          <span style="color:var(--gray); width:16px;">${i+1}</span>
-          <div class="poster" style="width:38px;height:57px; background-image:url('${IMG(m.p)}');"></div>
-          <div style="flex:1;"><b style="font-size:14px;">${m.t}</b><div class="sub">${m.y}</div></div>
-          <div class="badge sm g">${(9.8-i*0.7).toFixed(1)}</div>
-        </div>`;}).join("")}
-      <div class="sub" style="text-align:center; padding:14px;">Top of ${p.watched.toLocaleString()} ranked films</div>
-    </div>`);
+  memberSheet(`@${u} · Watched`, ()=>
+    p.top.map((k,i)=>memberListRow(k,{rank:i+1, score:9.8-i*0.7})).join("") +
+    `<div class="sub" style="text-align:center; padding:14px;">Top of ${p.watched.toLocaleString()} ranked films</div>`);
+}
+function openMemberWatchlist(u){
+  memberSheet(`@${u} · Watchlist`, ()=>{
+    const list=memberWatchlistOf(u);
+    return list.length===0
+      ? `<div class="empty"><span style="color:var(--teal);">${I("bookmark",34,1.4)}</span><b>Nothing saved yet</b></div>`
+      : list.map(k=>memberListRow(k,{context:`On ${MOVIES[k].on.join(", ")}`})).join("");
+  });
+}
+function openBothList(u){
+  memberSheet(`You Both Want to Watch`, ()=>{
+    const both=bothWantToWatch(u);
+    return (both.length===0
+      ? `<div class="empty"><span style="color:var(--teal);">${I("users",34,1.4)}</span><b>No overlap yet</b><span class="sub">Save a few of @${u}'s watchlist picks and they show up here.</span></div>`
+      : `<div class="sub" style="padding:2px 0 8px;">On your watchlist and @${u}'s — perfect for a watch party.</div>` +
+        both.map(k=>memberListRow(k,{context:"You both saved this", contextColor:"var(--teal)"})).join(""));
+  });
 }
 
 /* =================== DETAIL =================== */

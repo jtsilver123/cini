@@ -15,17 +15,24 @@ struct FeedView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            // Header, search, and the pill row stay frozen; only the
+            // feed itself scrolls underneath.
+            VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     searchBar
                     quickActions
-                    yourFeed
                 }
                 .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                .background(Theme.background)
+                ScrollView {
+                    yourFeed
+                        .padding(.horizontal, 16)
+                }
+                .refreshable { await loadFeed() }
             }
             .background(Theme.background)
-            .refreshable { await loadFeed() }
             .task { await loadFeed() }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)

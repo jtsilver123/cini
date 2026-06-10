@@ -22,6 +22,8 @@ struct ProfileScreen: View {
     @State private var matchPct: Double?
     @State private var globalRank: Int?
     @State private var watchlistCount = 0
+    /// Member's watchlist rows also on the viewer's list (member profiles only).
+    @State private var bothWantToWatch: [WatchlistRow] = []
     @State private var profileTab = 0   // 0 = Activity, 1 = Taste Profile
     @State private var showImport = false
     @State private var detailMovie: Movie?
@@ -78,8 +80,13 @@ struct ProfileScreen: View {
         followerCount = await supabase.followCount(of: id, direction: "following_id")
         followingCount = await supabase.followCount(of: id, direction: "follower_id")
         globalRank = try? await supabase.globalRank(userID: id)
-        watchlistCount = isSelf ? store.watchlistCount
-            : ((try? await supabase.watchlist(userID: id))?.count ?? 0)
+        if isSelf {
+            watchlistCount = store.watchlistCount
+        } else {
+            let memberWatchlist = (try? await supabase.watchlist(userID: id)) ?? []
+            watchlistCount = memberWatchlist.count
+            bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
+        }
         loaded = true
     }
 
@@ -171,7 +178,7 @@ struct ProfileScreen: View {
         VStack(spacing: 0) {
             NavigationLink {
                 RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
-                                 emptyHint: lockedHint)
+                                 isSelf: isSelf, emptyHint: lockedHint)
             } label: {
                 listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
             }
@@ -183,6 +190,17 @@ struct ProfileScreen: View {
                 listRow(icon: "bookmark", title: "Watchlist", count: watchlistCount)
             }
             .buttonStyle(.plain)
+            if !isSelf {
+                Divider()
+                NavigationLink {
+                    BothWantToWatchScreen(username: profile?.username ?? username ?? "them",
+                                          rows: bothWantToWatch)
+                } label: {
+                    listRow(icon: "person.2", title: "You both want to watch",
+                            count: bothWantToWatch.count)
+                }
+                .buttonStyle(.plain)
+            }
             if isSelf {
                 Divider()
                 NavigationLink {
@@ -390,18 +408,94 @@ struct ProfileScreen: View {
 
 // MARK: - Pushed list screens
 
+/// Beli-style rich row shared by the pushed list screens: rank number,
+/// poster, bold title, metadata + context lines, then quick actions
+/// (log / save) and an optional score badge.
+struct ActivityMovieRow: View {
+    var rank: Int?
+    let movie: Movie
+    var context: String?
+    var contextColor: Color = Theme.gray
+    var score: Double?
+    var showsQuickActions = false
+    var onLog: ((Movie) -> Void)?
+
+    @Environment(RankingStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let rank {
+                Text("\(rank)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(width: 26, alignment: .leading)
+            }
+            PosterView(url: movie.posterURL, width: 52)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(movie.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                if !movie.bylineText.isEmpty {
+                    Text(movie.bylineText)
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
+                }
+                if let context {
+                    Text(context)
+                        .font(.caption2)
+                        .foregroundStyle(contextColor)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if showsQuickActions { quickActions }
+            if let score {
+                ScoreBadge(score: score, size: 44)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+
+    private var quickActions: some View {
+        HStack(spacing: 16) {
+            if !store.isWatched(movie.tmdbID), let onLog {
+                Button {
+                    onLog(movie)
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.title3)
+                        .foregroundStyle(Theme.ink)
+                }
+                .buttonStyle(.plain)
+            }
+            Button {
+                Task { await store.toggleWatchlist(movie: movie) }
+            } label: {
+                Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                    .font(.title3)
+                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.gold : Theme.ink)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 /// A user's ranked list, pushed from the Watched row.
 struct RankedListScreen: View {
     let title: String
     let rankings: [RankingRow]
     let movies: [Int: Movie]
+    var isSelf = true
     var emptyHint: String?
 
     @State private var detailMovie: Movie?
+    @State private var logMovie: Movie?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 0) {
                 if rankings.isEmpty {
                     Text(emptyHint ?? "Nothing here yet.")
                         .font(.subheadline)
@@ -411,20 +505,14 @@ struct RankedListScreen: View {
                 }
                 ForEach(Array(rankings.enumerated()), id: \.element.id) { index, row in
                     if let movie = movies[row.movieId] {
-                        HStack(spacing: 12) {
-                            Text("\(index + 1)")
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.gray)
-                                .frame(width: 22, alignment: .leading)
-                            PosterView(url: movie.posterURL, width: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(movie.title).font(.subheadline.weight(.semibold))
-                                Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
-                            }
-                            Spacer()
-                            ScoreBadge(score: row.score, size: 44)
-                        }
-                        .padding(.vertical, 6)
+                        ActivityMovieRow(
+                            rank: index + 1,
+                            movie: movie,
+                            context: "Ranked \(row.createdAt.formatted(.relative(presentation: .named)))",
+                            score: row.score,
+                            showsQuickActions: !isSelf,
+                            onLog: { logMovie = $0 }
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture { detailMovie = movie }
                         Divider()
@@ -439,40 +527,49 @@ struct RankedListScreen: View {
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
         }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
+        }
     }
 }
 
-/// A user's watchlist, pushed from the Watchlist row.
+/// A user's watchlist, pushed from the Watchlist row. Your own list reads
+/// straight from the store so removing a save updates the rows live.
 struct WatchlistScreen: View {
     let userID: UUID?
     let isSelf: Bool
 
     @Environment(RankingStore.self) private var store
-    @State private var rows: [WatchlistRow] = []
+    @State private var fetched: [WatchlistRow] = []
     @State private var movies: [Int: Movie] = [:]
     @State private var detailMovie: Movie?
+    @State private var logMovie: Movie?
+
+    /// (movieID, savedAt) — live store for self, fetched rows for others.
+    private var entries: [(movieID: Int, savedAt: Date)] {
+        isSelf ? store.watchlist.map { ($0.movieID, $0.createdAt) }
+               : fetched.map { ($0.movieId, $0.createdAt) }
+    }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                if rows.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                if entries.isEmpty {
                     Text("Watchlist is empty.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
                 }
-                ForEach(rows) { row in
-                    if let movie = movies[row.movieId] ?? store.movie(row.movieId) {
-                        HStack(spacing: 12) {
-                            PosterView(url: movie.posterURL, width: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(movie.title).font(.subheadline.weight(.semibold))
-                                Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
-                            }
-                            Spacer()
-                        }
-                        .padding(.vertical, 6)
+                ForEach(entries, id: \.movieID) { entry in
+                    if let movie = movies[entry.movieID] ?? store.movie(entry.movieID) {
+                        ActivityMovieRow(
+                            movie: movie,
+                            context: watchlistContext(movie: movie, savedAt: entry.savedAt),
+                            contextColor: movie.availabilityText == nil ? Theme.gray : Theme.teal,
+                            showsQuickActions: true,
+                            onLog: { logMovie = $0 }
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture { detailMovie = movie }
                         Divider()
@@ -482,16 +579,81 @@ struct WatchlistScreen: View {
             .padding(16)
         }
         .background(Theme.background)
-        .navigationTitle("Watchlist (\(rows.count))")
+        .navigationTitle("Watchlist (\(entries.count))")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
         }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
+        }
         .task {
-            guard let userID else { return }
-            rows = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
-            let fetched = (try? await SupabaseService.shared.movies(ids: rows.map(\.movieId))) ?? []
-            for row in fetched { movies[row.tmdbId] = row.asMovie }
+            guard !isSelf, let userID else { return }
+            fetched = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
+            let rows = (try? await SupabaseService.shared.movies(ids: fetched.map(\.movieId))) ?? []
+            for row in rows { movies[row.tmdbId] = row.asMovie }
+        }
+    }
+
+    private func watchlistContext(movie: Movie, savedAt: Date) -> String {
+        if let availability = movie.availabilityText { return availability }
+        return "Added \(savedAt.formatted(.relative(presentation: .named)))"
+    }
+}
+
+/// Movies on both your watchlist and the member's — the "Places you both
+/// want to try" row from Beli, pushed from a member profile.
+struct BothWantToWatchScreen: View {
+    let username: String
+    /// The member's watchlist rows that are also on the viewer's watchlist.
+    let rows: [WatchlistRow]
+
+    @Environment(RankingStore.self) private var store
+    @State private var detailMovie: Movie?
+    @State private var logMovie: Movie?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if rows.isEmpty {
+                    Text("No overlap yet — save a few of @\(username)'s watchlist picks and they show up here.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                } else {
+                    Text("On your watchlist and @\(username)'s — perfect for a watch party.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .padding(.bottom, 8)
+                }
+                ForEach(rows) { row in
+                    // Intersection rows are on the viewer's own watchlist,
+                    // so the store always has their metadata.
+                    if let movie = store.movie(row.movieId) {
+                        ActivityMovieRow(
+                            movie: movie,
+                            context: movie.availabilityText ?? "You both saved this",
+                            contextColor: Theme.teal,
+                            showsQuickActions: true,
+                            onLog: { logMovie = $0 }
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailMovie = movie }
+                        Divider()
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(Theme.background)
+        .navigationTitle("You Both Want to Watch")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
         }
     }
 }
