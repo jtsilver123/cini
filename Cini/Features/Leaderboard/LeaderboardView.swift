@@ -181,7 +181,7 @@ struct InviteSheet: View {
     }
 }
 
-// MARK: - Other member's profile
+// MARK: - Other member's profile (with their ranked list)
 
 struct MemberProfileView: View {
     let userID: UUID
@@ -189,6 +189,9 @@ struct MemberProfileView: View {
 
     @State private var profile: Profile?
     @State private var following = false
+    @State private var rankings: [RankingRow] = []
+    @State private var movies: [Int: Movie] = [:]
+    @State private var detailMovie: Movie?
 
     var body: some View {
         ScrollView {
@@ -212,14 +215,80 @@ struct MemberProfileView: View {
                             try? await SupabaseService.shared.follow(userID)
                         }
                         following.toggle()
+                        await loadRankings()   // visibility may have changed
                     }
                 }
+
+                rankedList
             }
             .padding(24)
         }
         .background(Theme.background)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
         .task {
             profile = try? await SupabaseService.shared.profile(id: userID).asProfile
+            await loadRankings()
         }
+    }
+
+    @ViewBuilder
+    private var rankedList: some View {
+        if !rankings.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Watched (\(rankings.count))").font(.title3.weight(.bold))
+                    Spacer()
+                }
+                .padding(.top, 10)
+
+                ForEach(Array(rankings.enumerated()), id: \.element.id) { index, row in
+                    if let movie = movies[row.movieId] {
+                        HStack(spacing: 12) {
+                            PosterView(url: movie.posterURL, width: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("\(index + 1). \(movie.title)")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                Text(movie.bylineText)
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.gray)
+                            }
+                            Spacer()
+                            ScoreBadge(score: row.score, size: 44)
+                        }
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .onTapGesture { detailMovie = movie }
+                        Divider()
+                    }
+                }
+            }
+        } else if profile?.isPrivate == true && !following {
+            VStack(spacing: 6) {
+                Image(systemName: "lock").font(.title2).foregroundStyle(Theme.gray)
+                Text("This account is private")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                Text("Follow to see their rankings.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            .padding(.top, 16)
+        }
+    }
+
+    /// RLS decides what's visible: public accounts return everything,
+    /// private accounts only return rows if the viewer follows them.
+    private func loadRankings() async {
+        let rows = (try? await SupabaseService.shared.rankings(userID: userID)) ?? []
+        // Order best -> worst across buckets (loved, fine, disliked).
+        let bucketOrder = ["loved": 0, "fine": 1, "disliked": 2]
+        rankings = rows.sorted {
+            (bucketOrder[$0.bucket] ?? 3, $0.position) < (bucketOrder[$1.bucket] ?? 3, $1.position)
+        }
+        let movieRows = (try? await SupabaseService.shared.movies(ids: rows.map(\.movieId))) ?? []
+        for row in movieRows { movies[row.tmdbId] = row.asMovie }
     }
 }

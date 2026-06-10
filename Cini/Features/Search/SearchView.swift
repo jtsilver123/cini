@@ -146,19 +146,25 @@ struct SearchView: View {
     private var membersSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(memberResults) { member in
-                HStack(spacing: 12) {
-                    AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 44)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(member.displayName.isEmpty ? member.username : member.displayName)
-                            .font(.subheadline.weight(.semibold))
-                        Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray)
+                NavigationLink {
+                    MemberProfileView(userID: member.id, username: member.username)
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(member.displayName.isEmpty ? member.username : member.displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                        Spacer()
+                        PillButton(title: "Follow", style: .outlined) {
+                            Task { try? await SupabaseService.shared.follow(member.id) }
+                        }
                     }
-                    Spacer()
-                    PillButton(title: "Follow", style: .outlined) {
-                        Task { try? await SupabaseService.shared.follow(member.id) }
-                    }
+                    .padding(.vertical, 8)
                 }
-                .padding(.vertical, 8)
+                .buttonStyle(.plain)
                 Divider()
             }
         }
