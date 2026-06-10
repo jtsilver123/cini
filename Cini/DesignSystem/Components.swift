@@ -1,0 +1,231 @@
+import SwiftUI
+
+// MARK: - Liquid Glass adoption (iOS 26+/27, mandatory glass era)
+
+extension View {
+    /// Capsule Liquid Glass surface where available; hairline fallback on
+    /// the iOS 17 floor. Wrap sibling glass shapes in GlassEffectContainer
+    /// at the call site so iOS 27 can blend and morph them.
+    @ViewBuilder
+    func glassCapsule(tint: Color? = nil, interactive: Bool = true) -> some View {
+        if #available(iOS 26.0, *) {
+            let base: Glass = tint.map { Glass.regular.tint($0) } ?? .regular
+            let glass: Glass = interactive ? base.interactive() : base
+            self.glassEffect(glass, in: .capsule)
+        } else {
+            self.background(
+                Capsule().fill(tint ?? Color.white)
+                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: tint == nil ? 1 : 0))
+            )
+        }
+    }
+}
+
+// MARK: - Pill buttons
+
+/// Fully-rounded pill button. Filled teal = primary, outlined/glass =
+/// secondary. Uses the system glass button styles on iOS 26+/27 so it
+/// inherits Liquid Glass refinements (and the user's transparency setting).
+struct PillButton: View {
+    enum Style { case filled, outlined }
+
+    let title: String
+    var systemImage: String?
+    var style: Style = .filled
+    var action: () -> Void = {}
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            if style == .filled {
+                Button(action: action) { label(foreground: .white) }
+                    .buttonStyle(.glassProminent)
+                    .tint(Theme.teal)
+            } else {
+                Button(action: action) { label(foreground: Theme.teal) }
+                    .buttonStyle(.glass)
+            }
+        } else {
+            Button(action: action) {
+                label(foreground: style == .filled ? .white : Theme.teal)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(style == .filled ? Theme.teal : .clear))
+                    .overlay(Capsule().strokeBorder(style == .filled ? .clear : Theme.teal, lineWidth: 1.2))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func label(foreground: Color) -> some View {
+        HStack(spacing: 6) {
+            if let systemImage { Image(systemName: systemImage).font(.subheadline.weight(.semibold)) }
+            Text(title).font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(foreground)
+    }
+}
+
+/// Dropdown filter pill: "Genre ∨". Glass surface on iOS 26+/27.
+struct FilterPill: View {
+    let title: String
+    var hasChevron = true
+    var action: () -> Void = {}
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Text(title).font(.subheadline)
+                if hasChevron { Image(systemName: "chevron.down").font(.caption2) }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .foregroundStyle(Theme.ink)
+        }
+        .buttonStyle(.plain)
+        .glassCapsule()
+    }
+}
+
+// MARK: - Score badge
+
+/// Circular score badge with thin ring, one-decimal score, and an optional
+/// small count chip ("3k") pinned to the lower-right — exactly Beli's.
+struct ScoreBadge: View {
+    let score: Double
+    var count: Int?
+    var size: CGFloat = 52
+
+    private var countLabel: String? {
+        guard let count else { return nil }
+        if count >= 1000 { return "\(count / 1000)k" }
+        return "\(count)"
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Circle()
+                .strokeBorder(Theme.hairline, lineWidth: 1.5)
+                .background(Circle().fill(Color.white))
+                .frame(width: size, height: size)
+                .overlay(
+                    Text(score.formatted(.number.precision(.fractionLength(1))))
+                        .font(.system(size: size * 0.34, weight: .bold))
+                        .foregroundStyle(Theme.scoreColor(score))
+                )
+            if let countLabel {
+                Text(countLabel)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(Circle().fill(Theme.teal))
+                    .offset(x: 4, y: 4)
+            }
+        }
+    }
+}
+
+/// Small filled rounded-rect score chip used on the detail hero ("8.4").
+struct ScoreChip: View {
+    let score: Double
+
+    var body: some View {
+        Text(score.formatted(.number.precision(.fractionLength(1))))
+            .font(.headline.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.scoreColor(score)))
+    }
+}
+
+// MARK: - Segmented pill control
+
+/// Segmented control with active thumb (Leaderboard metrics, Search tabs).
+/// The thumb is a Liquid Glass lens on iOS 26+/27.
+struct SegmentedPillControl: View {
+    let segments: [String]
+    @Binding var selection: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(segments.indices, id: \.self) { i in
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) { selection = i }
+                } label: {
+                    Text(segments[i])
+                        .font(.subheadline.weight(selection == i ? .semibold : .regular))
+                        .foregroundStyle(Theme.ink)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background { if selection == i { thumb } }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Capsule().fill(Color.black.opacity(0.05)))
+    }
+
+    @ViewBuilder
+    private var thumb: some View {
+        if #available(iOS 26.0, *) {
+            Capsule().fill(.clear).glassEffect(.regular, in: .capsule)
+        } else {
+            Capsule().fill(Color.white)
+                .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+        }
+    }
+}
+
+// MARK: - Cards
+
+/// Rounded-rect card with hairline border.
+struct HairlineCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white)
+                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
+            )
+    }
+}
+
+// MARK: - Avatars
+
+struct AvatarView: View {
+    let url: URL?
+    var size: CGFloat = 44
+
+    var body: some View {
+        CachedAsyncImage(url: url) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Circle().fill(Theme.gray.opacity(0.25))
+                .overlay(Image(systemName: "person.fill").foregroundStyle(Theme.gray))
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+}
+
+// MARK: - Progress dots (comparison flow)
+
+struct ProgressDots: View {
+    let total: Int
+    let completed: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<max(total, 1), id: \.self) { i in
+                Circle()
+                    .fill(i < completed ? Theme.teal : Theme.gray.opacity(0.3))
+                    .frame(width: 7, height: 7)
+            }
+        }
+    }
+}
