@@ -1,5 +1,5 @@
 # Xcode
-*.xcodeproj
+!Cini.xcodeproj
 !project.yml
 xcuserdata/
 DerivedData/

@@ -14,6 +14,8 @@
 	<string>$(MOVIEGLU_API_KEY)</string>
 	<key>MOVIEGLU_AUTHORIZATION</key>
 	<string>$(MOVIEGLU_AUTHORIZATION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

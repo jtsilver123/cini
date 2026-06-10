@@ -1,0 +1,22 @@
+name: Generate Xcode project
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate and commit project
+        run: |
+          xcodegen generate
+          git config user.name "Claude"
+          git config user.email "noreply@anthropic.com"
+          git add -f Cini.xcodeproj
+          git commit -m "Generate Cini.xcodeproj for Xcode Cloud" || echo "no changes"
+          git push
