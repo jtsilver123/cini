@@ -348,6 +348,12 @@ const DEFAULT_STATE = {
   queue:["anat"],
   liked:{}, followed:{}, comments:{f1:[{u:"jtsilver123", t:"so good in IMAX"}]},
   category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93, onboarded:false,
+  rankedThisWeek:false,
+  activity:[
+    {kind:"ranked", k:"dune2", when:"2d ago"},
+    {kind:"watchlisted", k:"poor", when:"5d ago"},
+    {kind:"ranked", k:"hold", when:"1w ago"},
+  ],
   notifs:[
     {kind:"like", who:"maddyc", movie:"dune2", when:"1h ago", unread:true},
     {kind:"new_follower", who:"oliviafang", when:"3h ago", unread:true},
@@ -413,6 +419,7 @@ function render(){
   el.scrollTop=scroll;
 }
 function go(name){
+  if(name!=="profile" && currentScreen==="profile") profileUser=null;
   currentScreen=name;
   document.querySelectorAll("[data-screen]").forEach(s=>s.classList.toggle("hidden", s.dataset.screen!==name));
   document.querySelectorAll(".tab[data-go]").forEach(t=>t.classList.toggle("active", t.dataset.go===name));
@@ -420,7 +427,11 @@ function go(name){
   $("screen-"+name).scrollTop=0;
 }
 document.querySelectorAll(".tab[data-go]").forEach(t=>t.onclick=()=>{buzz(); go(t.dataset.go);});
-function openSearchForRank(){ buzz(); go("search"); setTimeout(()=>{ const f=$("searchInput"); if(f) f.focus(); }, 80); }
+function openSearchForRank(){
+  buzz(); searchTab="movies"; go("search");
+  // Focus synchronously inside the tap gesture or iOS won't show the keyboard.
+  const f=$("searchInput"); if(f){ f.focus(); }
+}
 function openDetail(k){ detailKey=k; go("detail"); }
 
 /* ---------- Toggles ---------- */
@@ -429,7 +440,7 @@ function toggleWatchlist(k){
   const i=S.watchlist.indexOf(k);
   if(i>=0){ S.watchlist.splice(i,1); toast(`Removed ${MOVIES[k].t} from watchlist`); }
   else if(S.watched.some(w=>w.k===k)){ toast("Already on your Watched list"); }
-  else { S.watchlist.unshift(k); toast(`Saved ${MOVIES[k].t} to watchlist`); }
+  else { S.watchlist.unshift(k); S.activity.unshift({kind:"watchlisted", k, when:"just now"}); S.activity=S.activity.slice(0,8); toast(`Saved ${MOVIES[k].t} to watchlist`); }
   save(); render();
 }
 function bmIcon(k){ return S.watchlist.includes(k)
@@ -492,6 +503,15 @@ function renderFeed(){
       <button class="pill" onclick="openWatchSheet('dune2')">${I("tv",16)} Where to Watch</button>
       <button class="pill" onclick="toast('Showtimes coming soon')">${I("clock",16)} Showtimes</button>
     </div>
+    ${S.streak>0 && !S.rankedThisWeek ? `
+    <div class="card" style="margin-top:16px; display:flex; gap:13px; align-items:center;">
+      <span style="color:var(--gold);">${I("flame",24,1.6)}</span>
+      <div style="flex:1;">
+        <b style="font-size:14px;">Your ${S.streak}-week streak ends Sunday</b>
+        <div class="sub" style="margin-top:1px;">Rank one movie this week to keep it alive.</div>
+      </div>
+      <button class="pill" onclick="openSearchForRank()">Rank</button>
+    </div>`:""}
     <h2 class="section">YOUR FEED</h2>
     <div class="pad" style="display:flex; gap:12px; align-items:center;">
       <div class="avatar" style="width:44px;height:44px;" onclick="go('profile')">J</div>
@@ -725,50 +745,125 @@ function renderLeaderboard(){
     <div style="margin-top:10px;">${rows}</div>`;
 }
 
-/* =================== PROFILE =================== */
+/* =================== PROFILE (one UI for self + members) =================== */
+let profileUser=null; // null = self
+function openMember(u){
+  const p=MEMBERS.find(x=>x.u===u);
+  if(!p){ toast("Profile unavailable"); return; }
+  closeOverlay(); profileUser=u; go('profile');
+}
+function tasteFor(user){
+  if(user){
+    const p=MEMBERS.find(x=>x.u===user);
+    const seed=p.u.length;
+    return {loved:Math.round(p.watched*0.42), fine:Math.round(p.watched*0.4), disliked:Math.round(p.watched*0.18),
+      genres:[["Drama",0.34],["Sci-Fi",0.22],["Comedy",0.15]].map(([n,v],i)=>[n,(v+((seed+i)%4)*0.02)]),
+      decade:2010+((seed%2)*10), streak:3+(seed%9)};
+  }
+  const rows=scoredWatched();
+  const counts={loved:0,fine:0,disliked:0}; const g={}; const d={}; let gt=0;
+  rows.forEach(w=>{ counts[w.b]++; MOVIES[w.k].g.forEach(x=>{g[x]=(g[x]||0)+1; gt++;}); const dec=Math.floor(MOVIES[w.k].y/10)*10; d[dec]=(d[dec]||0)+1; });
+  const genres=Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>[n, gt?c/gt:0]);
+  const decade=Object.entries(d).sort((a,b)=>b[1]-a[1])[0]?.[0];
+  return {loved:counts.loved, fine:counts.fine, disliked:counts.disliked, genres, decade, streak:S.streak};
+}
 function renderProfile(){
-  const count=529+S.watched.length;
-  const goalDone=82+S.watched.length;
+  const member = profileUser ? MEMBERS.find(x=>x.u===profileUser) : null;
+  const isSelf = !member;
+  const t = tasteFor(profileUser);
+  const watchedRows = isSelf ? scoredWatched() : member.top.map((k,i)=>({k, rank:i+1, score:9.8-i*0.7, b:"loved"}));
+  const count = isSelf ? 529+S.watched.length : member.watched;
+  const name = isSelf ? "Jake Silver" : member.n;
+  const handle = isSelf ? "jtsilver123" : member.u;
+  const av = isSelf ? "" : member.av;
+  const activity = isSelf
+    ? S.activity
+    : member.top.slice(0,2).map((k,i)=>({kind:i?"watchlisted":"ranked", k, when:["3h ago","yesterday"][i]}));
+
+  const streakCard = t.streak>0 ? `
+    <div class="card" style="margin:16px 18px 0; display:flex; gap:13px; align-items:center;">
+      <span style="color:var(--gold);">${I("flame",24,1.6)}</span>
+      <div style="flex:1;">
+        <b style="font-size:14px;">${t.streak}-week streak</b>
+        <div class="sub" style="margin-top:1px;">${isSelf
+          ? (S.rankedThisWeek ? "This week is locked in." : "Rank one movie this week to keep it.")
+          : "Ranks at least one movie every week."}</div>
+      </div>
+      ${isSelf && S.rankedThisWeek ? `<span class="gtxt">${I("check",20,2.2)}</span>`:""}
+    </div>` : "";
+
+  const tasteCard = (t.loved+t.fine+t.disliked)>0 ? `
+    <div class="card" style="margin:14px 18px 0;">
+      <b style="font-size:15.5px;">Taste Profile</b>
+      <div style="display:flex; margin-top:14px;">
+        ${[["--s-loved",t.loved,"Liked"],["--s-fine",t.fine,"Fine"],["--s-disliked",t.disliked,"Didn't"]].map(([c,n,l])=>`
+          <div style="flex:1; text-align:center;">
+            <div style="width:46px;height:46px;border-radius:50%;background:var(${c});margin:0 auto;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;">${n}</div>
+            <div class="sub" style="margin-top:6px;">${l}</div>
+          </div>`).join("")}
+      </div>
+      <div style="margin-top:16px; display:flex; flex-direction:column; gap:10px;">
+        ${t.genres.map(([g,share])=>`
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="width:84px; font-size:13px; font-weight:600;">${g}</span>
+            <div style="flex:1; height:8px; border-radius:99px; background:rgba(255,255,255,.07);">
+              <div style="width:${Math.round(share*100)}%; height:100%; border-radius:99px; background:var(--gold);"></div></div>
+            <span class="sub" style="width:34px; text-align:right;">${Math.round(share*100)}%</span>
+          </div>`).join("")}
+      </div>
+      ${t.decade?`<div style="margin-top:14px; color:var(--teal); font-size:12.5px; font-weight:700;">${I("film",14)} Lives in the ${t.decade}s</div>`:""}
+    </div>` : `
+    <div class="card" style="margin:14px 18px 0;"><span class="sub">Rank a few movies and the taste profile appears here.</span></div>`;
+
+  const activityHTML = activity.length ? `
+    <div class="pad" style="margin-top:20px;"><b style="font-size:15.5px;">Activity</b></div>
+    ${activity.map(a=>{const m=MOVIES[a.k]; return `
+      <div class="listrow" style="cursor:pointer; align-items:center;" onclick="openDetail('${a.k}')">
+        <div class="poster" style="width:34px;height:51px; background-image:url('${IMG(m.p)}');"></div>
+        <div style="flex:1;"><div style="font-size:14px;">${a.kind==="ranked"?"Ranked":"Added"} <b>${m.t}</b>${a.kind==="watchlisted"?" to watchlist":""}</div>
+          <div class="sub" style="margin-top:2px;">${a.when}</div></div>
+      </div>`;}).join("")}` : "";
+
   $("screen-profile").innerHTML = `
     <div class="pad" style="display:flex; align-items:center; padding-top:14px;">
-      <b style="font-size:21px;">Jake Silver</b><span class="spacer"></span>
-      <span style="display:flex; gap:18px;">
-        <button class="iconbtn" onclick="share('My Cini profile — @jtsilver123')">${I("share",19)}</button>
-        <button class="iconbtn" onclick="openMenu()">${I("menu",19)}</button>
-      </span>
+      ${isSelf
+        ? `<b style="font-size:21px;">${name}</b><span class="spacer"></span>
+           <span style="display:flex; gap:18px;">
+             <button class="iconbtn" onclick="share('My Cini profile — @${handle}')">${I("share",19)}</button>
+             <button class="iconbtn" onclick="openMenu()">${I("menu",19)}</button>
+           </span>`
+        : `<button class="iconbtn" onclick="profileUser=null; go('profile')">${I("chevL",22,2)}</button>
+           <b style="flex:1; text-align:center; font-size:17px;">${name}</b><span style="width:30px;"></span>`}
     </div>
     <div style="text-align:center; margin-top:12px;">
-      <div class="avatar" style="width:108px;height:108px; margin:0 auto; font-size:38px; box-shadow:0 6px 18px rgba(0,0,0,.12);">J</div>
-      <div style="font-weight:700; font-size:17px; margin-top:10px;">@jtsilver123</div>
+      <div class="avatar ${av}" style="width:104px;height:104px; margin:0 auto; font-size:36px;">${name[0]}</div>
+      <div style="font-weight:700; font-size:17px; margin-top:10px;">@${handle}</div>
       <div class="sub" style="margin-top:2px;">Member since December 2022</div>
+      ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
     </div>
-    <div class="pad" style="display:flex; margin-top:18px; text-align:center;">
-      <div style="flex:1;"><b style="font-size:18px;">81</b><div class="sub" style="margin-top:1px;">Followers</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">${75+Object.values(S.followed).filter(Boolean).length}</b><div class="sub" style="margin-top:1px;">Following</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">#20832</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
+    <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
+      <div style="flex:1;"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
+      <div style="flex:1;"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>
+      <div style="flex:1;"><b style="font-size:18px;">${count.toLocaleString()}</b><div class="sub" style="margin-top:1px;">Watched</div></div>
     </div>
-    <div class="row-scroll" style="margin-top:16px; justify-content:center;">
-      <button class="pill ghost" onclick="toast('Profile editing — in the app')">Edit profile</button>
-      <button class="pill ghost" onclick="share('My Cini profile — @jtsilver123')">Share profile</button>
+    <div class="row-scroll" style="margin-top:14px; justify-content:center;">
+      ${isSelf
+        ? `<button class="pill ghost" onclick="toast('Profile editing — in the app')">Edit profile</button>
+           <button class="pill ghost" onclick="share('My Cini profile — @${handle}')">Share profile</button>`
+        : `<button class="pill ${S.followed[handle]?"ghost on":""}" onclick="toggleFollow('${handle}')">${S.followed[handle]?"Following":"Follow"}</button>`}
     </div>
-    <div style="margin-top:14px;">
-      <div class="listrow" style="align-items:center; cursor:pointer;" onclick="S.subTab='watched'; save(); go('lists')"><span style="color:var(--teal);">${I("check",19)}</span><b style="flex:1; font-size:15.5px;">Watched</b><b>${count}</b><span class="sub">&ensp;${I("chevR",15)}</span></div>
-      <div class="listrow" style="align-items:center; cursor:pointer;" onclick="S.subTab='watchlist'; save(); go('lists')"><span style="color:var(--teal);">${I("bookmark",19)}</span><b style="flex:1; font-size:15.5px;">Watchlist</b><b>${170+S.watchlist.length}</b><span class="sub">&ensp;${I("chevR",15)}</span></div>
-      <div class="listrow" style="align-items:center; cursor:pointer;" onclick="S.subTab='recs'; save(); go('lists')"><span style="color:var(--teal);">${I("heart",19)}</span><b style="flex:1; font-size:15.5px;">Recs for You</b><span class="sub">${I("chevR",15)}</span></div>
-    </div>
-    <div class="pad" style="display:flex; gap:12px; margin-top:16px;">
-      <div class="card" style="flex:1; margin:0;"><span style="color:var(--teal);">${I("trophy",22)}</span><div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Rank on Cini</div><b class="serif" style="font-size:22px; color:var(--teal);">#20832</b></div>
-      <div class="card" style="flex:1; margin:0;"><span style="color:var(--teal);">${I("flame",22)}</span><div style="color:var(--teal); font-size:13px; font-weight:600; margin-top:6px;">Current Streak</div><b class="serif" style="font-size:22px; color:var(--teal);">${S.streak} weeks</b></div>
-    </div>
-    <div class="card" style="margin-top:14px;">
-      <div style="display:flex;"><span style="color:var(--teal); font-weight:700;">2026 Movie Challenge</span><span class="spacer"></span>
-        <button class="iconbtn" onclick="share('${goalDone} of 200 movies in my 2026 Cini challenge')">${I("share",17)}</button></div>
-      <b style="font-size:18px; display:block; margin-top:6px;">${goalDone} of 200 movies</b>
-      <div style="height:9px; background:rgba(255,255,255,.12); border-radius:999px; margin:12px 0;">
-        <div style="width:${Math.min(100,goalDone/2)}%; height:100%; background:linear-gradient(90deg,#1A6B71,#14555A); border-radius:999px; transition:width .4s;"></div></div>
-      <div style="display:flex; font-size:13.5px;"><span class="sub">205 days left</span><span class="spacer"></span>
-        <button class="lnk" style="font-size:13.5px;" onclick="toast('${200-goalDone} movies to go this year')">Your 2026 progress ${I("chevR",13)}</button></div>
-    </div>`;
+    ${streakCard}
+    ${tasteCard}
+    ${activityHTML}
+    <div class="pad" style="margin-top:20px;"><b style="font-size:15.5px;">Watched${isSelf?` (${count})`:""}</b></div>
+    ${watchedRows.slice(0,10).map(w=>{const m=MOVIES[w.k]; return `
+      <div class="listrow" style="cursor:pointer; align-items:center;" onclick="openDetail('${w.k}')">
+        <span style="color:var(--gray); width:18px; font-size:13px;">${w.rank}</span>
+        <div class="poster" style="width:40px;height:60px; background-image:url('${IMG(m.p)}');"></div>
+        <div style="flex:1;"><b style="font-size:14px;">${m.t}</b><div class="sub">${m.y} · ${m.dir}</div></div>
+        <div class="badge sm ${scoreClass(w.score)}">${w.score.toFixed(1)}</div>
+      </div>`;}).join("")}
+    <div style="height:20px;"></div>`;
 }
 
 /* =================== DETAIL =================== */
@@ -928,7 +1023,8 @@ function logCards(){
     const e=myEntry(log.k);
     html+=`
       <div class="fcard ticket">
-        <div class="sub" style="text-align:center; letter-spacing:.28em; font-weight:700; font-size:10px; margin-bottom:10px;">ADMIT ONE · CINI</div>
+        <div class="sub" style="text-align:center; letter-spacing:.28em; font-weight:700; font-size:10px; margin-bottom:6px;">ADMIT ONE · CINI</div>
+        <div style="text-align:center; color:var(--gold); font-size:12px; font-weight:800; margin-bottom:10px;">${I("flame",13)} ${S.streak}-week streak alive</div>
         <div style="display:flex; gap:13px; align-items:center;">
           <div class="poster" style="width:46px;height:69px; background-image:url('${IMG(m.p)}');"></div>
           <div style="flex:1;"><b style="font-size:17px;">Ranked <span style="color:var(--gold);">#${e.rank}</span></b><div class="sub" style="margin-top:1px;">on your Watched list</div></div>
@@ -983,6 +1079,8 @@ function commitLog(pos){
   S.watched=rebuilt;
   if(S.queue.includes(log.k)){ S.queue=S.queue.filter(x=>x!==log.k); S.rankedFromImport++; }
   S.watchlist=S.watchlist.filter(x=>x!==log.k);
+  if(!S.rankedThisWeek){ S.streak++; S.rankedThisWeek=true; }
+  S.activity.unshift({kind:"ranked", k:log.k, when:"just now"}); S.activity=S.activity.slice(0,8);
   log.stage="result"; save(); refreshLog();
 }
 let _flashKey=null;
@@ -1078,29 +1176,6 @@ function postComment(id){
   if(!t){ toast("Write something first"); return; }
   (S.comments[id]=S.comments[id]||[]).push({u:"jtsilver123", t});
   save(); openComments(id); buzz();
-}
-
-function openMember(u){
-  const p=MEMBERS.find(x=>x.u===u);
-  if(!p){ toast("Profile unavailable"); return; }
-  renderSheet(`
-    <div class="sheet-head"><span class="spacer"></span><button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
-    <div class="sheet-body" style="text-align:center;">
-      <div class="avatar ${p.av}" style="width:90px;height:90px;margin:0 auto;font-size:32px;">${p.n[0]}</div>
-      <div style="font-weight:700; font-size:17px; margin-top:10px;">@${p.u}</div>
-      <div class="gtxt" style="font-weight:700; font-size:13px; margin-top:3px;">+${p.match}% Match</div>
-      <div class="sub" style="margin-top:2px;">${p.watched.toLocaleString()} movies watched</div>
-      <div style="margin:14px 0;"><button class="pill ${S.followed[u]?"ghost on":""}" onclick="toggleFollow('${u}'); openMember('${u}')">${S.followed[u]?"Following":"Follow"}</button></div>
-      <div style="text-align:left;"><b style="font-size:15px;">Their top 3</b>
-        ${p.top.map((k,i)=>{const m=MOVIES[k]; return `
-          <div style="display:flex; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--hair); cursor:pointer;" onclick="closeOverlay(); openDetail('${k}')">
-            <span style="color:var(--gray); width:16px;">${i+1}</span>
-            <div class="poster" style="width:38px;height:57px; background-image:url('${IMG(m.p)}');"></div>
-            <div style="flex:1;"><b style="font-size:14px;">${m.t}</b><div class="sub">${m.y}</div></div>
-            <div class="badge sm g">${(9.8-i*0.7).toFixed(1)}</div>
-          </div>`;}).join("")}
-      </div>
-    </div>`);
 }
 
 function notifLine(n){

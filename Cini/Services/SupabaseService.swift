@@ -219,6 +219,37 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// A user's own activity stream (RLS-gated like the feed).
+    func events(of userID: UUID, limit: Int = 12) async throws -> [FeedEventRow] {
+        try await client.from("feed_events")
+            .select("*, profiles(username, display_name, avatar_url), movies(*)")
+            .eq("user_id", value: userID)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute().value
+    }
+
+    func followCount(of userID: UUID, direction: String) async -> Int {
+        let response = try? await client.from("follows")
+            .select("*", head: true, count: .exact)
+            .eq(direction, value: userID)
+            .execute()
+        return response?.count ?? 0
+    }
+
+    /// Cached taste match with another user, if computed.
+    func tasteMatch(with userID: UUID) async -> Double? {
+        guard let me = currentUserID, me != userID else { return nil }
+        struct Row: Codable { let pct: Double }
+        let lo = min(me.uuidString, userID.uuidString).lowercased()
+        let hi = max(me.uuidString, userID.uuidString).lowercased()
+        let rows: [Row]? = try? await client.from("taste_matches")
+            .select("pct")
+            .eq("user_a", value: lo).eq("user_b", value: hi)
+            .execute().value
+        return rows?.first?.pct
+    }
+
     func isFollowing(_ userID: UUID) async -> Bool {
         guard let me = currentUserID else { return false }
         let response = try? await client.from("follows")
@@ -442,6 +473,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let memberSince: Date
     let isPrivate: Bool
     let streakWeeks: Int
+    let lastLoggedWeek: String?
     let annualGoal: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -452,6 +484,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
         case memberSince = "member_since"
         case isPrivate = "is_private"
         case streakWeeks = "streak_weeks"
+        case lastLoggedWeek = "last_logged_week"
         case annualGoal = "annual_goal"
     }
 
@@ -459,7 +492,9 @@ struct ProfileRow: Codable, Identifiable, Hashable {
         Profile(id: id, username: username, displayName: displayName,
                 avatarURL: avatarUrl.flatMap(URL.init), school: school, gradYear: gradYear,
                 memberSince: memberSince, isPrivate: isPrivate,
-                streakWeeks: streakWeeks, annualGoal: annualGoal)
+                streakWeeks: streakWeeks,
+                lastLoggedWeek: lastLoggedWeek.flatMap { ISO8601DateFormatter.dateOnly.date(from: $0) },
+                annualGoal: annualGoal)
     }
 }
 

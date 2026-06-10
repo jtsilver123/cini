@@ -102,6 +102,7 @@ struct Profile: Identifiable, Codable, Hashable {
     var memberSince: Date
     var isPrivate: Bool = false
     var streakWeeks: Int = 0
+    var lastLoggedWeek: Date?
     var annualGoal: Int?
 
     var memberSinceText: String {
@@ -112,6 +113,22 @@ struct Profile: Identifiable, Codable, Hashable {
         guard let school else { return nil }
         if let gradYear { return "\(school) '\(String(gradYear).suffix(2))" }
         return school
+    }
+
+    /// True when there's a live streak that hasn't been fed this week.
+    var streakAtRisk: Bool {
+        guard streakWeeks > 0 else { return false }
+        guard let lastLoggedWeek else { return true }
+        let thisWeek = Calendar(identifier: .iso8601)
+            .dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        return lastLoggedWeek < thisWeek
+    }
+
+    var hasLoggedThisWeek: Bool {
+        guard let lastLoggedWeek else { return false }
+        let thisWeek = Calendar(identifier: .iso8601)
+            .dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        return lastLoggedWeek >= thisWeek
     }
 }
 

@@ -59,12 +59,6 @@ final class RankingStore {
     func isOnWatchlist(_ movieID: Int) -> Bool { watchlist.contains { $0.movieID == movieID } }
     func scoredItem(for movieID: Int) -> ScoredItem<Int>? { list.scoredItem(for: movieID) }
 
-    /// Watched items logged in `year`, for the annual challenge card.
-    func challengeProgress(year: Int, rankingDates: [Int: Date] = [:]) -> Int {
-        // v1 approximation: count of all watched; refined when watch dates sync.
-        watchedCount
-    }
-
     // MARK: - Log flow
 
     func beginSession(movie: Movie, sentiment: Sentiment) -> InsertionSession<Int> {

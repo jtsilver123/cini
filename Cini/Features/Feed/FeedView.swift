@@ -11,6 +11,7 @@ struct FeedView: View {
     @State private var logMovie: Movie?
     @State private var memberTarget: MemberRef?
     @State private var showImport = false
+    @State private var showRankSheet = false
 
     var body: some View {
         NavigationStack {
@@ -123,6 +124,10 @@ struct FeedView: View {
                     .background(Capsule().fill(Theme.fill))
             }
 
+            if let profile = session.profile, profile.streakAtRisk {
+                streakBanner(profile.streakWeeks)
+            }
+
             if events.isEmpty {
                 emptyState
             }
@@ -136,6 +141,29 @@ struct FeedView: View {
                 )
                 Divider()
             }
+        }
+    }
+
+    /// The streak is alive but unfed this week — one tap to keep it.
+    private func streakBanner(_ weeks: Int) -> some View {
+        HairlineCard {
+            HStack(spacing: 14) {
+                Image(systemName: "flame.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.gold)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Your \(weeks)-week streak ends Sunday")
+                        .font(.subheadline.weight(.bold))
+                    Text("Rank one movie this week to keep it alive.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                PillButton(title: "Rank") { showRankSheet = true }
+            }
+        }
+        .sheet(isPresented: $showRankSheet) {
+            SearchView()
         }
     }
 
@@ -407,6 +435,7 @@ struct NotificationsView: View {
     @State private var detailMovie: Movie?
     @State private var memberTarget: MemberRef?
     @State private var showImport = false
+    @State private var showRankSheet = false
 
     var body: some View {
         List {

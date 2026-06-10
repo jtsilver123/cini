@@ -19,6 +19,7 @@ struct SearchView: View {
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -52,6 +53,11 @@ struct SearchView: View {
                 MovieDetailView(movie: movie)
             }
             .task { await loadSuggestions() }
+            .onAppear {
+                // Arriving via the + tab with nothing typed: keyboard up,
+                // ready to log a movie.
+                if query.isEmpty { searchFocused = true }
+            }
         }
     }
 
@@ -91,6 +97,7 @@ struct SearchView: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
                 TextField(tab == 0 ? "Search movie, genre, mood" : "Search members", text: $query)
                     .autocorrectionDisabled()
+                    .focused($searchFocused)
                     .onChange(of: query) { _, _ in scheduleSearch() }
             }
             .padding(12)
