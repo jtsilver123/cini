@@ -75,7 +75,7 @@ final class InsertionSessionTests: XCTestCase {
 
     func testComparisonCountIsLogarithmic() {
         for n in [1, 2, 5, 10, 50, 100, 500] {
-            var list = makeList(fine: Array(1...n))
+            let list = makeList(fine: Array(1...n))
             var session = list.beginInsertion(of: 9999, sentiment: .fine)
             let bound = Int(ceil(log2(Double(n + 1))))
             XCTAssertEqual(session.expectedComparisons, bound)
@@ -100,7 +100,7 @@ final class InsertionSessionTests: XCTestCase {
     }
 
     func testOpponentsComeFromCorrectBucketOnly() {
-        var list = makeList(loved: [1, 2, 3], fine: [4, 5, 6], disliked: [7, 8])
+        let list = makeList(loved: [1, 2, 3], fine: [4, 5, 6], disliked: [7, 8])
         var session = list.beginInsertion(of: 99, sentiment: .fine)
         var seen: [Int] = []
         while !session.isComplete, let opponent = session.currentOpponent {
@@ -153,7 +153,7 @@ final class InsertionSessionTests: XCTestCase {
     // MARK: - Progress
 
     func testProgressAdvancesAndCompletes() {
-        var list = makeList(loved: Array(1...20))
+        let list = makeList(loved: Array(1...20))
         var session = list.beginInsertion(of: 99, sentiment: .loved)
         var last = -1.0
         while !session.isComplete {

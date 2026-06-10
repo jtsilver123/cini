@@ -115,7 +115,7 @@ final class RankingStore {
             )
         }
         try? await supabase.cacheMovie(movie)
-        try? await supabase.watchlistToggle(movieID: movie.tmdbID)
+        _ = try? await supabase.watchlistToggle(movieID: movie.tmdbID)
     }
 
     // MARK: - Metadata
