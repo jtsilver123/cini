@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Profile: avatar, @username, member-since, school, stat row, list rows,
+/// Profile: avatar, @username, member-since, stat row, list rows,
 /// rank + streak stat cards, and the annual challenge card.
 struct ProfileView: View {
     @Environment(AppSession.self) private var session
@@ -67,10 +67,6 @@ struct ProfileView: View {
             AvatarView(url: profile?.avatarURL, size: 110)
             Text("@\(profile?.username ?? "—")").font(.headline)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
-            if let school = profile?.schoolLine {
-                Label(school, systemImage: "graduationcap")
-                    .font(.subheadline.weight(.semibold))
-            }
         }
     }
 

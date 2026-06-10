@@ -1,13 +1,11 @@
 import SwiftUI
 
 /// Serif "Leaderboard" header, Invite pill, Watched/Influence/Notes/Photos
-/// metric control, school + genre filters, school-ranking card, ranked rows
-/// with taste-match lines.
+/// metric control, genre filter, and ranked rows with taste-match lines.
 struct LeaderboardView: View {
     @Environment(AppSession.self) private var session
 
     @State private var metric = 0
-    @State private var school: String?
     @State private var genre: String?
     @State private var rows: [LeaderboardRow] = []
     @State private var showInvite = false
@@ -34,7 +32,6 @@ struct LeaderboardView: View {
                         .foregroundStyle(Theme.gray)
 
                     filters
-                    schoolCard
                     rankedRows
                 }
                 .padding(16)
@@ -61,40 +58,12 @@ struct LeaderboardView: View {
     private var filters: some View {
         HStack(spacing: 10) {
             Menu {
-                Button("Everyone") { school = nil; Task { await load() } }
-                if let mySchool = session.profile?.school {
-                    Button(mySchool) { school = mySchool; Task { await load() } }
-                }
-            } label: {
-                FilterPill(title: school ?? session.profile?.school ?? "Community")
-            }
-            Menu {
                 Button("All Genres") { genre = nil; Task { await load() } }
                 ForEach(["Drama", "Comedy", "Sci-Fi", "Horror", "Action", "Romance", "Thriller"], id: \.self) { g in
                     Button(g) { genre = g; Task { await load() } }
                 }
             } label: {
                 FilterPill(title: genre ?? "All Genres")
-            }
-        }
-    }
-
-    private var schoolCard: some View {
-        HairlineCard {
-            HStack(spacing: 14) {
-                Image(systemName: "graduationcap")
-                    .font(.title2)
-                    .foregroundStyle(Theme.teal)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Your school's ranking")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Theme.teal)
-                    Text("See the overall school leaderboard")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").foregroundStyle(Theme.gray)
             }
         }
     }
@@ -144,7 +113,7 @@ struct LeaderboardView: View {
     private func load() async {
         guard metric != 3 else { rows = []; return }   // photos: post-v1
         rows = (try? await SupabaseService.shared.leaderboard(
-            metric: metricKeys[metric], school: school, genre: genre)) ?? []
+            metric: metricKeys[metric], school: nil, genre: genre)) ?? []
     }
 }
 
@@ -200,11 +169,6 @@ struct MemberProfileView: View {
                 Text("@\(username)").font(.headline)
                 if let profile {
                     Text(profile.memberSinceText).font(.caption).foregroundStyle(Theme.gray)
-                    if let school = profile.schoolLine {
-                        Label(school, systemImage: "graduationcap")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
                 }
                 PillButton(title: following ? "Following" : "Follow",
                            style: following ? .outlined : .filled) {
@@ -229,6 +193,7 @@ struct MemberProfileView: View {
         }
         .task {
             profile = try? await SupabaseService.shared.profile(id: userID).asProfile
+            following = await SupabaseService.shared.isFollowing(userID)
             await loadRankings()
         }
     }

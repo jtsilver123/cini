@@ -6,6 +6,7 @@ struct FeedView: View {
 
     @State private var events: [FeedEventRow] = []
     @State private var searchText = ""
+    @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
 
@@ -45,14 +46,16 @@ struct FeedView: View {
                     ReleaseCalendarView()
                 } label: {
                     Image(systemName: "calendar")
-                        .overlay(alignment: .topTrailing) {
-                            Circle().fill(.red).frame(width: 7, height: 7).offset(x: 2, y: -2)
-                        }
                 }
                 NavigationLink {
                     NotificationsView()
                 } label: {
                     Image(systemName: "bell")
+                        .overlay(alignment: .topTrailing) {
+                            if unreadCount > 0 {
+                                Circle().fill(.red).frame(width: 7, height: 7).offset(x: 2, y: -2)
+                            }
+                        }
                 }
                 Image(systemName: "line.3.horizontal")
             }
@@ -147,6 +150,7 @@ struct FeedView: View {
 
     private func loadFeed() async {
         events = (try? await SupabaseService.shared.feed()) ?? []
+        unreadCount = await SupabaseService.shared.unreadNotificationCount()
     }
 }
 
@@ -349,12 +353,67 @@ struct ReleaseCalendarView: View {
 }
 
 struct NotificationsView: View {
+    @State private var rows: [NotificationRow] = []
+    @State private var loaded = false
+
     var body: some View {
         List {
-            Text("Likes, comments, new followers, and friends ranking your watchlist movies show up here.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
+            if rows.isEmpty && loaded {
+                VStack(spacing: 8) {
+                    Image(systemName: "bell").font(.title).foregroundStyle(Theme.gray)
+                    Text("Nothing yet").font(.subheadline.weight(.semibold))
+                    Text("Likes, comments, new followers, and friends ranking your watchlist movies land here.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+                .listRowBackground(Theme.background)
+            }
+            ForEach(rows) { row in
+                HStack(spacing: 12) {
+                    AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(headline(row)).font(.subheadline)
+                        Text(row.createdAt.formatted(.relative(presentation: .named)))
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                    Spacer()
+                    if let path = row.movies?.posterPath {
+                        PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
+                    }
+                    if row.readAt == nil {
+                        Circle().fill(Theme.teal).frame(width: 8, height: 8)
+                    }
+                }
+                .padding(.vertical, 4)
+                .listRowBackground(Theme.background)
+            }
         }
+        .listStyle(.plain)
+        .background(Theme.background)
         .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            rows = (try? await SupabaseService.shared.notifications()) ?? []
+            loaded = true
+            await SupabaseService.shared.markNotificationsRead()
+        }
+    }
+
+    private func headline(_ row: NotificationRow) -> AttributedString {
+        let who = "@\(row.actor?.username ?? "someone")"
+        let movie = row.movies?.title ?? "a movie"
+        let text: String
+        switch row.kind {
+        case "new_follower": text = "**\(who)** started following you"
+        case "like": text = "**\(who)** liked your activity on **\(movie)**"
+        case "comment": text = "**\(who)** commented on **\(movie)**"
+        case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your watchlist"
+        default: text = "**\(who)** did something new"
+        }
+        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
     }
 }

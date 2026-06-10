@@ -1,14 +1,26 @@
 import SwiftUI
 import RankingEngine
 
-/// The log flow, faithful to Beli's stacked-card overlay:
+/// Everything the user adds while logging, gathered before comparisons
+/// and persisted after the rank is committed.
+struct EnrichmentDraft {
+    var watchedWith: Set<UUID> = []
+    var watchDate: Date?
+    var notes = ""
+    var personalNotes = ""
+    var labels: Set<String> = []
+    var cast: Set<CastMember> = []
+    var stealthMode = false
+}
+
+/// The log flow, faithful to Beli's stacked-card overlay and its order:
 ///
-///   ┌ movie title card (serif, metadata, ×) ────────────┐
-///   ┌ "Add to my list of [🎬 Movies ▾]" ────────────────┐
-///   ┌ "How was it?" — three colored circles ────────────┐
-///   ┌ "Which do you prefer?" A ─OR─ B                   │
-///   │   ↩ Undo      ( Too tough )      Skip ➾           │
-///   └ …then morphs into the enrichment card + Okay ─────┘
+///   1. movie title card (serif, metadata, ×)
+///   2. "Add to my list of [Movies ▾]"
+///   3. "How was it?" — three colored circles
+///   4. details card — who with, labels, notes, date, stealth… then Okay
+///   5. "Which do you prefer?"  A —OR— B   (Undo · Too tough · Skip)
+///   6. result card — "Ranked #4 · 8.6" → Done
 ///
 /// Presented full-screen over a dimmed scrim so the app shows through.
 struct LogFlowView: View {
@@ -19,42 +31,77 @@ struct LogFlowView: View {
 
     @State private var category: MediaCategory = .movies
     @State private var sentiment: Sentiment?
+    @State private var phase: Phase = .sentiment
+    @State private var draft = EnrichmentDraft()
     @State private var session: InsertionSession<Int>?
     @State private var scored: ScoredItem<Int>?
     @State private var pairID = 0
 
+    enum Phase {
+        case sentiment      // picking a bucket
+        case enrich         // details card shown, waiting for Okay
+        case comparing      // head-to-head in progress
+        case result         // committed; showing rank + score
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
-            // Dimmed scrim over whatever screen launched the flow.
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
-                .onTapGesture { if scored == nil && session == nil { dismiss() } }
+                .onTapGesture { if phase == .sentiment { cancel() } }
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 12) {
-                    titleCard
-                    categoryCard
-                    sentimentCard
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        titleCard
+                        categoryCard
+                        sentimentCard
 
-                    if let session, !session.isComplete {
-                        comparisonCard(session)
+                        if phase == .enrich || phase == .comparing || phase == .result {
+                            EnrichmentCard(
+                                movie: movie,
+                                draft: $draft,
+                                isLocked: phase != .enrich,
+                                onOkay: { startComparisons() }
+                            )
                             .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                    if let scored {
-                        EnrichmentCard(movie: movie, scored: scored) {
-                            dismiss()
                         }
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                        if phase == .comparing, let session, !session.isComplete {
+                            comparisonCard(session)
+                                .id("compare")
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
+                        if phase == .result, let scored {
+                            resultCard(scored)
+                                .id("result")
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 10)
+                    .padding(.bottom, 40)
+                }
+                .onChange(of: phase) { _, newPhase in
+                    withAnimation(.snappy) {
+                        if newPhase == .comparing { proxy.scrollTo("compare", anchor: .bottom) }
+                        if newPhase == .result { proxy.scrollTo("result", anchor: .bottom) }
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 40)
             }
         }
         .presentationBackground(.clear)
-        .animation(.snappy(duration: 0.25), value: sentiment)
-        .animation(.snappy(duration: 0.25), value: scored)
+        .animation(.snappy(duration: 0.25), value: phase)
+    }
+
+    /// Abandoning mid-flow: re-sync from the server in case a re-rank
+    /// already removed the local entry.
+    private func cancel() {
+        if scored == nil && sentiment != nil {
+            Task { await store.load() }
+        }
+        dismiss()
     }
 
     // MARK: Card 1 — title
@@ -72,7 +119,7 @@ struct LogFlowView: View {
                     .foregroundStyle(Theme.gray)
             }
             Spacer()
-            Button { dismiss() } label: {
+            Button { cancel() } label: {
                 Image(systemName: "xmark")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Theme.ink)
@@ -160,22 +207,31 @@ struct LogFlowView: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .disabled(phase == .comparing || phase == .result)
     }
 
     private func pick(_ value: Sentiment) {
+        guard phase == .sentiment || phase == .enrich else { return }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         sentiment = value
-        scored = nil
-        let newSession = store.beginSession(movie: movie, sentiment: value)
+        withAnimation(.snappy) { phase = .enrich }
+    }
+
+    // MARK: Step 4 → 5: Okay starts the comparisons
+
+    private func startComparisons() {
+        guard let sentiment else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let newSession = store.beginSession(movie: movie, sentiment: sentiment)
+        session = newSession
         if newSession.isComplete {
-            session = nil
-            commit(newSession)   // first movie ever / first in bucket
+            commit(newSession)      // first movie ever / first in bucket
         } else {
-            withAnimation(.snappy) { session = newSession }
+            withAnimation(.snappy) { phase = .comparing }
         }
     }
 
-    // MARK: Card 4 — comparison
+    // MARK: Card 5 — comparison
 
     private func comparisonCard(_ current: InsertionSession<Int>) -> some View {
         VStack(spacing: 18) {
@@ -294,12 +350,57 @@ struct LogFlowView: View {
 
     private func commit(_ finished: InsertionSession<Int>) {
         Task {
-            let result = await store.commit(finished)
+            let result = await store.commit(finished, watchDate: draft.watchDate)
+            await persistDraft()
             withAnimation(.snappy) {
                 session = nil
                 scored = result
+                phase = .result
             }
         }
+    }
+
+    /// Save everything from the details card now that the rank exists.
+    private func persistDraft() async {
+        let supabase = SupabaseService.shared
+        if !draft.notes.isEmpty {
+            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes, isPrivate: false)
+        }
+        if !draft.personalNotes.isEmpty {
+            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.personalNotes, isPrivate: true)
+        }
+        for member in draft.cast {
+            try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
+        }
+        if !draft.watchedWith.isEmpty || draft.watchDate != nil {
+            try? await supabase.updateRanking(movieID: movie.tmdbID,
+                                              watchedWith: Array(draft.watchedWith),
+                                              watchDate: draft.watchDate)
+        }
+        if draft.stealthMode {
+            try? await supabase.hideRankEvent(movieID: movie.tmdbID)
+        }
+    }
+
+    // MARK: Card 6 — result
+
+    private func resultCard(_ scored: ScoredItem<Int>) -> some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 14) {
+                PosterView(url: movie.posterURL, width: 52)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Ranked #\(scored.rank)").font(.title3.weight(.bold))
+                    Text("on your Watched list").font(.subheadline).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                ScoreBadge(score: scored.score, size: 56)
+            }
+            PillButton(title: "Done") { dismiss() }
+                .frame(maxWidth: .infinity)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .floatingCard()
     }
 }
 

@@ -219,6 +219,15 @@ final class SupabaseService {
             .execute().value
     }
 
+    func isFollowing(_ userID: UUID) async -> Bool {
+        guard let me = currentUserID else { return false }
+        let response = try? await client.from("follows")
+            .select("*", head: true, count: .exact)
+            .eq("follower_id", value: me).eq("following_id", value: userID)
+            .execute()
+        return (response?.count ?? 0) > 0
+    }
+
     func follow(_ userID: UUID) async throws {
         guard let me = currentUserID else { return }
         struct Row: Encodable { let follower_id: UUID; let following_id: UUID }
@@ -339,6 +348,38 @@ final class SupabaseService {
             .eq("event_id", value: eventID)
             .order("created_at")
             .execute().value
+    }
+
+    // MARK: - Notifications
+
+    func notifications(limit: Int = 50) async throws -> [NotificationRow] {
+        guard let me = currentUserID else { return [] }
+        return try await client.from("notifications")
+            .select("*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies(title, poster_path)")
+            .eq("recipient_id", value: me)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute().value
+    }
+
+    func unreadNotificationCount() async -> Int {
+        guard let me = currentUserID else { return 0 }
+        let response = try? await client.from("notifications")
+            .select("*", head: true, count: .exact)
+            .eq("recipient_id", value: me)
+            .is("read_at", value: nil)
+            .execute()
+        return response?.count ?? 0
+    }
+
+    func markNotificationsRead() async {
+        guard let me = currentUserID else { return }
+        struct Update: Encodable { let read_at: Date }
+        _ = try? await client.from("notifications")
+            .update(Update(read_at: .now))
+            .eq("recipient_id", value: me)
+            .is("read_at", value: nil)
+            .execute()
     }
 
     // MARK: - Detail page aggregates
@@ -681,6 +722,45 @@ struct SharedListMovieRow: Codable, Identifiable, Hashable {
         case listId = "list_id"
         case movieId = "movie_id"
         case addedBy = "added_by"
+        case createdAt = "created_at"
+    }
+}
+
+struct NotificationRow: Codable, Identifiable, Hashable {
+    let id: UUID
+    let kind: String
+    let movieId: Int?
+    let readAt: Date?
+    let createdAt: Date
+    let actor: ActorProfile?
+    let movies: MovieStub?
+
+    struct ActorProfile: Codable, Hashable {
+        let username: String
+        let displayName: String?
+        let avatarUrl: String?
+
+        enum CodingKeys: String, CodingKey {
+            case username
+            case displayName = "display_name"
+            case avatarUrl = "avatar_url"
+        }
+    }
+
+    struct MovieStub: Codable, Hashable {
+        let title: String
+        let posterPath: String?
+
+        enum CodingKeys: String, CodingKey {
+            case title
+            case posterPath = "poster_path"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, actor, movies
+        case movieId = "movie_id"
+        case readAt = "read_at"
         case createdAt = "created_at"
     }
 }

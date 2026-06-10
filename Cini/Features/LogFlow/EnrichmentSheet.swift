@@ -1,28 +1,23 @@
 import SwiftUI
 import RankingEngine
 
-/// Post-rank enrichment card — bottom of the log-flow stack, mirroring
-/// Beli: "Who did you watch with?" chips, labels, notes, favorite
-/// performances, watch date, personal notes, a Stealth-mode toggle that
-/// keeps the rank off the feed, and a single Okay to finish.
+/// Details card — appears right after "How was it?", before comparisons
+/// (Beli's order): who you watched with, labels, notes, favorite
+/// performances, watch date, personal notes, Stealth mode, then Okay to
+/// move on to the head-to-head. Inputs collect into an EnrichmentDraft
+/// the flow persists after the rank commits.
 struct EnrichmentCard: View {
     let movie: Movie
-    let scored: ScoredItem<Int>
-    var onDone: () -> Void
+    @Binding var draft: EnrichmentDraft
+    /// True once comparisons begin — inputs stay visible but read-only.
+    var isLocked = false
+    var onOkay: () -> Void
 
-    @Environment(RankingStore.self) private var store
     private let supabase = SupabaseService.shared
 
     @State private var friends: [ProfileRow] = []
-    @State private var watchedWith: Set<UUID> = []
-    @State private var watchDate: Date?
-    @State private var notes = ""
-    @State private var personalNotes = ""
-    @State private var selectedLabels: Set<String> = []
-    @State private var selectedCast: Set<CastMember> = []
     @State private var cast: [CastMember] = []
     @State private var friendScores: [FriendScoreRow] = []
-    @State private var stealthMode = false
     @State private var activeRow: Row?
 
     enum Row: String, Identifiable {
@@ -32,25 +27,22 @@ struct EnrichmentCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            rankedBanner
-                .padding(.bottom, 6)
-
             watchedWithSection
             divider
             enrichmentRow(.labels, icon: "tag", title: "Add labels (date night, etc.)",
-                          detail: selectedLabels.isEmpty ? nil : selectedLabels.sorted().joined(separator: ", "))
+                          detail: draft.labels.isEmpty ? nil : draft.labels.sorted().joined(separator: ", "))
             divider
             enrichmentRow(.notes, icon: "square.and.pencil", title: "Add notes",
-                          detail: notes.isEmpty ? nil : notes)
+                          detail: draft.notes.isEmpty ? nil : draft.notes)
             divider
             enrichmentRow(.performances, icon: "star", title: "Add favorite performances",
-                          detail: selectedCast.isEmpty ? nil : selectedCast.map(\.name).joined(separator: ", "))
+                          detail: draft.cast.isEmpty ? nil : draft.cast.map(\.name).joined(separator: ", "))
             divider
             enrichmentRow(.date, icon: "calendar", title: "Add watch date",
-                          detail: watchDate?.formatted(date: .abbreviated, time: .omitted))
+                          detail: draft.watchDate?.formatted(date: .abbreviated, time: .omitted))
             divider
             enrichmentRow(.personalNotes, icon: "eye.slash", title: "Add personal notes",
-                          detail: personalNotes.isEmpty ? nil : "Private")
+                          detail: draft.personalNotes.isEmpty ? nil : "Private")
             divider
             stealthRow
 
@@ -59,19 +51,22 @@ struct EnrichmentCard: View {
                 friendsSection
             }
 
-            Button {
-                Task { await save() }
-            } label: {
-                Text("Okay")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Theme.teal)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+            if !isLocked {
+                Button {
+                    onOkay()
+                } label: {
+                    Text("Okay")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.teal)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 18)
-        .padding(.top, 16)
+        .padding(.top, 8)
+        .padding(.bottom, isLocked ? 10 : 0)
         .frame(maxWidth: .infinity)
         .floatingCard()
         .sheet(item: $activeRow) { row in
@@ -88,19 +83,6 @@ struct EnrichmentCard: View {
         Divider().overlay(Theme.hairline)
     }
 
-    private var rankedBanner: some View {
-        HStack(spacing: 12) {
-            PosterView(url: movie.posterURL, width: 44)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ranked #\(scored.rank)").font(.headline)
-                Text("on your Watched list").font(.subheadline).foregroundStyle(Theme.gray)
-            }
-            Spacer()
-            ScoreBadge(score: scored.score, size: 48)
-        }
-        .padding(.bottom, 8)
-    }
-
     // MARK: Who did you watch with?
 
     private var watchedWithSection: some View {
@@ -109,15 +91,16 @@ struct EnrichmentCard: View {
                 Image(systemName: "person.2").frame(width: 28)
                 Text("Who did you watch with?")
                 Spacer()
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
             if !friends.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(friends) { friend in
-                            let isOn = watchedWith.contains(friend.id)
+                            let isOn = draft.watchedWith.contains(friend.id)
                             Button {
-                                if isOn { watchedWith.remove(friend.id) } else { watchedWith.insert(friend.id) }
+                                guard !isLocked else { return }
+                                if isOn { draft.watchedWith.remove(friend.id) }
+                                else { draft.watchedWith.insert(friend.id) }
                             } label: {
                                 Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
                                     .font(.subheadline)
@@ -134,6 +117,10 @@ struct EnrichmentCard: View {
                     }
                 }
                 .scrollClipDisabled()
+            } else {
+                Text("Follow friends to tag them here.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
             }
         }
         .padding(.vertical, 12)
@@ -141,6 +128,7 @@ struct EnrichmentCard: View {
 
     private func enrichmentRow(_ row: Row, icon: String, title: String, detail: String? = nil) -> some View {
         Button {
+            guard !isLocked else { return }
             activeRow = row
         } label: {
             HStack(spacing: 14) {
@@ -163,16 +151,14 @@ struct EnrichmentCard: View {
         HStack(spacing: 14) {
             Image(systemName: "lock").frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("Stealth mode")
-                    Image(systemName: "lock.fill").font(.caption).foregroundStyle(Theme.teal)
-                }
+                Text("Stealth mode")
                 Text("Hide this activity from the feed")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
             }
             Spacer()
-            Toggle("", isOn: $stealthMode).labelsHidden().tint(Theme.teal)
+            Toggle("", isOn: $draft.stealthMode).labelsHidden().tint(Theme.teal)
+                .disabled(isLocked)
         }
         .padding(.vertical, 10)
     }
@@ -196,46 +182,25 @@ struct EnrichmentCard: View {
         NavigationStack {
             switch row {
             case .labels:
-                LabelPicker(selected: $selectedLabels)
+                LabelPicker(selected: $draft.labels)
             case .date:
                 DatePicker(
                     "Watch date",
-                    selection: Binding(get: { watchDate ?? .now }, set: { watchDate = $0 }),
+                    selection: Binding(get: { draft.watchDate ?? .now }, set: { draft.watchDate = $0 }),
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
                 .padding()
                 .navigationTitle("Watch date")
             case .notes:
-                NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $notes)
+                NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $draft.notes)
             case .performances:
-                CastPicker(cast: cast, selected: $selectedCast)
+                CastPicker(cast: cast, selected: $draft.cast)
             case .personalNotes:
-                NoteEditor(title: "Personal Notes", subtitle: "Only you can see these", text: $personalNotes)
+                NoteEditor(title: "Personal Notes", subtitle: "Only you can see these", text: $draft.personalNotes)
             }
         }
         .presentationDetents([.medium, .large])
-    }
-
-    private func save() async {
-        if !notes.isEmpty {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: notes, isPrivate: false)
-        }
-        if !personalNotes.isEmpty {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: personalNotes, isPrivate: true)
-        }
-        for member in selectedCast {
-            try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
-        }
-        if !watchedWith.isEmpty || watchDate != nil {
-            try? await supabase.updateRanking(movieID: movie.tmdbID,
-                                              watchedWith: Array(watchedWith),
-                                              watchDate: watchDate)
-        }
-        if stealthMode {
-            try? await supabase.hideRankEvent(movieID: movie.tmdbID)
-        }
-        onDone()
     }
 }
 
