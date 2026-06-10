@@ -81,9 +81,9 @@ private struct RaisedSearchButton: View {
         Button(action: action) {
             Image(systemName: "plus")
                 .font(.title2.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Theme.background)
                 .frame(width: 56, height: 56)
-                .background(Circle().fill(Theme.teal))
+                .background(Circle().fill(Theme.marquee))
                 .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
         }
         .buttonStyle(.plain)

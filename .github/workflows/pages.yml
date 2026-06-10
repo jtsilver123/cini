@@ -26,6 +26,7 @@ jobs:
         run: |
           mkdir -p _site/prototype
           cp prototype/index.html _site/prototype/index.html
+          cp prototype/favicon.png _site/prototype/favicon.png
           cp privacy.html _site/privacy.html
           # Root redirects to the prototype
           cat > _site/index.html <<'EOF'

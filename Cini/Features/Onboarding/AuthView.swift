@@ -12,6 +12,9 @@ struct AuthView: View {
     @State private var errorMessage: String?
     @State private var infoMessage: String?
     @State private var currentNonce: String?
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case email, password }
 
     var body: some View {
         VStack(spacing: 22) {
@@ -50,10 +53,12 @@ struct AuthView: View {
 
             VStack(spacing: 10) {
                 field("Email", text: $email, keyboard: .emailAddress)
+                    .focused($focusedField, equals: .email)
                 SecureField("Password", text: $password)
                     .textFieldStyle(.plain)
                     .padding(13)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                    .focused($focusedField, equals: .password)
 
                 Button {
                     Task { await handleEmail() }
@@ -66,7 +71,7 @@ struct AuthView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(Capsule().fill(Theme.tealDeep))
+                    .background(Capsule().fill(Theme.velvet))
                 }
                 .buttonStyle(.plain)
                 .disabled(isWorking || email.isEmpty || password.count < 6)
@@ -78,7 +83,7 @@ struct AuthView: View {
                     infoMessage = nil
                 }
                 .font(.subheadline)
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.marquee)
             }
 
             Group {
@@ -97,6 +102,9 @@ struct AuthView: View {
         }
         .padding(28)
         .background(Theme.background)
+        // Tapping anywhere outside the fields puts the keyboard away.
+        .contentShape(Rectangle())
+        .onTapGesture { focusedField = nil }
     }
 
     private func field(_ placeholder: String, text: Binding<String>,
@@ -112,6 +120,20 @@ struct AuthView: View {
     // MARK: - Actions
 
     private func handleApple(_ result: Result<ASAuthorization, Error>) async {
+        if case .failure(let error) = result {
+            let code = (error as? ASAuthorizationError)?.code
+            switch code {
+            case .canceled:
+                return   // user backed out — not an error
+            case .unknown, .failed, .notHandled:
+                // Almost always device/account-side: not signed into iCloud,
+                // or the binary is missing the Sign in with Apple entitlement.
+                errorMessage = "Apple sign-in isn't available right now — check you're signed into iCloud in Settings, or use email below. (code \(code?.rawValue ?? -1))"
+            default:
+                errorMessage = "Apple sign-in didn't complete — try again. (code \(code?.rawValue ?? -1))"
+            }
+            return
+        }
         guard case .success(let auth) = result,
               let credential = auth.credential as? ASAuthorizationAppleIDCredential,
               let tokenData = credential.identityToken,

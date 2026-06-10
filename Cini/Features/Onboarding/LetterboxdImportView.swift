@@ -90,7 +90,7 @@ struct LetterboxdImportView: View {
             VStack(spacing: 20) {
                 Image(systemName: "square.and.arrow.down.on.square")
                     .font(.system(size: 44))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
@@ -105,17 +105,17 @@ struct LetterboxdImportView: View {
                         Label {
                             Text("Tap below to open Letterboxd, then **Export your data** — Safari saves the .zip to Files")
                         } icon: {
-                            Text("1").bold().foregroundStyle(Theme.teal)
+                            Text("1").bold().foregroundStyle(Theme.marquee)
                         }
                         Label {
                             Text("Come back here and **choose that file** (no need to unzip)")
                         } icon: {
-                            Text("2").bold().foregroundStyle(Theme.teal)
+                            Text("2").bold().foregroundStyle(Theme.marquee)
                         }
                         Label {
                             Text("IMDb ratings CSVs work too")
                         } icon: {
-                            Text("3").bold().foregroundStyle(Theme.teal)
+                            Text("3").bold().foregroundStyle(Theme.marquee)
                         }
                         Link(destination: URL(string: "https://letterboxd.com/settings/data/")!) {
                             HStack(spacing: 6) {
@@ -123,7 +123,7 @@ struct LetterboxdImportView: View {
                                 Text("Open Letterboxd export page")
                                     .font(.subheadline.weight(.semibold))
                             }
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                         }
                         .padding(.top, 2)
                     }
@@ -138,7 +138,7 @@ struct LetterboxdImportView: View {
                             .foregroundStyle(Theme.gray)
                     }
                 }
-                .tint(Theme.teal)
+                .tint(Theme.marquee)
                 .padding(.horizontal, 4)
 
                 PillButton(title: "Choose export file", systemImage: "folder") {
@@ -152,7 +152,7 @@ struct LetterboxdImportView: View {
                         Image(systemName: "note.text")
                         Text("Or paste from Apple Notes").font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
                 }
                 .buttonStyle(.plain)
 
@@ -179,7 +179,7 @@ struct LetterboxdImportView: View {
             Spacer()
             ProgressView(value: progressFraction)
                 .progressViewStyle(.linear)
-                .tint(Theme.teal)
+                .tint(Theme.marquee)
                 .padding(.horizontal, 48)
             Text(progressText)
                 .font(.subheadline.weight(.semibold))
@@ -234,7 +234,7 @@ struct LetterboxdImportView: View {
 
     private func summaryRow(icon: String, count: Int, label: String, detail: String?) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: icon).foregroundStyle(Theme.teal).frame(width: 30)
+            Image(systemName: icon).foregroundStyle(Theme.marquee).frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(count) \(label)").font(.subheadline.weight(.bold))
                 if let detail {

@@ -21,7 +21,7 @@ struct CiniApp: App {
             }
             .environment(session)
             .environment(session.rankingStore)
-            .tint(Theme.teal)
+            .tint(Theme.marquee)
             .preferredColorScheme(.dark)
             .task { await session.bootstrap() }
         }

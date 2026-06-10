@@ -248,8 +248,8 @@ struct LogFlowView: View {
                     ) { choose(.preferNew) }
 
                     ZStack {
-                        Circle().fill(Theme.teal).frame(width: 44, height: 44)
-                        Text("OR").font(.caption.weight(.heavy)).foregroundStyle(.white)
+                        Circle().fill(Theme.marquee).frame(width: 44, height: 44)
+                        Text("OR").font(.caption.weight(.heavy)).foregroundStyle(Theme.background)
                     }
                     .zIndex(1)
                     .padding(.horizontal, -16)
@@ -273,7 +273,7 @@ struct LogFlowView: View {
                 } label: {
                     Label("Undo", systemImage: "arrowshape.turn.up.backward.fill")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(current.canUndo ? Theme.teal : Theme.gray.opacity(0.5))
+                        .foregroundStyle(current.canUndo ? Theme.marquee : Theme.gray.opacity(0.5))
                 }
                 .disabled(!current.canUndo)
 
@@ -282,10 +282,10 @@ struct LogFlowView: View {
                 Button { choose(.tooToughToCall) } label: {
                     Text("Too tough")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 9)
-                        .overlay(Capsule().strokeBorder(Theme.teal, lineWidth: 1.4))
+                        .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.4))
                 }
 
                 Spacer()
@@ -293,7 +293,7 @@ struct LogFlowView: View {
                 Button { choose(.skip) } label: {
                     Label("Skip", systemImage: "arrowshape.turn.up.forward.fill")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                         .labelStyle(TrailingIconLabelStyle())
                 }
             }
@@ -329,7 +329,7 @@ struct LogFlowView: View {
             .frame(maxWidth: .infinity, minHeight: 170)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .strokeBorder(Theme.teal.opacity(0.8), lineWidth: 1.4)
+                    .strokeBorder(Theme.marquee.opacity(0.8), lineWidth: 1.4)
             )
             .contentShape(RoundedRectangle(cornerRadius: 16))
         }
@@ -449,7 +449,7 @@ struct ComparisonCardStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(configuration.isPressed ? Theme.tealSoft : .clear)
+                    .fill(configuration.isPressed ? Theme.marqueeSoft : .clear)
             )
             .animation(.snappy(duration: 0.12), value: configuration.isPressed)
     }

@@ -130,7 +130,7 @@ struct MovieDetailView: View {
             let tags = ["Mindblower", "Slow Burn", "Date Night", "Rewatchable"]
             Text(tags.map { $0 }.joined(separator: " · "))
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.marquee)
                 .padding(.horizontal, 16)
         }
     }
@@ -177,10 +177,10 @@ struct MovieDetailView: View {
                         Image(systemName: "square.and.arrow.up").font(.subheadline.weight(.semibold))
                         Text("Share").font(.subheadline.weight(.semibold))
                     }
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
-                    .overlay(Capsule().strokeBorder(Theme.teal, lineWidth: 1.2))
+                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
                 }
             }
             .padding(.horizontal, 16)
@@ -195,7 +195,7 @@ struct MovieDetailView: View {
                 Spacer()
                 Text("See all scores")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
             }
 
             HStack(alignment: .top, spacing: 12) {
@@ -247,7 +247,7 @@ struct MovieDetailView: View {
                         Spacer()
                         Text("See all")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                     }
                     .padding(.horizontal, 16)
 
@@ -289,7 +289,7 @@ struct MovieDetailView: View {
                             let n = histogram.first { $0.bucketFloor == floor }?.n ?? 0
                             VStack(spacing: 4) {
                                 RoundedRectangle(cornerRadius: 3)
-                                    .fill(Theme.teal.opacity(n == 0 ? 0.15 : 0.9))
+                                    .fill(Theme.marquee.opacity(n == 0 ? 0.15 : 0.9))
                                     .frame(height: max(4, 80 * CGFloat(n) / CGFloat(maxN)))
                                 Text("\(floor)").font(.caption2).foregroundStyle(Theme.gray)
                             }

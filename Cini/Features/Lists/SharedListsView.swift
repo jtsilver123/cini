@@ -45,7 +45,7 @@ struct SharedListsView: View {
                         showCreate = true
                     } label: {
                         Label("New shared list", systemImage: "plus")
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                     }
                     .listRowBackground(Theme.background)
                 }
@@ -88,7 +88,7 @@ struct CreateSharedListSheet: View {
                         Text(option)
                             .font(.title2)
                             .padding(8)
-                            .background(Circle().fill(emoji == option ? Theme.tealSoft : .clear))
+                            .background(Circle().fill(emoji == option ? Theme.marqueeSoft : .clear))
                     }
                     .buttonStyle(.plain)
                 }
@@ -134,9 +134,9 @@ struct SharedListDetailView: View {
                             VStack(spacing: 4) {
                                 Image(systemName: "plus")
                                     .frame(width: 44, height: 44)
-                                    .background(Circle().strokeBorder(Theme.teal, style: StrokeStyle(lineWidth: 1.4, dash: [4])))
-                                    .foregroundStyle(Theme.teal)
-                                Text("Invite").font(.caption2).foregroundStyle(Theme.teal)
+                                    .background(Circle().strokeBorder(Theme.marquee, style: StrokeStyle(lineWidth: 1.4, dash: [4])))
+                                    .foregroundStyle(Theme.marquee)
+                                Text("Invite").font(.caption2).foregroundStyle(Theme.marquee)
                             }
                         }
                         .buttonStyle(.plain)
@@ -167,7 +167,7 @@ struct SharedListDetailView: View {
                     showAddMovie = true
                 } label: {
                     Label("Add from your watchlist", systemImage: "plus")
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                 }
                 .listRowBackground(Theme.background)
             }

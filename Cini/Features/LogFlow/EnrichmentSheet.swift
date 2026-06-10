@@ -57,7 +57,7 @@ struct EnrichmentCard: View {
                 } label: {
                     Text("Okay")
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                 }
@@ -109,7 +109,7 @@ struct EnrichmentCard: View {
                                     .padding(.vertical, 9)
                                     .background(
                                         RoundedRectangle(cornerRadius: 10)
-                                            .fill(isOn ? Theme.teal : Theme.fill)
+                                            .fill(isOn ? Theme.marquee : Theme.fill)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -157,7 +157,7 @@ struct EnrichmentCard: View {
                     .foregroundStyle(Theme.gray)
             }
             Spacer()
-            Toggle("", isOn: $draft.stealthMode).labelsHidden().tint(Theme.teal)
+            Toggle("", isOn: $draft.stealthMode).labelsHidden().tint(Theme.marquee)
                 .disabled(isLocked)
         }
         .padding(.vertical, 10)
@@ -223,7 +223,7 @@ struct LabelPicker: View {
                         Text(label).foregroundStyle(Theme.ink)
                         Spacer()
                         if selected.contains(label) {
-                            Image(systemName: "checkmark").foregroundStyle(Theme.teal)
+                            Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
                         }
                     }
                 }
@@ -283,7 +283,7 @@ struct CastPicker: View {
                     }
                     Spacer()
                     if selected.contains(member) {
-                        Image(systemName: "checkmark").foregroundStyle(Theme.teal)
+                        Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
                     }
                 }
             }

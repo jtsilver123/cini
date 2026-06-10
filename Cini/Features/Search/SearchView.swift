@@ -79,9 +79,9 @@ struct SearchView: View {
                     Image(systemName: icon)
                     Text(title).font(.headline)
                 }
-                .foregroundStyle(tab == index ? Theme.teal : Theme.gray)
+                .foregroundStyle(tab == index ? Theme.marquee : Theme.gray)
                 Rectangle()
-                    .fill(tab == index ? Theme.teal : .clear)
+                    .fill(tab == index ? Theme.marquee : .clear)
                     .frame(height: 2.5)
             }
         }
@@ -238,7 +238,7 @@ struct SearchView: View {
                 Spacer()
                 Button("Import more") { showImport = true }
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
             }
             Text("From your import (Ranked \(importQueue.rankedFromImport) of \(importQueue.totalImported))")
                 .font(.caption)
@@ -277,7 +277,7 @@ struct SearchView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "square.and.arrow.down")
                         .font(.title3)
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Import from Letterboxd or IMDb")
                             .font(.subheadline.weight(.semibold))
@@ -321,7 +321,7 @@ struct SearchView: View {
                 Spacer()
                 Image(systemName: "chevron.down")
             }
-            .foregroundStyle(Theme.teal)
+            .foregroundStyle(Theme.marquee)
         }
         .buttonStyle(.plain)
         .padding(.top, 4)
@@ -383,7 +383,7 @@ struct MovieSuggestionRow: View {
                     Task { await store.toggleWatchlist(movie: movie) }
                 } label: {
                     Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                        .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.teal : Theme.ink)
+                        .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
                 }
                 if let onDismiss {
                     Button(action: onDismiss) {

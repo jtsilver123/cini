@@ -196,7 +196,7 @@ struct YourListsView: View {
                     Text(subTab == .watched ? "Score" : "Date Added")
                 }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.marquee)
             }
             .buttonStyle(.plain)
             Spacer()
@@ -305,7 +305,7 @@ struct YourListsView: View {
             } label: {
                 Label("Surprise me", systemImage: "dice")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
             }
             .listRowBackground(Theme.background)
 
@@ -458,7 +458,7 @@ struct WatchlistRowView: View {
                         Task { await store.toggleWatchlist(movie: movie) }
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.teal : Theme.ink)
+                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
                     }
                 }
                 .font(.title3)
@@ -509,7 +509,7 @@ struct CategorySheet: View {
                         .foregroundStyle(selection == category ? .white : Theme.ink)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(selection == category ? Theme.teal : .clear)
+                                .fill(selection == category ? Theme.marquee : .clear)
                                 .overlay(RoundedRectangle(cornerRadius: 12)
                                     .strokeBorder(selection == category ? .clear : Theme.hairline))
                         )
@@ -554,7 +554,7 @@ struct TimelineView: View {
                                 .frame(width: 56, alignment: .leading)
                             GeometryReader { geo in
                                 Capsule()
-                                    .fill(Theme.teal)
+                                    .fill(Theme.marquee)
                                     .frame(width: max(8, geo.size.width * CGFloat(entry.count) / CGFloat(maxCount)))
                             }
                             .frame(height: 18)

@@ -44,7 +44,7 @@ struct ShowtimesSheet: View {
                     .keyboardType(.numberPad)
                 Button("Search") { Task { await search() } }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
                     .disabled(zipcode.count != 5)
             }
             .padding(12)
@@ -158,7 +158,7 @@ private struct FlowingChips: View {
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.ink)
-                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.teal.opacity(0.6)))
+                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.marquee.opacity(0.6)))
                 }
                 .buttonStyle(.plain)
             }

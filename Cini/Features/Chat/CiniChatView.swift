@@ -31,7 +31,7 @@ struct ChatUnavailableView: View {
             Spacer()
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.marquee)
             Text("Ask Cini").font(Theme.serif(28))
             Text(message)
                 .font(.subheadline)
@@ -123,7 +123,7 @@ struct CiniChatAvailableView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkles").foregroundStyle(Theme.teal)
+                Image(systemName: "sparkles").foregroundStyle(Theme.marquee)
                 Text("Ask Cini").font(Theme.serif(26))
             }
             Text("On-device AI that knows your taste. Private — nothing leaves your phone.")
@@ -143,7 +143,7 @@ struct CiniChatAvailableView: View {
                 .padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(message.isUser ? Theme.teal : Theme.surface)
+                        .fill(message.isUser ? Theme.marquee : Theme.surface)
                         .shadow(color: Theme.cardShadow, radius: 4, y: 2)
                 )
             if !message.isUser { Spacer(minLength: 48) }
@@ -162,10 +162,10 @@ struct CiniChatAvailableView: View {
                     } label: {
                         Text(starter)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 9)
-                            .background(Capsule().fill(Theme.tealSoft))
+                            .background(Capsule().fill(Theme.marqueeSoft))
                     }
                     .buttonStyle(.plain)
                 }
@@ -186,7 +186,7 @@ struct CiniChatAvailableView: View {
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.title)
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || isThinking)
         }

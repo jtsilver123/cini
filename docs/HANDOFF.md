@@ -1,10 +1,28 @@
 # HANDOFF — read this first in any new session
 
-**Goal in progress: get Cini onto TestFlight.** Everything else is done and
-verified. A fresh Claude session should read this file, then continue the
-TestFlight loop below.
+**STATUS: Cini IS on TestFlight** — round 6 (run 27311568113, commit
+3d728a5) uploaded successfully and the user has it installed. The loop
+below continues for follow-up builds.
 
-## Current blocker (the ONLY open thread)
+**Open thread: Apple sign-in fails on device** ("didn't complete" =
+ASAuthorization fails before Supabase is ever called). Portal capability
+verified ENABLED via ASC API (bundle resource D2B3UT2M3J has
+APPLE_ID_AUTH). Diagnosis: the unsigned-archive strategy meant the
+`com.apple.developer.applesignin` entitlement was never embedded in the
+code signature. Fix shipped: archive now signs with cloud-managed
+distribution signing (auth-key flags + `-allowProvisioningUpdates` on the
+ARCHIVE step; `CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution` at
+the Cini TARGET level in project.yml so SPM targets stay automatic).
+Round 7+ carries this — verify Apple sign-in on the new build.
+
+Also shipped since round 6: brand refresh (marquee gold #E8B64C +
+velvet red #A8352A on warm charcoal #131011, DM Serif Display bundled via
+UIAppFonts, new marquee app icon), Theme tokens renamed teal→marquee,
+tealDeep→velvet, tealSoft→marqueeSoft; activity-style list rows +
+"You both want to watch" shared list; frozen feed header; AuthView
+keyboard dismissal + granular Apple error codes.
+
+## Build history (context for future failures)
 
 The `TestFlight` GitHub Actions workflow (`.github/workflows/testflight.yml`)
 has failed 5 times, each failure narrower — archive ✓ and export ✓ since

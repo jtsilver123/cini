@@ -238,21 +238,21 @@ struct ProfileScreen: View {
         HStack(spacing: 12) {
             HairlineCard {
                 VStack(alignment: .leading, spacing: 6) {
-                    Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.teal)
-                    Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.teal)
+                    Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.marquee)
+                    Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.marquee)
                     Text(globalRank.map { "#\($0)" } ?? "—")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             HairlineCard {
                 VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: "flame.fill").font(.title3).foregroundStyle(Theme.gold)
-                    Text("Current Streak").font(.subheadline).foregroundStyle(Theme.teal)
+                    Text("Current Streak").font(.subheadline).foregroundStyle(Theme.marquee)
                     Text("\(profile?.streakWeeks ?? 0) weeks")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Theme.teal)
+                        .foregroundStyle(Theme.marquee)
                     if isSelf, let p = profile, p.streakWeeks > 0, !p.hasLoggedThisWeek {
                         Text("Rank this week to keep it")
                             .font(.caption2)
@@ -387,7 +387,7 @@ struct ProfileScreen: View {
                         Text("Lives in the \(String(decade))s")
                             .font(.caption.weight(.semibold))
                     }
-                    .foregroundStyle(Theme.teal)
+                    .foregroundStyle(Theme.marquee)
                 }
             }
             .padding(.vertical, 16)
@@ -566,7 +566,7 @@ struct WatchlistScreen: View {
                         ActivityMovieRow(
                             movie: movie,
                             context: watchlistContext(movie: movie, savedAt: entry.savedAt),
-                            contextColor: movie.availabilityText == nil ? Theme.gray : Theme.teal,
+                            contextColor: movie.availabilityText == nil ? Theme.gray : Theme.marquee,
                             showsQuickActions: true,
                             onLog: { logMovie = $0 }
                         )
@@ -634,7 +634,7 @@ struct BothWantToWatchScreen: View {
                         ActivityMovieRow(
                             movie: movie,
                             context: movie.availabilityText ?? "You both saved this",
-                            contextColor: Theme.teal,
+                            contextColor: Theme.marquee,
                             showsQuickActions: true,
                             onLog: { logMovie = $0 }
                         )

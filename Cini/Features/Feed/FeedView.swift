@@ -52,7 +52,7 @@ struct FeedView: View {
         HStack {
             Text("cini")
                 .font(Theme.wordmark)
-                .foregroundStyle(Theme.teal)
+                .foregroundStyle(Theme.marquee)
             Spacer()
             HStack(spacing: 20) {
                 NavigationLink {
@@ -100,7 +100,7 @@ struct FeedView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
-                    .background(Capsule().fill(Theme.teal))
+                    .background(Capsule().fill(Theme.velvet))
                 }
                 .buttonStyle(.plain)
                 PillButton(title: "Where to Watch", systemImage: "play.rectangle")
@@ -190,9 +190,9 @@ struct FeedView: View {
                     } label: {
                         Text("Ask Cini")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                             .padding(.horizontal, 14).padding(.vertical, 9)
-                            .overlay(Capsule().strokeBorder(Theme.teal, lineWidth: 1.2))
+                            .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
                     }
                     .buttonStyle(.plain)
                     PillButton(title: "Import history", systemImage: "square.and.arrow.down") {
@@ -305,7 +305,7 @@ struct FeedCard: View {
                         Task { await store.toggleWatchlist(movie: movie) }
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.teal : Theme.ink)
+                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
                     }
                 }
             }
@@ -384,7 +384,7 @@ struct CommentsSheet: View {
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title)
-                            .foregroundStyle(Theme.teal)
+                            .foregroundStyle(Theme.marquee)
                     }
                     .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
@@ -480,7 +480,7 @@ struct NotificationsView: View {
                         PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
                     }
                     if row.readAt == nil {
-                        Circle().fill(Theme.teal).frame(width: 8, height: 8)
+                        Circle().fill(Theme.marquee).frame(width: 8, height: 8)
                     }
                 }
                 .padding(.vertical, 4)

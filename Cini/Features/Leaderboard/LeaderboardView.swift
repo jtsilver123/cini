@@ -152,7 +152,7 @@ struct InviteSheet: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
-                .background(Capsule().fill(Theme.teal))
+                .background(Capsule().fill(Theme.marquee))
             }
         }
         .padding(24)

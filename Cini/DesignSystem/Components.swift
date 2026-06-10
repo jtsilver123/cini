@@ -23,7 +23,7 @@ extension View {
 
 // MARK: - Pill buttons
 
-/// Fully-rounded pill button. Filled teal = primary, outlined/glass =
+/// Fully-rounded pill button. Filled velvet = primary, outlined/glass =
 /// secondary. Uses the system glass button styles on iOS 26+/27 so it
 /// inherits Liquid Glass refinements (and the user's transparency setting).
 struct PillButton: View {
@@ -39,18 +39,18 @@ struct PillButton: View {
             if style == .filled {
                 Button(action: action) { label(foreground: .white) }
                     .buttonStyle(.glassProminent)
-                    .tint(Theme.teal)
+                    .tint(Theme.velvet)
             } else {
-                Button(action: action) { label(foreground: Theme.teal) }
+                Button(action: action) { label(foreground: Theme.marquee) }
                     .buttonStyle(.glass)
             }
         } else {
             Button(action: action) {
-                label(foreground: style == .filled ? .white : Theme.teal)
+                label(foreground: style == .filled ? .white : Theme.marquee)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 9)
-                    .background(Capsule().fill(style == .filled ? Theme.teal : .clear))
-                    .overlay(Capsule().strokeBorder(style == .filled ? .clear : Theme.teal, lineWidth: 1.2))
+                    .background(Capsule().fill(style == .filled ? Theme.velvet : .clear))
+                    .overlay(Capsule().strokeBorder(style == .filled ? .clear : Theme.marquee, lineWidth: 1.2))
             }
             .buttonStyle(.plain)
         }
@@ -116,10 +116,10 @@ struct ScoreBadge: View {
             if let countLabel {
                 Text(countLabel)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Theme.background)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
-                    .background(Circle().fill(Theme.teal))
+                    .background(Circle().fill(Theme.marquee))
                     .offset(x: 4, y: 4)
             }
         }
@@ -224,7 +224,7 @@ struct ProgressDots: View {
         HStack(spacing: 6) {
             ForEach(0..<max(total, 1), id: \.self) { i in
                 Circle()
-                    .fill(i < completed ? Theme.teal : Theme.gray.opacity(0.3))
+                    .fill(i < completed ? Theme.marquee : Theme.gray.opacity(0.3))
                     .frame(width: 7, height: 7)
             }
         }
