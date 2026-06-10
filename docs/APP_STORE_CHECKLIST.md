@@ -6,9 +6,10 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 
 - ✅ RankingEngine: 39 unit tests, green on Linux + macOS CI
 - ✅ iOS app compiles on CI (Xcode 26.4.1, macos-26 runner, `BUILD SUCCEEDED`, zero warnings)
-- ✅ Database schema + RLS + RPCs written and validated against Postgres
-- 🔶 Production Supabase project: created by Jake; migrations applied by CI/Claude
-  once project URL + database password are provided
+- ✅ Production Supabase live (`npumchnkbcajyuhurgez`): all 4 migrations applied,
+  rank_insert smoke-tested in production, security advisors clean
+  (remaining WARNs are intentional authenticated RPCs)
+- ✅ TMDB key live-verified (search + watch providers) and wired into the build
 - ✅ App icon (1024×1024, asset catalog)
 - ✅ Privacy policy hosted: https://jtsilver123.github.io/cini/privacy.html
 
@@ -16,12 +17,12 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 
 1. **Apple Developer Program** — enroll at https://developer.apple.com/programs/
    ($99/year, takes 1–2 days to approve). Needed for TestFlight and App Store.
-2. **TMDB API key** (free) — https://www.themoviedb.org/signup, then
-   Settings → API → request a key (choose "Developer"). Paste into
-   `Cini/Resources/Secrets.xcconfig` as `TMDB_API_KEY`.
+2. ✅ **TMDB API key** — done, wired into Secrets.xcconfig.
    ⚠️ TMDB terms require in-app attribution — the About screen must show
    "This product uses the TMDB API but is not endorsed or certified by TMDB."
-3. **Supabase production project** (free tier) — done; see above.
+3. ✅ **Supabase production project** — done; migrations applied.
+   ⚠️ Post-setup hygiene: rotate the `sb_secret_` key (Settings → API Keys)
+   and consider changing the database password — both were shared in chat.
 4. **MovieGlu** (optional, for Showtimes) — https://developer.movieglu.com
    free tier. Without it the Showtimes sheet shows a friendly "coming soon."
 
