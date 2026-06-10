@@ -98,7 +98,8 @@ struct ProfileScreen: View {
                 .font(.title2.weight(.bold))
             Spacer()
             HStack(spacing: 18) {
-                ShareLink(item: URL(string: "https://cini.app/@\(profile?.username ?? "")")!) {
+                ShareLink(item: URL(string: "https://cini.app/@\(profile?.username ?? "")")
+                          ?? URL(string: "https://cini.app")!) {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
                 }
                 Menu {

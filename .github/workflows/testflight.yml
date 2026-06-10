@@ -35,14 +35,9 @@ jobs:
           cp ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8 ~/.appstoreconnect/private_keys/
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
 
-      # The archive must be SIGNED so the Sign in with Apple entitlement is
-      # embedded in the code signature — an unsigned archive re-signed at
-      # export loses it and ASAuthorization fails on device (error 1000).
-      # The distribution identity lives in the Cini target's build settings
-      # (project.yml), not on the CLI, so it can't leak to SPM targets.
-      - name: Archive (cloud-managed signing)
-        env:
-          ASC_ISSUER_ID: ${{ inputs.issuer_id }}
+      # Archive unsigned (no registered devices => no dev profiles, and a
+      # manual distribution identity conflicts with automatic signing).
+      - name: Archive (unsigned)
         run: |
           xcodebuild archive \
             -project Cini.xcodeproj \
@@ -50,13 +45,28 @@ jobs:
             -configuration Release \
             -archivePath "$RUNNER_TEMP/Cini.xcarchive" \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             MARKETING_VERSION="1.0.0"
+
+      # An unsigned archive carries no entitlements, and the export re-sign
+      # builds its entitlements from whatever the app already declares — so
+      # Sign in with Apple / push silently vanish (that broke Apple sign-in
+      # on device in build 6). Ad-hoc sign with our entitlements file first
+      # so the distribution re-sign preserves them.
+      - name: Stamp entitlements into the archive
+        run: |
+          APP="$RUNNER_TEMP/Cini.xcarchive/Products/Applications/Cini.app"
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 \( -name '*.dylib' -o -name '*.framework' \) \
+              -exec codesign --force --sign - {} \;
+          fi
+          codesign --force --sign - \
+            --entitlements Cini/Resources/Cini.entitlements "$APP"
+          echo "--- entitlements now in archive ---"
+          codesign -d --entitlements :- "$APP"
 
       - name: Export IPA
         env:
@@ -83,6 +93,20 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             -allowProvisioningUpdates
+
+      # Fail fast if the distribution re-sign dropped the entitlements —
+      # otherwise Apple sign-in breaks on device and we only find out from
+      # a tester.
+      - name: Verify entitlements survived export
+        run: |
+          IPA=$(find "$RUNNER_TEMP/export" -name '*.ipa' | head -1)
+          unzip -q "$IPA" -d "$RUNNER_TEMP/ipa-check"
+          APP=$(find "$RUNNER_TEMP/ipa-check/Payload" -maxdepth 1 -name '*.app' | head -1)
+          codesign -d --entitlements :- "$APP" | tee "$RUNNER_TEMP/final-entitlements.plist"
+          grep -q "com.apple.developer.applesignin" "$RUNNER_TEMP/final-entitlements.plist" \
+            || { echo "::error::Sign in with Apple entitlement missing from final IPA"; exit 1; }
+          grep -q "aps-environment" "$RUNNER_TEMP/final-entitlements.plist" \
+            || { echo "::error::aps-environment entitlement missing from final IPA"; exit 1; }
 
       - name: Upload to TestFlight
         env:

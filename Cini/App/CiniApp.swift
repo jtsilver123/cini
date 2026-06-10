@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct CiniApp: App {
+    @UIApplicationDelegateAdaptor(PushManager.self) private var pushManager
     @State private var session = AppSession()
     @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
 
@@ -58,7 +59,10 @@ final class AppSession {
             switch event {
             case .initialSession, .signedIn:
                 isAuthenticated = session != nil
-                if session != nil { await loadProfile() }
+                if session != nil {
+                    await loadProfile()
+                    PushManager.enable()
+                }
             case .signedOut:
                 isAuthenticated = false
                 profile = nil

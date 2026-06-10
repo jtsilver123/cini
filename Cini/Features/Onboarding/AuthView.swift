@@ -12,6 +12,10 @@ struct AuthView: View {
     @State private var errorMessage: String?
     @State private var infoMessage: String?
     @State private var currentNonce: String?
+    /// Set after signup, or when sign-in fails on an unconfirmed address —
+    /// both surface the "Resend email" affordance.
+    @State private var awaitingConfirmation = false
+    @State private var resentJustNow = false
     @FocusState private var focusedField: Field?
 
     private enum Field { case email, password }
@@ -95,6 +99,17 @@ struct AuthView: View {
                     Text("At least 6 characters for the password.")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
+                if awaitingConfirmation {
+                    Button {
+                        Task { await resendConfirmation() }
+                    } label: {
+                        Text(resentJustNow ? "Sent — check spam too" : "Didn't get it? Resend email")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(resentJustNow ? Theme.gray : Theme.marquee)
+                    }
+                    .disabled(resentJustNow)
+                    .padding(.top, 2)
+                }
             }
             .multilineTextAlignment(.center)
 
@@ -152,6 +167,7 @@ struct AuthView: View {
     }
 
     private func handleEmail() async {
+        email = email.trimmingCharacters(in: .whitespaces).lowercased()
         errorMessage = nil
         infoMessage = nil
         isWorking = true
@@ -163,9 +179,28 @@ struct AuthView: View {
                     username: "user_\(UUID().uuidString.prefix(8).lowercased())")
                 infoMessage = "Check \(email) to confirm your account, then sign in."
                 isSigningUp = false
+                awaitingConfirmation = true
+                resentJustNow = false
             } else {
                 try await SupabaseService.shared.signIn(email: email, password: password)
             }
+        } catch {
+            errorMessage = friendly(error)
+            // The classic dead end: signed up, never confirmed, now locked
+            // out. Give them a way to get a fresh link right here.
+            if "\(error)".lowercased().contains("email not confirmed") {
+                awaitingConfirmation = true
+                resentJustNow = false
+            }
+        }
+    }
+
+    private func resendConfirmation() async {
+        errorMessage = nil
+        do {
+            try await SupabaseService.shared.resendConfirmation(email: email)
+            resentJustNow = true
+            infoMessage = "New confirmation email sent to \(email)."
         } catch {
             errorMessage = friendly(error)
         }

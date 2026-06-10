@@ -13,7 +13,22 @@ code signature. Fix shipped: archive now signs with cloud-managed
 distribution signing (auth-key flags + `-allowProvisioningUpdates` on the
 ARCHIVE step; `CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution` at
 the Cini TARGET level in project.yml so SPM targets stay automatic).
-Round 7+ carries this — verify Apple sign-in on the new build.
+Round 7 FAILED (automatic signing rejects a manual distribution
+identity). Round 8 strategy: unsigned archive + ad-hoc entitlement stamp
+before export + a CI step that verifies the final IPA contains
+applesignin/aps-environment (fails the build otherwise).
+
+Push notifications: full pipeline shipped — device_tokens table + RPC
+(migration 0007), notifications trigger -> pg_net -> send-push edge
+function (deployed, verify_jwt false), PushManager registers tokens after
+sign-in, aps-environment entitlement added. BLOCKED ON USER: APNs auth key
+(.p8) — set function secrets APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID via
+`supabase secrets` or Dashboard -> Edge Functions -> send-push -> Secrets.
+
+Email confirmation: branded template at supabase/templates/confirm_signup.html
+(user pastes into Dashboard -> Auth -> Emails -> Confirm signup);
+app handles unconfirmed accounts with a Resend button. Edge-case audit
+recorded in docs/EDGE_CASES.md.
 
 Also shipped since round 6: brand refresh (marquee gold #E8B64C +
 velvet red #A8352A on warm charcoal #131011, DM Serif Display bundled via

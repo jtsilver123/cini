@@ -40,6 +40,11 @@ final class SupabaseService {
         )
     }
 
+    /// Re-send the signup confirmation link to an unconfirmed address.
+    func resendConfirmation(email: String) async throws {
+        try await client.auth.resend(email: email, type: .signup)
+    }
+
     func signOut() async throws {
         try await client.auth.signOut()
     }
@@ -119,6 +124,18 @@ final class SupabaseService {
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .execute().value
+    }
+
+    // MARK: - Push
+
+    /// Store/refresh this device's APNs token so the send-push edge
+    /// function can reach the user. Keyed on token: a device that switches
+    /// accounts moves to the new user.
+    func registerDeviceToken(_ token: String) async throws {
+        guard currentUserID != nil else { return }
+        struct Params: Encodable { let p_token: String }
+        try await client.rpc("register_device_token", params: Params(p_token: token))
+            .execute()
     }
 
     // MARK: - Notes, performances, labels

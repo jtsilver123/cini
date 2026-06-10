@@ -1,0 +1,50 @@
+<!-- Cini · "Confirm signup" email template.
+     Paste into: Supabase Dashboard → Authentication → Emails →
+     Confirm signup → Message body. Suggested subject line:
+     Your ticket to Cini — confirm your email -->
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+       style="background:#131011; padding:32px 16px; font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr><td align="center">
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+           style="max-width:440px; background:#1D1719; border:1px solid rgba(232,182,76,.35); border-radius:18px; padding:36px 28px;">
+      <tr><td align="center" style="padding-bottom:6px;">
+        <span style="font-family:Georgia,'Times New Roman',serif; font-size:40px; color:#E8B64C;">cini</span>
+      </td></tr>
+      <tr><td align="center" style="padding-bottom:26px;">
+        <span style="font-size:10px; letter-spacing:4px; color:#A69C91; font-weight:bold;">EVERY FILM · RANKED</span>
+      </td></tr>
+      <tr><td align="center" style="padding-bottom:10px;">
+        <span style="font-size:20px; font-weight:bold; color:#F5EEDF;">You&rsquo;re almost in.</span>
+      </td></tr>
+      <tr><td align="center" style="padding-bottom:26px;">
+        <span style="font-size:14px; line-height:1.6; color:#A69C91;">
+          One tap and the house lights go down &mdash; confirm this address
+          to start ranking everything you watch.
+        </span>
+      </td></tr>
+      <tr><td align="center" style="padding-bottom:26px;">
+        <a href="{{ .ConfirmationURL }}"
+           style="display:inline-block; background:#A8352A; color:#ffffff; text-decoration:none;
+                  font-size:15px; font-weight:bold; padding:14px 36px; border-radius:999px;">
+          Confirm my email
+        </a>
+      </td></tr>
+      <tr><td align="center" style="border-top:1px dashed rgba(232,182,76,.35); padding-top:20px;">
+        <span style="font-size:12px; line-height:1.6; color:#A69C91;">
+          Button not working? Paste this link into your browser:<br>
+          <a href="{{ .ConfirmationURL }}" style="color:#E8B64C; word-break:break-all;">{{ .ConfirmationURL }}</a>
+        </span>
+      </td></tr>
+      <tr><td align="center" style="padding-top:20px;">
+        <span style="font-size:11px; color:#6E665D;">
+          Didn&rsquo;t create a Cini account? You can safely ignore this email.
+        </span>
+      </td></tr>
+    </table>
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:440px;">
+      <tr><td align="center" style="padding-top:18px;">
+        <span style="font-size:11px; color:#6E665D;">ADMIT ONE &middot; CINI</span>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>

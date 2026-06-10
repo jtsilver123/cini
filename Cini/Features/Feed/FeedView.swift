@@ -407,7 +407,11 @@ struct CommentsSheet: View {
         let body = draft.trimmingCharacters(in: .whitespaces)
         guard !body.isEmpty else { return }
         draft = ""
-        try? await SupabaseService.shared.comment(eventID: event.id, body: body)
+        do {
+            try await SupabaseService.shared.comment(eventID: event.id, body: body)
+        } catch {
+            draft = body   // give the text back instead of eating it
+        }
         await reload()
     }
 }
