@@ -62,13 +62,13 @@ struct EnrichmentCard: View {
                         .font(.title3.weight(.bold))
                         .foregroundStyle(Theme.marquee)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
+                        .padding(.vertical, 12)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
         .padding(.bottom, isLocked ? 10 : 0)
         .frame(maxWidth: .infinity)
         .floatingCard()
