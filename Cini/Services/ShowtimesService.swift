@@ -100,6 +100,7 @@ final class ShowtimesService: ShowtimesProviding {
 private extension DateFormatter {
     static let gracenoteDay: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
@@ -107,6 +108,7 @@ private extension DateFormatter {
     /// "2026-06-11T19:30" — local time, no zone or seconds.
     static let gracenoteDateTime: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd'T'HH:mm"
         return f
     }()

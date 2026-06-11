@@ -1,5 +1,10 @@
 # HANDOFF — read this first in any new session
 
+**UPLOAD CAP: Apple ITMS-90382 daily TestFlight upload limit hit
+(2026-06-11 ~04:30 UTC); resets ~24h. Code at HEAD is healthy (CI green;
+archive/export/entitlement-verify pass). When the cap lifts, trigger ONE
+testflight.yml run — it carries everything since installed build 27.**
+
 **STATUS: Cini IS on TestFlight** — round 6 (run 27311568113, commit
 3d728a5) uploaded successfully and the user has it installed. The loop
 below continues for follow-up builds.

@@ -61,3 +61,17 @@ double-tap guarded; comments composer can't double-send; Your Lists
 headers already frozen; system back gestures intact everywhere
 (navigationDestination throughout); haptics on log-flow actions; empty
 states on all lists; sheet detents on all pickers.
+
+
+# Audit pass 3 — direct recs / calendar / growth (2026-06-11)
+
+| Area | Issue | Fix |
+|---|---|---|
+| Dates | Fixed-format DateFormatters (Gracenote times, release calendar, watch dates) lacked en_US_POSIX — misparse on 12-hour/non-Gregorian device settings, breaking showtimes entirely for those users | POSIX locale on all three |
+| Direct recs | Same rec could be re-sent repeatedly = notification spam | Unique (sender, recipient, movie); re-send updates the note silently |
+| Pipeline | Builds 33-35 failed at UPLOAD with ITMS-90382 (Apple's daily TestFlight upload limit — ~35 builds in 24h) | Code confirmed healthy (CI green, archive+export+entitlement verify all passed); stand down triggers until the cap resets, then ship ONE build |
+
+Verified clean: SendRecSheet double-send guarded, empty state, note cap;
+DirectRecRow embeds decode (FKs repointed at profiles); myMovieDetails
+absent-row handling; release calendar row buttons vs row taps; contacts
+fetch runs off-main; recs v2 SQL semantics.

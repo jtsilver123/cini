@@ -1,0 +1,3 @@
+-- Anti-spam for direct recs (mirrors prod migration `direct_recs_dedupe`):
+-- unique (sender, recipient, movie); re-sends update the note without a
+-- second notification (xmax = 0 detects fresh inserts).

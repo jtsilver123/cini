@@ -437,6 +437,7 @@ struct ReleaseCalendarView: View {
 
     private static let dayParser: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
