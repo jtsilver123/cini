@@ -81,6 +81,8 @@ function headline(kind: string, actor: string, movie: string | null): string {
       return `@${actor} ranked ${movie ?? "a movie"} — it's on your Want to Watch list`;
     case "watchlist_showing":
       return `${movie ?? "A movie you want to watch"} is playing in theaters near you 🎬`;
+    case "direct_rec":
+      return `@${actor} recommended ${movie ?? "a movie"} to you 🎬`;
     case "invite_joined":
       return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
     default: return `@${actor} did something new on Cini`;

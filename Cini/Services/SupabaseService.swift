@@ -219,6 +219,95 @@ final class SupabaseService {
             .execute().value) ?? false
     }
 
+    // MARK: - My details on a movie (notes, performances, labels, watch)
+
+    struct MyMovieDetails {
+        var note: String?
+        var personalNote: String?
+        var labels: [String] = []
+        var watchDate: String?
+        var watchedWith: [String] = []
+        var performances: [(name: String, profilePath: String?)] = []
+
+        var isEmpty: Bool {
+            note == nil && personalNote == nil && labels.isEmpty
+                && watchDate == nil && watchedWith.isEmpty && performances.isEmpty
+        }
+    }
+
+    func myMovieDetails(movieID: Int) async -> MyMovieDetails? {
+        guard let me = currentUserID else { return nil }
+
+        struct NoteRow: Decodable { let body: String; let is_private: Bool }
+        struct PerfRow: Decodable { let person_name: String; let profile_path: String? }
+        struct LabelName: Decodable { let name: String }
+        struct LabelLink: Decodable { let labels: LabelName? }
+        struct RankRow: Decodable {
+            let watch_date: String?
+            let watched_with: [UUID]?
+            let ranking_labels: [LabelLink]?
+        }
+
+        async let notesTask: [NoteRow]? = try? client.from("notes")
+            .select("body, is_private")
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .execute().value
+        async let perfsTask: [PerfRow]? = try? client.from("favorite_performances")
+            .select("person_name, profile_path")
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .execute().value
+        async let rankTask: RankRow? = try? client.from("rankings")
+            .select("watch_date, watched_with, ranking_labels(labels(name))")
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .single().execute().value
+
+        var details = MyMovieDetails()
+        for row in (await notesTask) ?? [] {
+            if row.is_private { details.personalNote = row.body } else { details.note = row.body }
+        }
+        details.performances = ((await perfsTask) ?? []).map { ($0.person_name, $0.profile_path) }
+        if let rank = await rankTask {
+            details.watchDate = rank.watch_date
+            details.labels = (rank.ranking_labels ?? []).compactMap { $0.labels?.name }
+            if let with = rank.watched_with, !with.isEmpty {
+                let rows: [ProfileRow]? = try? await client.from("profiles")
+                    .select().in("id", values: with).execute().value
+                details.watchedWith = (rows ?? []).map(\.username)
+            }
+        }
+        return details.isEmpty ? nil : details
+    }
+
+    // MARK: - Direct recs (friend -> friend, optional note)
+
+    func sendDirectRec(to recipient: UUID, movieID: Int, note: String) async -> Bool {
+        struct Params: Encodable {
+            let p_recipient: UUID
+            let p_movie_id: Int
+            let p_note: String?
+        }
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (try? await client.rpc(
+            "send_direct_rec",
+            params: Params(p_recipient: recipient, p_movie_id: movieID,
+                           p_note: trimmed.isEmpty ? nil : trimmed)
+        ).execute().value) ?? false
+    }
+
+    func directRecs() async throws -> [DirectRecRow] {
+        guard let me = currentUserID else { return [] }
+        return try await client.from("direct_recs")
+            .select("id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies(*)")
+            .eq("recipient_id", value: me)
+            .order("created_at", ascending: false)
+            .limit(20)
+            .execute().value
+    }
+
+    func dismissDirectRec(id: UUID) async {
+        _ = try? await client.from("direct_recs").delete().eq("id", value: id).execute()
+    }
+
     // MARK: - Desktop import transfer
 
     /// Mint a short-lived transfer code; the user enters it at the web
@@ -691,6 +780,23 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 bio: bio,
                 instagramHandle: instagramHandle, tiktokHandle: tiktokHandle,
                 xHandle: xHandle, letterboxdHandle: letterboxdHandle)
+    }
+}
+
+struct DirectRecRow: Decodable, Identifiable, Hashable {
+    let id: UUID
+    let senderId: UUID
+    let movieId: Int
+    let note: String?
+    let createdAt: Date
+    let profiles: FeedEventRow.EmbeddedProfile?
+    let movies: MovieRow?
+
+    enum CodingKeys: String, CodingKey {
+        case id, note, profiles, movies
+        case senderId = "sender_id"
+        case movieId = "movie_id"
+        case createdAt = "created_at"
     }
 }
 

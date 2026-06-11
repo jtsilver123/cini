@@ -594,6 +594,7 @@ struct NotificationsView: View {
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
         case "watchlist_showing": text = "**\(movie)** from your watchlist is playing near you 🎬"
         case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
+        case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)

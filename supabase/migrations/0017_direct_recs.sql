@@ -1,0 +1,5 @@
+-- Direct friend-to-friend recs (mirrors prod migrations
+-- `direct_recommendations` + `direct_recs_fk_profiles`): direct_recs
+-- table (RLS: recipient/sender read, recipient dismiss), send_direct_rec
+-- RPC (requires sender follows recipient; inserts a 'direct_rec'
+-- notification for push + bell). FKs point at profiles for embedding.

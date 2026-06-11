@@ -15,6 +15,8 @@ struct NotificationPreferencesView: View {
          "A Want to Watch movie hits theaters near your saved zipcode"),
         ("invite_joined", "Invites accepted",
          "Someone joins Cini with your username"),
+        ("direct_rec", "Recs from friends",
+         "A friend recommends a movie directly to you"),
     ]
 
     @State private var muted: Set<String> = []

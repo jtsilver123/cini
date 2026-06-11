@@ -17,9 +17,11 @@ struct MovieDetailView: View {
     @State private var providers: WatchProviders?
     @State private var trailerURL: URL?
     @State private var tags: [String] = []
+    @State private var myDetails: SupabaseService.MyMovieDetails?
     @State private var showLogFlow = false
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
+    @State private var showSendRec = false
     @State private var memberTarget: MemberRef?
 
     private var myItem: ScoredItem<Int>? { store.scoredItem(for: movie.tmdbID) }
@@ -34,6 +36,7 @@ struct MovieDetailView: View {
                 actionPills
                 scoresSection
                 histogramSection
+                yourDetailsSection
                 performancesSection
                 friendsSection
             }
@@ -57,6 +60,9 @@ struct MovieDetailView: View {
         }
         .sheet(isPresented: $showShowtimes) {
             ShowtimesSheet(movie: movie)
+        }
+        .sheet(isPresented: $showSendRec) {
+            SendRecSheet(movie: movie)
         }
         .task { await loadEverything() }
     }
@@ -200,6 +206,9 @@ struct MovieDetailView: View {
                 }
                 PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
                     showShowtimes = true
+                }
+                PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined) {
+                    showSendRec = true
                 }
             }
             .padding(.horizontal, 16)
@@ -361,6 +370,72 @@ struct MovieDetailView: View {
         }
     }
 
+    /// Everything YOU attached while ranking: notes, performances,
+    /// labels, watch date and company.
+    @ViewBuilder
+    private var yourDetailsSection: some View {
+        if let myDetails {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Your Details").font(.title3.weight(.bold))
+
+                if let note = myDetails.note {
+                    detailRow(icon: "square.and.pencil", title: "Notes") {
+                        Text(note).font(.subheadline)
+                    }
+                }
+                if let personal = myDetails.personalNote {
+                    detailRow(icon: "eye.slash", title: "Personal notes (only you)") {
+                        Text(personal).font(.subheadline)
+                    }
+                }
+                if !myDetails.performances.isEmpty {
+                    detailRow(icon: "star", title: "Favorite performances") {
+                        Text(myDetails.performances.map(\.name).joined(separator: ", "))
+                            .font(.subheadline)
+                    }
+                }
+                if !myDetails.labels.isEmpty {
+                    detailRow(icon: "tag", title: "Labels") {
+                        Text(myDetails.labels.joined(separator: " · "))
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.marquee)
+                    }
+                }
+                if myDetails.watchDate != nil || !myDetails.watchedWith.isEmpty {
+                    detailRow(icon: "calendar", title: "Watched") {
+                        Text(watchedLine(myDetails))
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func watchedLine(_ details: SupabaseService.MyMovieDetails) -> String {
+        var parts: [String] = []
+        if let date = details.watchDate { parts.append(date) }
+        if !details.watchedWith.isEmpty {
+            parts.append("with " + details.watchedWith.map { "@" + $0 }.joined(separator: ", "))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func detailRow(icon: String, title: String,
+                           @ViewBuilder content: () -> some View) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.subheadline)
+                .foregroundStyle(Theme.marquee)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
+                content()
+            }
+            Spacer()
+        }
+    }
+
     private func ratingCountLabel(_ count: Int) -> String {
         count >= 1000 ? "\(count / 1000)k ratings"
                       : "\(count) rating\(count == 1 ? "" : "s")"
@@ -396,6 +471,7 @@ struct MovieDetailView: View {
         async let histogramTask = SupabaseService.shared.scoreHistogram(movieID: movie.tmdbID)
         async let performancesTask = SupabaseService.shared.topPerformances(movieID: movie.tmdbID)
         async let labelsTask = SupabaseService.shared.movieTopLabels(movieID: movie.tmdbID)
+        async let myDetailsTask = SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID)
         async let keywordsTask = TMDBService.shared.keywords(for: movie.tmdbID)
 
         if let detailed = try? await detail {
@@ -407,6 +483,7 @@ struct MovieDetailView: View {
             movie = enriched
             store.cache(enriched)
         }
+        myDetails = await myDetailsTask
         let communityLabels = (try? await labelsTask) ?? []
         tags = communityLabels.isEmpty ? ((try? await keywordsTask) ?? []) : communityLabels
         trailerURL = try? await trailerTask
