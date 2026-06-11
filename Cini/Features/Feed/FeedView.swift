@@ -81,7 +81,10 @@ struct FeedView: View {
                     ReleaseCalendarView()
                 } label: {
                     Image(systemName: "calendar")
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Release calendar")
                 NavigationLink {
                     NotificationsView()
                 } label: {
@@ -91,7 +94,10 @@ struct FeedView: View {
                                 Circle().fill(.red).frame(width: 7, height: 7).offset(x: 2, y: -2)
                             }
                         }
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Notifications")
                 Menu {
                     Button {
                         showSettings = true
@@ -115,7 +121,10 @@ struct FeedView: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Menu")
                 .confirmationDialog("Log out of Cini?",
                                     isPresented: $showLogoutConfirm, titleVisibility: .visible) {
                     Button("Log out", role: .destructive) {
@@ -580,7 +589,9 @@ struct CommentsSheet: View {
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title)
-                            .foregroundStyle(Theme.marquee)
+                            .foregroundStyle(
+                                draft.trimmingCharacters(in: .whitespaces).isEmpty
+                                    ? Theme.gray.opacity(0.4) : Theme.marquee)
                     }
                     .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
                 }

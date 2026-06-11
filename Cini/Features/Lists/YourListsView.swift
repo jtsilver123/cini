@@ -628,7 +628,10 @@ struct YourListsView: View {
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
         .overlay {
             if store.watchedItems.isEmpty && pendingEntries.isEmpty {
-                emptyList("Log your first movie with the + tab.")
+                emptyList("Rank your first movie and your list starts here.",
+                          actionTitle: "Find a movie") {
+                    tabRouter.selection = .search
+                }
             }
         }
     }
@@ -667,7 +670,11 @@ struct YourListsView: View {
         }
         .overlay {
             if store.watchlist.isEmpty {
-                emptyList("Bookmark movies you want to watch.")
+                emptyList("Tap the bookmark on any movie to save it for later.",
+                          actionTitle: "Browse movies") {
+                    tabRouter.pendingSearchBrowse = .popular
+                    tabRouter.selection = .search
+                }
             }
         }
     }
@@ -770,11 +777,21 @@ struct YourListsView: View {
         recsLoaded = true
     }
 
-    private func emptyList(_ message: String) -> some View {
-        VStack(spacing: 8) {
+    private func emptyList(_ message: String,
+                           actionTitle: String? = nil,
+                           action: @escaping () -> Void = {}) -> some View {
+        VStack(spacing: 10) {
             Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text(message).font(.subheadline).foregroundStyle(Theme.gray)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+            if let actionTitle {
+                PillButton(title: actionTitle, systemImage: "magnifyingglass",
+                           style: .outlined, action: action)
+            }
         }
+        .padding(.horizontal, 32)
     }
 
 }

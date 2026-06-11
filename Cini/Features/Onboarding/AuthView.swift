@@ -77,6 +77,8 @@ struct AuthView: View {
                 field("Email", text: $email, keyboard: .emailAddress)
                     .focused($focusedField, equals: .email)
                 SecureField("Password", text: $password)
+                    .submitLabel(.go)
+                    .onSubmit { Task { await handleEmail() } }
                     .textFieldStyle(.plain)
                     .padding(13)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))

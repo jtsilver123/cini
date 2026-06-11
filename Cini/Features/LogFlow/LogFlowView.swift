@@ -446,34 +446,49 @@ struct LogFlowView: View {
     /// Save everything from the details card now that the rank exists.
     private func persistDraft() async {
         let supabase = SupabaseService.shared
+        var anySaveFailed = false
         if !draft.notes.isEmpty {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes,
-                                           isPrivate: false,
-                                           containsSpoilers: draft.notesContainSpoilers)
+            do {
+                try await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes,
+                                              isPrivate: false,
+                                              containsSpoilers: draft.notesContainSpoilers)
+            } catch { anySaveFailed = true }
         }
         // Every rank is a watch — the diary gets a row even without a date.
-        try? await supabase.logWatch(movieID: movie.tmdbID,
-                                     on: draft.watchDate ?? .now,
-                                     where: draft.watchedWhere)
+        do {
+            try await supabase.logWatch(movieID: movie.tmdbID,
+                                        on: draft.watchDate ?? .now,
+                                        where: draft.watchedWhere)
+        } catch { anySaveFailed = true }
         // Filing chip: a chosen custom list gets the title too. (The
         // Want to Watch default is a no-op here — a rank means watched.)
         if let list = targetList {
             try? await supabase.cacheMovie(movie)
-            try? await supabase.addToList(list.id, movieID: movie.tmdbID)
+            do {
+                try await supabase.addToList(list.id, movieID: movie.tmdbID)
+            } catch { anySaveFailed = true }
         }
         for member in draft.cast {
-            try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
+            do {
+                try await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
+            } catch { anySaveFailed = true }
         }
         if !draft.watchedWith.isEmpty || draft.watchDate != nil || draft.watchedWhere != nil {
-            try? await supabase.updateRanking(movieID: movie.tmdbID,
-                                              watchedWith: Array(draft.watchedWith),
-                                              watchDate: draft.watchDate,
-                                              watchedWhere: draft.watchedWhere)
+            do {
+                try await supabase.updateRanking(movieID: movie.tmdbID,
+                                                 watchedWith: Array(draft.watchedWith),
+                                                 watchDate: draft.watchDate,
+                                                 watchedWhere: draft.watchedWhere)
+            } catch { anySaveFailed = true }
             // Tag frequencies just changed — keep the chip order current.
             FriendsCache.shared.warm()
         }
         if draft.stealthMode {
             try? await supabase.hideRankEvent(movieID: movie.tmdbID)
+        }
+        if anySaveFailed {
+            // The rank itself landed; only extras missed. Be specific.
+            ToastCenter.shared.show("Some details didn't save — add them from the movie page.")
         }
     }
 

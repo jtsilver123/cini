@@ -334,9 +334,12 @@ final class TMDBService {
         query: [URLQueryItem] = [],
         cachePolicy: URLRequest.CachePolicy = .returnCacheDataElseLoad
     ) async throws -> T {
-        var components = URLComponents(string: "https://api.themoviedb.org/3" + path)!
+        guard var components = URLComponents(string: "https://api.themoviedb.org/3" + path) else {
+            throw URLError(.badURL)
+        }
         components.queryItems = query + [URLQueryItem(name: "api_key", value: apiKey)]
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw URLError(.badURL) }
+        var request = URLRequest(url: url)
         request.cachePolicy = cachePolicy
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {

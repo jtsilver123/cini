@@ -4,7 +4,12 @@ import Foundation
 /// (git-ignored) via Info.plist substitution; see README for setup.
 enum AppConfig {
     static var tmdbAPIKey: String { value(for: "TMDB_API_KEY") }
-    static var supabaseURL: URL { URL(string: value(for: "SUPABASE_URL"))! }
+    static var supabaseURL: URL {
+        guard let url = URL(string: value(for: "SUPABASE_URL")) else {
+            fatalError("SUPABASE_URL in Secrets.xcconfig is not a valid URL")
+        }
+        return url
+    }
     static var supabaseAnonKey: String { value(for: "SUPABASE_ANON_KEY") }
 
     /// Gracenote OnConnect showtimes key. Optional — the Showtimes UI

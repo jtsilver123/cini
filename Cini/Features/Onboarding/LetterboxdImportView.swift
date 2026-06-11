@@ -29,6 +29,7 @@ struct LetterboxdImportView: View {
     @State private var pasteDestination: PasteDestination = .watched
     @State private var pastedToWatchlist = false
     @State private var detailsImportFailed = false
+    @State private var importTask: Task<Void, Never>?
     @State private var linkCopied = false
 
     enum Phase {
@@ -57,7 +58,15 @@ struct LetterboxdImportView: View {
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if phase != .working {
+                if phase == .working {
+                    // A stuck import must never trap the user.
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Stop") {
+                            importTask?.cancel()
+                            withAnimation(.snappy) { phase = .pick }
+                        }
+                    }
+                } else {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(phase == .summary ? "Done" : "Cancel") { dismiss() }
                     }
@@ -108,7 +117,7 @@ struct LetterboxdImportView: View {
                 allowedContentTypes: [.zip, .commaSeparatedText, .plainText]
             ) { pickResult in
                 if case .success(let url) = pickResult {
-                    Task { await runImport(from: url) }
+                    importTask = Task { await runImport(from: url) }
                 }
             }
         }

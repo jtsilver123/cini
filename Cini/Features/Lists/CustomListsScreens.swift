@@ -9,6 +9,7 @@ struct CustomListsScreen: View {
     @State private var lists: [CustomList] = []
     @State private var loaded = false
     @State private var newName = ""
+    @State private var doomedLists: [CustomList] = []
 
     var body: some View {
         List {
@@ -62,11 +63,34 @@ struct CustomListsScreen: View {
                 }
                 .listRowBackground(Theme.background)
             }
-            .onDelete(perform: isSelf ? deleteLists : nil)
+            .onDelete(perform: isSelf ? { offsets in
+                doomedLists = offsets.map { lists[$0] }
+            } : nil)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(Theme.background)
+        // A whole list is hours of curation — deleting one confirms.
+        .confirmationDialog(
+            "Delete \(doomedLists.first?.name ?? "this list")?",
+            isPresented: Binding(get: { !doomedLists.isEmpty },
+                                 set: { if !$0 { doomedLists = [] } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete list", role: .destructive) {
+                let doomed = doomedLists
+                doomedLists = []
+                lists.removeAll { list in doomed.contains { $0.id == list.id } }
+                Task {
+                    for list in doomed {
+                        try? await SupabaseService.shared.deleteList(list.id)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its movies stay on your other lists — only this list goes.")
+        }
         .navigationTitle("Lists")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -77,15 +101,6 @@ struct CustomListsScreen: View {
         }
     }
 
-    private func deleteLists(at offsets: IndexSet) {
-        let doomed = offsets.map { lists[$0] }
-        lists.remove(atOffsets: offsets)
-        Task {
-            for list in doomed {
-                try? await SupabaseService.shared.deleteList(list.id)
-            }
-        }
-    }
 }
 
 // MARK: - One list's movies
@@ -101,6 +116,8 @@ struct CustomListScreen: View {
     @State private var loaded = false
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
+    @State private var reported = false
+    @State private var showBlockConfirm = false
 
     var body: some View {
         List {
@@ -141,6 +158,48 @@ struct CustomListScreen: View {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
+            // Public lists are UGC — moderation lives here like everywhere.
+            if !isSelf {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(role: .destructive) {
+                            Task {
+                                await SupabaseService.shared.report(
+                                    kind: "list", subjectID: list.id.uuidString)
+                                reported = true
+                                ToastCenter.shared.show("Reported — we'll review it")
+                            }
+                        } label: {
+                            Label(reported ? "Reported" : "Report this list", systemImage: "flag")
+                        }
+                        .disabled(reported)
+                        Button(role: .destructive) {
+                            showBlockConfirm = true
+                        } label: {
+                            Label("Block the list's owner", systemImage: "hand.raised")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel("List options")
+                }
+            }
+        }
+        .confirmationDialog("Block this list's owner?",
+                            isPresented: $showBlockConfirm, titleVisibility: .visible) {
+            Button("Block", role: .destructive) {
+                Task {
+                    do {
+                        try await SupabaseService.shared.block(list.userId)
+                        ToastCenter.shared.show("Blocked — their content is hidden everywhere")
+                    } catch {
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You won't see each other's rankings, notes, lists, or activity.")
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
@@ -182,6 +241,7 @@ struct EditListsSheet: View {
     @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
     @Environment(\.dismiss) private var dismiss
     @State private var newName = ""
+    @State private var doomedLists: [CustomList] = []
 
     private func visibility(for tab: String) -> Binding<Bool> {
         Binding(
@@ -225,13 +285,7 @@ struct EditListsSheet: View {
                         }
                     }
                     .onDelete { offsets in
-                        let doomed = offsets.map { lists[$0] }
-                        lists.remove(atOffsets: offsets)
-                        Task {
-                            for list in doomed {
-                                try? await SupabaseService.shared.deleteList(list.id)
-                            }
-                        }
+                        doomedLists = offsets.map { lists[$0] }
                     }
                 } header: {
                     Text("Your lists")
@@ -243,6 +297,26 @@ struct EditListsSheet: View {
             .background(Theme.background)
             .navigationTitle("Edit Lists")
             .navigationBarTitleDisplayMode(.inline)
+            .confirmationDialog(
+                "Delete \(doomedLists.first?.name ?? "this list")?",
+                isPresented: Binding(get: { !doomedLists.isEmpty },
+                                     set: { if !$0 { doomedLists = [] } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete list", role: .destructive) {
+                    let doomed = doomedLists
+                    doomedLists = []
+                    lists.removeAll { list in doomed.contains { $0.id == list.id } }
+                    Task {
+                        for list in doomed {
+                            try? await SupabaseService.shared.deleteList(list.id)
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Its movies stay on your other lists — only this list goes.")
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.bold()

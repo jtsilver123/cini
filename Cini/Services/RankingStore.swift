@@ -92,6 +92,11 @@ final class RankingStore {
     @discardableResult
     func commit(_ session: InsertionSession<Int>, watchDate: Date? = nil) async -> ScoredItem<Int>? {
         guard session.isComplete else { return nil }
+        guard let bucketPosition = session.resolvedBucketPosition else {
+            // Engine state should make this impossible; never crash on it.
+            ToastCenter.shared.saveFailed()
+            return nil
+        }
         let scored = list.commit(session)
         watchlist.removeAll { $0.movieID == session.newItemID }
         ImportQueue.shared.markRanked(session.newItemID)
@@ -103,7 +108,7 @@ final class RankingStore {
             _ = try await supabase.rankInsert(
                 movieID: session.newItemID,
                 bucket: session.sentiment,
-                position: session.resolvedBucketPosition!,
+                position: bucketPosition,
                 watchDate: watchDate
             )
         } catch {
@@ -113,7 +118,7 @@ final class RankingStore {
                 _ = try await supabase.rankInsert(
                     movieID: session.newItemID,
                     bucket: session.sentiment,
-                    position: session.resolvedBucketPosition!,
+                    position: bucketPosition,
                     watchDate: watchDate
                 )
             } catch {
