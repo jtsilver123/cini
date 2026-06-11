@@ -427,8 +427,10 @@ function render(){
   RENDERERS[currentScreen]();
   el.scrollTop=scroll;
 }
+let lastNonSearchScreen="feed";
 function go(name){
   if(name!=="profile" && currentScreen==="profile") profileUser=null;
+  if(currentScreen!=="search" && name==="search") lastNonSearchScreen=currentScreen;
   currentScreen=name;
   document.querySelectorAll("[data-screen]").forEach(s=>s.classList.toggle("hidden", s.dataset.screen!==name));
   document.querySelectorAll(".tab[data-go]").forEach(t=>t.classList.toggle("active", t.dataset.go===name));
@@ -669,7 +671,12 @@ function renderSearch(){
 
   $("screen-search").innerHTML = `
     <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
-      <div style="display:flex; margin-top:8px;">
+      <div class="pad" style="display:flex; align-items:center; padding-top:8px; padding-bottom:4px;">
+        <span class="wordmark serif" style="font-size:26px;">cini</span>
+        <span class="spacer"></span>
+        <button class="iconbtn" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;" onclick="go(lastNonSearchScreen)">${I("x",16)}</button>
+      </div>
+      <div style="display:flex; margin-top:4px;">
         <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--marquee); color:var(--marquee); font-weight:700;">${I("film",17)} Movies</div>
         <div style="flex:1; text-align:center; padding-bottom:10px; color:var(--gray); cursor:pointer;" onclick="searchTab='members'; render();">${I("users",17)} Members</div>
       </div>
@@ -706,7 +713,12 @@ function dismissQueue(k){ buzz(); S.queue=S.queue.filter(x=>x!==k); save(); toas
 function renderMembersTab(){
   searchTab="members";
   $("screen-search").innerHTML = `
-    <div style="display:flex; margin-top:8px;">
+    <div class="pad" style="display:flex; align-items:center; padding-top:8px; padding-bottom:4px;">
+      <span class="wordmark serif" style="font-size:26px;">cini</span>
+      <span class="spacer"></span>
+      <button class="iconbtn" style="width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:center;" onclick="go(lastNonSearchScreen)">${I("x",16)}</button>
+    </div>
+    <div style="display:flex; margin-top:4px;">
       <div style="flex:1; text-align:center; padding-bottom:10px; color:var(--gray); cursor:pointer;" onclick="searchTab='movies'; render();">${I("film",17)} Movies</div>
       <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--marquee); color:var(--marquee); font-weight:700;">${I("users",17)} Members</div>
     </div>

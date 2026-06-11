@@ -12,7 +12,15 @@ import SwiftUI
 @Observable
 @MainActor
 final class TabRouter {
-    var selection: RootTabView.Tab = .feed
+    var selection: RootTabView.Tab = .feed {
+        didSet {
+            if oldValue != selection && oldValue != .search { lastNonSearch = oldValue }
+        }
+    }
+    /// The page under search — where its X returns to.
+    private(set) var lastNonSearch: RootTabView.Tab = .feed
+
+    func closeSearch() { selection = lastNonSearch }
 }
 
 struct RootTabView: View {

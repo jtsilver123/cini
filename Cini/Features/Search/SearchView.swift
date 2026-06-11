@@ -4,6 +4,7 @@ import SwiftUI
 /// recents, and "Movies you may have seen" seeded by import + popularity.
 struct SearchView: View {
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var importQueue = ImportQueue.shared
     @State private var tab = 0   // 0 = Movies, 1 = Members
@@ -27,6 +28,7 @@ struct SearchView: View {
             // results/recents scroll underneath.
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 16) {
+                    brandRow
                     tabsRow
                     searchFields
                     quickPills
@@ -68,6 +70,27 @@ struct SearchView: View {
                 // ready to log a movie.
                 if query.isEmpty { searchFocused = true }
             }
+        }
+    }
+
+    // MARK: Brand row — wordmark + X back to the page underneath
+
+    private var brandRow: some View {
+        HStack {
+            Text("cini")
+                .font(Theme.wordmark)
+                .foregroundStyle(Theme.marquee)
+            Spacer()
+            Button {
+                tabRouter.closeSearch()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Theme.fill))
+            }
+            .buttonStyle(.plain)
         }
     }
 
