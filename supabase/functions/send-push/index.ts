@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: n } = await supabase
       .from("notifications")
-      .select("id, recipient_id, kind, movie_id, actor:profiles!notifications_actor_id_fkey(username), movies(title)")
+      .select("id, recipient_id, kind, movie_id, actor_id, actor:profiles!notifications_actor_id_fkey(username), movies(title)")
       .eq("id", notification_id)
       .maybeSingle();
     if (!n) return new Response("unknown notification", { status: 404 });
@@ -115,6 +115,8 @@ Deno.serve(async (req: Request) => {
       .eq("recipient_id", n.recipient_id)
       .is("read_at", null);
 
+    // kind/movie_id/actor_* ride along so tapping the push deep-links:
+    // movie pushes open the movie page, follower pushes the profile.
     const body = {
       aps: {
         alert: {
@@ -126,6 +128,8 @@ Deno.serve(async (req: Request) => {
       },
       kind: n.kind,
       movie_id: n.movie_id,
+      actor_id: n.actor_id,
+      actor_username: (n.actor as any)?.username ?? null,
     };
 
     const jwt = await apnsJWT();

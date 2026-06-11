@@ -40,4 +40,14 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .sound, .badge]
     }
+
+    /// Tapping a notification lands on its content: the movie page for
+    /// likes/comments/recs/showtime alerts, the actor's profile for new
+    /// followers. Works from cold launch too — the pending flags sit on
+    /// the shared router until FeedView appears and consumes them.
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse) async {
+        let userInfo = response.notification.request.content.userInfo
+        await MainActor.run { TabRouter.shared.routePush(userInfo: userInfo) }
+    }
 }

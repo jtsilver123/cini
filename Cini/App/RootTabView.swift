@@ -12,6 +12,10 @@ import SwiftUI
 @Observable
 @MainActor
 final class TabRouter {
+    /// One router for the whole app — PushManager routes notification taps
+    /// through it from outside the SwiftUI environment.
+    static let shared = TabRouter()
+
     var selection: RootTabView.Tab = .feed {
         didSet {
             if oldValue != selection && oldValue != .search { lastNonSearch = oldValue }
@@ -33,11 +37,28 @@ final class TabRouter {
     /// reorder mode.
     var pendingReorder = false
 
+    /// Tapped push notification → the relevant content (consumed by FeedView).
+    var pendingPushMovieID: Int?
+    var pendingPushMember: MemberRef?
+
+    /// Route a tapped push by its payload: movie pushes (likes, comments,
+    /// recs, watchlist alerts) open the movie page; follower pushes open
+    /// the actor's profile; anything else lands on the feed.
+    func routePush(userInfo: [AnyHashable: Any]) {
+        selection = .feed
+        if let movieID = userInfo["movie_id"] as? Int {
+            pendingPushMovieID = movieID
+        } else if let actorID = (userInfo["actor_id"] as? String).flatMap(UUID.init),
+                  let username = userInfo["actor_username"] as? String {
+            pendingPushMember = MemberRef(id: actorID, username: username)
+        }
+    }
+
     func closeSearch() { selection = lastNonSearch }
 }
 
 struct RootTabView: View {
-    @State private var router = TabRouter()
+    @State private var router = TabRouter.shared
     @State private var showChat = false
 
     enum Tab: Hashable {

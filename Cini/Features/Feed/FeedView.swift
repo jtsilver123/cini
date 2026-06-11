@@ -41,6 +41,11 @@ struct FeedView: View {
             }
             .background(Theme.background)
             .task { await loadFeed() }
+            // Tapped push notifications land here (cold launch included) —
+            // consume on appear AND on change, since the tab stays alive.
+            .onAppear { consumePush() }
+            .onChange(of: tabRouter.pendingPushMovieID) { _, _ in consumePush() }
+            .onChange(of: tabRouter.pendingPushMember) { _, _ in consumePush() }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
             }
@@ -251,6 +256,23 @@ struct FeedView: View {
         }
         .sheet(isPresented: $showImport) {
             LetterboxdImportView()
+        }
+    }
+
+    /// A tapped push left its target on the router — open it.
+    private func consumePush() {
+        if let movieID = tabRouter.pendingPushMovieID {
+            tabRouter.pendingPushMovieID = nil
+            Task {
+                if let movie = try? await TMDBService.shared.details(for: movieID) {
+                    store.cache(movie)
+                    detailMovie = movie
+                }
+            }
+        }
+        if let member = tabRouter.pendingPushMember {
+            tabRouter.pendingPushMember = nil
+            memberTarget = member
         }
     }
 
