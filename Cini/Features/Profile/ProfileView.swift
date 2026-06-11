@@ -31,6 +31,7 @@ struct ProfileScreen: View {
     @State private var showInviteSheet = false
     @State private var detailMovie: Movie?
     @State private var loaded = false
+    @State private var lastLoaded: Date = .distantPast
 
     private var isSelf: Bool { userID == nil || userID == session.profile?.id }
     private var resolvedID: UUID? { userID ?? session.profile?.id }
@@ -82,7 +83,12 @@ struct ProfileScreen: View {
             InviteSheet()
                 .presentationDetents([.medium])
         }
-        .onAppear { Task { await load() } }
+        .onAppear {
+            // Fresh when you come back, without re-firing 6 queries on
+            // every quick tab flick.
+            guard Date().timeIntervalSince(lastLoaded) > 10 else { return }
+            Task { await load() }
+        }
     }
 
     // MARK: Data
@@ -128,6 +134,7 @@ struct ProfileScreen: View {
         followingCount = await followingTask
         globalRank = try? await rankTask
         loaded = true
+        lastLoaded = Date()
     }
 
     // MARK: Header (self only)

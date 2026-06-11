@@ -290,17 +290,12 @@ struct SearchView: View {
         NavigationLink {
             MemberProfileView(userID: member.id, username: member.username)
         } label: {
-            HStack(spacing: 12) {
-                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 46)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(member.displayName.isEmpty ? member.username : member.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                    Text(reason)
-                        .font(.caption)
-                        .foregroundStyle(Theme.scoreGreen)
-                }
-                Spacer()
+            MemberRow(
+                avatarURL: member.avatarUrl.flatMap(URL.init),
+                title: member.displayName.isEmpty ? member.username : member.displayName,
+                subtitle: reason,
+                subtitleColor: Theme.scoreGreen
+            ) {
                 PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
                            style: followedFromSearch.contains(member.id) ? .outlined : .filled) {
                     Task {
@@ -314,8 +309,6 @@ struct SearchView: View {
                     }
                 }
             }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -333,15 +326,11 @@ struct SearchView: View {
                 NavigationLink {
                     MemberProfileView(userID: member.id, username: member.username)
                 } label: {
-                    HStack(spacing: 12) {
-                        AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 44)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(member.displayName.isEmpty ? member.username : member.displayName)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.ink)
-                            Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray)
-                        }
-                        Spacer()
+                    MemberRow(
+                        avatarURL: member.avatarUrl.flatMap(URL.init),
+                        title: member.displayName.isEmpty ? member.username : member.displayName,
+                        subtitle: "@\(member.username)"
+                    ) {
                         PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
                                    style: .outlined) {
                             Task {
@@ -355,7 +344,6 @@ struct SearchView: View {
                             }
                         }
                     }
-                    .padding(.vertical, 8)
                 }
                 .buttonStyle(.plain)
                 Divider()

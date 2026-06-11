@@ -39,7 +39,7 @@ final class ShowtimesService: ShowtimesProviding {
             throw ShowtimesError.notConfigured
         }
 
-        let day = DateFormatter.gracenoteDay.string(from: date)
+        let day = DateFormatter.posixDay.string(from: date)
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings")!
         components.queryItems = [
             URLQueryItem(name: "startDate", value: day),
@@ -98,13 +98,6 @@ final class ShowtimesService: ShowtimesProviding {
 }
 
 private extension DateFormatter {
-    static let gracenoteDay: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// "2026-06-11T19:30" — local time, no zone or seconds.
     static let gracenoteDateTime: DateFormatter = {
         let f = DateFormatter()

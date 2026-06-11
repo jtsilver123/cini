@@ -1,5 +1,16 @@
 import Foundation
 
+extension DateFormatter {
+    /// Locale-safe "yyyy-MM-dd" (POSIX): API dates parse identically on
+    /// every device setting.
+    static let posixDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+}
+
 /// Typo-tolerant string matching for search: normalized edit distance with
 /// adjacent-transposition support ("teh" → "the"), measured against both
 /// the whole candidate and its typing prefix so partial queries score well.

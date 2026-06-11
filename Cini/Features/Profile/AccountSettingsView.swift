@@ -218,17 +218,6 @@ struct ChangePasswordSection: View {
     }
 }
 
-/// Standalone wrapper so "Change Password" can open directly from a menu.
-struct ChangePasswordView: View {
-    var body: some View {
-        Form { ChangePasswordSection() }
-            .scrollContentBackground(.hidden)
-            .scrollDismissesKeyboard(.immediately)
-            .background(Theme.background)
-            .navigationTitle("Change Password")
-            .navigationBarTitleDisplayMode(.inline)
-    }
-}
 
 
 /// One-tap system share sheet (ShareLink needs its items up front; the

@@ -435,15 +435,8 @@ struct ReleaseCalendarView: View {
     @State private var ticketsMovie: Movie?
     @State private var detailMovie: Movie?
 
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     private func releaseDate(_ movie: Movie) -> Date? {
-        movie.releaseDateFull.flatMap { Self.dayParser.date(from: $0) }
+        movie.releaseDateFull.flatMap { DateFormatter.posixDay.date(from: $0) }
     }
 
     var body: some View {

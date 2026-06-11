@@ -195,6 +195,37 @@ struct SegmentedPillControl: View {
     }
 }
 
+// MARK: - Member row
+
+/// The one member row: avatar, name, @username or reason line, optional
+/// trailing accessory (Follow button, checkmark, …). Used by search
+/// results, suggestions, and follower lists so they can't drift apart.
+struct MemberRow<Accessory: View>: View {
+    let avatarURL: URL?
+    let title: String
+    let subtitle: String
+    var subtitleColor: Color = Theme.gray
+    @ViewBuilder var accessory: Accessory
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarView(url: avatarURL, size: 46)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(subtitleColor)
+            }
+            Spacer()
+            accessory
+        }
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+}
+
 // MARK: - Cards
 
 /// Rounded-rect card with hairline border.

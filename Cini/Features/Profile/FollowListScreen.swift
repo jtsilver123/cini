@@ -70,17 +70,11 @@ struct FollowListScreen: View {
         NavigationLink {
             MemberProfileView(userID: member.id, username: member.username)
         } label: {
-            HStack(spacing: 12) {
-                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 46)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(member.displayName.isEmpty ? member.username : member.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                    Text("@\(member.username)")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                }
-                Spacer()
+            MemberRow(
+                avatarURL: member.avatarUrl.flatMap(URL.init),
+                title: member.displayName.isEmpty ? member.username : member.displayName,
+                subtitle: "@\(member.username)"
+            ) {
                 if member.id != session.profile?.id {
                     PillButton(title: iFollow.contains(member.id) ? "Following" : "Follow",
                                style: .outlined) {
@@ -88,8 +82,6 @@ struct FollowListScreen: View {
                     }
                 }
             }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
