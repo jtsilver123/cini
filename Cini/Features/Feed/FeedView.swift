@@ -25,7 +25,6 @@ struct FeedView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     searchBar
-                    quickActions
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -129,27 +128,6 @@ struct FeedView: View {
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
         }
         .buttonStyle(.plain)
-    }
-
-    private var quickActions: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                NavigationLink {
-                    CiniChatView()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "sparkles").font(.subheadline.weight(.semibold))
-                        Text("Ask Cini").font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Theme.velvet))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .scrollClipDisabled()
     }
 
     // MARK: Feed

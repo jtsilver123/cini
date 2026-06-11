@@ -25,6 +25,7 @@ final class TabRouter {
 
 struct RootTabView: View {
     @State private var router = TabRouter()
+    @State private var showChat = false
 
     enum Tab: Hashable {
         case feed, lists, search, leaderboard, profile
@@ -39,6 +40,30 @@ struct RootTabView: View {
             }
         }
         .environment(router)
+        // Ask Cini floats bottom-right on every page.
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                showChat = true
+            } label: {
+                Image(systemName: "sparkles")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.background)
+                    .frame(width: 50, height: 50)
+                    .background(Circle().fill(Theme.marquee))
+                    .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask Cini")
+            .padding(.trailing, 16)
+            .padding(.bottom, 64)
+            .ignoresSafeArea(.keyboard)
+        }
+        .sheet(isPresented: $showChat) {
+            NavigationStack {
+                CiniChatView()
+            }
+            .presentationDragIndicator(.visible)
+        }
     }
 
     @available(iOS 26.0, *)

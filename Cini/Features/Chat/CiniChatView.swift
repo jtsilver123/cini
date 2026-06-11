@@ -13,10 +13,11 @@ import FoundationModels
 /// personal and factual rather than from model memory.
 struct CiniChatView: View {
     @Environment(RankingStore.self) private var store
+    @Environment(AppSession.self) private var session
 
     var body: some View {
         if #available(iOS 26.0, *) {
-            CiniChatAvailableView(store: store)
+            CiniChatAvailableView(store: store, profile: session.profile)
         } else {
             ChatUnavailableView(message: "Ask Cini needs iOS 26 or later.")
         }
@@ -55,6 +56,7 @@ struct ChatUnavailableView: View {
 @available(iOS 26.0, *)
 struct CiniChatAvailableView: View {
     let store: RankingStore
+    var profile: Profile?
 
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
@@ -67,12 +69,18 @@ struct CiniChatAvailableView: View {
         var text: String
     }
 
-    private let starters = [
-        "What should I watch tonight?",
-        "Something like my #1 but shorter",
-        "A movie my friends and I would all like",
-        "Pick from my watchlist for date night",
-    ]
+    /// Starter chips built from the user's own shelf, not generic prompts.
+    private var starters: [String] {
+        var chips = ["What should I watch tonight?"]
+        if let top = store.watchedItems.first.flatMap({ store.movie($0.id) }) {
+            chips.append("Something like \(top.title) but I haven't seen")
+        }
+        if !store.watchlist.isEmpty {
+            chips.append("Pick from my watchlist for tonight")
+        }
+        chips.append("Surprise me with a hidden gem")
+        return chips
+    }
 
     var body: some View {
         switch SystemLanguageModel.default.availability {
@@ -121,17 +129,36 @@ struct CiniChatAvailableView: View {
         .onAppear { configureSession() }
     }
 
+    private var firstName: String? {
+        let name = profile?.displayName.split(separator: " ").first.map(String.init)
+        if let name, !name.isEmpty { return name }
+        if let username = profile?.username, !username.hasPrefix("user_") { return username }
+        return nil
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles").foregroundStyle(Theme.marquee)
-                Text("Ask Cini").font(Theme.serif(26))
+                Text(firstName.map { "Hey \($0) 👋" } ?? "Ask Cini")
+                    .font(Theme.serif(26))
             }
-            Text("On-device AI that knows your taste. Private — nothing leaves your phone.")
+            Text(greeting)
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
         }
         .padding(.horizontal, 16)
+    }
+
+    /// A line that proves Cini knows them — never the same cold opener.
+    private var greeting: String {
+        if let top = store.watchedItems.first.flatMap({ store.movie($0.id) }) {
+            return "I know \(top.title) tops your list — let's find the next one. Private and on-device, always."
+        }
+        if !store.watchlist.isEmpty {
+            return "You've got \(store.watchlist.count) movies waiting on your watchlist — want help picking? Private and on-device, always."
+        }
+        return "Your movie-buff friend who actually remembers what you like. Private and on-device, always."
     }
 
     private func bubble(_ message: ChatMessage) -> some View {
@@ -200,16 +227,21 @@ struct CiniChatAvailableView: View {
     private func configureSession() {
         guard session == nil else { return }
         let tasteContext = Self.tasteSummary(store: store)
+        let name = firstName ?? "the user"
+        let streak = profile.map { $0.streakWeeks } ?? 0
         session = LanguageModelSession(tools: [MovieLookupTool()]) {
             """
-            You are Cini, a warm, knowledgeable movie-recommendation assistant \
-            inside the Cini app. Keep answers short (2-4 sentences), concrete, \
-            and personal. Recommend specific movies with their year. Prefer \
-            titles from the user's watchlist when they ask what to watch \
-            tonight. Use the lookup tool to confirm titles or find streaming \
-            availability rather than guessing. Never invent scores or friends.
+            You are Cini, \(name)'s movie-buff friend inside the Cini app — \
+            warm, playful, and genuinely opinionated, never corporate. Talk \
+            like a friend who knows their taste cold: reference their actual \
+            rankings and watchlist by name when relevant ("since you loved \
+            X…"). Keep answers short (2-4 sentences), concrete, and specific \
+            — always name movies with their year. Prefer their watchlist when \
+            they ask what to watch tonight. Use the lookup tool to confirm \
+            titles or streaming availability rather than guessing. Never \
+            invent scores or friends. \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when it fits naturally." : "")
 
-            The user's taste profile:
+            \(name)'s taste profile:
             \(tasteContext)
             """
         }
