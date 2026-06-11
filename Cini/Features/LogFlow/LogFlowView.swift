@@ -6,9 +6,10 @@ import RankingEngine
 struct EnrichmentDraft {
     var watchedWith: Set<UUID> = []
     var watchDate: Date?
+    /// "home" or "theater" — how they watched it.
+    var watchedWhere: String?
     var notes = ""
     var personalNotes = ""
-    var labels: Set<String> = []
     var cast: Set<CastMember> = []
     var stealthMode = false
 }
@@ -388,14 +389,11 @@ struct LogFlowView: View {
         for member in draft.cast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
         }
-        if !draft.labels.isEmpty {
-            try? await supabase.setRankingLabels(movieID: movie.tmdbID,
-                                                 labels: Array(draft.labels))
-        }
-        if !draft.watchedWith.isEmpty || draft.watchDate != nil {
+        if !draft.watchedWith.isEmpty || draft.watchDate != nil || draft.watchedWhere != nil {
             try? await supabase.updateRanking(movieID: movie.tmdbID,
                                               watchedWith: Array(draft.watchedWith),
-                                              watchDate: draft.watchDate)
+                                              watchDate: draft.watchDate,
+                                              watchedWhere: draft.watchedWhere)
         }
         if draft.stealthMode {
             try? await supabase.hideRankEvent(movieID: movie.tmdbID)

@@ -25,7 +25,7 @@ struct EnrichmentCard: View {
     @State private var friendScores: [FriendScoreRow] = []
 
     enum Row: String, Identifiable {
-        case watchedWith, labels, date, notes, performances, personalNotes
+        case watchedWith, date, notes, performances, personalNotes
         var id: String { rawValue }
     }
 
@@ -33,8 +33,7 @@ struct EnrichmentCard: View {
         VStack(spacing: 0) {
             watchedWithSection
             divider
-            enrichmentRow(.labels, icon: "tag", title: "Add labels (date night, etc.)",
-                          detail: draft.labels.isEmpty ? nil : draft.labels.sorted().joined(separator: ", "))
+            watchedWhereSection
             divider
             enrichmentRow(.notes, icon: "square.and.pencil", title: "Add notes",
                           detail: draft.notes.isEmpty ? nil : draft.notes)
@@ -143,6 +142,45 @@ struct EnrichmentCard: View {
         .padding(.vertical, 9)
     }
 
+    // MARK: How did you watch it?
+
+    /// Two one-tap chips, same treatment as the watched-with chips.
+    private var watchedWhereSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Image(systemName: "popcorn").frame(width: 28)
+                Text("How did you watch it?")
+                Spacer()
+            }
+            HStack(spacing: 8) {
+                watchedWhereChip("At home", icon: "house", value: "home")
+                watchedWhereChip("In theaters", icon: "ticket", value: "theater")
+            }
+        }
+        .padding(.vertical, 9)
+    }
+
+    private func watchedWhereChip(_ title: String, icon: String, value: String) -> some View {
+        let isOn = draft.watchedWhere == value
+        return Button {
+            guard !isLocked else { return }
+            draft.watchedWhere = isOn ? nil : value
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon).font(.caption)
+                Text(title).font(.subheadline)
+            }
+            .foregroundStyle(isOn ? .white : Theme.ink)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isOn ? Theme.marquee : Theme.fill)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private func enrichmentRow(_ row: Row, icon: String, title: String, detail: String? = nil) -> some View {
         Button {
             guard !isLocked else { return }
@@ -209,8 +247,6 @@ struct EnrichmentRowSheet: View {
                 switch row {
                 case .watchedWith:
                     WatchedWithPicker(selected: $draft.watchedWith)
-                case .labels:
-                    LabelPicker(selected: $draft.labels)
                 case .date:
                     DatePicker(
                         "Watch date",
@@ -325,44 +361,6 @@ struct WatchedWithPicker: View {
             counts = await supabase.watchedWithCounts()
             loaded = true
         }
-    }
-}
-
-struct LabelPicker: View {
-    @Binding var selected: Set<String>
-
-    private let builtIns = ["Date Night", "Plane Movie", "Mindblower", "Slow Burn",
-                            "Rewatchable", "Comfort Watch", "Tearjerker", "Popcorn Flick"]
-    @State private var custom = ""
-
-    var body: some View {
-        List {
-            ForEach(builtIns + selected.subtracting(builtIns).sorted(), id: \.self) { label in
-                Button {
-                    if selected.contains(label) { selected.remove(label) } else { selected.insert(label) }
-                } label: {
-                    HStack {
-                        Text(label).foregroundStyle(Theme.ink)
-                        Spacer()
-                        if selected.contains(label) {
-                            Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
-                        }
-                    }
-                }
-            }
-            HStack {
-                TextField("New label", text: $custom)
-                Button("Add") {
-                    let name = custom.trimmingCharacters(in: .whitespaces)
-                    guard !name.isEmpty else { return }
-                    selected.insert(name)
-                    custom = ""
-                }
-                .disabled(custom.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-        }
-        .navigationTitle("Labels")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

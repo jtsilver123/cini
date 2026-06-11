@@ -18,6 +18,10 @@ struct MovieDetailView: View {
     @State private var trailerURL: URL?
     @State private var tags: [String] = []
     @State private var myDetails: SupabaseService.MyMovieDetails?
+    @State private var cast: [CastMember] = []
+    @State private var extended: TMDBService.ExtendedDetails?
+    @State private var summaryExpanded = false
+    @State private var showAllCast = false
     @State private var showLogFlow = false
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
@@ -34,9 +38,12 @@ struct MovieDetailView: View {
                 metadataBlock
                 socialProof
                 actionPills
+                summarySection
                 scoresSection
                 histogramSection
                 yourDetailsSection
+                castSection
+                detailsSection
                 performancesSection
                 friendsSection
             }
@@ -278,6 +285,116 @@ struct MovieDetailView: View {
         .contentShape(Rectangle())
     }
 
+    /// Summary — the overview, clamped to four lines with a "more" toggle.
+    @ViewBuilder
+    private var summarySection: some View {
+        if let overview = movie.overview, !overview.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(overview)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ink.opacity(0.9))
+                    .lineLimit(summaryExpanded ? nil : 4)
+                if overview.count > 220 {
+                    Button(summaryExpanded ? "Less" : "More") {
+                        withAnimation(.snappy) { summaryExpanded.toggle() }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.marquee)
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// Letterboxd-style cast list: photo, name, character, six at a time.
+    @ViewBuilder
+    private var castSection: some View {
+        if !cast.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Cast").font(.title3.weight(.bold))
+                    .padding(.bottom, 8)
+                ForEach(cast.prefix(showAllCast ? 30 : 6)) { member in
+                    HStack(spacing: 12) {
+                        CachedAsyncImage(url: member.photoURL) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Rectangle().fill(Theme.gray.opacity(0.2))
+                                .overlay(Image(systemName: "person")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.gray))
+                        }
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(member.name).font(.subheadline.weight(.semibold))
+                            if let character = member.character, !character.isEmpty {
+                                Text(character).font(.caption).foregroundStyle(Theme.gray)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                    Divider().overlay(Theme.hairline)
+                }
+                if cast.count > 6 {
+                    Button {
+                        withAnimation(.snappy) { showAllCast.toggle() }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(showAllCast ? "Show fewer" : "Show \(min(cast.count, 30) - 6) more")
+                            Image(systemName: showAllCast ? "chevron.up" : "chevron.down")
+                                .font(.caption)
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// Details — studio, country, language, genres, release date.
+    @ViewBuilder
+    private var detailsSection: some View {
+        if let extended {
+            let facts: [(String, String)] = [
+                ("Studio", extended.studios.prefix(2).joined(separator: ", ")),
+                ("Country", extended.countries.prefix(2).joined(separator: ", ")),
+                ("Language", extended.languages.prefix(3).joined(separator: ", ")),
+                ("Genres", movie.genres.joined(separator: ", ")),
+                ("Release", formattedRelease(extended.releaseDate) ?? ""),
+            ].filter { !$0.1.isEmpty }
+            if !facts.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Details").font(.title3.weight(.bold))
+                        .padding(.bottom, 2)
+                    ForEach(facts, id: \.0) { fact in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(fact.0)
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Theme.gray)
+                                .frame(width: 76, alignment: .leading)
+                            Text(fact.1)
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.ink.opacity(0.9))
+                            Spacer()
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+    }
+
+    private func formattedRelease(_ raw: String?) -> String? {
+        guard let raw, let date = DateFormatter.posixDay.date(from: raw) else { return raw }
+        return date.formatted(date: .abbreviated, time: .omitted)
+    }
+
     private var performancesSection: some View {
         Group {
             if !performances.isEmpty {
@@ -392,7 +509,8 @@ struct MovieDetailView: View {
                             .foregroundStyle(Theme.marquee)
                     }
                 }
-                if myDetails.watchDate != nil || !myDetails.watchedWith.isEmpty {
+                if myDetails.watchDate != nil || !myDetails.watchedWith.isEmpty
+                    || myDetails.watchedWhere != nil {
                     detailRow(icon: "calendar", title: "Watched") {
                         Text(watchedLine(myDetails))
                             .font(.subheadline)
@@ -406,6 +524,9 @@ struct MovieDetailView: View {
     private func watchedLine(_ details: SupabaseService.MyMovieDetails) -> String {
         var parts: [String] = []
         if let date = details.watchDate { parts.append(date) }
+        if let location = details.watchedWhere {
+            parts.append(location == "theater" ? "In theaters" : "At home")
+        }
         if !details.watchedWith.isEmpty {
             parts.append("with " + details.watchedWith.map { "@" + $0 }.joined(separator: ", "))
         }
@@ -464,6 +585,8 @@ struct MovieDetailView: View {
         async let labelsTask = SupabaseService.shared.movieTopLabels(movieID: movie.tmdbID)
         async let myDetailsTask = SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID)
         async let keywordsTask = TMDBService.shared.keywords(for: movie.tmdbID)
+        async let castTask = TMDBService.shared.cast(for: movie.tmdbID)
+        async let extendedTask = TMDBService.shared.extendedDetails(for: movie.tmdbID)
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -482,5 +605,7 @@ struct MovieDetailView: View {
         friends = (try? await friendsTask) ?? []
         histogram = (try? await histogramTask) ?? []
         performances = (try? await performancesTask) ?? []
+        cast = (try? await castTask) ?? []
+        extended = try? await extendedTask
     }
 }

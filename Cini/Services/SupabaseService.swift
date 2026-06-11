@@ -239,11 +239,13 @@ final class SupabaseService {
         var labels: [String] = []
         var watchDate: String?
         var watchedWith: [String] = []
+        var watchedWhere: String?   // "home" | "theater"
         var performances: [(name: String, profilePath: String?)] = []
 
         var isEmpty: Bool {
             note == nil && personalNote == nil && labels.isEmpty
-                && watchDate == nil && watchedWith.isEmpty && performances.isEmpty
+                && watchDate == nil && watchedWith.isEmpty
+                && watchedWhere == nil && performances.isEmpty
         }
     }
 
@@ -257,6 +259,7 @@ final class SupabaseService {
         struct RankRow: Decodable {
             let watch_date: String?
             let watched_with: [UUID]?
+            let watched_where: String?
             let ranking_labels: [LabelLink]?
         }
 
@@ -269,7 +272,7 @@ final class SupabaseService {
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .execute().value
         async let rankTask: RankRow? = try? client.from("rankings")
-            .select("watch_date, watched_with, ranking_labels(labels(name))")
+            .select("watch_date, watched_with, watched_where, ranking_labels(labels(name))")
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .single().execute().value
 
@@ -280,6 +283,7 @@ final class SupabaseService {
         details.performances = ((await perfsTask) ?? []).map { ($0.person_name, $0.profile_path) }
         if let rank = await rankTask {
             details.watchDate = rank.watch_date
+            details.watchedWhere = rank.watched_where
             details.labels = (rank.ranking_labels ?? []).compactMap { $0.labels?.name }
             if let with = rank.watched_with, !with.isEmpty {
                 let rows: [ProfileRow]? = try? await client.from("profiles")
@@ -433,15 +437,18 @@ final class SupabaseService {
 
     // MARK: - Ranking enrichment
 
-    func updateRanking(movieID: Int, watchedWith: [UUID], watchDate: Date?) async throws {
+    func updateRanking(movieID: Int, watchedWith: [UUID], watchDate: Date?,
+                       watchedWhere: String? = nil) async throws {
         guard let me = currentUserID else { return }
         struct Update: Encodable {
             let watched_with: [UUID]
             let watch_date: String?
+            let watched_where: String?
         }
         let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
         try await client.from("rankings")
-            .update(Update(watched_with: watchedWith, watch_date: dateString))
+            .update(Update(watched_with: watchedWith, watch_date: dateString,
+                           watched_where: watchedWhere))
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .execute()
     }

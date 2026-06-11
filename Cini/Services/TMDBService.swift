@@ -114,6 +114,37 @@ final class TMDBService {
         return credits.cast
     }
 
+    /// Letterboxd-style "Details" facts: studio, country, language,
+    /// release date. TV uses networks/first-air-date.
+    struct ExtendedDetails {
+        var studios: [String] = []
+        var countries: [String] = []
+        var languages: [String] = []
+        var releaseDate: String?   // "2024-03-01"
+    }
+
+    func extendedDetails(for movieID: Int) async throws -> ExtendedDetails {
+        struct Named: Codable { let name: String }
+        struct Lang: Codable { let englishName: String?; let name: String? }
+        struct DTO: Codable {
+            let productionCompanies: [Named]?
+            let networks: [Named]?
+            let productionCountries: [Named]?
+            let spokenLanguages: [Lang]?
+            let releaseDate: String?
+            let firstAirDate: String?
+        }
+        let dto: DTO = try await get(Self.mediaPath(movieID))
+        var studios = (dto.productionCompanies ?? []).map(\.name)
+        if studios.isEmpty { studios = (dto.networks ?? []).map(\.name) }
+        return ExtendedDetails(
+            studios: studios,
+            countries: (dto.productionCountries ?? []).map(\.name),
+            languages: (dto.spokenLanguages ?? []).compactMap { $0.englishName ?? $0.name },
+            releaseDate: dto.releaseDate ?? dto.firstAirDate
+        )
+    }
+
     /// Watch providers for "Where to Watch" (US region by default).
     func watchProviders(for movieID: Int, region: String = "US") async throws -> WatchProviders {
         let response: ProvidersResponse = try await get(Self.mediaPath(movieID, suffix: "/watch/providers"))
