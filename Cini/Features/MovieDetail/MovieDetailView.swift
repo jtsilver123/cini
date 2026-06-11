@@ -27,6 +27,9 @@ struct MovieDetailView: View {
     @State private var showShowtimes = false
     @State private var showSendRec = false
     @State private var memberTarget: MemberRef?
+    @State private var personTarget: CastMember?
+    @State private var predicted: Double?
+    @State private var scoreInfo: ScoreInfo?
     @State private var peopleTab: PeopleTab = .friends
     @State private var publicNotes: [PublicNoteRow] = []
     @State private var publicNotesLoaded = false
@@ -39,6 +42,12 @@ struct MovieDetailView: View {
 
     struct CommentsTarget: Identifiable {
         let id: UUID
+    }
+
+    /// Which score circle is being explained.
+    enum ScoreInfo: String, Identifiable {
+        case rec, friend, average
+        var id: String { rawValue }
     }
 
     private var myItem: ScoredItem<Int>? { store.scoredItem(for: movie.tmdbID) }
@@ -54,8 +63,7 @@ struct MovieDetailView: View {
                 scoresSection
                 histogramSection
                 yourDetailsSection
-                castSection
-                detailsSection
+                moreInfoSection
                 performancesSection
                 peopleSection
             }
@@ -88,6 +96,17 @@ struct MovieDetailView: View {
         .sheet(item: $commentsTarget) { target in
             CommentsSheet(eventID: target.id)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $scoreInfo) { info in
+            ScoreInfoSheet(info: info)
+                .presentationDetents([.height(300)])
+                .presentationDragIndicator(.visible)
+        }
+        .navigationDestination(item: $personTarget) { member in
+            PersonScreen(member: member, originTitle: movie.title)
+        }
+        .navigationDestination(item: $memberTarget) { member in
+            MemberProfileView(userID: member.id, username: member.username)
         }
         .task { await loadEverything() }
     }
@@ -139,6 +158,11 @@ struct MovieDetailView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     Spacer()
+                    if let myItem {
+                        // Already ranked: YOUR score lives on the artwork,
+                        // since the circles below lead with Rec Score.
+                        ScoreBadge(score: myItem.score, size: 40)
+                    }
                     if myItem != nil {
                         // Already ranked: Beli's "Rank again" pill + check.
                         Button {
@@ -220,41 +244,50 @@ struct MovieDetailView: View {
         .scrollClipDisabled()
     }
 
+    /// Rec Score always leads; tapping any circle explains what it means.
     private var scoresSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Scores").font(.title3.weight(.bold))
 
             HStack(alignment: .top, spacing: 12) {
-                // Empty = an invitation: the dashed circle carries a gold +
-                // and the whole column starts the rank flow.
                 Button {
-                    showLogFlow = true
+                    scoreInfo = .rec
                 } label: {
                     scoreColumn(
-                        badge: myItem.map { ScoreBadge(score: $0.score, size: 60) },
-                        emptyIcon: "plus",
+                        badge: predicted.map { ScoreBadge(score: $0, size: 60) },
+                        emptyIcon: "wand.and.stars",
                         emptyTint: Theme.marquee,
-                        title: "Your Cini Rating",
-                        subtitle: myItem.map { "#\($0.rank) on your Watched list" } ?? "Tap to rank it"
+                        title: "Rec Score",
+                        subtitle: "How much we think you'll like it"
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(myItem != nil)
 
-                scoreColumn(
-                    badge: friendAverage.map { ScoreBadge(score: $0, count: friends.count, size: 60) },
-                    emptyIcon: "person.2",
-                    title: "Friend Score",
-                    subtitle: friends.isEmpty ? "No friends have ranked it yet"
-                                              : "What your friends think"
-                )
-                scoreColumn(
-                    badge: community.map { ScoreBadge(score: $0.avgScore, count: $0.ratingCount, size: 60) },
-                    emptyIcon: "sparkles",
-                    title: "Average Score",
-                    subtitle: community == nil ? "Be the first on Cini to rank it"
-                                               : "What all of Cini thinks"
-                )
+                Button {
+                    scoreInfo = .friend
+                } label: {
+                    scoreColumn(
+                        badge: friendAverage.map { ScoreBadge(score: $0, count: friends.count, size: 60) },
+                        emptyIcon: "person.2",
+                        title: "Friend Score",
+                        subtitle: friends.isEmpty ? "No friends have ranked it yet"
+                                                  : "What your friends think"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    scoreInfo = .average
+                } label: {
+                    scoreColumn(
+                        badge: community.map { ScoreBadge(score: $0.avgScore, count: $0.ratingCount, size: 60) },
+                        emptyIcon: "sparkles",
+                        title: "Average Score",
+                        subtitle: community == nil ? "Be the first on Cini to rank it"
+                                                   : "What all of Cini thinks"
+                    )
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 16)
@@ -330,6 +363,39 @@ struct MovieDetailView: View {
         }
     }
 
+    /// Cast + Details live behind one quiet disclosure so the page stays
+    /// focused on scores and people until you ask for the deep facts.
+    @State private var showMoreInfo = false
+
+    @ViewBuilder
+    private var moreInfoSection: some View {
+        if !cast.isEmpty || extended != nil {
+            VStack(alignment: .leading, spacing: 18) {
+                Button {
+                    withAnimation(.snappy) { showMoreInfo.toggle() }
+                } label: {
+                    HStack {
+                        Text("Cast & Details")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Image(systemName: showMoreInfo ? "chevron.up" : "chevron.down")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.gray)
+                    }
+                    .padding(.horizontal, 16)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                if showMoreInfo {
+                    castSection
+                    detailsSection
+                }
+            }
+        }
+    }
+
     /// Letterboxd-style cast list: photo, name, character, six at a time.
     @ViewBuilder
     private var castSection: some View {
@@ -338,26 +404,36 @@ struct MovieDetailView: View {
                 Text("Cast").font(.title3.weight(.bold))
                     .padding(.bottom, 8)
                 ForEach(cast.prefix(showAllCast ? 30 : 6)) { member in
-                    HStack(spacing: 12) {
-                        CachedAsyncImage(url: member.photoURL) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Rectangle().fill(Theme.gray.opacity(0.2))
-                                .overlay(Image(systemName: "person")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.gray))
-                        }
-                        .frame(width: 40, height: 40)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(member.name).font(.subheadline.weight(.semibold))
-                            if let character = member.character, !character.isEmpty {
-                                Text(character).font(.caption).foregroundStyle(Theme.gray)
+                    Button {
+                        personTarget = member
+                    } label: {
+                        HStack(spacing: 12) {
+                            CachedAsyncImage(url: member.photoURL) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Rectangle().fill(Theme.gray.opacity(0.2))
+                                    .overlay(Image(systemName: "person")
+                                        .font(.caption)
+                                        .foregroundStyle(Theme.gray))
                             }
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(member.name).font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                if let character = member.character, !character.isEmpty {
+                                    Text(character).font(.caption).foregroundStyle(Theme.gray)
+                                }
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
                         }
-                        Spacer()
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 6)
+                    .buttonStyle(.plain)
                     Divider().overlay(Theme.hairline)
                 }
                 if cast.count > 6 {
@@ -428,21 +504,34 @@ struct MovieDetailView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
                             ForEach(performances, id: \.tmdbPersonId) { performance in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    CachedAsyncImage(url: performance.photoURL) { image in
-                                        image.resizable().scaledToFill()
-                                    } placeholder: {
-                                        Rectangle().fill(Theme.gray.opacity(0.2))
-                                            .overlay(Image(systemName: "person").foregroundStyle(Theme.gray))
+                                // Anywhere a person appears, they're a door
+                                // to their page.
+                                Button {
+                                    personTarget = CastMember(
+                                        id: performance.tmdbPersonId,
+                                        name: performance.personName,
+                                        character: nil,
+                                        profilePath: performance.profilePath)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        CachedAsyncImage(url: performance.photoURL) { image in
+                                            image.resizable().scaledToFill()
+                                        } placeholder: {
+                                            Rectangle().fill(Theme.gray.opacity(0.2))
+                                                .overlay(Image(systemName: "person").foregroundStyle(Theme.gray))
+                                        }
+                                        .frame(width: 140, height: 140)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        Text(performance.personName)
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(Theme.ink)
+                                        Text("\(performance.count) recommended")
+                                            .font(.caption)
+                                            .foregroundStyle(Theme.gray)
                                     }
-                                    .frame(width: 140, height: 140)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    Text(performance.personName).font(.subheadline.weight(.semibold))
-                                    Text("\(performance.count) recommended")
-                                        .font(.caption)
-                                        .foregroundStyle(Theme.gray)
+                                    .frame(width: 140)
                                 }
-                                .frame(width: 140)
+                                .buttonStyle(.plain)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -583,9 +672,21 @@ struct MovieDetailView: View {
                         withAnimation(.snappy) { peopleTab = tab }
                     } label: {
                         VStack(spacing: 6) {
-                            Text(tab.rawValue)
-                                .font(.subheadline.weight(peopleTab == tab ? .bold : .regular))
-                                .foregroundStyle(peopleTab == tab ? Theme.ink : Theme.gray)
+                            HStack(spacing: 5) {
+                                Text(tab.rawValue)
+                                    .font(.subheadline.weight(peopleTab == tab ? .bold : .regular))
+                                    .foregroundStyle(peopleTab == tab ? Theme.ink : Theme.gray)
+                                // Review count — same capsule as the
+                                // Pending badge in Your Lists.
+                                if tab == .everyone && !publicNotes.isEmpty {
+                                    Text("\(publicNotes.count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(Theme.background)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(Theme.marquee))
+                                }
+                            }
                             Rectangle()
                                 .fill(peopleTab == tab ? Theme.ink : .clear)
                                 .frame(height: 2)
@@ -731,6 +832,7 @@ struct MovieDetailView: View {
         async let castTask = TMDBService.shared.cast(for: movie.tmdbID)
         async let extendedTask = TMDBService.shared.extendedDetails(for: movie.tmdbID)
         async let publicNotesTask = SupabaseService.shared.publicNotes(movieID: movie.tmdbID)
+        async let predictedTask = SupabaseService.shared.predictedScores(movieIDs: [movie.tmdbID])
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -753,5 +855,59 @@ struct MovieDetailView: View {
         extended = try? await extendedTask
         publicNotes = (try? await publicNotesTask) ?? []
         publicNotesLoaded = true
+        predicted = store.predictedScores[movie.tmdbID] ?? (await predictedTask)[movie.tmdbID]
+    }
+}
+
+// MARK: - Score explainers
+
+/// Small modal that demystifies a score circle — what feeds it and why
+/// it can differ from the others.
+struct ScoreInfoSheet: View {
+    let info: MovieDetailView.ScoreInfo
+
+    private var icon: String {
+        switch info {
+        case .rec: "wand.and.stars"
+        case .friend: "person.2"
+        case .average: "sparkles"
+        }
+    }
+
+    private var title: String {
+        switch info {
+        case .rec: "Rec Score"
+        case .friend: "Friend Score"
+        case .average: "Average Score"
+        }
+    }
+
+    private var explanation: String {
+        switch info {
+        case .rec:
+            return "How much we think YOU'LL like this title. It blends three signals: scores from friends whose taste matches yours (weighted by your taste match), how you've scored this title's genres before, and the Cini community average. It gets sharper with every movie you rank."
+        case .friend:
+            return "The average score from people you follow who've ranked this title. The small number shows how many friends it's based on — tap into What People Think below to see each one."
+        case .average:
+            return "The average score from everyone on Cini who's ranked this title. Titles with only a few ratings are pulled gently toward the middle, so one enthusiastic stranger can't define a movie."
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 34))
+                .foregroundStyle(Theme.marquee)
+                .padding(.top, 28)
+            Text(title).font(Theme.serif(26))
+            Text(explanation)
+                .font(.subheadline)
+                .foregroundStyle(Theme.ink.opacity(0.85))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .background(Theme.background)
     }
 }

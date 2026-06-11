@@ -229,6 +229,91 @@ final class TMDBService {
             }
     }
 
+    // MARK: - People
+
+    struct PersonDetails {
+        var name: String
+        var biography: String?
+        var profilePath: String?
+        var knownForDepartment: String?
+        var birthday: String?
+
+        var photoURL: URL? { TMDBService.imageURL(path: profilePath, size: .profile) }
+    }
+
+    func person(id: Int) async throws -> PersonDetails {
+        struct DTO: Codable {
+            let name: String
+            let biography: String?
+            let profilePath: String?
+            let knownForDepartment: String?
+            let birthday: String?
+        }
+        let dto: DTO = try await get("/person/\(id)")
+        return PersonDetails(name: dto.name, biography: dto.biography,
+                             profilePath: dto.profilePath,
+                             knownForDepartment: dto.knownForDepartment,
+                             birthday: dto.birthday)
+    }
+
+    /// Everything they acted in or directed — movies and whole shows
+    /// (negative ids), most popular first.
+    func filmography(personID: Int) async throws -> [Movie] {
+        struct Credit: Codable {
+            let id: Int
+            let mediaType: String?
+            let title: String?
+            let name: String?
+            let job: String?
+            let posterPath: String?
+            let backdropPath: String?
+            let genreIds: [Int]?
+            let releaseDate: String?
+            let firstAirDate: String?
+            let overview: String?
+            let originalLanguage: String?
+            let popularity: Double?
+
+            var asMovie: Movie? {
+                switch mediaType {
+                case "movie":
+                    guard let title else { return nil }
+                    return Movie(tmdbID: id, mediaKind: "movie", title: title,
+                                 releaseYear: releaseDate.flatMap { Int($0.prefix(4)) },
+                                 posterPath: posterPath, backdropPath: backdropPath,
+                                 genres: (genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                                 certification: nil, runtimeMinutes: nil, director: nil,
+                                 overview: overview, originalLanguage: originalLanguage,
+                                 popularity: popularity, releaseDateFull: releaseDate)
+                case "tv":
+                    guard let name else { return nil }
+                    return Movie(tmdbID: -id, mediaKind: "tv", title: name,
+                                 releaseYear: firstAirDate.flatMap { Int($0.prefix(4)) },
+                                 posterPath: posterPath, backdropPath: backdropPath,
+                                 genres: (genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                                 certification: nil, runtimeMinutes: nil, director: nil,
+                                 overview: overview, originalLanguage: originalLanguage,
+                                 popularity: popularity, releaseDateFull: firstAirDate)
+                default:
+                    return nil
+                }
+            }
+        }
+        struct CreditsPage: Codable {
+            let cast: [Credit]
+            let crew: [Credit]
+        }
+        let page: CreditsPage = try await get("/person/\(personID)/combined_credits")
+        let credits = page.cast + page.crew.filter { $0.job == "Director" }
+        var seen = Set<Int>()
+        return credits
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            .compactMap(\.asMovie)
+            .filter { seen.insert($0.tmdbID).inserted }
+            .prefix(30)
+            .map { $0 }
+    }
+
     /// Watch providers for "Where to Watch" (US region by default).
     func watchProviders(for movieID: Int, region: String = "US") async throws -> WatchProviders {
         let response: ProvidersResponse = try await get(Self.mediaPath(movieID, suffix: "/watch/providers"))
