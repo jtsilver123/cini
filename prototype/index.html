@@ -323,6 +323,7 @@ const ICONS = {
   flame:'<path d="M12 21c-3.9 0-7-2.8-7-6.5 0-2.6 1.6-4.6 3-6.2.6-.7 1.7-.2 1.7.7 0 .8.7 1.3 1.3.8C12.6 8.6 13 6.4 12.4 4c-.2-.8.7-1.4 1.4-.9C17 5.3 19 9 19 12.9c0 4.6-3.1 8.1-7 8.1z"/>',
   question:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8v.5"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/>',
   grad:'<path d="M12 4 2 9l10 5 10-5z"/><path d="M6 11.5V16c0 1.5 2.7 3 6 3s6-1.5 6-3v-4.5"/>',
+  mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
 };
 function I(name, size=19, sw=1.7){
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;">${ICONS[name]||""}</svg>`;
@@ -458,7 +459,13 @@ function openSearchForRank(){
   // Focus synchronously inside the tap gesture or iOS won't show the keyboard.
   const f=$("searchInput"); if(f){ f.focus(); }
 }
-function openDetail(k){ detailKey=k; go("detail"); }
+/* Back from a movie page returns to wherever it was opened from
+   (feed, lists, search, profile…), like a real navigation stack. */
+let detailReturn="lists";
+function openDetail(k){
+  if(currentScreen!=="detail") detailReturn=currentScreen;
+  detailKey=k; go("detail");
+}
 
 /* ---------- Toggles ---------- */
 function toggleWatchlist(k){
@@ -556,6 +563,9 @@ function setSubTab(t){ S.subTab=t; save(); render(); }
 function setCategory(c){ S.category=c; save(); closeOverlay(); render(); }
 
 function renderLists(){
+  /* Pending = imported titles still waiting to be ranked. Lives at the top
+     of Watched; the goal is to rank it to zero, then the section vanishes. */
+  const pendingKeys=S.queue.filter(k=>!S.watched.some(w=>w.k===k));
   const sub=S.subTab;
   let content="";
   if(S.category!=="Movies"){
@@ -567,8 +577,30 @@ function renderLists(){
     let rows=scoredWatched();
     const lq=(S.ui.listQ||"").trim().toLowerCase();
     if(lq && !S.ui.reorder) rows=rows.filter(w=>MOVIES[w.k].t.toLowerCase().includes(lq));
-    content = rows.length===0
-      ? `<div class="empty"><span style="color:var(--marquee);">${I("film",36,1.4)}</span><b>Nothing ranked yet</b><span class="sub">Tap + to log your first movie.</span></div>`
+    const pendingHTML = (pendingKeys.length && !S.ui.reorder && !lq) ? `
+      <div class="pad" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+        <b style="font-size:16px;">Pending</b>
+        <span style="background:var(--marquee); color:var(--bg); font-size:11px; font-weight:800; border-radius:999px; padding:2px 7px;">${pendingKeys.length}</span>
+        <span class="spacer"></span>
+        <span class="sub">Ranked ${S.rankedFromImport} of ${S.totalImport}</span>
+      </div>
+      <div class="pad sub" style="font-size:12px; margin-top:2px;">From your import, favorites first — rank or dismiss them all to clear this section.</div>
+      ${pendingKeys.map(k=>{
+        const m=MOVIES[k];
+        return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${k}')">
+          <div class="poster" style="width:52px;height:78px; background-image:url('${IMG(m.p)}');"></div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
+            <div class="meta">${m.y} · Dir. ${m.dir}</div>
+            <div style="display:flex; gap:18px; margin-top:8px;">
+              <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
+              <button class="iconbtn" onclick="dismissQueue('${k}')">${I("x",17)}</button>
+            </div>
+          </div>
+        </div>`;}).join("")}
+      ${rows.length?`<div class="pad" style="font-size:11px; font-weight:800; letter-spacing:.12em; color:var(--gray); margin-top:10px;">RANKED</div>`:""}` : "";
+    content = pendingHTML + (rows.length===0
+      ? (pendingKeys.length?"":`<div class="empty"><span style="color:var(--marquee);">${I("film",36,1.4)}</span><b>Nothing ranked yet</b><span class="sub">Tap + to log your first movie.</span></div>`)
       : rows.map(w=>{
         const m=MOVIES[w.k];
         return `<div class="listrow ${_flashKey===w.k?"flash":""}" onclick="if(!event.target.closest('button'))openDetail('${w.k}')" style="cursor:pointer;">
@@ -584,7 +616,7 @@ function renderLists(){
             <div class="sub" style="margin-top:3px;">${m.rt} · On ${m.on.join(", ")}</div>
           </div>
           <div class="badge ${scoreClass(w.score)}">${w.score.toFixed(1)}</div>
-        </div>`;}).join("");
+        </div>`;}).join(""));
   } else if(sub==="watchlist"){
     let wl=S.watchlist;
     const lq2=(S.ui.listQ||"").trim().toLowerCase();
@@ -687,7 +719,7 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched","Watched"],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"],["trending","Trending"]].map(([k,l])=>
+      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"],["trending","Trending"]].map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     ${S.ui.showFilters?`<div class="row-scroll" style="margin-top:12px;">
@@ -798,7 +830,6 @@ function renderSearch(){
         .sort((a,b)=>b[1]-a[1])
         .map(([k])=>k)
     : null;
-  const queue=S.queue.filter(k=>!S.watched.some(w=>w.k===k));
 
   const row=(k,dismiss)=>{
     const m=MOVIES[k];
@@ -844,11 +875,10 @@ function renderSearch(){
         <span style="color:var(--marquee);">${I("download",22)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14.5px;">Import from Letterboxd or IMDb</div>
-          <div class="sub" style="margin-top:1px;">Queue your whole history to rank — favorites first</div>
+          <div class="sub" style="margin-top:1px;">Imports land in My Lists → Watched → Pending — favorites first</div>
         </div><span class="sub">${I("chevR",16)}</span>
       </div>
-      <div class="pad sub" style="margin-top:6px; font-size:13px;">From your import (Ranked ${S.rankedFromImport} of ${S.totalImport})</div>
-      ${queue.length ? queue.map(k=>row(k,true)).join("") : `<div class="empty" style="padding:28px;"><b>Queue cleared</b><span class="sub">Import more or search to keep ranking.</span></div>`}`}
+      ${Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)).slice(0,4).map(k=>row(k,false)).join("")}`}
     </div>`;
 }
 function renderSearchKeepFocus(){
@@ -1201,7 +1231,7 @@ function renderDetail(){
     <div class="letterbox" style="width:100%; height:215px; position:relative; overflow:hidden; background:#0c0c0c;">
       <div class="hero-img" style="background-image:url('${hero}');"></div>
       <div style="position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.35),transparent 45%,rgba(16,18,20,.97) 97%);"></div>
-      <button class="iconbtn" style="position:absolute; top:12px; left:14px; color:#fff; filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));" onclick="go('lists')">${I("chevL",24,2)}</button>
+      <button class="iconbtn" style="position:absolute; top:12px; left:14px; color:#fff; filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));" onclick="go(detailReturn)">${I("chevL",24,2)}</button>
       <button class="iconbtn" style="position:absolute; top:14px; right:16px; color:#fff; filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));" onclick="share('${esc(m.t)} on Cini')">${I("share",20)}</button>
     </div>
     <div class="pad" style="margin-top:-6px; position:relative;">
@@ -1536,26 +1566,63 @@ function importPick(){return `
     <div class="sub" style="font-size:14px; line-height:1.5;">Cini queues every film you've logged so you can rank them — favorites first.</div>
   </div>
   <div style="background:var(--surface-2); border-radius:16px; padding:16px; margin:16px 0;">
-    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">Get a <b>transfer code</b> in the app (~1 minute total)</span></div>
-    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">2</b><span style="font-size:14px;">On your computer: <b>Export your data</b> at letterboxd.com/settings/data</span></div>
-    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">3</b><span style="font-size:14px;">Drop the .zip at our import page — it beams to your phone</span></div>
-    <button class="lnk" style="font-size:14px;" onclick="window.open('https://letterboxd.com/settings/data/','_blank')">Open Letterboxd export page ${I("chevR",13)}</button>
+    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">Email yourself your <b>private import link</b></span></div>
+    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">2</b><span style="font-size:14px;">Open it on your computer and follow two steps</span></div>
+    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">3</b><span style="font-size:14px;">Your movies land here by themselves</span></div>
+    <button class="pill" style="width:100%; justify-content:center; padding:13px; margin-top:4px;" onclick="importLinkSent()">Email me the link</button>
+    <button class="lnk" style="width:100%; justify-content:center; margin-top:10px; font-size:13px;" onclick="toast('Link copied — open it on your computer'); importLinkSent()">No email handy? Copy the link instead</button>
   </div>
   <div style="display:flex; align-items:center; gap:12px; padding:0 2px 14px;">
     <div style="flex:1;"><div style="font-weight:700; font-size:14px;">Also import my watchlist</div><div class="sub">Letterboxd watchlist → your Want to Watch list</div></div>
     <button class="switch on" onclick="this.classList.toggle('on')"></button>
   </div>
-  <button class="pill" style="width:100%; justify-content:center; padding:14px;" onclick="importProgress()">Choose export file</button>
-  <button class="lnk" style="width:100%; justify-content:center; margin-top:12px;" onclick="importPaste()">${I("pencil",15)} Or paste from Apple Notes</button>
+  <div style="display:flex; justify-content:center; gap:22px;">
+    <button class="lnk" onclick="pasteDest=null; importProgress()">${I("download",15)} Already have the file?</button>
+    <button class="lnk" onclick="importPaste()">${I("pencil",15)} Paste a list</button>
+  </div>
   <div class="sub" style="text-align:center; margin-top:13px; line-height:1.5;">Star ratings are never copied — we just use them to order your queue.</div>`;}
+function importLinkSent(){
+  const card=$("importCard"); if(!card) return;
+  card.innerHTML=`
+    <div style="display:flex; justify-content:flex-end;"><button class="iconbtn" onclick="closeOverlay()">${I("x",20)}</button></div>
+    <div style="text-align:center;">
+      <span style="color:var(--marquee);">${I("mail",38,1.5)}</span>
+      <div class="serif" style="font-size:25px; font-weight:700; margin:8px 0 6px;">Check your email</div>
+      <div class="sub" style="font-size:14px; line-height:1.6;">Open your link on your computer and drop in your Letterboxd export — it lands here automatically.</div>
+    </div>
+    <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:20px 0;">
+      <span class="tdots"><span></span><span></span><span></span></span>
+      <span class="sub">Waiting for your upload… link works for 30 minutes</span>
+    </div>
+    <div style="display:flex; justify-content:center; gap:22px;">
+      <button class="lnk" onclick="toast('Email sent again')">${I("mail",15)} Resend email</button>
+      <button class="lnk" onclick="toast('Link copied')">${I("share",15)} Copy the link</button>
+    </div>
+    <button class="lnk" style="width:100%; justify-content:center; margin-top:18px; font-size:12.5px;" onclick="pasteDest=null; importProgress()">Demo: pretend the upload just arrived →</button>`;
+}
+let pasteDest=null;
 function importPaste(){
+  pasteDest="watched";
   $("importCard").innerHTML=`
     <div style="display:flex; justify-content:flex-end;"><button class="iconbtn" onclick="closeOverlay()">${I("x",20)}</button></div>
     <div class="serif" style="font-size:24px; font-weight:700; text-align:center; margin-bottom:6px;">Paste your list</div>
     <div class="sub" style="text-align:center; line-height:1.5; margin-bottom:12px;">Copy your movie note, paste it here — one title per line.<br>Bullets, numbering, and years like "Dune (2021)" all work.</div>
-    <textarea id="pasteBox" placeholder="- Dune (2021)&#10;- Oppenheimer&#10;- Past Lives, 2023" style="width:100%; min-height:180px; background:var(--surface-2); border:1px solid var(--hair); border-radius:14px; color:var(--ink); padding:13px; font:inherit; font-size:14px; outline:none; resize:vertical;" oninput="$('pcount').textContent=this.value.split('\n').filter(l=>l.trim().length>1).length+' titles found'"></textarea>
+    <textarea id="pasteBox" placeholder="- Dune (2021)&#10;- Oppenheimer&#10;- Past Lives, 2023" style="width:100%; min-height:160px; background:var(--surface-2); border:1px solid var(--hair); border-radius:14px; color:var(--ink); padding:13px; font:inherit; font-size:14px; outline:none; resize:vertical;" oninput="$('pcount').textContent=this.value.split('\n').filter(l=>l.trim().length>1).length+' titles found'"></textarea>
     <div class="sub" id="pcount" style="margin:8px 2px;">0 titles found</div>
+    <div class="seg" style="margin:4px 0 8px;">
+      <button class="active" id="pdWatched" onclick="setPasteDest('watched')">I've watched these</button>
+      <button id="pdWant" onclick="setPasteDest('want')">I want to watch these</button>
+    </div>
+    <div class="sub" id="pdHint" style="margin:0 2px 8px;">They'll join your ranking queue so you can score them head-to-head.</div>
     <button class="pill" style="width:100%; justify-content:center; padding:14px; margin-top:6px;" onclick="importProgress()">Import list</button>`;
+}
+function setPasteDest(d){
+  pasteDest=d;
+  $("pdWatched").classList.toggle("active", d==="watched");
+  $("pdWant").classList.toggle("active", d==="want");
+  $("pdHint").textContent = d==="watched"
+    ? "They'll join your ranking queue so you can score them head-to-head."
+    : "They'll land straight on your Want to Watch list.";
 }
 function importProgress(){
   $("importCard").innerHTML=`
@@ -1570,17 +1637,20 @@ function importProgress(){
 }
 function importDone(){
   if(!$("importCard")) return;
+  const want = pasteDest==="want";
   $("importCard").innerHTML=`
     <div style="text-align:center;">
       <span class="gtxt">${I("check",42,2)}</span>
       <div class="serif" style="font-size:27px; font-weight:700; margin:6px 0 14px;">Import complete</div>
     </div>
     <div style="background:var(--surface-2); border-radius:16px; padding:4px 16px;">
-      <div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("film",18)}</span><div><b style="font-size:14px;">389 films queued to rank</b><div class="sub" style="margin-top:1px;">Search → "Movies you may have seen" — favorites first.</div></div></div>
-      <div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",18)}</span><div><b style="font-size:14px;">57 added to your watchlist</b></div></div>
+      ${want
+        ? `<div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",18)}</span><div><b style="font-size:14px;">23 added to Want to Watch</b><div class="sub" style="margin-top:1px;">Your Lists → Want to Watch.</div></div></div>`
+        : `<div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("film",18)}</span><div><b style="font-size:14px;">389 films queued to rank</b><div class="sub" style="margin-top:1px;">My Lists → Watched → Pending — favorites first.</div></div></div>
+      <div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",18)}</span><div><b style="font-size:14px;">57 added to your watchlist</b></div></div>`}
       <div style="display:flex; gap:14px; padding:13px 0;"><span style="color:var(--marquee);">${I("question",18)}</span><div><b style="font-size:14px;">4 couldn't be matched</b><div class="sub" style="margin-top:1px;">Obscure festival shorts, mostly…</div></div></div>
     </div>
-    <button class="pill" style="width:100%; justify-content:center; padding:14px; margin-top:16px;" onclick="closeOverlay(); go('search'); toast('389 films ready to rank')">Start ranking</button>`;
+    <button class="pill" style="width:100%; justify-content:center; padding:14px; margin-top:16px;" onclick="closeOverlay(); ${want?`S.subTab='watchlist'; save(); go('lists'); toast('23 added to Want to Watch')`:`S.subTab='watched'; save(); go('lists'); toast('389 films ready to rank')`}">${want?"See your list":"Start ranking"}</button>`;
 }
 
 /* =================== ASK CINI (chat) =================== */

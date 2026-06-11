@@ -1,12 +1,11 @@
 import SwiftUI
 
 /// Center tab: Movies · Members search, year/decade filter, quick pills,
-/// recents, and "Movies you may have seen" seeded by import + popularity.
+/// recents, and popular "Movies you may have seen" suggestions.
 struct SearchView: View {
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
 
-    @State private var importQueue = ImportQueue.shared
     @State private var tab = 0   // 0 = Movies, 1 = Members
     @State private var query = ""
     @State private var movieResults: [Movie] = []
@@ -382,59 +381,14 @@ struct SearchView: View {
 
     // MARK: "Movies you may have seen"
 
-    /// Imported queue first (persistent, favorites-first); popular titles
-    /// only as a cold-start fallback before any import.
-    private var queueEntries: [ImportQueue.Entry] {
-        importQueue.entries.filter { !store.isWatched($0.movieID) }
-    }
-
+    /// Popular-title suggestions for cold start. Imported titles waiting to
+    /// be ranked live in Your Lists → Watched → Pending, not here.
     private var visibleMaybeSeen: [Movie] {
         maybeSeen.filter { !dismissedMaybeSeen.contains($0.tmdbID) && !store.isWatched($0.tmdbID) }
     }
 
-    @ViewBuilder
     private var maybeSeenSection: some View {
-        if !queueEntries.isEmpty {
-            importedQueueSection
-        } else {
-            popularFallbackSection
-        }
-    }
-
-    private var importedQueueSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Movies you may have seen").font(.headline)
-                Spacer()
-                Button("Import more") { showImport = true }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
-            }
-            Text("From your import (Ranked \(importQueue.rankedFromImport) of \(importQueue.totalImported))")
-                .font(.caption)
-                .foregroundStyle(Theme.gray)
-
-            ForEach(queueEntries.prefix(showAllMaybeSeen ? 200 : 4)) { entry in
-                let movie = store.movie(entry.movieID)
-                    ?? Movie(tmdbID: entry.movieID, mediaKind: "movie", title: entry.title,
-                             releaseYear: entry.year, posterPath: nil, backdropPath: nil,
-                             genres: [], certification: nil, runtimeMinutes: nil,
-                             director: nil, overview: nil)
-                MovieSuggestionRow(
-                    movie: movie,
-                    onRank: { logMovie = movie },
-                    onOpen: { detailMovie = movie },
-                    onDismiss: { importQueue.dismiss(entry.movieID) }
-                )
-                .task { await store.enrich(entry.movieID) }
-                Divider()
-            }
-
-            if queueEntries.count > 4 && !showAllMaybeSeen {
-                seeAllButton(count: queueEntries.count)
-            }
-        }
-        .padding(.top, 8)
+        popularFallbackSection
     }
 
     private var popularFallbackSection: some View {

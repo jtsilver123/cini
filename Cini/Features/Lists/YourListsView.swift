@@ -26,6 +26,7 @@ struct YourListsView: View {
     @State private var showListSearch = false
     @State private var listQuery = ""
     @State private var reorderMode = false
+    @State private var showAllPending = false
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
@@ -161,9 +162,21 @@ struct YourListsView: View {
                         withAnimation(.snappy) { subTab = tab }
                     } label: {
                         VStack(spacing: 6) {
-                            Text(tab.rawValue)
-                                .font(.subheadline.weight(subTab == tab ? .bold : .regular))
-                                .foregroundStyle(subTab == tab ? Theme.ink : Theme.gray)
+                            HStack(spacing: 5) {
+                                Text(tab.rawValue)
+                                    .font(.subheadline.weight(subTab == tab ? .bold : .regular))
+                                    .foregroundStyle(subTab == tab ? Theme.ink : Theme.gray)
+                                // Pending-import count: visible from every
+                                // sub-tab so the queue can't be forgotten.
+                                if tab == .watched && !pendingEntries.isEmpty {
+                                    Text("\(pendingEntries.count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(Theme.background)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(Theme.marquee))
+                                }
+                            }
                             Rectangle()
                                 .fill(subTab == tab ? Theme.ink : .clear)
                                 .frame(height: 2)
@@ -414,45 +427,78 @@ struct YourListsView: View {
 
     /// Imported titles waiting to be ranked — Letterboxd stars are never
     /// copied, so everything from an import sits here until it goes
-    /// through head-to-head ranking (favorites first).
-    private var pendingImportCount: Int {
-        importQueue.entries.filter { !store.isWatched($0.movieID) }.count
+    /// through head-to-head ranking (favorites first). Lives at the top of
+    /// Watched as "Pending"; the goal is to rank it down to zero, at which
+    /// point the section disappears.
+    private var pendingEntries: [ImportQueue.Entry] {
+        importQueue.entries.filter { !store.isWatched($0.movieID) }
+    }
+
+    @ViewBuilder
+    private var pendingSection: some View {
+        HStack(spacing: 8) {
+            Text("Pending").font(.headline)
+            Text("\(pendingEntries.count)")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Theme.background)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Theme.marquee))
+            Spacer()
+            Text("Ranked \(importQueue.rankedFromImport) of \(importQueue.totalImported)")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+        }
+        .listRowBackground(Theme.background)
+        .listRowSeparator(.hidden)
+        Text("From your import, favorites first — rank or dismiss them all to clear this section.")
+            .font(.caption)
+            .foregroundStyle(Theme.gray)
+            .listRowBackground(Theme.background)
+            .listRowSeparator(.hidden)
+        ForEach(pendingEntries.prefix(showAllPending ? 500 : 3)) { entry in
+            let movie = store.movie(entry.movieID)
+                ?? Movie(tmdbID: entry.movieID, mediaKind: "movie", title: entry.title,
+                         releaseYear: entry.year, posterPath: nil, backdropPath: nil,
+                         genres: [], certification: nil, runtimeMinutes: nil,
+                         director: nil, overview: nil)
+            MovieSuggestionRow(
+                movie: movie,
+                onRank: { logMovie = movie },
+                onOpen: { detailMovie = movie },
+                onDismiss: { withAnimation(.snappy) { importQueue.dismiss(entry.movieID) } }
+            )
+            .task { await store.enrich(entry.movieID) }
+            .listRowBackground(Theme.background)
+        }
+        if pendingEntries.count > 3 {
+            Button {
+                withAnimation(.snappy) { showAllPending.toggle() }
+            } label: {
+                Text(showAllPending ? "Show fewer" : "See all \(pendingEntries.count)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Theme.background)
+            .listRowSeparator(.hidden)
+        }
+        if !store.watchedItems.isEmpty {
+            Text("RANKED")
+                .font(.system(size: 11, weight: .heavy))
+                .tracking(1.5)
+                .foregroundStyle(Theme.gray)
+                .padding(.top, 8)
+                .listRowBackground(Theme.background)
+                .listRowSeparator(.hidden)
+        }
     }
 
     private var watchedList: some View {
         List {
-            if pendingImportCount > 0 {
-                Button {
-                    tabRouter.selection = .search
-                } label: {
-                    HStack(spacing: 12) {
-                        Image(systemName: "film.stack")
-                            .font(.title3)
-                            .foregroundStyle(Theme.gold)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("\(pendingImportCount) imported films pending")
-                                .font(.subheadline.weight(.bold))
-                                .foregroundStyle(Theme.ink)
-                            Text("Rank them head-to-head — favorites first")
-                                .font(.caption)
-                                .foregroundStyle(Theme.gray)
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Theme.gold.opacity(0.10))
-                            .overlay(RoundedRectangle(cornerRadius: 12)
-                                .strokeBorder(Theme.gold.opacity(0.35), lineWidth: 1))
-                    )
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(Theme.background)
-                .listRowSeparator(.hidden)
+            if !pendingEntries.isEmpty && !reorderMode
+                && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                pendingSection
             }
             if reorderMode {
                 Text("Drag to reorder — scores update automatically")
@@ -476,7 +522,7 @@ struct YourListsView: View {
         .listStyle(.plain)
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
         .overlay {
-            if store.watchedItems.isEmpty {
+            if store.watchedItems.isEmpty && pendingEntries.isEmpty {
                 emptyList("Log your first movie with the + tab.")
             }
         }

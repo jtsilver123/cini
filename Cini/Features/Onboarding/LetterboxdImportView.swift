@@ -8,6 +8,7 @@ import UniformTypeIdentifiers
 struct LetterboxdImportView: View {
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @State private var phase: Phase = .pick
     @State private var importWatchlist = true
@@ -20,9 +21,18 @@ struct LetterboxdImportView: View {
     @State private var showPicker = false
     @State private var showPaste = false
     @State private var pastedText = ""
+    @State private var pasteDestination: PasteDestination = .watched
+    @State private var pastedToWatchlist = false
+    @State private var linkCopied = false
 
     enum Phase {
         case pick, working, summary
+    }
+
+    enum PasteDestination: String, CaseIterable, Identifiable {
+        case watched = "I've watched these"
+        case wantToWatch = "I want to watch these"
+        var id: String { rawValue }
     }
 
     var body: some View {
@@ -56,6 +66,17 @@ struct LetterboxdImportView: View {
                             .frame(minHeight: 220)
                             .padding(8)
                             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+                        Picker("Where do these go?", selection: $pasteDestination) {
+                            ForEach(PasteDestination.allCases) { destination in
+                                Text(destination.rawValue).tag(destination)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Text(pasteDestination == .watched
+                             ? "They'll join your ranking queue so you can score them head-to-head."
+                             : "They'll land straight on your Want to Watch list.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
                         PillButton(title: "Import list") {
                             showPaste = false
                             Task { await runPastedImport() }
@@ -98,7 +119,7 @@ struct LetterboxdImportView: View {
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
-                Text("Takes about 1 minute. Letterboxd's export only works from a computer — grab a code here, do the export there, and it beams straight to your phone.")
+                Text("Takes about 1 minute. Letterboxd's export only works from a computer — email yourself a link, do the export there, and it beams straight to your phone.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -189,13 +210,19 @@ struct LetterboxdImportView: View {
 
                 if let result {
                     VStack(spacing: 0) {
-                        summaryRow(icon: "film.stack", count: result.watched.count,
-                                   label: "films queued to rank",
-                                   detail: "Find them under Search → \"Movies you may have seen\" — your favorites are first.")
-                        Divider()
-                        summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
-                                   label: "added to your watchlist",
-                                   detail: importWatchlist ? nil : "Watchlist import was off.")
+                        if pastedToWatchlist {
+                            summaryRow(icon: "bookmark.fill", count: result.watched.count,
+                                       label: "added to Want to Watch",
+                                       detail: "Find them under Your Lists → Want to Watch.")
+                        } else {
+                            summaryRow(icon: "film.stack", count: result.watched.count,
+                                       label: "films queued to rank",
+                                       detail: "Find them under My Lists → Watched → Pending — your favorites are first.")
+                            Divider()
+                            summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
+                                       label: "added to your watchlist",
+                                       detail: importWatchlist ? nil : "Watchlist import was off.")
+                        }
                         if !result.unmatched.isEmpty {
                             Divider()
                             summaryRow(icon: "questionmark.circle", count: result.unmatched.count,
@@ -247,7 +274,15 @@ struct LetterboxdImportView: View {
                     progressFraction = Double(done) / Double(max(total, 1))
                 }
             }
-            ImportQueue.shared.seed(with: outcome.watched, store: store)
+            pastedToWatchlist = pasteDestination == .wantToWatch
+            if pastedToWatchlist {
+                for match in outcome.watched
+                where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
+                    await store.toggleWatchlist(movie: match.movie)
+                }
+            } else {
+                ImportQueue.shared.seed(with: outcome.watched, store: store)
+            }
             result = outcome
             withAnimation(.snappy) { phase = .summary }
         } catch {
@@ -280,50 +315,65 @@ struct LetterboxdImportView: View {
                         .background(Capsule().fill(Theme.marquee))
                 }
                 if let transferCode {
-                    Text("On your computer, open the page below, enter this code, and drop in your export - it lands here automatically.")
+                    Text("Check your email on your computer, open your link, and drop in your export — it lands here automatically.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                     HStack {
-                        Spacer()
-                        Text(transferCode)
-                            .font(.system(size: 34, weight: .bold, design: .monospaced))
-                            .tracking(6)
-                            .foregroundStyle(Theme.marquee)
-                        Spacer()
-                    }
-                    Text(importPageURL.replacingOccurrences(of: "https://", with: ""))
-                        .font(.caption.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-                    HStack {
                         ProgressView().controlSize(.small)
-                        Text("Waiting for your upload… code works for 30 minutes")
+                        Text("Waiting for your upload… link works for 30 minutes")
                             .font(.caption2)
                             .foregroundStyle(Theme.gray)
                     }
-                    Link(destination: emailMyselfURL(code: transferCode)) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "envelope")
-                            Text("Email me the link").font(.subheadline.weight(.semibold))
+                    HStack(spacing: 22) {
+                        Button {
+                            openURL(emailMyselfURL(code: transferCode))
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "envelope")
+                                Text("Resend email").font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.marquee)
                         }
-                        .foregroundStyle(Theme.marquee)
+                        .buttonStyle(.plain)
+                        Button {
+                            UIPasteboard.general.string = transferLink(code: transferCode)
+                            linkCopied = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: linkCopied ? "checkmark" : "link")
+                                Text(linkCopied ? "Link copied" : "Copy the link")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.marquee)
+                        }
+                        .buttonStyle(.plain)
                     }
+                    .frame(maxWidth: .infinity)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label { Text("Tap below for a 6-letter code") } icon: {
+                        Label { Text("Email yourself your private import link") } icon: {
                             Text("1").bold().foregroundStyle(Theme.marquee)
                         }
-                        Label { Text("On your computer: export at **letterboxd.com/settings/data**") } icon: {
+                        Label { Text("Open it on your computer and follow two steps") } icon: {
                             Text("2").bold().foregroundStyle(Theme.marquee)
                         }
-                        Label { Text("Drop the .zip at our import page — it lands here by itself") } icon: {
+                        Label { Text("Your movies land here by themselves") } icon: {
                             Text("3").bold().foregroundStyle(Theme.marquee)
                         }
                     }
                     .font(.subheadline)
-                    PillButton(title: "Get a transfer code", systemImage: "laptopcomputer.and.iphone") {
-                        Task { await startDesktopTransfer() }
+                    PillButton(title: "Email me the link", systemImage: "envelope") {
+                        Task { await startDesktopTransfer(thenOpenEmail: true) }
                     }
+                    .frame(maxWidth: .infinity)
+                    Button {
+                        Task { await startDesktopTransfer(thenOpenEmail: false) }
+                    } label: {
+                        Text("No email handy? Copy the link instead")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -331,30 +381,41 @@ struct LetterboxdImportView: View {
         }
     }
 
+    private func transferLink(code: String) -> String {
+        "\(importPageURL)?code=\(code)"
+    }
+
     private func emailMyselfURL(code: String) -> URL {
         let body = [
-            "Do this on your computer:",
+            "Open this on your computer:",
             "",
-            "1. Go to https://letterboxd.com/settings/data and click \"Export your data\"",
-            "2. Open \(importPageURL)?code=\(code)",
-            "3. Drop the .zip in - it appears in Cini on your phone automatically",
+            transferLink(code: code),
             "",
-            "The code (\(code)) works for 30 minutes; grab a fresh one in the app if it expires.",
+            "It walks you through grabbing your Letterboxd export and sends it straight to Cini on your phone.",
+            "",
+            "The link works for 30 minutes - grab a fresh one in the app if it expires.",
         ].joined(separator: "\n")
         var components = URLComponents(string: "mailto:")!
         components.queryItems = [
-            URLQueryItem(name: "subject", value: "Import your Letterboxd into Cini"),
+            URLQueryItem(name: "subject", value: "Your Cini import link"),
             URLQueryItem(name: "body", value: body),
         ]
         return components.url ?? URL(string: "mailto:")!
     }
 
-    private func startDesktopTransfer() async {
+    private func startDesktopTransfer(thenOpenEmail: Bool) async {
         guard let code = try? await SupabaseService.shared.createImportCode() else {
             errorMessage = "Couldn't start a transfer - check your connection."
             return
         }
         transferCode = code
+        linkCopied = false
+        if thenOpenEmail {
+            openURL(emailMyselfURL(code: code))
+        } else {
+            UIPasteboard.general.string = transferLink(code: code)
+            linkCopied = true
+        }
         transferTask?.cancel()
         transferTask = Task {
             // Poll for the upload until the code's 30-minute window closes.
@@ -386,6 +447,7 @@ struct LetterboxdImportView: View {
 
     private func runImport(from url: URL) async {
         errorMessage = nil
+        pastedToWatchlist = false
         withAnimation(.snappy) { phase = .working }
         progressText = "Reading export…"
         progressFraction = 0

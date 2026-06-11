@@ -28,6 +28,8 @@
     background:var(--bg); color:var(--ink); border:1px solid var(--hair); border-radius:12px;
     padding:12px 8px; outline:none; font-weight:bold;}
   input:focus{border-color:var(--marquee);}
+  .linked{display:none; font-size:14px; font-weight:bold; color:var(--green);
+    border:1px solid rgba(47,191,113,.4); border-radius:999px; padding:10px 18px;}
   .drop{margin-top:18px; border:2px dashed rgba(232,182,76,.45); border-radius:14px; padding:34px 16px;
     cursor:pointer; transition:background .15s;}
   .drop:hover,.drop.over{background:rgba(232,182,76,.08);}
@@ -44,10 +46,11 @@
   <h1>Send your Letterboxd history to your phone</h1>
   <ol>
     <li>On <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a>, click <b style="color:var(--ink);">Export your data</b> and save the .zip</li>
-    <li>Enter the 6-letter code from the Cini app</li>
+    <li id="codeStep">Enter the 6-letter code from the Cini app</li>
     <li>Drop the .zip below — it appears on your phone in seconds</li>
   </ol>
   <input id="code" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+  <span class="linked" id="linked">✓ Linked to the Cini app on your phone</span>
   <div class="drop" id="drop">
     <b>Drop your export here</b><br>
     <span style="font-size:13px; color:var(--gray);">or click to choose the .zip / .csv</span>
@@ -63,7 +66,14 @@ const fileInput = document.getElementById("file");
 const status = document.getElementById("status");
 
 const params = new URLSearchParams(location.search);
-if (params.get("code")) codeInput.value = params.get("code").toUpperCase().slice(0, 6);
+if (params.get("code")) {
+  // Arrived via the link from the app — the link carries the code, so
+  // never show it: hide the input + step and confirm the pairing instead.
+  codeInput.value = params.get("code").toUpperCase().slice(0, 6);
+  codeInput.style.display = "none";
+  document.getElementById("codeStep").style.display = "none";
+  document.getElementById("linked").style.display = "inline-block";
+}
 codeInput.addEventListener("input", () => {
   codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, "");
 });
