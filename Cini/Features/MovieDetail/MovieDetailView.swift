@@ -28,7 +28,6 @@ struct MovieDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero
-                titleBlock
                 tagRow
                 metadataBlock
                 socialProof
@@ -81,8 +80,10 @@ struct MovieDetailView: View {
 
     @State private var heroAppeared = false
 
+    /// Beli-style hero: the artwork fades into the page so the title,
+    /// score, and CTAs sit ON it and stay perfectly readable.
     private var hero: some View {
-        ZStack {
+        ZStack(alignment: .bottomLeading) {
             Color.black
             CachedAsyncImage(url: movie.backdropURL) { image in
                 image.resizable().scaledToFill()
@@ -91,69 +92,78 @@ struct MovieDetailView: View {
             }
             .scaleEffect(heroAppeared ? 1 : 1.06)
             .opacity(heroAppeared ? 1 : 0.6)
-            // Letterbox bars — the screening-room frame.
-            VStack {
-                Rectangle().fill(.black).frame(height: 12)
-                Spacer()
-                Rectangle().fill(.black).frame(height: 12)
+
+            // Artwork dissolves into the background under the info block.
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: Theme.background.opacity(0.55), location: 0.55),
+                    .init(color: Theme.background.opacity(0.96), location: 0.85),
+                    .init(color: Theme.background, location: 1),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text(movie.title)
+                    .font(Theme.detailTitle)
+                    .foregroundStyle(Theme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
+
+                HStack(spacing: 10) {
+                    if let community {
+                        ScoreChip(score: community.avgScore)
+                        Text("(\(community.ratingCount.formatted()) ratings)")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.ink)
+                    }
+                    Spacer()
+                    if myItem != nil {
+                        // Already ranked: Beli's "Rank again" pill + check.
+                        Button {
+                            showLogFlow = true
+                        } label: {
+                            Text("Rank again")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 9)
+                                .background(Capsule().fill(Theme.fill))
+                                .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Image(systemName: "checkmark.circle")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(Theme.scoreGreen)
+                    } else {
+                        Button {
+                            showLogFlow = true
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .font(.title)
+                                .foregroundStyle(Theme.ink)
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            Task { await store.toggleWatchlist(movie: movie) }
+                        } label: {
+                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                                .font(.title)
+                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
         }
-        .frame(height: 230)
+        .frame(height: 300)
         .clipped()
-        // Quick actions ride the artwork itself (feed-row icons): (+)
-        // ranks, bookmark saves, check = already on your list.
-        .overlay(alignment: .bottomTrailing) {
-            HStack(spacing: 14) {
-                if myItem != nil {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Theme.scoreGreen)
-                        .padding(8)
-                        .background(Circle().fill(.black.opacity(0.45)))
-                }
-                Button {
-                    showLogFlow = true
-                } label: {
-                    Image(systemName: "plus.circle")
-                        .foregroundStyle(.white)
-                        .padding(8)
-                        .background(Circle().fill(.black.opacity(0.45)))
-                }
-                .buttonStyle(.plain)
-                Button {
-                    Task { await store.toggleWatchlist(movie: movie) }
-                } label: {
-                    Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                        .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
-                        .padding(8)
-                        .background(Circle().fill(.black.opacity(0.45)))
-                }
-                .buttonStyle(.plain)
-            }
-            .font(.title3)
-            .padding(.trailing, 14)
-            .padding(.bottom, 22)
-        }
         .onAppear {
             withAnimation(.snappy(duration: 0.5)) { heroAppeared = true }
         }
-    }
-
-    private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(movie.title)
-                .font(Theme.detailTitle)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 10) {
-                if let community {
-                    ScoreChip(score: community.avgScore)
-                    Text("(\(community.ratingCount.formatted()) ratings)")
-                        .font(.subheadline)
-                }
-                Spacer()
-            }
-        }
-        .padding(.horizontal, 16)
     }
 
     /// Community labels for THIS movie (what members tagged it while
