@@ -152,6 +152,10 @@ def main():
                  "p_director": "Christopher Nolan", "p_overview": None}
         for name, params in [
             ("cache_movie", movie),
+            # Swift omits nil fields — a sparse call must still match the
+            # function (caught the PGRST202 that broke bookmarking).
+            ("cache_movie", {"p_tmdb_id": 27205, "p_media_kind": "movie",
+                             "p_title": "Inception", "p_genres": []}),
             ("rank_insert", {"p_movie_id": 27205, "p_bucket": "loved",
                              "p_position": 0, "p_watch_date": None}),
             ("set_ranking_labels", {"p_movie_id": 27205, "p_labels": ["Mind-bending"]}),

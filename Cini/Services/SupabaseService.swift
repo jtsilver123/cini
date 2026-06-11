@@ -832,12 +832,26 @@ final class SupabaseService {
     }
 
     func feed(limit: Int = 50) async throws -> [FeedEventRow] {
-        // RLS limits rows to people the viewer can see; order newest first.
-        try await client.from("feed_events")
+        // Your feed is the people you follow (plus yourself) — RLS alone
+        // only handles VISIBILITY, which would surface every public
+        // member's activity to everyone.
+        guard let me = currentUserID else { return [] }
+        struct Edge: Codable {
+            let followingId: UUID
+            enum CodingKeys: String, CodingKey { case followingId = "following_id" }
+        }
+        let edges: [Edge] = try await client.from("follows")
+            .select("following_id")
+            .eq("follower_id", value: me)
+            .execute().value
+        var ids = edges.map(\.followingId)
+        ids.append(me)
+        return try await client.from("feed_events")
             // profiles must name the FK: the likes table adds a second
             // feed_events↔profiles path and PostgREST rejects the bare
             // embed as ambiguous (PGRST201), silently emptying the feed.
             .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)")
+            .in("user_id", values: ids)
             .order("created_at", ascending: false)
             .limit(limit)
             .execute().value
@@ -1148,6 +1162,30 @@ private struct CacheMovieParams: Encodable {
         p_runtime_minutes = movie.runtimeMinutes
         p_director = movie.director
         p_overview = movie.overview
+    }
+
+    // Synthesized Encodable would OMIT nil keys and PostgREST then can't
+    // match the function (PGRST202) — encode explicit nulls so the full
+    // parameter set always goes over the wire.
+    enum CodingKeys: String, CodingKey {
+        case p_tmdb_id, p_media_kind, p_title, p_release_year, p_poster_path,
+             p_backdrop_path, p_genres, p_certification, p_runtime_minutes,
+             p_director, p_overview
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(p_tmdb_id, forKey: .p_tmdb_id)
+        try c.encode(p_media_kind, forKey: .p_media_kind)
+        try c.encode(p_title, forKey: .p_title)
+        try c.encode(p_release_year, forKey: .p_release_year)
+        try c.encode(p_poster_path, forKey: .p_poster_path)
+        try c.encode(p_backdrop_path, forKey: .p_backdrop_path)
+        try c.encode(p_genres, forKey: .p_genres)
+        try c.encode(p_certification, forKey: .p_certification)
+        try c.encode(p_runtime_minutes, forKey: .p_runtime_minutes)
+        try c.encode(p_director, forKey: .p_director)
+        try c.encode(p_overview, forKey: .p_overview)
     }
 }
 

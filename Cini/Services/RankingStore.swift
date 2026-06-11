@@ -97,7 +97,8 @@ final class RankingStore {
         ImportQueue.shared.markRanked(session.newItemID)
         do {
             if let movie = movies[session.newItemID] {
-                try? await supabase.cacheMovie(movie)
+                // rank_insert FKs onto movies — the cache isn't optional.
+                try await supabase.cacheMovie(movie)
             }
             _ = try await supabase.rankInsert(
                 movieID: session.newItemID,
@@ -180,8 +181,10 @@ final class RankingStore {
         } else {
             return
         }
-        try? await supabase.cacheMovie(movie)
         do {
+            // Adding requires the movie row to exist — a failed cache means
+            // the toggle would hit the FK, so it fails the whole save.
+            if !wasSaved { try await supabase.cacheMovie(movie) }
             _ = try await supabase.watchlistToggle(movieID: movie.tmdbID)
         } catch {
             // Revert the optimistic flip and say so — silence feels broken.

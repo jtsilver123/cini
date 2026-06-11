@@ -468,9 +468,10 @@ struct FriendThinkRow: View {
                 } label: {
                     HStack(spacing: 12) {
                         AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44,
-                                   name: friend.displayName ?? friend.username)
+                                   name: preferredName(friend.displayName, friend.username))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(friend.displayName ?? friend.username).font(.subheadline.weight(.semibold))
+                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
                             Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
                         }

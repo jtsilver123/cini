@@ -434,6 +434,15 @@ struct HairlineCard<Content: View>: View {
 
 // MARK: - Avatars
 
+/// The name an avatar or row should lead with: the display name when it's
+/// actually set, otherwise the username. Display names arrive as EMPTY
+/// strings (not nil) for members who never set one — `??` alone misses
+/// them and initials come up blank.
+func preferredName(_ displayName: String?, _ username: String?) -> String? {
+    if let displayName, !displayName.isEmpty { return displayName }
+    return username
+}
+
 struct AvatarView: View {
     let url: URL?
     var size: CGFloat = 44

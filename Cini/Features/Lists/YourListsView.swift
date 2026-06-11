@@ -328,7 +328,7 @@ struct YourListsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         AvatarView(url: rec.profiles?.avatarUrl.flatMap(URL.init), size: 28,
-                                   name: rec.profiles?.displayName ?? rec.profiles?.username)
+                                   name: preferredName(rec.profiles?.displayName, rec.profiles?.username))
                         (Text("@\(rec.profiles?.username ?? "friend")").bold()
                             + Text(" thinks you'll love this"))
                             .font(.caption)

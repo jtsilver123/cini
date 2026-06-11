@@ -367,7 +367,7 @@ struct FeedCard: View {
                     onOpenMember(MemberRef(id: event.userId, username: actorName))
                 } label: {
                     AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48,
-                               name: event.profiles?.displayName ?? event.profiles?.username)
+                               name: preferredName(event.profiles?.displayName, event.profiles?.username))
                 }
                 .buttonStyle(.plain)
 
@@ -428,14 +428,20 @@ struct FeedCard: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Theme.surface)
                 if let movie {
-                    CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(width: 150)
-                    .frame(maxHeight: .infinity)
-                    .mask(
+                    // Overlay-isolated like the movie hero: the bitmap's
+                    // size can never leak into the card's layout.
+                    Color.clear
+                        .frame(width: 150)
+                        .frame(maxHeight: .infinity)
+                        .overlay {
+                            CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                Color.clear
+                            }
+                        }
+                        .clipped()
+                        .mask(
                         LinearGradient(colors: [.clear, .black],
                                        startPoint: .leading, endPoint: .trailing)
                     )
@@ -502,7 +508,7 @@ struct CommentsSheet: View {
                                                   username: comment.profiles?.username ?? "member")
                             } label: {
                                 AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
-                                           name: comment.profiles?.displayName ?? comment.profiles?.username)
+                                           name: preferredName(comment.profiles?.displayName, comment.profiles?.username))
                             }
                             .buttonStyle(.plain)
                             VStack(alignment: .leading, spacing: 3) {
@@ -696,7 +702,7 @@ struct NotificationsView: View {
                         }
                     } label: {
                         AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
-                           name: row.actor?.displayName ?? row.actor?.username)
+                           name: preferredName(row.actor?.displayName, row.actor?.username))
                     }
                     .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 3) {

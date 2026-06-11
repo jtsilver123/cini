@@ -403,7 +403,42 @@ struct CiniChatAvailableView: View {
             let response = try await session.respond(to: prompt)
             isThinking = false
             await reveal(response.content)
+        } catch let error as GenerationError {
+            switch error {
+            case .guardrailViolation:
+                // The on-device model refuses some legit movie topics
+                // (mental-health docs, true crime) — say what happened
+                // instead of a generic shrug.
+                isThinking = false
+                await reveal("Apple's on-device safety filter balked at that one — it can be touchy about heavy subject matter. Ask it a different way and I'll take another swing.")
+            case .exceededContextWindowSize:
+                // The chat outgrew the model's window: fresh session
+                // (taste context intact), then retry this prompt once.
+                self.session = nil
+                configureSession()
+                if let fresh = self.session,
+                   let retried = try? await fresh.respond(to: prompt) {
+                    isThinking = false
+                    await reveal(retried.content)
+                } else {
+                    isThinking = false
+                    await reveal("Our chat got too long for the on-device model, so I started fresh — ask me that again.")
+                }
+            default:
+                await retryOnce(session: session, prompt: prompt)
+            }
         } catch {
+            await retryOnce(session: session, prompt: prompt)
+        }
+    }
+
+    /// Transient on-device hiccups usually clear on a second attempt —
+    /// only give up after one quiet retry.
+    private func retryOnce(session: LanguageModelSession, prompt: String) async {
+        if let retried = try? await session.respond(to: prompt) {
+            isThinking = false
+            await reveal(retried.content)
+        } else {
             isThinking = false
             await reveal("I hit a snag answering that — try rephrasing, or ask something shorter.")
         }
