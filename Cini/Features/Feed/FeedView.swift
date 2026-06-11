@@ -216,34 +216,36 @@ struct FeedView: View {
         }
     }
 
+    /// First session: don't describe the app, point at the one action
+    /// that starts everything. (The Ask Cini FAB is always present.)
     private var emptyState: some View {
         HairlineCard {
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gold)
-                Text("Your feed starts with friends")
-                    .font(.subheadline.weight(.bold))
-                Text("Follow members from the Search tab to see what they rank — or build your own list first.")
-                    .font(.caption)
+                Text("Your feed starts with you")
+                    .font(Theme.serif(24))
+                Text("Rank one movie and Cini starts learning your taste. Friends' rankings land here as you follow them.")
+                    .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                HStack(spacing: 10) {
-                    if #available(iOS 26.0, *) {
-                        NavigationLink {
-                            CiniChatView()
-                        } label: {
-                            Text("Ask Cini")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.marquee)
-                                .padding(.horizontal, 14).padding(.vertical, 9)
-                                .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    PillButton(title: "Import history", systemImage: "square.and.arrow.down") {
-                        showImport = true
-                    }
+
+                PillButton(title: "Rank your first movie", systemImage: "plus.circle") {
+                    tabRouter.selection = .search
                 }
-                .padding(.top, 4)
+                PillButton(title: "Import your history", systemImage: "square.and.arrow.down",
+                           style: .outlined) {
+                    showImport = true
+                }
+                Button {
+                    tabRouter.openMembersSearch = true
+                    tabRouter.selection = .search
+                } label: {
+                    Text("Find friends to follow")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)
         }
@@ -364,10 +366,14 @@ struct FeedCard: View {
 
             HStack(spacing: 18) {
                 Button {
+                    Haptics.tap()
                     liked.toggle()   // optimistic; reverted if the call fails
                     Task {
                         do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
-                        catch { liked.toggle() }
+                        catch {
+                            liked.toggle()
+                            ToastCenter.shared.saveFailed()
+                        }
                     }
                 } label: {
                     Image(systemName: liked ? "heart.fill" : "heart")
@@ -489,8 +495,11 @@ struct CommentsSheet: View {
                         // Moderation: long-press any comment.
                         .contextMenu {
                             Button(role: .destructive) {
-                                Task { await SupabaseService.shared.report(
-                                    kind: "comment", subjectID: comment.id.uuidString) }
+                                Task {
+                                    await SupabaseService.shared.report(
+                                        kind: "comment", subjectID: comment.id.uuidString)
+                                    ToastCenter.shared.show("Reported — we'll review it")
+                                }
                             } label: {
                                 Label("Report comment", systemImage: "flag")
                             }
@@ -545,6 +554,7 @@ struct CommentsSheet: View {
             try await SupabaseService.shared.comment(eventID: eventID, body: body)
         } catch {
             draft = body   // give the text back instead of eating it
+            ToastCenter.shared.saveFailed()
         }
         await reload()
     }

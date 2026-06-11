@@ -357,6 +357,7 @@ struct ProfileScreen: View {
                             await SupabaseService.shared.report(
                                 kind: "member", subjectID: id.uuidString)
                             reported = true
+                            ToastCenter.shared.show("Reported — we'll review it")
                         }
                     } label: {
                         Label(reported ? "Reported" : "Report member", systemImage: "flag")
@@ -366,8 +367,10 @@ struct ProfileScreen: View {
                         Task {
                             if blocked {
                                 try? await SupabaseService.shared.unblock(id)
+                                ToastCenter.shared.show("Unblocked")
                             } else {
                                 try? await SupabaseService.shared.block(id)
+                                ToastCenter.shared.show("Blocked — their content is hidden everywhere")
                             }
                             blocked.toggle()
                             await load()   // their content disappears server-side
@@ -416,11 +419,11 @@ struct ProfileScreen: View {
                                 if followedSuggested.contains(member.id) {
                                     followedSuggested.remove(member.id)
                                     do { try await SupabaseService.shared.unfollow(member.id) }
-                                    catch { followedSuggested.insert(member.id) }
+                                    catch { followedSuggested.insert(member.id); ToastCenter.shared.saveFailed() }
                                 } else {
                                     followedSuggested.insert(member.id)
                                     do { try await SupabaseService.shared.follow(member.id) }
-                                    catch { followedSuggested.remove(member.id) }
+                                    catch { followedSuggested.remove(member.id); ToastCenter.shared.saveFailed() }
                                 }
                             }
                         } label: {

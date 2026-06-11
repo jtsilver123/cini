@@ -819,14 +819,18 @@ struct MovieDetailView: View {
                 // Moderation lives on every piece of public content.
                 Menu {
                     Button(role: .destructive) {
-                        Task { await SupabaseService.shared.report(
-                            kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)") }
+                        Task {
+                            await SupabaseService.shared.report(
+                                kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)")
+                            ToastCenter.shared.show("Reported — we'll review it")
+                        }
                     } label: {
                         Label("Report this note", systemImage: "flag")
                     }
                     Button(role: .destructive) {
                         Task {
                             try? await SupabaseService.shared.block(row.userId)
+                            ToastCenter.shared.show("Blocked @\(row.username) — their content is hidden")
                             // Refresh only on success — a failed reload must
                             // not wipe the wall.
                             if let fresh = try? await SupabaseService.shared
@@ -908,6 +912,7 @@ struct MovieDetailView: View {
     private func toggleHeart(on row: PublicNoteRow) {
         guard let eventId = row.eventId,
               let index = publicNotes.firstIndex(where: { $0.id == row.id }) else { return }
+        Haptics.tap()
         let wasLiked = publicNotes[index].likedByMe
         publicNotes[index].likedByMe.toggle()
         publicNotes[index].likeCount += wasLiked ? -1 : 1
@@ -918,6 +923,7 @@ struct MovieDetailView: View {
                     publicNotes[i].likedByMe = wasLiked
                     publicNotes[i].likeCount += wasLiked ? 1 : -1
                 }
+                ToastCenter.shared.saveFailed()
             }
         }
     }
@@ -929,11 +935,9 @@ struct MovieDetailView: View {
         async let detail = TMDBService.shared.details(for: movie.tmdbID)
         async let providersTask = TMDBService.shared.watchProviders(for: movie.tmdbID)
         async let trailerTask = TMDBService.shared.trailerURL(for: movie.tmdbID)
-        async let communityTask = SupabaseService.shared.communityScore(movieID: movie.tmdbID)
+        // Community score, histogram, labels, performances: one round trip.
+        async let statsTask = SupabaseService.shared.moviePageStats(movieID: movie.tmdbID)
         async let friendsTask = SupabaseService.shared.friendScores(movieID: movie.tmdbID)
-        async let histogramTask = SupabaseService.shared.scoreHistogram(movieID: movie.tmdbID)
-        async let performancesTask = SupabaseService.shared.topPerformances(movieID: movie.tmdbID)
-        async let labelsTask = SupabaseService.shared.movieTopLabels(movieID: movie.tmdbID)
         async let myDetailsTask = SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID)
         async let keywordsTask = TMDBService.shared.keywords(for: movie.tmdbID)
         async let castTask = TMDBService.shared.cast(for: movie.tmdbID)
@@ -951,13 +955,14 @@ struct MovieDetailView: View {
             store.cache(enriched)
         }
         myDetails = await myDetailsTask
-        let communityLabels = (try? await labelsTask) ?? []
+        let stats = await statsTask
+        let communityLabels = stats?.labels ?? []
         tags = communityLabels.isEmpty ? ((try? await keywordsTask) ?? []) : communityLabels
         trailerURL = try? await trailerTask
-        community = try? await communityTask
+        community = stats?.community
         friends = (try? await friendsTask) ?? []
-        histogram = (try? await histogramTask) ?? []
-        performances = (try? await performancesTask) ?? []
+        histogram = stats?.histogram ?? []
+        performances = SupabaseService.tallyPerformances(stats?.performances ?? [])
         cast = (try? await castTask) ?? []
         extended = try? await extendedTask
         publicNotes = (try? await publicNotesTask) ?? []
@@ -1105,6 +1110,7 @@ struct EditDetailsSheet: View {
         try? await supabase.setPerformances(movieID: movie.tmdbID,
                                             cast: Array(draft.cast))
         FriendsCache.shared.warm()   // tag frequencies may have changed
+        Haptics.success()
         onSaved()
         dismiss()
     }

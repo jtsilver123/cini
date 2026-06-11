@@ -37,10 +37,15 @@ struct RewatchSheet: View {
                 guard !saving else { return }
                 saving = true
                 Task {
-                    try? await SupabaseService.shared.logWatch(
-                        movieID: movie.tmdbID, on: date, where: location)
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    onLogged()
+                    do {
+                        try await SupabaseService.shared.logWatch(
+                            movieID: movie.tmdbID, on: date, where: location)
+                        Haptics.success()
+                        ToastCenter.shared.show("Added to your Diary")
+                        onLogged()
+                    } catch {
+                        ToastCenter.shared.saveFailed()
+                    }
                     dismiss()
                 }
             }

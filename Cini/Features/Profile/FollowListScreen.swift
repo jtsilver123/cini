@@ -120,15 +120,16 @@ struct FollowListScreen: View {
     }
 
     private func toggleFollow(_ id: UUID) async {
+        Haptics.tap()
         // Optimistic flip, reverted if the call fails.
         if iFollow.contains(id) {
             iFollow.remove(id)
             do { try await SupabaseService.shared.unfollow(id) }
-            catch { iFollow.insert(id) }
+            catch { iFollow.insert(id); ToastCenter.shared.saveFailed() }
         } else {
             iFollow.insert(id)
             do { try await SupabaseService.shared.follow(id) }
-            catch { iFollow.remove(id) }
+            catch { iFollow.remove(id); ToastCenter.shared.saveFailed() }
         }
     }
 

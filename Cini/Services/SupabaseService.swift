@@ -606,7 +606,11 @@ final class SupabaseService {
             .select("tmdb_person_id, person_name, profile_path")
             .eq("movie_id", value: movieID)
             .execute().value
-        // Tally recommendations per person.
+        return Self.tallyPerformances(rows)
+    }
+
+    /// Tally recommendations per person, most recommended first.
+    static func tallyPerformances(_ rows: [PerformanceCount]) -> [PerformanceCount] {
         var counts: [Int: PerformanceCount] = [:]
         for row in rows {
             if var existing = counts[row.tmdbPersonId] {
@@ -617,6 +621,21 @@ final class SupabaseService {
             }
         }
         return counts.values.sorted { $0.count > $1.count }
+    }
+
+    /// The movie page's public aggregates in ONE round trip (was four) —
+    /// the page assembles noticeably faster on cellular.
+    struct MoviePageStats: Decodable {
+        let community: CommunityScore?
+        let histogram: [HistogramBin]
+        let labels: [String]
+        let performances: [PerformanceCount]
+    }
+
+    func moviePageStats(movieID: Int) async -> MoviePageStats? {
+        struct Params: Encodable { let p_movie_id: Int }
+        return try? await client.rpc("movie_page_stats", params: Params(p_movie_id: movieID))
+            .execute().value
     }
 
     // MARK: - Ranking enrichment

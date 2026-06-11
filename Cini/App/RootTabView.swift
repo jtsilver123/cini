@@ -75,6 +75,8 @@ struct RootTabView: View {
                 .ignoresSafeArea(.keyboard)
             }
         }
+        // Write failures and confirmations surface here, app-wide.
+        .overlay { ToastOverlay() }
         .sheet(isPresented: $showChat) {
             NavigationStack {
                 CiniChatView()

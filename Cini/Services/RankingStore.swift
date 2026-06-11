@@ -160,16 +160,35 @@ final class RankingStore {
 
     func toggleWatchlist(movie: Movie) async {
         cache(movie)
+        Haptics.tap()
+        let wasSaved: Bool
         if let index = watchlist.firstIndex(where: { $0.movieID == movie.tmdbID }) {
+            wasSaved = true
             watchlist.remove(at: index)
         } else if let userID = supabase.currentUserID {
+            wasSaved = false
             watchlist.insert(
                 WatchlistItem(id: UUID(), userID: userID, movieID: movie.tmdbID, createdAt: .now),
                 at: 0
             )
+        } else {
+            return
         }
         try? await supabase.cacheMovie(movie)
-        _ = try? await supabase.watchlistToggle(movieID: movie.tmdbID)
+        do {
+            _ = try await supabase.watchlistToggle(movieID: movie.tmdbID)
+        } catch {
+            // Revert the optimistic flip and say so — silence feels broken.
+            if wasSaved, let userID = supabase.currentUserID {
+                watchlist.insert(
+                    WatchlistItem(id: UUID(), userID: userID, movieID: movie.tmdbID, createdAt: .now),
+                    at: 0
+                )
+            } else {
+                watchlist.removeAll { $0.movieID == movie.tmdbID }
+            }
+            ToastCenter.shared.saveFailed()
+        }
     }
 
     // MARK: - Metadata

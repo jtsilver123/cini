@@ -275,6 +275,7 @@ func bookmarkTapped(movie: Movie, store: RankingStore, askDestination: () -> Voi
     if store.isOnWatchlist(movie.tmdbID) || store.customLists.isEmpty {
         Task { await store.toggleWatchlist(movie: movie) }
     } else {
+        Haptics.tap()
         askDestination()
     }
 }
@@ -312,9 +313,15 @@ struct SaveToListSheet: View {
 
                 ForEach(store.customLists) { list in
                     Button {
+                        Haptics.tap()
                         Task {
                             try? await SupabaseService.shared.cacheMovie(movie)
-                            try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
+                            do {
+                                try await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
+                                ToastCenter.shared.show("Saved to \(list.name)")
+                            } catch {
+                                ToastCenter.shared.saveFailed()
+                            }
                         }
                         dismiss()
                     } label: {
@@ -336,6 +343,9 @@ struct SaveToListSheet: View {
                                 try? await SupabaseService.shared.cacheMovie(movie)
                                 try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
                                 await store.refreshCustomLists()
+                                ToastCenter.shared.show("Saved to \(list.name)")
+                            } else {
+                                ToastCenter.shared.saveFailed()
                             }
                         }
                         dismiss()
