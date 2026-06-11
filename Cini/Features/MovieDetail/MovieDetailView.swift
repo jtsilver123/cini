@@ -33,8 +33,8 @@ struct MovieDetailView: View {
                 socialProof
                 actionPills
                 scoresSection
-                performancesSection
                 histogramSection
+                performancesSection
                 friendsSection
             }
             .padding(.bottom, 32)
@@ -318,28 +318,52 @@ struct MovieDetailView: View {
         }
     }
 
+    /// Beli's breakdown: big colored average + count on the left, the
+    /// distribution on the right with just the 0.0 / 10.0 endpoints.
     private var histogramSection: some View {
         Group {
-            if !histogram.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+            if !histogram.isEmpty, let community {
+                VStack(alignment: .leading, spacing: 14) {
                     Text("Ratings Breakdown").font(.title3.weight(.bold))
-                    let maxN = histogram.map(\.n).max() ?? 1
-                    HStack(alignment: .bottom, spacing: 6) {
-                        ForEach(0..<11, id: \.self) { floor in
-                            let n = histogram.first { $0.bucketFloor == floor }?.n ?? 0
-                            VStack(spacing: 4) {
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Theme.marquee.opacity(n == 0 ? 0.15 : 0.9))
-                                    .frame(height: max(4, 80 * CGFloat(n) / CGFloat(maxN)))
-                                Text("\(floor)").font(.caption2).foregroundStyle(Theme.gray)
+                    HStack(alignment: .center, spacing: 20) {
+                        VStack(spacing: 2) {
+                            Text(community.avgScore.formatted(.number.precision(.fractionLength(1))))
+                                .font(.system(size: 44, weight: .bold, design: .rounded))
+                                .foregroundStyle(Theme.scoreColor(community.avgScore))
+                            Text(ratingCountLabel(community.ratingCount))
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.gray)
+                        }
+                        VStack(spacing: 6) {
+                            let maxN = histogram.map(\.n).max() ?? 1
+                            HStack(alignment: .bottom, spacing: 4) {
+                                ForEach(0..<11, id: \.self) { floor in
+                                    let n = histogram.first { $0.bucketFloor == floor }?.n ?? 0
+                                    RoundedRectangle(cornerRadius: 2.5)
+                                        .fill(Theme.marquee.opacity(n == 0 ? 0.18 : 0.9))
+                                        .frame(height: max(3, 84 * CGFloat(n) / CGFloat(maxN)))
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
-                            .frame(maxWidth: .infinity)
+                            .frame(height: 84, alignment: .bottom)
+                            HStack {
+                                Text("0.0")
+                                Spacer()
+                                Text("10.0")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
                         }
                     }
                 }
                 .padding(.horizontal, 16)
             }
         }
+    }
+
+    private func ratingCountLabel(_ count: Int) -> String {
+        count >= 1000 ? "\(count / 1000)k ratings"
+                      : "\(count) rating\(count == 1 ? "" : "s")"
     }
 
     private var friendsSection: some View {
