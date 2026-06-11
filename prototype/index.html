@@ -1584,6 +1584,20 @@ function openLog(k){
   log={k, bucket:null, stage:"sentiment", with:[], snapshot:JSON.stringify(S.watched)};
   renderOverlay(`<div id="logStack" style="display:flex; flex-direction:column; gap:11px;">${logCards()}</div>`);
 }
+/* Filing chip on the log card: Want to Watch by default, your own
+   lists (or a brand-new one) one tap away. */
+function openLogListPicker(){
+  if(!log) return;
+  const back=()=>{ closeOverlay(); renderOverlay(`<div id='logStack' style='display:flex; flex-direction:column; gap:11px;'>${logCards()}</div>`); };
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">File it under</b>
+      <button class="iconbtn" onclick="closeOverlay(); renderOverlay(\`<div id='logStack' style='display:flex; flex-direction:column; gap:11px;'>\${logCards()}</div>\`)">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="erow" onclick="log.targetList=null; closeOverlay(); renderOverlay(\`<div id='logStack' style='display:flex; flex-direction:column; gap:11px;'>\${logCards()}</div>\`)"><span class="ic" style="color:var(--marquee);">${I("bookmark",18)}</span><span style="flex:1; font-weight:600;">Want to Watch<div class="sub">Default</div></span>${!log.targetList?`<span style="color:var(--marquee);">${IF("check",18)}</span>`:""}</div>
+      ${["Date night","2023 catch-up"].map(n=>`<div class="erow" onclick="log.targetList='${n}'; closeOverlay(); renderOverlay(\`<div id='logStack' style='display:flex; flex-direction:column; gap:11px;'>\${logCards()}</div>\`)"><span class="ic" style="color:var(--marquee);">${I("star",18)}</span><span style="flex:1; font-weight:600;">${n}</span>${log.targetList===n?`<span style="color:var(--marquee);">${IF("check",18)}</span>`:""}</div>`).join("")}
+      <div class="erow" style="border-bottom:none;" onclick="toast('New list — name it and it appears here')"><span class="ic">${I("plus",18)}</span><span style="flex:1;">New List…</span></div>
+    </div>`);
+}
 function toggleWatchedWith(u, el){
   if(!log) return;
   log.with = log.with||[];
@@ -1625,9 +1639,10 @@ function logCards(){
       </div>
       <button class="iconbtn" onclick="closeLog()">${I("x",20)}</button>
     </div>
-    <div class="fcard" style="display:flex; align-items:center; gap:12px;">
-      <span style="font-size:15.5px;">Add to my list of</span>
-      <button style="display:inline-flex; align-items:center; gap:8px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:9px 15px; font-weight:700; font-size:15px; cursor:pointer;" onclick="toast('Movies · TV · Docs · Anime — switch in Your Lists')">${I("film",16)} Movies ${I("chevD",13)}</button>
+    <div class="fcard" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+      <span style="font-size:14.5px;">Add to my list of</span>
+      <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="toast('Movies · TV · Docs · Anime')">${I("film",15)} Movies ${I("chevD",12)}</button>
+      <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="openLogListPicker()">${I(log.targetList?"star":"bookmark",15)} ${log.targetList||"Want to Watch"} ${I("chevD",12)}</button>
     </div>
     <div class="fcard">
       <div style="text-align:center; font-size:18px; font-weight:800;">How was it?</div>

@@ -27,6 +27,12 @@ struct EnrichmentDraft {
 struct LogFlowView: View {
     let movie: Movie
 
+    init(movie: Movie) {
+        self.movie = movie
+        // TV shows open as TV — the chip must never claim a show is a movie.
+        _category = State(initialValue: movie.mediaKind == "tv" ? .tvShows : .movies)
+    }
+
     @Environment(AppSession.self) private var appSession
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -40,6 +46,11 @@ struct LogFlowView: View {
     @State private var pairID = 0
     @State private var enrichRow: EnrichmentCard.Row?
     @State private var movieCast: [CastMember] = []
+    // Filing destination next to the media chip: nil = Want to Watch.
+    @State private var targetList: CustomList?
+    @State private var myLists: [CustomList] = []
+    @State private var showNewListAlert = false
+    @State private var newListName = ""
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -115,6 +126,7 @@ struct LogFlowView: View {
         }
         .task {
             movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
+            myLists = (try? await SupabaseService.shared.myLists()) ?? []
         }
     }
 
@@ -154,12 +166,14 @@ struct LogFlowView: View {
         .floatingCard()
     }
 
-    // MARK: Card 2 — category
+    // MARK: Card 2 — category + list destination
 
     private var categoryCard: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Text("Add to my list of")
                 .font(.body)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Menu {
                 ForEach(MediaCategory.allCases) { option in
                     Button {
@@ -169,22 +183,68 @@ struct LogFlowView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: category.icon)
-                    Text(category.title).font(.body.weight(.semibold))
-                    Image(systemName: "chevron.down").font(.caption.weight(.bold))
-                }
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink.opacity(0.7), lineWidth: 1.3))
+                chipLabel(icon: category.icon, title: category.title)
             }
-            Spacer()
+            // Where it files: Want to Watch by default, or any of your
+            // own lists (make one right here).
+            Menu {
+                Button {
+                    targetList = nil
+                } label: {
+                    Label("Want to Watch", systemImage: "bookmark")
+                }
+                ForEach(myLists) { list in
+                    Button {
+                        targetList = list
+                    } label: {
+                        Label(list.name, systemImage: "list.star")
+                    }
+                }
+                Divider()
+                Button {
+                    showNewListAlert = true
+                } label: {
+                    Label("New List…", systemImage: "plus")
+                }
+            } label: {
+                chipLabel(icon: targetList == nil ? "bookmark" : "list.star",
+                          title: targetList?.name ?? "Want to Watch")
+            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
+        .alert("New List", isPresented: $showNewListAlert) {
+            TextField("Name (e.g. Best heist movies)", text: $newListName)
+            Button("Create") {
+                let name = newListName.trimmingCharacters(in: .whitespaces)
+                newListName = ""
+                guard !name.isEmpty else { return }
+                Task {
+                    if let list = try? await SupabaseService.shared.createList(name: name) {
+                        myLists.insert(list, at: 0)
+                        targetList = list
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) { newListName = "" }
+        }
+    }
+
+    private func chipLabel(icon: String, title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.subheadline)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+            Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+        }
+        .foregroundStyle(Theme.ink)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.ink.opacity(0.7), lineWidth: 1.3))
     }
 
     // MARK: Card 3 — sentiment circles
@@ -397,6 +457,12 @@ struct LogFlowView: View {
         try? await supabase.logWatch(movieID: movie.tmdbID,
                                      on: draft.watchDate ?? .now,
                                      where: draft.watchedWhere)
+        // Filing chip: a chosen custom list gets the title too. (The
+        // Want to Watch default is a no-op here — a rank means watched.)
+        if let list = targetList {
+            try? await supabase.cacheMovie(movie)
+            try? await supabase.addToList(list.id, movieID: movie.tmdbID)
+        }
         for member in draft.cast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
         }
