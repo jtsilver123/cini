@@ -122,7 +122,7 @@ struct EnrichmentCard: View {
                     .foregroundStyle(Theme.gray)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 9)
     }
 
     private func enrichmentRow(_ row: Row, icon: String, title: String, detail: String? = nil) -> some View {
@@ -141,7 +141,7 @@ struct EnrichmentCard: View {
                 Spacer()
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
-            .padding(.vertical, 14)
+            .padding(.vertical, 11)
         }
         .buttonStyle(.plain)
     }
@@ -159,7 +159,7 @@ struct EnrichmentCard: View {
             Toggle("", isOn: $draft.stealthMode).labelsHidden().tint(Theme.marquee)
                 .disabled(isLocked)
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
     }
 
     private var friendsSection: some View {

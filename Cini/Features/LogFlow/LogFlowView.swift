@@ -55,7 +55,7 @@ struct LogFlowView: View {
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 12) {
+                    VStack(spacing: 8) {
                         titleCard
                         categoryCard
                         sentimentCard
@@ -139,7 +139,8 @@ struct LogFlowView: View {
                     .foregroundStyle(Theme.ink)
             }
         }
-        .padding(18)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
     }
@@ -171,8 +172,8 @@ struct LogFlowView: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
     }
@@ -180,7 +181,7 @@ struct LogFlowView: View {
     // MARK: Card 3 — sentiment circles
 
     private var sentimentCard: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 14) {
             Text("How was it?")
                 .font(.title3.weight(.bold))
             HStack(alignment: .top, spacing: 0) {
@@ -189,7 +190,7 @@ struct LogFlowView: View {
                 sentimentCircle("I didn't like it", color: Theme.sentimentDisliked, value: .disliked)
             }
         }
-        .padding(.vertical, 22)
+        .padding(.vertical, 16)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
         .floatingCard()
@@ -201,10 +202,10 @@ struct LogFlowView: View {
         return Button {
             pick(value)
         } label: {
-            VStack(spacing: 12) {
+            VStack(spacing: 9) {
                 Circle()
                     .fill(color.opacity(isDimmed ? 0.45 : 1))
-                    .frame(width: 68, height: 68)
+                    .frame(width: 62, height: 62)
                     .overlay {
                         if isSelected {
                             Image(systemName: "checkmark")
@@ -313,7 +314,7 @@ struct LogFlowView: View {
             .buttonStyle(.plain)
             .padding(.horizontal, 6)
         }
-        .padding(20)
+        .padding(16)
         .frame(maxWidth: .infinity)
         .floatingCard()
     }
@@ -436,7 +437,7 @@ struct LogFlowView: View {
             PillButton(title: "Done") { dismiss() }
                 .frame(maxWidth: .infinity)
         }
-        .padding(20)
+        .padding(16)
         .frame(maxWidth: .infinity)
         .floatingCard()
     }
