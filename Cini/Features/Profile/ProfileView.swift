@@ -296,6 +296,9 @@ struct ProfileScreen: View {
             Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
         }
         .padding(.vertical, 14)
+        // The stretch between title and count is empty space — without an
+        // explicit shape only the icon/text/arrow register taps.
+        .contentShape(Rectangle())
     }
 
     // MARK: Stat cards (Rank on Cini · Current Streak)
