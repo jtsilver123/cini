@@ -492,9 +492,12 @@ struct LetterboxdImportView: View {
             if !outcome.importedLists.isEmpty {
                 let existing = (try? await SupabaseService.shared.myLists()) ?? []
                 for list in outcome.importedLists {
-                    let target = existing.first {
+                    var target = existing.first {
                         $0.name.localizedCaseInsensitiveCompare(list.name) == .orderedSame
-                    } ?? (try? await SupabaseService.shared.createList(name: list.name))
+                    }
+                    if target == nil {
+                        target = try? await SupabaseService.shared.createList(name: list.name)
+                    }
                     guard let target else { continue }
                     for match in list.matches {
                         store.cache(match.movie)

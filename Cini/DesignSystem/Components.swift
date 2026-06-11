@@ -14,7 +14,10 @@ extension View {
             self.glassEffect(glass, in: .capsule)
         } else {
             self.background(
-                Capsule().fill(tint ?? Color.white)
+                // Solid white here was a latent pre-iOS-26 bug: glaring in
+                // the dark room, invisible intent in the light one. The
+                // adaptive fill reads as glass in both.
+                Capsule().fill(tint ?? Theme.fill)
                     .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: tint == nil ? 1 : 0))
             )
         }
