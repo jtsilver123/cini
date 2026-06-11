@@ -62,15 +62,21 @@ final class ChatAgentBridge {
             return hit
         }
         // Still nothing: try the most distinctive word ("that anatomy
-        // courtroom one" → "anatomy").
+        // courtroom one" → "anatomy"). Built with plain loops — the
+        // chained version timed out the type checker.
         let stop: Set<String> = ["that", "this", "with", "from", "about", "movie",
                                  "film", "show", "new", "old", "one", "the"]
-        if let longest = query.lowercased().split(separator: " ")
-            .map(String.init)
-            .filter({ $0.count > 3 && !stop.contains($0) })
-            .max(by: { $0.count < $1.count }),
-           longest != query.lowercased() {
-            return (try? await TMDBService.shared.search(query: longest))?.first
+        let lowered = query.lowercased()
+        var longest = ""
+        for piece in lowered.split(separator: " ") {
+            let word = String(piece)
+            if word.count > 3, !stop.contains(word), word.count > longest.count {
+                longest = word
+            }
+        }
+        if !longest.isEmpty, longest != lowered {
+            let retry = try? await TMDBService.shared.search(query: longest)
+            return retry?.first
         }
         return nil
     }
