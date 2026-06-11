@@ -27,15 +27,13 @@ jobs:
           mkdir -p _site/prototype
           cp prototype/index.html _site/prototype/index.html
           cp prototype/favicon.png _site/prototype/favicon.png
+          # Marketing site at the root: landing + legal pages.
+          cp index.html _site/index.html
+          cp site.css _site/site.css
           cp privacy.html _site/privacy.html
+          cp terms.html _site/terms.html
           mkdir -p _site/import
           cp import.html _site/import/index.html
-          # Root redirects to the prototype
-          cat > _site/index.html <<'EOF'
-          <!DOCTYPE html><meta charset="utf-8">
-          <meta http-equiv="refresh" content="0; url=prototype/">
-          <title>Cini</title><a href="prototype/">Cini prototype</a>
-          EOF
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
