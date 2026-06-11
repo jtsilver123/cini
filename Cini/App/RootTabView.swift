@@ -26,6 +26,10 @@ final class TabRouter {
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?
 
+    /// "Reorder within my list" from a movie page: open Watched in
+    /// reorder mode.
+    var pendingReorder = false
+
     func closeSearch() { selection = lastNonSearch }
 }
 

@@ -1097,6 +1097,8 @@ function renderProfile(){
     <div style="margin-top:10px;">
       ${listRow("check","Watched",count, isSelf?"S.subTab='watched'; save(); go('lists')":`openMemberList('${handle}')`)}
       ${listRow("bookmark","Want to Watch",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`openMemberWatchlist('${handle}')`)}
+      ${listRow("star","Lists",null,"openCustomLists()")}
+      ${listRow("calendar","Diary",null,"openDiary()")}
       ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')")
               :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
     </div>
@@ -1248,7 +1250,7 @@ function openBothList(u){
 /* Everyone wall: any member's rating that came with a public note. */
 const PUBLIC_NOTES = {
   dune2:[{n:"Jordan", u:"jordanwatches", av:"av3", score:9.0, note:"Denis doesn’t miss. The sandworm ride alone is worth the ticket.", likes:12},
-         {n:"Priya", u:"priyafilm", av:"av2", score:8.4, note:"Score + sound design carried the back half for me.", likes:5}],
+         {n:"Priya", u:"priyafilm", av:"av2", score:8.4, note:"That ending — Paul taking Irulan’s hand while Chani walks out alone broke me.", likes:5, sp:true}],
   opp:[{n:"Sam", u:"samcinema", av:"av4", score:8.8, note:"The Trinity sequence in 70mm is the loudest silence I’ve ever heard.", likes:9}],
   past:[{n:"Lena", u:"lenawrites", av:"av1", score:8.6, note:"Quietest heartbreak of the year. The bar scene destroyed me.", likes:7}],
 };
@@ -1284,7 +1286,7 @@ function renderDetail(){
         <span class="spacer"></span>
         ${mine
           ? `<span class="badge sm ${scoreClass(mine.score)}">${mine.score.toFixed(1)}</span>
-             <button class="pill ghost" onclick="openLog('${k}')">Rank again</button>
+             <button class="pill ghost" onclick="openRankAgain('${k}')">Rank again</button>
              <span style="color:var(--green);">${I("check",24,2.2)}</span>`
           : `<button class="iconbtn" style="font-size:0;" onclick="openLog('${k}')">${I("plus",26,1.8)}</button>
              <button class="iconbtn" style="font-size:0;" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>`}
@@ -1360,6 +1362,32 @@ function renderDetail(){
     </div>
     ${detailPeopleTab==="friends" ? friendsBlock : everyoneBlock(k)}`;
 }
+/* Beli's "Rank again" menu: rerank, reorder, or log a rewatch. */
+function openRankAgain(k){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Rank again</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="erow" onclick="closeOverlay(); openLog('${k}')"><span class="ic">${I("pencil",18)}</span><span style="flex:1;">Rerank this movie</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); S.ui.reorder=true; S.subTab='watched'; save(); go('lists')"><span class="ic">${I("sort",18)}</span><span style="flex:1;">Reorder within my list</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" style="border-bottom:none;" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Log a rewatch</span><span class="sub">${I("chevR",14)}</span></div>
+    </div>`);
+}
+function openRewatch(k){
+  const m=MOVIES[k];
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Log a rewatch</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="margin-bottom:10px;">${m.t} — your rank and score stay put; this just lands in your Diary.</div>
+      <input type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font:inherit; outline:none;">
+      <div class="chips" style="margin-top:10px;">
+        <button class="chip-f" onclick="this.classList.toggle('on'); const s=this.nextElementSibling; if(this.classList.contains('on')&&s)s.classList.remove('on');">🏠 At home</button>
+        <button class="chip-f" onclick="this.classList.toggle('on'); const p=this.previousElementSibling; if(this.classList.contains('on')&&p)p.classList.remove('on');">🎟️ In theaters</button>
+      </div>
+      <button class="pill" style="width:100%; justify-content:center; margin-top:14px;" onclick="closeOverlay(); toast('Saved to your Diary 🎬')">Save to diary</button>
+    </div>`);
+}
 /* Tap a score circle → what that score means. */
 function openScoreInfo(kind){
   const info={
@@ -1401,23 +1429,78 @@ function openPerson(name, character, fromKey){
       <div class="sub" style="margin-top:10px; font-size:11.5px;">Demo data — the app shows the full TMDB filmography, most popular first.</div>
     </div>`);
 }
+let _spoilersOpen={};
+/* Custom lists + Diary (demo data). */
+function openCustomLists(){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Lists</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <input placeholder="New list (e.g. Best heist movies)" style="flex:1; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font:inherit; outline:none;">
+        <button class="pill" onclick="toast('List created — add movies from any movie page')">Create</button>
+      </div>
+      ${[["Date night",2,"past,poor"],["2023 catch-up",3,"opp,hold,anat"]].map(([n,c,keys])=>`
+        <div class="erow" onclick="toast('${n} — full list page in the app')">
+          <span class="ic" style="color:var(--marquee);">${I("star",18)}</span>
+          <span style="flex:1; font-weight:600;">${n}<div class="sub" style="margin-top:1px;">${c} titles</div></span>
+          <span class="sub">${I("chevR",14)}</span>
+        </div>`).join("")}
+      <div class="sub" style="margin-top:10px; font-size:11.5px;">Add any movie from its page with "Add to List".</div>
+    </div>`);
+}
+function openDiary(){
+  const entries=S.watched.map((w,i)=>({k:w.k, d:["Jun 8","Jun 2","May 24","May 11"][i]||"May 3"}));
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Diary</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px;">EVERY WATCH, REWATCHES INCLUDED</div>
+      ${entries.map(e=>{
+        const m=MOVIES[e.k]; if(!m) return "";
+        return `<div class="erow" onclick="closeOverlay(); openDetail('${e.k}')">
+          <span style="color:var(--marquee); font-weight:800; font-size:13px; width:44px;">${e.d}</span>
+          <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(m.p)}');"></div>
+          <span style="flex:1; font-weight:600;">${m.t}</span>
+          <span class="badge sm ${scoreClass(myEntry(e.k)?myEntry(e.k).score:m.avg)}">${(myEntry(e.k)?myEntry(e.k).score:m.avg).toFixed(1)}</span>
+        </div>`;}).join("")}
+    </div>`);
+}
+/* Report / block — required moderation on all public content. */
+function openModeration(u){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">@${u}</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="erow" onclick="closeOverlay(); toast('Reported — our team will review it')"><span class="ic" style="color:var(--red);">⚑</span><span style="flex:1; color:var(--red);">Report this note</span></div>
+      <div class="erow" style="border-bottom:none;" onclick="closeOverlay(); toast('@${u} blocked — their content is hidden everywhere')"><span class="ic" style="color:var(--red);">${I("eyeoff",18)}</span><span style="flex:1; color:var(--red);">Block @${u}</span></div>
+    </div>`);
+}
 function everyoneBlock(k){
   const rows=PUBLIC_NOTES[k]||[];
   return `<div class="pad sub" style="padding:8px 18px 4px; font-size:12px;">Ratings that came with a note show here.</div>` +
     (rows.length===0
       ? `<div class="pad sub" style="padding-bottom:12px;">No notes from the community yet — rank it and say something.</div>`
-      : rows.map((r,i)=>`
+      : rows.map((r,i)=>{
+    const sid="sp-"+k+"-"+i;
+    const noteHTML = r.sp && !_spoilersOpen[sid]
+      ? `<button style="width:100%; border:none; background:rgba(255,255,255,.07); border-radius:10px; padding:11px; color:var(--gray); font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; margin-top:7px;" onclick="_spoilersOpen['${sid}']=true; render()">🙈 Contains spoilers — tap to reveal</button>`
+      : `<div style="margin-top:7px; font-size:14px; line-height:1.45;"><b>Notes:</b> ${r.note}</div>`;
+    return `
     <div class="listrow" style="padding-left:18px;">
       <div class="avatar ${r.av}" style="width:44px;height:44px;font-size:17px;">${r.n[0]}</div>
       <div style="flex:1;"><div style="font-weight:600;">${r.n}</div><div class="sub">@${r.u}</div>
-        <div style="margin-top:7px; font-size:14px; line-height:1.45;"><b>Notes:</b> ${r.note}</div>
+        ${noteHTML}
         <div style="display:flex; gap:18px; margin-top:9px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('pub-${k}-${i}')">${likeIcon("pub-"+k+"-"+i)}</button>
           <span class="sub" style="font-size:12px; margin-left:-12px;">${r.likes + (S.liked["pub-"+k+"-"+i]?1:0)}</span>
           <button class="iconbtn" onclick="openComments('f1')">${I("comment")}</button>
         </div></div>
-      <div class="badge sm ${scoreClass(r.score)}">${r.score.toFixed(1)}</div>
-    </div>`).join(""));
+      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+        <div class="badge sm ${scoreClass(r.score)}">${r.score.toFixed(1)}</div>
+        <button class="iconbtn" style="color:var(--gray);" onclick="openModeration('${r.u}')">${I("dots",16)}</button>
+      </div>
+    </div>`;}).join(""));
 }
 
 /* =================== LOG FLOW (Beli order: sentiment → details → compare → result) */

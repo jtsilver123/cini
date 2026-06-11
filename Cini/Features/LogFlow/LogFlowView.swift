@@ -9,6 +9,7 @@ struct EnrichmentDraft {
     /// "home" or "theater" — how they watched it.
     var watchedWhere: String?
     var notes = ""
+    var notesContainSpoilers = false
     var cast: Set<CastMember> = []
     var stealthMode = false
 }
@@ -380,8 +381,14 @@ struct LogFlowView: View {
     private func persistDraft() async {
         let supabase = SupabaseService.shared
         if !draft.notes.isEmpty {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes, isPrivate: false)
+            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes,
+                                           isPrivate: false,
+                                           containsSpoilers: draft.notesContainSpoilers)
         }
+        // Every rank is a watch — the diary gets a row even without a date.
+        try? await supabase.logWatch(movieID: movie.tmdbID,
+                                     on: draft.watchDate ?? .now,
+                                     where: draft.watchedWhere)
         for member in draft.cast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
         }

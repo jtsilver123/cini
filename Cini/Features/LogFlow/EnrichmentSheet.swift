@@ -267,7 +267,9 @@ struct EnrichmentRowSheet: View {
                     .padding()
                     .navigationTitle("Watch date")
                 case .notes:
-                    NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $draft.notes)
+                    NoteEditor(title: "Notes", subtitle: "Visible to your friends",
+                               text: $draft.notes,
+                               containsSpoilers: $draft.notesContainSpoilers)
                 case .performances:
                     CastPicker(cast: cast, selected: $draft.cast)
                 }
@@ -363,6 +365,8 @@ struct NoteEditor: View {
     let title: String
     let subtitle: String
     @Binding var text: String
+    /// Public notes can flag spoilers — the wall blurs them until tapped.
+    var containsSpoilers: Binding<Bool>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -371,6 +375,17 @@ struct NoteEditor: View {
                 .frame(minHeight: 160)
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+            if let containsSpoilers {
+                Toggle(isOn: containsSpoilers) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Contains spoilers").font(.subheadline.weight(.semibold))
+                        Text("Hidden behind a tap until readers opt in")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+                .tint(Theme.marquee)
+            }
             Spacer()
         }
         .padding()
@@ -414,6 +429,8 @@ struct FriendThinkRow: View {
     let friend: FriendScoreRow
     var onOpenProfile: ((FriendScoreRow) -> Void)?
 
+    @State private var spoilerRevealed = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
@@ -435,8 +452,25 @@ struct FriendThinkRow: View {
                 ScoreBadge(score: friend.score, size: 44)
             }
             if let note = friend.note, !note.isEmpty {
-                (Text("Notes: ").bold() + Text(note))
-                    .font(.subheadline)
+                if friend.containsSpoilers == true && !spoilerRevealed {
+                    Button {
+                        withAnimation(.snappy) { spoilerRevealed = true }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "eye.slash")
+                            Text("Contains spoilers — tap to reveal")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    (Text("Notes: ").bold() + Text(note))
+                        .font(.subheadline)
+                }
             }
             Text(friend.rankedAt.formatted(.dateTime.month(.wide).year()))
                 .font(.caption)

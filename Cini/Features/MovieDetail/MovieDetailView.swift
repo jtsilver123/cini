@@ -9,6 +9,7 @@ struct MovieDetailView: View {
     @State var movie: Movie
 
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var community: CommunityScore?
     @State private var friends: [FriendScoreRow] = []
@@ -23,6 +24,10 @@ struct MovieDetailView: View {
     @State private var summaryExpanded = false
     @State private var showAllCast = false
     @State private var showLogFlow = false
+    @State private var showRankAgainDialog = false
+    @State private var showRewatchSheet = false
+    @State private var showAddToList = false
+    @State private var revealedSpoilers: Set<UUID> = []
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
     @State private var showSendRec = false
@@ -102,6 +107,27 @@ struct MovieDetailView: View {
                 .presentationDetents([.height(300)])
                 .presentationDragIndicator(.visible)
         }
+        // Beli's "Rank again" menu: rerank, reorder, or log a rewatch.
+        .confirmationDialog("Rank again", isPresented: $showRankAgainDialog) {
+            Button("Rerank this movie") { showLogFlow = true }
+            Button("Reorder within my list") {
+                tabRouter.pendingReorder = true
+                tabRouter.selection = .lists
+            }
+            Button("Log a rewatch") { showRewatchSheet = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showRewatchSheet) {
+            RewatchSheet(movie: movie) {
+                Task { myDetails = await SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID) }
+            }
+            .presentationDetents([.height(420)])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showAddToList) {
+            AddToListSheet(movie: movie)
+                .presentationDetents([.medium, .large])
+        }
         .navigationDestination(item: $personTarget) { member in
             PersonScreen(member: member, originTitle: movie.title)
         }
@@ -166,7 +192,7 @@ struct MovieDetailView: View {
                     if myItem != nil {
                         // Already ranked: Beli's "Rank again" pill + check.
                         Button {
-                            showLogFlow = true
+                            showRankAgainDialog = true
                         } label: {
                             Text("Rank again")
                                 .font(.subheadline.weight(.semibold))
@@ -237,6 +263,9 @@ struct MovieDetailView: View {
                 }
                 PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined) {
                     showSendRec = true
+                }
+                PillButton(title: "Add to List", systemImage: "text.badge.plus", style: .outlined) {
+                    showAddToList = true
                 }
             }
             .padding(.horizontal, 16)
@@ -629,6 +658,7 @@ struct MovieDetailView: View {
 
     private func watchedLine(_ details: SupabaseService.MyMovieDetails) -> String {
         var parts: [String] = []
+        if details.watchCount > 1 { parts.append("\(details.watchCount)× watched") }
         if let date = details.watchDate { parts.append(date) }
         if let location = details.watchedWhere {
             parts.append(location == "theater" ? "In theaters" : "At home")
@@ -754,10 +784,51 @@ struct MovieDetailView: View {
                 .buttonStyle(.plain)
                 Spacer()
                 ScoreBadge(score: row.score, size: 44)
+                // Moderation lives on every piece of public content.
+                Menu {
+                    Button(role: .destructive) {
+                        Task { await SupabaseService.shared.report(
+                            kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)") }
+                    } label: {
+                        Label("Report this note", systemImage: "flag")
+                    }
+                    Button(role: .destructive) {
+                        Task {
+                            try? await SupabaseService.shared.block(row.userId)
+                            publicNotes = (try? await SupabaseService.shared
+                                .publicNotes(movieID: movie.tmdbID)) ?? []
+                        }
+                    } label: {
+                        Label("Block @\(row.username)", systemImage: "hand.raised")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .padding(6)
+                        .contentShape(Rectangle())
+                }
             }
 
-            (Text("Notes: ").bold() + Text(row.note))
-                .font(.subheadline)
+            if row.containsSpoilers == true && !revealedSpoilers.contains(row.id) {
+                Button {
+                    withAnimation(.snappy) { _ = revealedSpoilers.insert(row.id) }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "eye.slash")
+                        Text("Contains spoilers — tap to reveal")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                }
+                .buttonStyle(.plain)
+            } else {
+                (Text("Notes: ").bold() + Text(row.note))
+                    .font(.subheadline)
+            }
 
             // Heart + comment, exactly where the feed puts them.
             HStack(spacing: 18) {
@@ -855,7 +926,8 @@ struct MovieDetailView: View {
         extended = try? await extendedTask
         publicNotes = (try? await publicNotesTask) ?? []
         publicNotesLoaded = true
-        predicted = store.predictedScores[movie.tmdbID] ?? (await predictedTask)[movie.tmdbID]
+        let predictedMap = await predictedTask
+        predicted = store.predictedScores[movie.tmdbID] ?? predictedMap[movie.tmdbID]
     }
 }
 

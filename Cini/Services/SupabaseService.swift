@@ -240,12 +240,13 @@ final class SupabaseService {
         var watchDate: String?
         var watchedWith: [String] = []
         var watchedWhere: String?   // "home" | "theater"
+        var watchCount = 0          // diary rewatches
         var performances: [(name: String, profilePath: String?)] = []
 
         var isEmpty: Bool {
             note == nil && personalNote == nil && labels.isEmpty
                 && watchDate == nil && watchedWith.isEmpty
-                && watchedWhere == nil && performances.isEmpty
+                && watchedWhere == nil && watchCount == 0 && performances.isEmpty
         }
     }
 
@@ -275,6 +276,7 @@ final class SupabaseService {
             .select("watch_date, watched_with, watched_where, ranking_labels(labels(name))")
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .single().execute().value
+        async let watchTask = watchSummary(movieID: movieID)
 
         var details = MyMovieDetails()
         for row in (await notesTask) ?? [] {
@@ -291,6 +293,9 @@ final class SupabaseService {
                 details.watchedWith = (rows ?? []).map(\.username)
             }
         }
+        let watchInfo = await watchTask
+        details.watchCount = watchInfo.count
+        if details.watchDate == nil { details.watchDate = watchInfo.last }
         return details.isEmpty ? nil : details
     }
 
@@ -385,18 +390,168 @@ final class SupabaseService {
         return rows.map(\.name)
     }
 
-    func upsertNote(movieID: Int, body: String, isPrivate: Bool) async throws {
+    func upsertNote(movieID: Int, body: String, isPrivate: Bool,
+                    containsSpoilers: Bool = false) async throws {
         guard let userID = currentUserID else { return }
         struct Row: Encodable {
             let user_id: UUID
             let movie_id: Int
             let body: String
             let is_private: Bool
+            let contains_spoilers: Bool
         }
         try await client.from("notes")
-            .upsert(Row(user_id: userID, movie_id: movieID, body: body, is_private: isPrivate),
+            .upsert(Row(user_id: userID, movie_id: movieID, body: body,
+                        is_private: isPrivate, contains_spoilers: containsSpoilers),
                     onConflict: "user_id,movie_id,is_private")
             .execute()
+    }
+
+    // MARK: - Moderation (App Store 1.2: report content, block members)
+
+    /// Blocking is mutual invisibility — enforced server-side in can_view,
+    /// so every feed, wall, and list filters automatically.
+    func block(_ userID: UUID) async throws {
+        guard let me = currentUserID else { return }
+        struct Row: Encodable { let blocker_id: UUID; let blocked_id: UUID }
+        try await client.from("blocks")
+            .upsert(Row(blocker_id: me, blocked_id: userID), onConflict: "blocker_id,blocked_id")
+            .execute()
+    }
+
+    func unblock(_ userID: UUID) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("blocks").delete()
+            .eq("blocker_id", value: me).eq("blocked_id", value: userID)
+            .execute()
+    }
+
+    func blockedIDs() async -> Set<UUID> {
+        guard let me = currentUserID else { return [] }
+        struct Row: Decodable { let blocked_id: UUID }
+        let rows: [Row] = (try? await client.from("blocks")
+            .select("blocked_id").eq("blocker_id", value: me)
+            .execute().value) ?? []
+        return Set(rows.map(\.blocked_id))
+    }
+
+    func report(kind: String, subjectID: String, reason: String? = nil) async {
+        guard let me = currentUserID else { return }
+        struct Row: Encodable {
+            let reporter_id: UUID
+            let subject_kind: String
+            let subject_id: String
+            let reason: String?
+        }
+        _ = try? await client.from("reports")
+            .insert(Row(reporter_id: me, subject_kind: kind,
+                        subject_id: subjectID, reason: reason))
+            .execute()
+    }
+
+    // MARK: - Custom lists
+
+    func myLists() async throws -> [CustomList] {
+        guard let me = currentUserID else { return [] }
+        return try await lists(of: me)
+    }
+
+    func lists(of userID: UUID) async throws -> [CustomList] {
+        try await client.from("custom_lists")
+            .select("id, user_id, name, is_private, created_at, custom_list_items(count)")
+            .eq("user_id", value: userID)
+            .order("created_at", ascending: false)
+            .execute().value
+    }
+
+    func createList(name: String) async throws -> CustomList {
+        guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
+        struct Row: Encodable { let user_id: UUID; let name: String }
+        return try await client.from("custom_lists")
+            .insert(Row(user_id: me, name: name))
+            .select("id, user_id, name, is_private, created_at, custom_list_items(count)")
+            .single()
+            .execute().value
+    }
+
+    func deleteList(_ id: UUID) async throws {
+        try await client.from("custom_lists").delete().eq("id", value: id).execute()
+    }
+
+    func renameList(_ id: UUID, to name: String) async throws {
+        struct Update: Encodable { let name: String }
+        try await client.from("custom_lists").update(Update(name: name))
+            .eq("id", value: id).execute()
+    }
+
+    /// Which of my lists already contain this movie (for the toggle sheet).
+    func listIDs(containing movieID: Int) async -> Set<UUID> {
+        struct Row: Decodable { let list_id: UUID }
+        let rows: [Row] = (try? await client.from("custom_list_items")
+            .select("list_id").eq("movie_id", value: movieID)
+            .execute().value) ?? []
+        return Set(rows.map(\.list_id))
+    }
+
+    func addToList(_ listID: UUID, movieID: Int) async throws {
+        struct Row: Encodable { let list_id: UUID; let movie_id: Int }
+        try await client.from("custom_list_items")
+            .upsert(Row(list_id: listID, movie_id: movieID), onConflict: "list_id,movie_id")
+            .execute()
+    }
+
+    func removeFromList(_ listID: UUID, movieID: Int) async throws {
+        try await client.from("custom_list_items").delete()
+            .eq("list_id", value: listID).eq("movie_id", value: movieID)
+            .execute()
+    }
+
+    func listMovieIDs(_ listID: UUID) async throws -> [Int] {
+        struct Row: Decodable { let movie_id: Int }
+        let rows: [Row] = try await client.from("custom_list_items")
+            .select("movie_id").eq("list_id", value: listID)
+            .order("created_at", ascending: true)
+            .execute().value
+        return rows.map(\.movie_id)
+    }
+
+    // MARK: - Diary (every watch is its own row)
+
+    func logWatch(movieID: Int, on date: Date, where location: String?) async throws {
+        guard let me = currentUserID else { return }
+        struct Row: Encodable {
+            let user_id: UUID
+            let movie_id: Int
+            let watched_on: String
+            let watched_where: String?
+        }
+        try await client.from("watches")
+            .insert(Row(user_id: me, movie_id: movieID,
+                        watched_on: DateFormatter.posixDay.string(from: date),
+                        watched_where: location))
+            .execute()
+    }
+
+    func watches(of userID: UUID, limit: Int = 200) async throws -> [WatchRow] {
+        try await client.from("watches")
+            .select("id, movie_id, watched_on, watched_where")
+            .eq("user_id", value: userID)
+            .order("watched_on", ascending: false)
+            .order("created_at", ascending: false)
+            .limit(limit)
+            .execute().value
+    }
+
+    /// (count, most recent date) for one movie — the "Watched 3×" line.
+    func watchSummary(movieID: Int) async -> (count: Int, last: String?) {
+        guard let me = currentUserID else { return (0, nil) }
+        struct Row: Decodable { let watched_on: String }
+        let rows: [Row] = (try? await client.from("watches")
+            .select("watched_on")
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .order("watched_on", ascending: false)
+            .execute().value) ?? []
+        return (rows.count, rows.first?.watched_on)
     }
 
     func addPerformance(movieID: Int, cast: CastMember) async throws {
@@ -980,6 +1135,7 @@ struct PublicNoteRow: Codable, Identifiable, Hashable {
     let avatarUrl: String?
     let score: Double
     let note: String
+    var containsSpoilers: Bool? = false
     let rankedAt: Date
     let eventId: UUID?
     var likeCount: Int
@@ -993,6 +1149,7 @@ struct PublicNoteRow: Codable, Identifiable, Hashable {
         case userId = "user_id"
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
+        case containsSpoilers = "contains_spoilers"
         case rankedAt = "ranked_at"
         case eventId = "event_id"
         case likeCount = "like_count"
@@ -1020,6 +1177,7 @@ struct FriendScoreRow: Codable, Identifiable, Hashable {
     let avatarUrl: String?
     let score: Double
     let note: String?
+    var containsSpoilers: Bool? = false
     let rankedAt: Date
 
     var id: UUID { userId }
@@ -1029,7 +1187,45 @@ struct FriendScoreRow: Codable, Identifiable, Hashable {
         case userId = "user_id"
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
+        case containsSpoilers = "contains_spoilers"
         case rankedAt = "ranked_at"
+    }
+}
+
+/// A user-made list ("Best heist movies") with its item count embedded.
+struct CustomList: Codable, Identifiable, Hashable {
+    let id: UUID
+    let userId: UUID
+    var name: String
+    let isPrivate: Bool
+    let createdAt: Date
+    let items: [CountRow]?
+
+    var count: Int { items?.first?.count ?? 0 }
+
+    struct CountRow: Codable, Hashable { let count: Int }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case userId = "user_id"
+        case isPrivate = "is_private"
+        case createdAt = "created_at"
+        case items = "custom_list_items"
+    }
+}
+
+/// One diary entry — a single watch of a movie on a date.
+struct WatchRow: Codable, Identifiable, Hashable {
+    let id: UUID
+    let movieId: Int
+    let watchedOn: String     // "2026-06-11"
+    let watchedWhere: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case movieId = "movie_id"
+        case watchedOn = "watched_on"
+        case watchedWhere = "watched_where"
     }
 }
 

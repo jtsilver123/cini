@@ -485,6 +485,24 @@ struct CommentsSheet: View {
                             }
                         }
                         .listRowBackground(Theme.background)
+                        // Moderation: long-press any comment.
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                Task { await SupabaseService.shared.report(
+                                    kind: "comment", subjectID: comment.id.uuidString) }
+                            } label: {
+                                Label("Report comment", systemImage: "flag")
+                            }
+                            Button(role: .destructive) {
+                                Task {
+                                    try? await SupabaseService.shared.block(comment.userId)
+                                    await reload()
+                                }
+                            } label: {
+                                Label("Block @\(comment.profiles?.username ?? "member")",
+                                      systemImage: "hand.raised")
+                            }
+                        }
                     }
                     .listStyle(.plain)
                     .scrollDismissesKeyboard(.interactively)

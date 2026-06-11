@@ -79,6 +79,14 @@ struct YourListsView: View {
                     tabRouter.pendingListsTab = nil
                     subTab = pending
                 }
+                if tabRouter.pendingReorder {
+                    tabRouter.pendingReorder = false
+                    subTab = .watched
+                    reorderMode = true
+                    showFilters = false; listQuery = ""; showListSearch = false
+                    genreFilter = nil; decadeFilter = nil
+                    runtimeFilter = nil; streamingFilter = false; languageFilter = nil
+                }
                 // Persisted filters must never act invisibly.
                 if hasActiveFilters { showFilters = true }
             }

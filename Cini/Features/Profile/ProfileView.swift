@@ -19,6 +19,8 @@ struct ProfileScreen: View {
     @State private var followerCount = 0
     @State private var followingCount = 0
     @State private var following = false
+    @State private var blocked = false
+    @State private var reported = false
     @State private var matchPct: Double?
     @State private var globalRank: Int?
     @State private var watchlistCount = 0
@@ -123,6 +125,7 @@ struct ProfileScreen: View {
             for row in rows { movies[row.tmdbId] = row.asMovie }
             following = await followingState
             matchPct = await match
+            blocked = await supabase.blockedIDs().contains(id)
             let memberWatchlist = (try? await memberWatchlistTask) ?? []
             watchlistCount = memberWatchlist.count
             bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
@@ -284,21 +287,56 @@ struct ProfileScreen: View {
                 }
             }
         } else if let id = resolvedID {
-            PillButton(title: following ? "Following" : "Follow",
-                       style: following ? .outlined : .filled) {
-                Task {
-                    let wasFollowing = following
-                    following.toggle()   // optimistic; reverted on failure
-                    do {
-                        if wasFollowing {
-                            try await SupabaseService.shared.unfollow(id)
-                        } else {
-                            try await SupabaseService.shared.follow(id)
+            HStack(spacing: 12) {
+                PillButton(title: following ? "Following" : "Follow",
+                           style: following ? .outlined : .filled) {
+                    Task {
+                        let wasFollowing = following
+                        following.toggle()   // optimistic; reverted on failure
+                        do {
+                            if wasFollowing {
+                                try await SupabaseService.shared.unfollow(id)
+                            } else {
+                                try await SupabaseService.shared.follow(id)
+                            }
+                            await load()   // visibility may have changed
+                        } catch {
+                            following = wasFollowing
                         }
-                        await load()   // visibility may have changed
-                    } catch {
-                        following = wasFollowing
                     }
+                }
+                // Moderation: report or block from any member profile.
+                Menu {
+                    Button(role: .destructive) {
+                        Task {
+                            await SupabaseService.shared.report(
+                                kind: "member", subjectID: id.uuidString)
+                            reported = true
+                        }
+                    } label: {
+                        Label(reported ? "Reported" : "Report member", systemImage: "flag")
+                    }
+                    .disabled(reported)
+                    Button(role: .destructive) {
+                        Task {
+                            if blocked {
+                                try? await SupabaseService.shared.unblock(id)
+                            } else {
+                                try? await SupabaseService.shared.block(id)
+                            }
+                            blocked.toggle()
+                            await load()   // their content disappears server-side
+                        }
+                    } label: {
+                        Label(blocked ? "Unblock member" : "Block member",
+                              systemImage: "hand.raised")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.title3)
+                        .foregroundStyle(Theme.ink)
+                        .padding(10)
+                        .contentShape(Rectangle())
                 }
             }
         }
@@ -387,6 +425,20 @@ struct ProfileScreen: View {
                 WatchlistScreen(userID: resolvedID, isSelf: isSelf)
             } label: {
                 listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
+            }
+            .buttonStyle(.plain)
+            Divider()
+            NavigationLink {
+                CustomListsScreen(userID: resolvedID, isSelf: isSelf)
+            } label: {
+                listRow(icon: "list.star", title: "Lists", count: nil)
+            }
+            .buttonStyle(.plain)
+            Divider()
+            NavigationLink {
+                DiaryScreen(userID: resolvedID, isSelf: isSelf)
+            } label: {
+                listRow(icon: "book", title: "Diary", count: nil)
             }
             .buttonStyle(.plain)
             if !isSelf {
