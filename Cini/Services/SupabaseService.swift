@@ -947,7 +947,7 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, profiles, movies
+        case id, profiles, movies, payload
         case userId = "user_id"
         case eventType = "event_type"
         case movieId = "movie_id"
