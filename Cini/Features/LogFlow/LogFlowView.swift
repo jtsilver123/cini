@@ -61,11 +61,14 @@ struct LogFlowView: View {
                         categoryCard
                         sentimentCard
 
-                        if phase == .enrich || phase == .comparing || phase == .result {
+                        // Beli's order: the details card hands off to the
+                        // comparison card — it doesn't stack above it, so
+                        // comparing never means scrolling down.
+                        if phase == .enrich {
                             EnrichmentCard(
                                 movie: movie,
                                 draft: $draft,
-                                isLocked: phase != .enrich,
+                                isLocked: false,
                                 onOkay: { startComparisons() },
                                 activeRow: $enrichRow
                             )
@@ -100,10 +103,15 @@ struct LogFlowView: View {
         }
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
-        // Editors present from the top of the flow, not from inside the
-        // scrolling card stack — nested presentation was silently failing.
-        .sheet(item: $enrichRow) { row in
-            EnrichmentRowSheet(row: row, draft: $draft, cast: movieCast)
+        // Editors draw as an overlay INSIDE the flow — sheets presented
+        // from a clear-background fullScreenCover silently fail to appear
+        // on device, so presentation is avoided entirely.
+        .overlay {
+            if let row = enrichRow {
+                EnrichmentEditorOverlay(row: row, draft: $draft, cast: movieCast) {
+                    enrichRow = nil
+                }
+            }
         }
         .task {
             movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []

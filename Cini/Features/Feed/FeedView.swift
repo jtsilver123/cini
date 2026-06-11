@@ -129,8 +129,9 @@ struct FeedView: View {
     private var quickPills: some View {
         HStack(spacing: 10) {
             PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis", style: .outlined) {
-                tabRouter.pendingListsTab = .trending
-                tabRouter.selection = .lists
+                // Trending lives in Search's browse modes — one home.
+                tabRouter.pendingSearchBrowse = .trending
+                tabRouter.selection = .search
             }
             PillButton(title: "Friend Recs", systemImage: "paperplane", style: .outlined) {
                 tabRouter.pendingListsTab = .friendRecs

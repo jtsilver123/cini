@@ -1,42 +1,65 @@
 import SwiftUI
 
 /// Cini design tokens — the "movie palace" brand. Marquee gold carries
-/// every interactive accent, velvet crimson fills the CTAs, and the whole
-/// room sits in a warm lamp-lit charcoal. Display face: DM Serif Display.
+/// every interactive accent, velvet crimson fills the CTAs. Two rooms:
+/// the lamp-lit charcoal screening room (dark, the default) and a warm
+/// cream "matinee" light mode. Every token resolves per color scheme, so
+/// the appearance setting + preferredColorScheme flips the whole app.
+/// Display face: DM Serif Display.
 enum Theme {
+
+    // MARK: Adaptive color plumbing
+
+    /// One token, two rooms: dark = the screening room (unchanged),
+    /// light = the matinee.
+    private static func adaptive(dark: UIColor, light: UIColor) -> Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark ? dark : light
+        })
+    }
+
+    private static func rgb(_ hex: UInt32, alpha: CGFloat = 1) -> UIColor {
+        UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255,
+                green: CGFloat((hex >> 8) & 0xFF) / 255,
+                blue: CGFloat(hex & 0xFF) / 255,
+                alpha: alpha)
+    }
 
     // MARK: Colors
 
     /// Marquee gold — links, active states, the brand accent.
-    static let marquee = Color(red: 0xE8 / 255, green: 0xB6 / 255, blue: 0x4C / 255)
+    /// (Darker in light mode so it stays readable on cream.)
+    static let marquee = adaptive(dark: rgb(0xE8B64C), light: rgb(0xA9781E))
     /// Velvet crimson — filled pills, primary CTAs (cinema-curtain red).
-    static let velvet = Color(red: 0xA8 / 255, green: 0x35 / 255, blue: 0x2A / 255)
+    static let velvet = adaptive(dark: rgb(0xA8352A), light: rgb(0x9E2F25))
     /// Soft gold tint for pressed/selected states.
-    static let marqueeSoft = Color(red: 0xE8 / 255, green: 0xB6 / 255, blue: 0x4C / 255).opacity(0.16)
-    /// Screen-glow cream primary text.
-    static let ink = Color(red: 0xF5 / 255, green: 0xEE / 255, blue: 0xDF / 255)
-    /// House-lights-down warm charcoal background.
-    static let background = Color(red: 0x13 / 255, green: 0x10 / 255, blue: 0x11 / 255)
+    static let marqueeSoft = marquee.opacity(0.16)
+    /// Primary text: screen-glow cream at night, warm near-black by day.
+    static let ink = adaptive(dark: rgb(0xF5EEDF), light: rgb(0x221B14))
+    /// House lights down: warm charcoal · house lights up: warm cream.
+    static let background = adaptive(dark: rgb(0x131011), light: rgb(0xFAF5EA))
     /// Elevated card surface.
-    static let surface = Color(red: 0x1D / 255, green: 0x17 / 255, blue: 0x19 / 255)
+    static let surface = adaptive(dark: rgb(0x1D1719), light: rgb(0xFFFDF6))
     /// Higher-elevation surface (badges, inputs).
-    static let surface2 = Color(red: 0x28 / 255, green: 0x1F / 255, blue: 0x20 / 255)
+    static let surface2 = adaptive(dark: rgb(0x281F20), light: rgb(0xF1EADB))
     /// Subtle fill for fields and inactive chips.
-    static let fill = Color.white.opacity(0.07)
+    static let fill = adaptive(dark: UIColor.white.withAlphaComponent(0.07),
+                               light: UIColor.black.withAlphaComponent(0.05))
     /// Warm gray metadata text.
-    static let gray = Color(red: 0xA6 / 255, green: 0x9C / 255, blue: 0x91 / 255)
+    static let gray = adaptive(dark: rgb(0xA69C91), light: rgb(0x84796B))
     /// Score green for high scores and match lines.
-    static let scoreGreen = Color(red: 0x2F / 255, green: 0xBF / 255, blue: 0x71 / 255)
+    static let scoreGreen = adaptive(dark: rgb(0x2FBF71), light: rgb(0x1D8A4F))
     /// Amber for mid scores.
-    static let scoreAmber = Color(red: 0xE0 / 255, green: 0xA9 / 255, blue: 0x3E / 255)
+    static let scoreAmber = adaptive(dark: rgb(0xE0A93E), light: rgb(0xB07F16))
     /// Muted red for low scores.
-    static let scoreRed = Color(red: 0xD9 / 255, green: 0x6B / 255, blue: 0x6B / 255)
+    static let scoreRed = adaptive(dark: rgb(0xD96B6B), light: rgb(0xC24444))
     /// Deep premiere gold — decorative moments: result ticket, streak flame.
-    static let gold = Color(red: 0xD9 / 255, green: 0xA9 / 255, blue: 0x3C / 255)
+    static let gold = adaptive(dark: rgb(0xD9A93C), light: rgb(0xA87B14))
     /// Hairline borders on cards and badges.
-    static let hairline = Color.white.opacity(0.10)
+    static let hairline = adaptive(dark: UIColor.white.withAlphaComponent(0.10),
+                                   light: UIColor.black.withAlphaComponent(0.12))
 
-    /// Sentiment circles (the soft Beli trio).
+    /// Sentiment circles (the soft Beli trio) — same in both rooms.
     static let sentimentLoved = Color(red: 0x53 / 255, green: 0xB1 / 255, blue: 0x7C / 255)
     static let sentimentFine = Color(red: 0xF4 / 255, green: 0xC9 / 255, blue: 0x5C / 255)
     static let sentimentDisliked = Color(red: 0xEE / 255, green: 0x9E / 255, blue: 0x9E / 255)
@@ -65,8 +88,9 @@ enum Theme {
 
     // MARK: Elevation
 
-    /// Card shadow tuned for the dark screening room.
-    static let cardShadow = Color.black.opacity(0.45)
+    /// Card shadow — heavy in the screening room, feather-light by day.
+    static let cardShadow = adaptive(dark: UIColor.black.withAlphaComponent(0.45),
+                                     light: UIColor.black.withAlphaComponent(0.12))
 }
 
 /// Floating card used by the log-flow stack and elsewhere.

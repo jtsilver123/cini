@@ -24,6 +24,16 @@
     --shadow:0 10px 30px rgba(0,0,0,.45);
     --spring:cubic-bezier(.2,.9,.3,1);
   }
+
+  /* Matinee: house lights up. Toggled from Menu → Appearance. */
+  html[data-theme="light"] body, [data-theme="light"]{
+    --marquee:#A9781E; --velvet:#9E2F25; --marquee-soft:rgba(169,120,30,.14);
+    --ink:#221B14; --bg:#FAF5EA; --surface:#FFFDF6; --surface-2:#F1EADB;
+    --gray:#84796B; --green:#1D8A4F; --amber:#B07F16; --red:#C24444;
+    --gold:#A87B14; --gold-soft:rgba(168,123,20,.14);
+    --hair:rgba(0,0,0,.12);
+    --shadow:0 10px 30px rgba(0,0,0,.12);
+  }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:#070504;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink);}
@@ -278,6 +288,26 @@
    Cini interactive prototype — data-driven; every control works.
    State persists in localStorage. Per-screen rendering preserves scroll.
    ===================================================================== */
+
+
+/* Appearance: dark (default) / light / match device. */
+function applyTheme(){
+  const pref=localStorage.getItem("cini-theme")||"dark";
+  const light = pref==="light" || (pref==="auto" && window.matchMedia("(prefers-color-scheme: light)").matches);
+  document.documentElement.dataset.theme = light ? "light" : "dark";
+  document.body.dataset.theme = light ? "light" : "dark";
+}
+function cycleTheme(){
+  const order=["dark","light","auto"];
+  const cur=localStorage.getItem("cini-theme")||"dark";
+  const next=order[(order.indexOf(cur)+1)%order.length];
+  localStorage.setItem("cini-theme", next);
+  applyTheme();
+  closeOverlay();
+  toast({dark:"Dark — the screening room",light:"Light — the matinee",auto:"Matching your device"}[next]);
+}
+applyTheme();
+window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyTheme);
 
 const IMG = p => `https://image.tmdb.org/t/p/w342/${p}.jpg`;
 
@@ -537,7 +567,7 @@ function renderFeed(){
         <div class="searchfield" onclick="openSearchForRank()" style="color:var(--gray); cursor:pointer;">${I("search",17)}&ensp;Search a movie, member, etc.</div>
       </div>
       <div class="row-scroll" style="margin-top:10px;">
-        <button class="pill" onclick="S.subTab='trending'; save(); go('lists')">${I("spark",16)} Trending</button>
+        <button class="pill" onclick="searchBrowse='trending'; go('search')">${I("spark",16)} Trending</button>
         <button class="pill" onclick="S.subTab='shared'; save(); go('lists')">${I("send",16)} Friend Recs</button>
       </div>
     </div>
@@ -592,7 +622,9 @@ function renderLists(){
           <div style="flex:1;">
             <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
             <div class="meta">${m.y} · Dir. ${m.dir}</div>
-            <div style="display:flex; gap:18px; margin-top:8px;">
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <div style="display:flex; gap:14px;">
               <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
               <button class="iconbtn" onclick="dismissQueue('${k}')">${I("x",17)}</button>
             </div>
@@ -631,13 +663,15 @@ function renderLists(){
             <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
             <div class="meta">${m.cert} | ${m.g.join(", ")}</div>
             <div class="meta">${m.y} · Dir. ${m.dir}</div>
-            <div style="display:flex; gap:18px; margin-top:8px;">
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; min-height:80px;">
+            <div style="text-align:center;"><div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}</div>
+              <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>
+            <div style="display:flex; gap:14px;">
               <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
               <button class="iconbtn" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>
             </div>
           </div>
-          <div style="text-align:center;"><div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}</div>
-            <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>
         </div>`;}).join("");
   } else if(sub==="recs"){
     const recs=Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.watchlist.includes(k));
@@ -652,29 +686,15 @@ function renderLists(){
             <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
             <div class="meta">${m.y} · ${m.rt} · On ${m.on.join(", ")}</div>
             <div class="gtxt" style="font-size:12.5px; font-weight:700; margin-top:3px;">${reasons[k]||"Trending this week"}</div>
-            <div style="display:flex; gap:18px; margin-top:8px;">
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; min-height:80px;">
+            <div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}<span class="chip">${m.nr.split(",")[0]}k</span></div>
+            <div style="display:flex; gap:14px;">
               <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
               <button class="iconbtn" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>
             </div>
           </div>
-          <div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}<span class="chip">${m.nr.split(",")[0]}k</span></div>
         </div>`;}).join(""));
-  } else if(sub==="trending"){
-    content = Object.keys(MOVIES).sort((a,b)=>MOVIES[b].avg-MOVIES[a].avg).map(k=>{
-      const m=MOVIES[k];
-      return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${k}')">
-        <div class="poster" style="width:52px;height:78px; background-image:url('${IMG(m.p)}');"></div>
-        <div style="flex:1;">
-          <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
-          <div class="meta">${m.y} · Dir. ${m.dir}</div>
-          <div style="display:flex; gap:18px; margin-top:8px;">
-            <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
-            <button class="iconbtn" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>
-          </div>
-        </div>
-        <div style="text-align:center;"><div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}</div>
-          <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>
-      </div>`;}).join("");
   } else {
     content = S.friendRecs.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("send",34,1.4)}</span><b>No recs from friends yet</b>
@@ -719,10 +739,10 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"],["trending","Trending"]].map(([k,l])=>
+      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k)).map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
-    ${S.ui.showFilters?`<div class="row-scroll" style="margin-top:12px;">
+    ${sub!=="shared"&&!S.ui.reorder?`<div class="row-scroll" style="margin-top:12px;">
       <button class="pill ghost" onclick="toast('Genre filter — wired in the app')">Genre ${I("chevD",12)}</button>
       <button class="pill ghost" onclick="toast('Decade filter — wired in the app')">Decade ${I("chevD",12)}</button>
       <button class="pill ghost" onclick="toast('Streaming filter — wired in the app')">Streaming ${I("chevD",12)}</button>
@@ -758,13 +778,35 @@ function openSendRec(k){
         onclick="if(!_recPick){toast('Pick a friend first')}else{toast('Sent! @'+_recPick+' just got your rec 🎬'); closeOverlay();}">Send</button>
     </div>`);
 }
+
+/* Edit the Lists area: hide optional defaults, manage your own lists. */
+function openEditLists(){
+  S.hiddenTabs=S.hiddenTabs||[];
+  const tog=t=>`<button class="switch ${S.hiddenTabs.includes(t)?"":"on"}" onclick="const i=S.hiddenTabs.indexOf('${t}'); if(i>=0)S.hiddenTabs.splice(i,1); else S.hiddenTabs.push('${t}'); save(); openEditLists()"></button>`;
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Edit Lists</b>
+      <button class="iconbtn" onclick="closeOverlay(); render()">${I("check",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px;">DEFAULT LISTS</div>
+      <div class="erow" style="cursor:default;"><span style="flex:1;">Recs</span>${tog("recs")}</div>
+      <div class="erow" style="cursor:default;"><span style="flex:1;">Friend Recs</span>${tog("shared")}</div>
+      <div class="sub" style="font-size:11.5px; margin:6px 0 14px;">Watched and Want to Watch always stay.</div>
+      <div class="sub" style="font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px;">YOUR LISTS</div>
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <input placeholder="New list" style="flex:1; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:10px 13px; color:var(--ink); font:inherit; outline:none;">
+        <button class="pill" onclick="toast('List created')">Create</button>
+      </div>
+      ${[["Date night",2],["2023 catch-up",3]].map(([n,c])=>`<div class="erow" style="cursor:default;"><span style="flex:1; font-weight:600;">${n}<div class="sub">${c} titles</div></span><button class="iconbtn" style="color:var(--red);" onclick="toast('List deleted')">${I("x",16)}</button></div>`).join("")}
+    </div>`);
+}
 function openListsMenu(){
   const sub=S.subTab;
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">List options</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="erow" onclick="S.ui.showFilters=!S.ui.showFilters; save(); closeOverlay()"><span class="ic">${I("sliders",18)}</span><span style="flex:1;">${S.ui.showFilters?"Hide filters":"Filter this list"}</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openCustomLists()"><span class="ic">${I("plus",18)}</span><span style="flex:1;">New List</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openEditLists()"><span class="ic">${I("sliders",18)}</span><span style="flex:1;">Edit Lists</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="S.ui.showSearch=!S.ui.showSearch; if(!S.ui.showSearch)S.ui.listQ=''; save(); closeOverlay()"><span class="ic">${I("search",18)}</span><span style="flex:1;">Search this list</span><span class="sub">${I("chevR",14)}</span></div>
       ${sub==="watched"?`<div class="erow" onclick="S.ui.reorder=!S.ui.reorder; save(); closeOverlay()"><span class="ic">${I("sort",18)}</span><span style="flex:1;">${S.ui.reorder?"Done reordering":"Reorder"}</span><span class="sub">${I("chevR",14)}</span></div>`:""}
       <div class="erow" style="border-bottom:none;" onclick="closeOverlay(); openImport()"><span class="ic">${I("download",18)}</span><span style="flex:1;">Import Existing List</span><span class="sub">${I("chevR",14)}</span></div>
@@ -1131,9 +1173,13 @@ function socialChips(s){
 }
 function openFollowList(kind){
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">${kind}</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Friends</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
+      <div style="display:flex; gap:22px; margin-bottom:12px;">
+        ${[["Followers","Followers"],["Following","Following"]].map(([l,v])=>`
+          <button class="subtab ${kind===v?"active":""}" onclick="openFollowList('${v}')">${l}</button>`).join("")}
+      </div>
       <div class="erow" style="border:1px solid var(--hair); border-radius:14px; margin-bottom:12px;" onclick="closeOverlay(); searchTab='members'; go('search');">
         <span class="ic" style="color:var(--marquee);">${I("users",18)}</span>
         <span style="flex:1; font-weight:700;">Find friends</span>
@@ -1593,8 +1639,9 @@ function logCards(){
       </div>
     </div>`;
 
-  // Details card right after sentiment (Beli's order), before comparisons.
-  if(log.bucket){
+  // Details card right after sentiment (Beli's order). Once comparisons
+  // start it hands off — the compare card REPLACES it, no scrolling down.
+  if(log.bucket && log.stage==="enrich"){
     html+=`
       <div class="fcard">
         <div class="erow" style="padding-top:2px;" onclick="openWatchedWithPicker()"><span class="ic">${I("users",18)}</span><span style="flex:1;">Who did you watch with?</span><span class="sub">${I("chevR",14)}</span></div>
@@ -1818,6 +1865,7 @@ function openMenu(){
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Menu</b><button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div class="erow" onclick="closeOverlay(); toast('Account settings — change email, password, delete account (in the app)')"><span class="ic">${I("gear",18)}</span><span style="flex:1;">Settings</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="cycleTheme()"><span class="ic">${I("spark",18)}</span><span style="flex:1;">Appearance<div class="sub" style="margin-top:1px;">${({dark:"Dark",light:"Light",auto:"Match device"})[localStorage.getItem("cini-theme")||"dark"]}</div></span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="closeOverlay(); openImport()"><span class="ic">${I("download",18)}</span><span style="flex:1;">Import Existing List</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="closeOverlay(); share('Join me on Cini — enter my username (jtsilver123) when you sign up and we follow each other automatically 🎬')"><span class="ic">${I("users",18)}</span><span style="flex:1;">Invite a Friend</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" style="border-bottom:none;" onclick="toast('Logged out (demo)')"><span class="ic" style="color:var(--red);">${I("logout",18)}</span><span style="flex:1; color:var(--red);">Log Out</span></div>

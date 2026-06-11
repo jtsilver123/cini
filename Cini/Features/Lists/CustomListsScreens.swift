@@ -257,3 +257,92 @@ struct CustomListScreen: View {
         }
     }
 }
+
+// MARK: - Edit Lists (from My Lists' ellipsis menu)
+
+/// Manage the Lists area: hide the optional default tabs, create new
+/// lists, delete old ones. Watched and Want to Watch always stay.
+struct EditListsSheet: View {
+    @Binding var lists: [CustomList]
+
+    @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
+    @Environment(\.dismiss) private var dismiss
+    @State private var newName = ""
+
+    private func visibility(for tab: String) -> Binding<Bool> {
+        Binding(
+            get: { !hiddenTabsRaw.split(separator: ",").map(String.init).contains(tab) },
+            set: { visible in
+                var hidden = Set(hiddenTabsRaw.split(separator: ",").map(String.init))
+                if visible { hidden.remove(tab) } else { hidden.insert(tab) }
+                hiddenTabsRaw = hidden.sorted().joined(separator: ",")
+            }
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Toggle("Recs", isOn: visibility(for: "Recs"))
+                    Toggle("Friend Recs", isOn: visibility(for: "Friend Recs"))
+                } header: {
+                    Text("Default lists")
+                } footer: {
+                    Text("Watched and Want to Watch are the heart of Cini — they always stay.")
+                }
+                .tint(Theme.marquee)
+
+                Section {
+                    HStack {
+                        TextField("New list", text: $newName)
+                        Button("Create") {
+                            Task { await create() }
+                        }
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    ForEach(lists) { list in
+                        HStack {
+                            Text(list.name)
+                            Spacer()
+                            Text("\(list.count)")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.gray)
+                        }
+                    }
+                    .onDelete { offsets in
+                        let doomed = offsets.map { lists[$0] }
+                        lists.remove(atOffsets: offsets)
+                        Task {
+                            for list in doomed {
+                                try? await SupabaseService.shared.deleteList(list.id)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Your lists")
+                } footer: {
+                    Text("Swipe a list to delete it. Add movies from any movie page with \"Add to List\".")
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Edit Lists")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }.bold()
+                }
+            }
+        }
+    }
+
+    private func create() async {
+        let name = newName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        newName = ""
+        if let list = try? await SupabaseService.shared.createList(name: name) {
+            lists.insert(list, at: 0)
+        }
+    }
+}

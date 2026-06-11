@@ -26,6 +26,9 @@ final class TabRouter {
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?
 
+    /// Set before jumping to search to land on a browse mode ("trending").
+    var pendingSearchBrowse: SearchView.BrowseKind?
+
     /// "Reorder within my list" from a movie page: open Watched in
     /// reorder mode.
     var pendingReorder = false

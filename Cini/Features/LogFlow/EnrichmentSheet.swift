@@ -242,46 +242,70 @@ struct EnrichmentCard: View {
 
 }
 
-/// One editor sheet per details row — presented by LogFlowView at the top
-/// of the hierarchy so it reliably appears over the stacked cards.
-struct EnrichmentRowSheet: View {
+/// One editor per details row, drawn as an in-flow overlay card. The log
+/// flow is a clear-background fullScreenCover, and sheets presented from
+/// inside one can silently fail to appear on device — an overlay always
+/// renders.
+struct EnrichmentEditorOverlay: View {
     let row: EnrichmentCard.Row
     @Binding var draft: EnrichmentDraft
     let cast: [CastMember]
+    var onDone: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    private var title: String {
+        switch row {
+        case .watchedWith: "Watched with"
+        case .date: "Watch date"
+        case .notes: "Notes"
+        case .performances: "Favorite performances"
+        }
+    }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch row {
-                case .watchedWith:
-                    WatchedWithPicker(selected: $draft.watchedWith)
-                case .date:
-                    DatePicker(
-                        "Watch date",
-                        selection: Binding(get: { draft.watchDate ?? .now }, set: { draft.watchDate = $0 }),
-                        displayedComponents: .date
-                    )
-                    .datePickerStyle(.graphical)
-                    .padding()
-                    .navigationTitle("Watch date")
-                case .notes:
-                    NoteEditor(title: "Notes", subtitle: "Visible to your friends",
-                               text: $draft.notes,
-                               containsSpoilers: $draft.notesContainSpoilers)
-                case .performances:
-                    CastPicker(cast: cast, selected: $draft.cast)
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture { onDone() }
+
+            VStack(spacing: 0) {
+                HStack {
+                    Text(title).font(.headline)
+                    Spacer()
+                    Button("Done") { onDone() }
+                        .font(.headline)
+                        .foregroundStyle(Theme.marquee)
                 }
-            }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }.bold()
+                .padding(16)
+                Divider().overlay(Theme.hairline)
+
+                Group {
+                    switch row {
+                    case .watchedWith:
+                        WatchedWithPicker(selected: $draft.watchedWith)
+                    case .date:
+                        DatePicker(
+                            "Watch date",
+                            selection: Binding(get: { draft.watchDate ?? .now },
+                                               set: { draft.watchDate = $0 }),
+                            displayedComponents: .date
+                        )
+                        .datePickerStyle(.graphical)
+                        .padding(.horizontal, 12)
+                    case .notes:
+                        NoteEditor(title: "Notes", subtitle: "Visible to your friends",
+                                   text: $draft.notes,
+                                   containsSpoilers: $draft.notesContainSpoilers)
+                    case .performances:
+                        CastPicker(cast: cast, selected: $draft.cast)
+                    }
                 }
+                .frame(maxHeight: 430)
             }
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.surface))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: Theme.cardShadow, radius: 18, y: 8)
+            .padding(.horizontal, 14)
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
     }
 }
 

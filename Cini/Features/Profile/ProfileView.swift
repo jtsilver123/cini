@@ -718,19 +718,23 @@ struct ActivityMovieRow: View {
                         .foregroundStyle(contextColor)
                         .lineLimit(1)
                 }
-                if showsQuickActions && !store.isWatched(movie.tmdbID) {
-                    quickActions
-                        .padding(.top, 4)
-                }
             }
             Spacer(minLength: 8)
-            if showsQuickActions && store.isWatched(movie.tmdbID) {
-                Image(systemName: "checkmark.circle")
-                    .font(.title3)
-                    .foregroundStyle(Theme.scoreGreen.opacity(0.85))
-            }
-            if let score {
-                ScoreBadge(score: score, size: 44)
+            // Score top-right, (+)/bookmark bottom-right — same corners
+            // as every other card in the app.
+            VStack(alignment: .trailing, spacing: 6) {
+                if let score {
+                    ScoreBadge(score: score, size: 44)
+                }
+                if showsQuickActions {
+                    if store.isWatched(movie.tmdbID) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.title3)
+                            .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                    } else {
+                        quickActions
+                    }
+                }
             }
         }
         .padding(.vertical, 8)

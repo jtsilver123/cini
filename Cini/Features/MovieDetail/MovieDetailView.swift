@@ -151,6 +151,12 @@ struct MovieDetailView: View {
             } placeholder: {
                 Rectangle().fill(Theme.gray.opacity(0.2))
             }
+            // scaledToFill reports the image's intrinsic width — without
+            // this clamp it inflates the whole page wider than the screen
+            // (titles and pills clipped at both edges).
+            .frame(height: 300)
+            .frame(maxWidth: .infinity)
+            .clipped()
             .scaleEffect(heroAppeared ? 1 : 1.06)
             .opacity(heroAppeared ? 1 : 0.6)
 

@@ -16,6 +16,7 @@ struct AccountSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
     @State private var isDeleting = false
+    @AppStorage("cini.appearance") private var appearance = "dark"
 
     private var emailLooksValid: Bool {
         let trimmed = newEmail.trimmingCharacters(in: .whitespaces)
@@ -52,6 +53,18 @@ struct AccountSettingsView: View {
                 }
             } footer: {
                 Text("Choose which kinds of alerts Cini sends you.")
+            }
+
+            Section {
+                Picker(selection: $appearance) {
+                    Text("Dark").tag("dark")
+                    Text("Light").tag("light")
+                    Text("Match device").tag("system")
+                } label: {
+                    Label("Appearance", systemImage: "circle.lefthalf.filled")
+                }
+            } footer: {
+                Text("Cini was designed for the dark — but the matinee look is here if you want it.")
             }
 
             Section {

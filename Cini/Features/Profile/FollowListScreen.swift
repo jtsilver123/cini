@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Followers / Following — pushed from the count row on any profile.
-/// Same member-row treatment as search results: avatar, name, @username,
-/// follow state, tap-through to the profile.
+/// Followers / Following — one connected screen with a tab for each,
+/// pushed from the count rows on any profile. Same member-row treatment
+/// as search results: avatar, name, @username, follow state, tap-through.
 struct FollowListScreen: View {
     let userID: UUID
-    let direction: SupabaseService.FollowDirection
+    @State var direction: SupabaseService.FollowDirection
 
     @Environment(AppSession.self) private var session
     @Environment(TabRouter.self) private var tabRouter
@@ -14,11 +14,17 @@ struct FollowListScreen: View {
     @State private var iFollow: Set<UUID> = []
     @State private var loaded = false
 
-    private var title: String { direction == .followers ? "Followers" : "Following" }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Followers | Following — flip without going back.
+                HStack(spacing: 22) {
+                    tabButton("Followers", .followers)
+                    tabButton("Following", .following)
+                    Spacer()
+                }
+                .padding(.bottom, 12)
+
                 Button {
                     tabRouter.openMembersSearch = true
                     tabRouter.selection = .search
@@ -65,10 +71,32 @@ struct FollowListScreen: View {
             .padding(16)
         }
         .background(Theme.background)
-        .navigationTitle(title)
+        .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await load() }
+        .task(id: direction == .followers) { await load() }
         .refreshable { await load() }
+    }
+
+    private func tabButton(_ title: String, _ value: SupabaseService.FollowDirection) -> some View {
+        let isOn = direction == value
+        return Button {
+            withAnimation(.snappy) {
+                direction = value
+                loaded = false
+                members = []
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.subheadline.weight(isOn ? .bold : .regular))
+                    .foregroundStyle(isOn ? Theme.ink : Theme.gray)
+                Rectangle()
+                    .fill(isOn ? Theme.ink : .clear)
+                    .frame(height: 2)
+            }
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
     }
 
     private func memberRow(_ member: ProfileRow) -> some View {

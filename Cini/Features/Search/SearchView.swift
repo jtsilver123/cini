@@ -90,8 +90,30 @@ struct SearchView: View {
                 MovieDetailView(movie: movie)
             }
             .task { await loadSuggestions() }
+            // The system search tab keeps this view alive, so onAppear
+            // alone can miss router flags set while it exists — watch for
+            // changes too.
+            .onChange(of: tabRouter.openMembersSearch) { _, wantsMembers in
+                if wantsMembers {
+                    tabRouter.openMembersSearch = false
+                    tab = 1
+                }
+            }
+            .onChange(of: tabRouter.pendingSearchBrowse) { _, pendingBrowse in
+                if let pendingBrowse {
+                    tabRouter.pendingSearchBrowse = nil
+                    tab = 0
+                    browse = pendingBrowse
+                    Task { await loadBrowse() }
+                }
+            }
             .onAppear {
-                if tabRouter.openMembersSearch {
+                if let pendingBrowse = tabRouter.pendingSearchBrowse {
+                    tabRouter.pendingSearchBrowse = nil
+                    tab = 0
+                    browse = pendingBrowse
+                    Task { await loadBrowse() }
+                } else if tabRouter.openMembersSearch {
                     tabRouter.openMembersSearch = false
                     tab = 1
                 } else if query.isEmpty {

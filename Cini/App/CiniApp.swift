@@ -5,6 +5,16 @@ struct CiniApp: App {
     @UIApplicationDelegateAdaptor(PushManager.self) private var pushManager
     @State private var session = AppSession()
     @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
+    /// "dark" (default — the screening room) · "light" · "system".
+    @AppStorage("cini.appearance") private var appearance = "dark"
+
+    private var colorScheme: ColorScheme? {
+        switch appearance {
+        case "light": .light
+        case "system": nil       // follow the device setting
+        default: .dark
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -23,7 +33,7 @@ struct CiniApp: App {
             .environment(session)
             .environment(session.rankingStore)
             .tint(Theme.marquee)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(colorScheme)
             .task { await session.bootstrap() }
         }
     }

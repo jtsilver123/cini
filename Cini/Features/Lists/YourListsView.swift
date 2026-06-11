@@ -24,7 +24,6 @@ struct YourListsView: View {
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
     @State private var predicted: [Int: Double] = [:]
-    @State private var showFilters = false
     @State private var showListSearch = false
     @State private var listQuery = ""
     @State private var reorderMode = false
@@ -32,7 +31,28 @@ struct YourListsView: View {
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
-    @State private var trendingMovies: [Movie] = []
+    // Custom lists live as tabs beside the defaults; defaults can be
+    // hidden from Edit Lists (Watched/Want to Watch always stay).
+    @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
+    @State private var customLists: [CustomList] = []
+    @State private var selectedListID: UUID?
+    @State private var customListMovies: [Movie] = []
+    @State private var showEditLists = false
+    @State private var showNewList = false
+    @State private var newListName = ""
+
+    private var hiddenTabs: Set<String> {
+        Set(hiddenTabsRaw.split(separator: ",").map(String.init))
+    }
+
+    private var visibleDefaultTabs: [SubTab] {
+        SubTab.allCases.filter { tab in
+            switch tab {
+            case .recs, .friendRecs: return !hiddenTabs.contains(tab.rawValue)
+            default: return true
+            }
+        }
+    }
 
     struct RecCandidate: Identifiable, Hashable {
         let movie: Movie
@@ -45,7 +65,6 @@ struct YourListsView: View {
         case watchlist = "Want to Watch"
         case recs = "Recs"
         case friendRecs = "Friend Recs"
-        case trending = "Trending"
     }
 
     var body: some View {
@@ -54,8 +73,10 @@ struct YourListsView: View {
                 header
                 categoryRow
                 subTabs
-                if subTab != .friendRecs && subTab != .trending {
-                    if showFilters { filterRow }
+                if subTab != .friendRecs && selectedListID == nil {
+                    // Filters are first-class on every personal list —
+                    // always visible, never acting from hiding.
+                    if !reorderMode { filterRow }
                     if showListSearch { listSearchField }
                     // Recs are relevance-ordered; a date/score sort there
                     // would lie about what the toggle does.
@@ -74,22 +95,57 @@ struct YourListsView: View {
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
             }
+            .task {
+                customLists = (try? await SupabaseService.shared.myLists()) ?? []
+            }
+            .sheet(isPresented: $showEditLists, onDismiss: {
+                Task { customLists = (try? await SupabaseService.shared.myLists()) ?? [] }
+                if selectedListID != nil && !customLists.contains(where: { $0.id == selectedListID }) {
+                    selectedListID = nil
+                }
+                if !visibleDefaultTabs.contains(subTab) { subTab = .watched }
+            }) {
+                EditListsSheet(lists: $customLists)
+                    .presentationDetents([.medium, .large])
+            }
+            .alert("New List", isPresented: $showNewList) {
+                TextField("Name (e.g. Best heist movies)", text: $newListName)
+                Button("Create") {
+                    let name = newListName.trimmingCharacters(in: .whitespaces)
+                    newListName = ""
+                    guard !name.isEmpty else { return }
+                    Task {
+                        if let list = try? await SupabaseService.shared.createList(name: name) {
+                            customLists.insert(list, at: 0)
+                            withAnimation(.snappy) { selectedListID = list.id }
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { newListName = "" }
+            } message: {
+                Text("Add movies to it from any movie page with \"Add to List\".")
+            }
             .onAppear {
                 if let pending = tabRouter.pendingListsTab {
                     tabRouter.pendingListsTab = nil
                     subTab = pending
+                    selectedListID = nil
+                    // A deep link wins over the hide preference.
+                    if !visibleDefaultTabs.contains(pending) {
+                        var hidden = hiddenTabs
+                        hidden.remove(pending.rawValue)
+                        hiddenTabsRaw = hidden.sorted().joined(separator: ",")
+                    }
                 }
                 if tabRouter.pendingReorder {
                     tabRouter.pendingReorder = false
                     subTab = .watched
                     reorderMode = true
-                    showFilters = false; listQuery = ""; showListSearch = false
+                    listQuery = ""; showListSearch = false
                     genreFilter = nil; decadeFilter = nil
                     runtimeFilter = nil; streamingFilter = false; languageFilter = nil
                     sortDescending = true   // drag offsets need canonical order
                 }
-                // Persisted filters must never act invisibly.
-                if hasActiveFilters { showFilters = true }
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -97,33 +153,30 @@ struct YourListsView: View {
         }
     }
 
+    /// Plain HStack with generous tap targets — the old overlay-based
+    /// layout made the ellipsis flaky to hit.
     private var header: some View {
-        HStack {
-            Spacer()
+        ZStack {
             Text("MY LISTS").font(.subheadline.weight(.semibold))
-            Spacer()
-        }
-        .overlay(alignment: .trailing) {
-            HStack(spacing: 16) {
+            HStack(spacing: 2) {
+                Spacer()
                 ShareLink(item: "My movie rankings live on Cini 🎬") {
                     Image(systemName: "square.and.arrow.up")
+                        .padding(8)
+                        .contentShape(Rectangle())
                 }
                 Menu {
                     Button {
-                        withAnimation(.snappy) {
-                            showFilters.toggle()
-                            // Hiding the row must not leave filters acting
-                            // invisibly — clear them on the way out.
-                            if !showFilters {
-                                genreFilter = nil; decadeFilter = nil
-                                runtimeFilter = nil; streamingFilter = false
-                                languageFilter = nil
-                            }
-                        }
+                        showNewList = true
                     } label: {
-                        Label(showFilters ? "Hide filters" : "Filter this list",
-                              systemImage: "line.3.horizontal.decrease.circle")
+                        Label("New List", systemImage: "plus")
                     }
+                    Button {
+                        showEditLists = true
+                    } label: {
+                        Label("Edit Lists", systemImage: "slider.horizontal.3")
+                    }
+                    Divider()
                     Button {
                         withAnimation(.snappy) {
                             showListSearch.toggle()
@@ -132,12 +185,11 @@ struct YourListsView: View {
                     } label: {
                         Label("Search this list", systemImage: "magnifyingglass")
                     }
-                    if subTab == .watched {
+                    if subTab == .watched && selectedListID == nil {
                         Button {
                             withAnimation(.snappy) {
                                 reorderMode.toggle()
                                 if reorderMode {   // reorder works on the full list
-                                    showFilters = false
                                     listQuery = ""
                                     showListSearch = false
                                     genreFilter = nil; decadeFilter = nil
@@ -161,12 +213,15 @@ struct YourListsView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                 }
             }
             .foregroundStyle(Theme.ink)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 2)
     }
 
     private var categoryRow: some View {
@@ -185,15 +240,19 @@ struct YourListsView: View {
     private var subTabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 22) {
-                ForEach(SubTab.allCases, id: \.self) { tab in
+                ForEach(visibleDefaultTabs, id: \.self) { tab in
+                    let isOn = subTab == tab && selectedListID == nil
                     Button {
-                        withAnimation(.snappy) { subTab = tab }
+                        withAnimation(.snappy) {
+                            subTab = tab
+                            selectedListID = nil
+                        }
                     } label: {
                         VStack(spacing: 6) {
                             HStack(spacing: 5) {
                                 Text(tab.rawValue)
-                                    .font(.subheadline.weight(subTab == tab ? .bold : .regular))
-                                    .foregroundStyle(subTab == tab ? Theme.ink : Theme.gray)
+                                    .font(.subheadline.weight(isOn ? .bold : .regular))
+                                    .foregroundStyle(isOn ? Theme.ink : Theme.gray)
                                 // Pending-import count: visible from every
                                 // sub-tab so the queue can't be forgotten.
                                 if tab == .watched && !pendingEntries.isEmpty {
@@ -206,7 +265,27 @@ struct YourListsView: View {
                                 }
                             }
                             Rectangle()
-                                .fill(subTab == tab ? Theme.ink : .clear)
+                                .fill(isOn ? Theme.ink : .clear)
+                                .frame(height: 2)
+                        }
+                        .fixedSize()
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Your own lists ride the same row.
+                ForEach(customLists) { list in
+                    let isOn = selectedListID == list.id
+                    Button {
+                        withAnimation(.snappy) { selectedListID = list.id }
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(list.name)
+                                .font(.subheadline.weight(isOn ? .bold : .regular))
+                                .foregroundStyle(isOn ? Theme.ink : Theme.gray)
+                                .lineLimit(1)
+                            Rectangle()
+                                .fill(isOn ? Theme.ink : .clear)
                                 .frame(height: 2)
                         }
                         .fixedSize()
@@ -217,34 +296,6 @@ struct YourListsView: View {
             .padding(.horizontal, 16)
         }
         .padding(.top, 10)
-    }
-
-    /// What's big on TMDB this week, scored for YOUR taste.
-    private var trendingList: some View {
-        List {
-            ForEach(trendingMovies) { movie in
-                WatchlistRowView(movie: movie, predicted: predicted[movie.tmdbID]) {
-                    logMovie = movie
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { detailMovie = movie }
-                .listRowBackground(Theme.background)
-            }
-        }
-        .listStyle(.plain)
-        .overlay {
-            if trendingMovies.isEmpty {
-                ProgressView()
-            }
-        }
-        .task {
-            guard trendingMovies.isEmpty else { return }
-            trendingMovies = (try? await TMDBService.shared.trending()) ?? []
-            for movie in trendingMovies { store.cache(movie) }
-            let map = await SupabaseService.shared.predictedScores(
-                movieIDs: trendingMovies.map(\.tmdbID))
-            predicted.merge(map) { _, new in new }
-        }
     }
 
     /// Direct recommendations friends sent you — all of them live here.
@@ -433,12 +484,59 @@ struct YourListsView: View {
 
     @ViewBuilder
     private var listContent: some View {
-        switch subTab {
-        case .watched: watchedList
-        case .watchlist: watchlistList
-        case .recs: recsList
-        case .friendRecs: friendRecsList
-        case .trending: trendingList
+        if selectedListID != nil {
+            customListContent
+        } else {
+            switch subTab {
+            case .watched: watchedList
+            case .watchlist: watchlistList
+            case .recs: recsList
+            case .friendRecs: friendRecsList
+            }
+        }
+    }
+
+    /// One of the user's own lists, inline — same rows, swipe to remove.
+    private var customListContent: some View {
+        List {
+            if customListMovies.isEmpty {
+                Text("Empty so far — add movies with \"Add to List\" on any movie page.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                    .listRowBackground(Theme.background)
+                    .listRowSeparator(.hidden)
+            }
+            ForEach(customListMovies) { movie in
+                WatchlistRowView(movie: movie,
+                                 predicted: store.predictedScores[movie.tmdbID]) {
+                    logMovie = movie
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { detailMovie = movie }
+                .listRowBackground(Theme.background)
+            }
+            .onDelete { offsets in
+                guard let listID = selectedListID else { return }
+                let doomed = offsets.map { customListMovies[$0] }
+                customListMovies.remove(atOffsets: offsets)
+                Task {
+                    for movie in doomed {
+                        try? await SupabaseService.shared.removeFromList(listID, movieID: movie.tmdbID)
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .task(id: selectedListID) {
+            guard let listID = selectedListID else { return }
+            customListMovies = []
+            let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
+            let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
+            let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.tmdbId, $0.asMovie) })
+            customListMovies = ids.compactMap { byID[$0] ?? store.movie($0) }
+            for movie in customListMovies { store.cache(movie) }
         }
     }
 
@@ -783,7 +881,21 @@ struct WatchlistRowView: View {
                 Text(movie.bylineText)
                     .font(.subheadline)
                     .foregroundStyle(Theme.ink.opacity(0.8))
-                HStack(spacing: 16) {
+            }
+            Spacer()
+            // Score top-right, (+)/bookmark bottom-right — the same
+            // corners they occupy on every artwork and card.
+            VStack(alignment: .trailing, spacing: 6) {
+                if let predicted {
+                    VStack(spacing: 3) {
+                        ScoreBadge(score: predicted)
+                        Text("Rec Score")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+                Spacer(minLength: 0)
+                HStack(spacing: 14) {
                     Button(action: onQuickRank) {
                         Image(systemName: "plus.circle")
                     }
@@ -796,17 +908,8 @@ struct WatchlistRowView: View {
                 }
                 .font(.title3)
                 .buttonStyle(.plain)
-                .padding(.top, 6)
             }
-            Spacer()
-            if let predicted {
-                VStack(spacing: 3) {
-                    ScoreBadge(score: predicted)
-                    Text("Rec Score")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Theme.gray)
-                }
-            }
+            .frame(minHeight: 78)
         }
         .padding(.vertical, 6)
     }
