@@ -135,6 +135,13 @@ struct CustomListScreen: View {
         .background(Theme.background)
         .navigationTitle(list.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: shareText) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+        }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
         }
@@ -147,6 +154,11 @@ struct CustomListScreen: View {
             for row in rows { movies[row.tmdbId] = row.asMovie }
             loaded = true
         }
+    }
+
+    private var shareText: String {
+        listShareText(name: list.name,
+                      movies: movieIDs.compactMap { movies[$0] ?? store.movie($0) })
     }
 
     private func removeItems(at offsets: IndexSet) {
@@ -247,4 +259,18 @@ struct EditListsSheet: View {
             lists.insert(list, at: 0)
         }
     }
+}
+
+
+/// "Best heist movies — my list on Cini 🎬" + the first titles.
+func listShareText(name: String, movies: [Movie]) -> String {
+    var lines = ["\(name) — my list on Cini 🎬"]
+    for (index, movie) in movies.prefix(10).enumerated() {
+        let year = movie.releaseYear.map { " (\($0))" } ?? ""
+        lines.append("\(index + 1). \(movie.title)\(year)")
+    }
+    if movies.count > 10 {
+        lines.append("…and \(movies.count - 10) more")
+    }
+    return lines.joined(separator: "\n")
 }

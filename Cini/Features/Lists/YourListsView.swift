@@ -153,6 +153,14 @@ struct YourListsView: View {
         }
     }
 
+    private var headerShareText: String {
+        if let selectedListID,
+           let list = customLists.first(where: { $0.id == selectedListID }) {
+            return listShareText(name: list.name, movies: customListMovies)
+        }
+        return "My movie rankings live on Cini 🎬"
+    }
+
     /// Plain HStack with generous tap targets — the old overlay-based
     /// layout made the ellipsis flaky to hit.
     private var header: some View {
@@ -160,7 +168,8 @@ struct YourListsView: View {
             Text("MY LISTS").font(.subheadline.weight(.semibold))
             HStack(spacing: 2) {
                 Spacer()
-                ShareLink(item: "My movie rankings live on Cini 🎬") {
+                // Sharing a selected custom list shares THAT list.
+                ShareLink(item: headerShareText) {
                     Image(systemName: "square.and.arrow.up")
                         .padding(8)
                         .contentShape(Rectangle())

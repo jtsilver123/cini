@@ -235,13 +235,15 @@ final class SupabaseService {
 
     struct MyMovieDetails {
         var note: String?
+        var noteContainsSpoilers = false
         var personalNote: String?
         var labels: [String] = []
         var watchDate: String?
         var watchedWith: [String] = []
+        var watchedWithIDs: [UUID] = []
         var watchedWhere: String?   // "home" | "theater"
         var watchCount = 0          // diary rewatches
-        var performances: [(name: String, profilePath: String?)] = []
+        var performances: [(id: Int, name: String, profilePath: String?)] = []
 
         var isEmpty: Bool {
             note == nil && personalNote == nil && labels.isEmpty
@@ -253,8 +255,8 @@ final class SupabaseService {
     func myMovieDetails(movieID: Int) async -> MyMovieDetails? {
         guard let me = currentUserID else { return nil }
 
-        struct NoteRow: Decodable { let body: String; let is_private: Bool }
-        struct PerfRow: Decodable { let person_name: String; let profile_path: String? }
+        struct NoteRow: Decodable { let body: String; let is_private: Bool; let contains_spoilers: Bool? }
+        struct PerfRow: Decodable { let tmdb_person_id: Int; let person_name: String; let profile_path: String? }
         struct LabelName: Decodable { let name: String }
         struct LabelLink: Decodable { let labels: LabelName? }
         struct RankRow: Decodable {
@@ -265,11 +267,11 @@ final class SupabaseService {
         }
 
         async let notesTask: [NoteRow]? = try? client.from("notes")
-            .select("body, is_private")
+            .select("body, is_private, contains_spoilers")
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .execute().value
         async let perfsTask: [PerfRow]? = try? client.from("favorite_performances")
-            .select("person_name, profile_path")
+            .select("tmdb_person_id, person_name, profile_path")
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .execute().value
         async let rankTask: RankRow? = try? client.from("rankings")
@@ -280,14 +282,20 @@ final class SupabaseService {
 
         var details = MyMovieDetails()
         for row in (await notesTask) ?? [] {
-            if row.is_private { details.personalNote = row.body } else { details.note = row.body }
+            if row.is_private {
+                details.personalNote = row.body
+            } else {
+                details.note = row.body
+                details.noteContainsSpoilers = row.contains_spoilers ?? false
+            }
         }
-        details.performances = ((await perfsTask) ?? []).map { ($0.person_name, $0.profile_path) }
+        details.performances = ((await perfsTask) ?? []).map { ($0.tmdb_person_id, $0.person_name, $0.profile_path) }
         if let rank = await rankTask {
             details.watchDate = rank.watch_date
             details.watchedWhere = rank.watched_where
             details.labels = (rank.ranking_labels ?? []).compactMap { $0.labels?.name }
             if let with = rank.watched_with, !with.isEmpty {
+                details.watchedWithIDs = with
                 let rows: [ProfileRow]? = try? await client.from("profiles")
                     .select().in("id", values: with).execute().value
                 details.watchedWith = (rows ?? []).map(\.username)
@@ -552,6 +560,27 @@ final class SupabaseService {
             .order("watched_on", ascending: false)
             .execute().value) ?? []
         return (rows.count, rows.first?.watched_on)
+    }
+
+    /// Replace the favorite-performance set wholesale — editing can
+    /// remove people, not just add them.
+    func setPerformances(movieID: Int, cast: [CastMember]) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("favorite_performances").delete()
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .execute()
+        for member in cast {
+            try? await addPerformance(movieID: movieID, cast: member)
+        }
+    }
+
+    /// Editing can clear a note entirely.
+    func deleteNote(movieID: Int, isPrivate: Bool) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("notes").delete()
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .eq("is_private", value: isPrivate)
+            .execute()
     }
 
     func addPerformance(movieID: Int, cast: CastMember) async throws {

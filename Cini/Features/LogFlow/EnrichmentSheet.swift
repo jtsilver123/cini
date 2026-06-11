@@ -11,6 +11,9 @@ struct EnrichmentCard: View {
     @Binding var draft: EnrichmentDraft
     /// True once comparisons begin — inputs stay visible but read-only.
     var isLocked = false
+    /// The movie page reuses this card as an editor — no Okay, no stealth.
+    var showsOkay = true
+    var showsStealth = true
     var onOkay: () -> Void
 
     private let supabase = SupabaseService.shared
@@ -44,15 +47,17 @@ struct EnrichmentCard: View {
             divider
             enrichmentRow(.date, icon: "calendar", title: "Add watch date",
                           detail: draft.watchDate?.formatted(date: .abbreviated, time: .omitted))
-            divider
-            stealthRow
+            if showsStealth {
+                divider
+                stealthRow
+            }
 
             if !friendScores.isEmpty {
                 divider
                 friendsSection
             }
 
-            if !isLocked {
+            if !isLocked && showsOkay {
                 Button {
                     onOkay()
                 } label: {

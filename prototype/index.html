@@ -1136,6 +1136,14 @@ function renderProfile(){
       ${socialChips(isSelf ? S.me : (member.socials||{}))}
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
     </div>
+    <div style="display:flex; gap:12px; justify-content:center; margin-top:14px; padding:0 18px;">
+      ${scoredWatched().slice(0,3).map((w,i)=>{
+        const m=MOVIES[w.k];
+        return `<div style="position:relative; cursor:pointer;" onclick="openDetail('${w.k}')">
+          <div class="poster" style="width:88px; height:132px; background-image:url('${IMG(m.p)}'); box-shadow:0 6px 18px rgba(0,0,0,.35);"></div>
+          <span style="position:absolute; top:6px; left:6px; background:var(--gold); color:var(--bg); font-size:11px; font-weight:800; border-radius:999px; padding:2px 7px;">#${i+1}</span>
+        </div>`;}).join("")}
+    </div>
     <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
       <div style="flex:1; cursor:pointer;" onclick="openFollowList('Followers')"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
       <div style="flex:1; cursor:pointer;" onclick="openFollowList('Following')"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>

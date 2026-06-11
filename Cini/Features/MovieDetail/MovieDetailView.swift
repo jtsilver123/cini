@@ -26,6 +26,7 @@ struct MovieDetailView: View {
     @State private var showLogFlow = false
     @State private var showRankAgainDialog = false
     @State private var showRewatchSheet = false
+    @State private var showEditDetails = false
     @State private var revealedSpoilers: Set<UUID> = []
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
@@ -115,6 +116,11 @@ struct MovieDetailView: View {
             }
             Button("Log a rewatch") { showRewatchSheet = true }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showEditDetails) {
+            EditDetailsSheet(movie: movie, details: myDetails, cast: cast) {
+                Task { myDetails = await SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID) }
+            }
         }
         .sheet(isPresented: $showRewatchSheet) {
             RewatchSheet(movie: movie) {
@@ -616,13 +622,35 @@ struct MovieDetailView: View {
         }
     }
 
-    /// Everything YOU attached while ranking: notes, performances,
-    /// labels, watch date and company.
+    /// Everything YOU attached while ranking — and it's never read-only:
+    /// the pencil opens the same editors the rank flow uses.
     @ViewBuilder
     private var yourDetailsSection: some View {
-        if let myDetails {
+        if myItem != nil || myDetails != nil {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Your Details").font(.title3.weight(.bold))
+                HStack {
+                    Text("Your Details").font(.title3.weight(.bold))
+                    Spacer()
+                    Button {
+                        showEditDetails = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "pencil")
+                            Text(myDetails == nil ? "Add" : "Edit")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if myDetails == nil {
+                    Text("Notes, who you watched with, favorite performances — add them anytime.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                if let myDetails {
 
                 if let note = myDetails.note {
                     detailRow(icon: "square.and.pencil", title: "Notes") {
@@ -653,6 +681,7 @@ struct MovieDetailView: View {
                         Text(watchedLine(myDetails))
                             .font(.subheadline)
                     }
+                }
                 }
             }
             .padding(.horizontal, 16)
@@ -988,5 +1017,95 @@ struct ScoreInfoSheet: View {
         }
         .frame(maxWidth: .infinity)
         .background(Theme.background)
+    }
+}
+
+// MARK: - Edit Your Details
+
+/// Your Details is never read-only: the same card the rank flow uses,
+/// seeded from what's saved, with Save in the toolbar.
+struct EditDetailsSheet: View {
+    let movie: Movie
+    let details: SupabaseService.MyMovieDetails?
+    let cast: [CastMember]
+    var onSaved: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = EnrichmentDraft()
+    @State private var activeRow: EnrichmentCard.Row?
+    @State private var saving = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                EnrichmentCard(movie: movie, draft: $draft,
+                               isLocked: false, showsOkay: false, showsStealth: false,
+                               onOkay: {}, activeRow: $activeRow)
+                    .padding(16)
+            }
+            .background(Theme.background)
+            .navigationTitle("Your Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Saving…" : "Save") {
+                        Task { await save() }
+                    }
+                    .bold()
+                    .disabled(saving)
+                }
+            }
+            .overlay {
+                if let row = activeRow {
+                    EnrichmentEditorOverlay(row: row, draft: $draft, cast: cast) {
+                        activeRow = nil
+                    }
+                }
+            }
+            .onAppear { seed() }
+        }
+    }
+
+    private func seed() {
+        guard let details else { return }
+        draft.notes = details.note ?? ""
+        draft.notesContainSpoilers = details.noteContainsSpoilers
+        draft.watchedWith = Set(details.watchedWithIDs)
+        draft.watchedWhere = details.watchedWhere
+        draft.watchDate = details.watchDate.flatMap { DateFormatter.posixDay.date(from: $0) }
+        draft.cast = Set(details.performances.map { performance in
+            // Prefer the live cast entry (carries the character name).
+            cast.first { $0.id == performance.id }
+                ?? CastMember(id: performance.id, name: performance.name,
+                              character: nil, profilePath: performance.profilePath)
+        })
+    }
+
+    private func save() async {
+        saving = true
+        defer { saving = false }
+        let supabase = SupabaseService.shared
+        let body = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        if body.isEmpty {
+            if details?.note != nil {
+                try? await supabase.deleteNote(movieID: movie.tmdbID, isPrivate: false)
+            }
+        } else {
+            try? await supabase.upsertNote(movieID: movie.tmdbID, body: body,
+                                           isPrivate: false,
+                                           containsSpoilers: draft.notesContainSpoilers)
+        }
+        try? await supabase.updateRanking(movieID: movie.tmdbID,
+                                          watchedWith: Array(draft.watchedWith),
+                                          watchDate: draft.watchDate,
+                                          watchedWhere: draft.watchedWhere)
+        try? await supabase.setPerformances(movieID: movie.tmdbID,
+                                            cast: Array(draft.cast))
+        FriendsCache.shared.warm()   // tag frequencies may have changed
+        onSaved()
+        dismiss()
     }
 }

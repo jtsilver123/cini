@@ -56,6 +56,7 @@ struct ProfileScreen: View {
             ScrollView {
                 VStack(spacing: 18) {
                     identity
+                    topThree
                     statRow
                     buttonRow
                     listRows
@@ -189,6 +190,41 @@ struct ProfileScreen: View {
                 }
             }
             .font(.title3)
+        }
+    }
+
+    // MARK: Top 3 — the ranking speaks for itself
+
+    /// Letterboxd makes people hand-pick favorites; Cini already knows.
+    /// The top three ranked films, always current, on every profile.
+    @ViewBuilder
+    private var topThree: some View {
+        let top = rankings.prefix(3).compactMap { row in
+            movies[row.movieId].map { (row: row, movie: $0) }
+        }
+        if !top.isEmpty {
+            HStack(spacing: 12) {
+                Spacer(minLength: 0)
+                ForEach(Array(top.enumerated()), id: \.element.row.id) { index, entry in
+                    Button {
+                        detailMovie = entry.movie
+                    } label: {
+                        PosterView(url: entry.movie.posterURL, width: 92)
+                            .overlay(alignment: .topLeading) {
+                                Text("#\(index + 1)")
+                                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(Theme.background)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(Capsule().fill(Theme.gold))
+                                    .padding(5)
+                            }
+                            .shadow(color: Theme.cardShadow, radius: 8, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 
