@@ -356,6 +356,7 @@ struct FeedCard: View {
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
+    @State private var likeInFlight = false
     @State private var showComments = false
 
     private var movie: Movie? { event.movies?.asMovie }
@@ -408,9 +409,12 @@ struct FeedCard: View {
 
             HStack(spacing: 18) {
                 Button {
+                    guard !likeInFlight else { return }
+                    likeInFlight = true
                     Haptics.tap()
                     liked.toggle()   // optimistic; reverted if the call fails
                     Task {
+                        defer { likeInFlight = false }
                         do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
                         catch {
                             liked.toggle()

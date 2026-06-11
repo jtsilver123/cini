@@ -103,6 +103,14 @@ final class LetterboxdImporterTests: XCTestCase {
         XCTAssertEqual(titles[0].watchedOn, "2024-03-09")
     }
 
+    func testMultilineQuotedReviewSurvives() {
+        let csv = "Date,Name,Year,Letterboxd URI,Rating,Rewatch,Review,Tags,Watched Date\n"
+            + "2024-03-10,Heat,1995,uri,4.5,No,\"Line one.\nLine two, with a comma.\",,2024-03-09\n"
+        let titles = LetterboxdImporter.parse(csv: csv)
+        XCTAssertEqual(titles.count, 1)
+        XCTAssertEqual(titles[0].review, "Line one.\nLine two, with a comma.")
+    }
+
     func testWatchlistDateIsNotAWatchDate() {
         let csv = """
         Date,Name,Year,Letterboxd URI

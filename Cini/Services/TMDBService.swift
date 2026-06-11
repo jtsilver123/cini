@@ -29,6 +29,8 @@ final class TMDBService {
             diskPath: "cini-tmdb"
         )
         config.requestCachePolicy = .returnCacheDataElseLoad
+        // Fail fast on dead networks — 60s default feels like a hang.
+        config.timeoutIntervalForRequest = 20
         session = URLSession(configuration: config)
     }
 

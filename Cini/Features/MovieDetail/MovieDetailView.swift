@@ -40,6 +40,7 @@ struct MovieDetailView: View {
     @State private var publicNotes: [PublicNoteRow] = []
     @State private var publicNotesLoaded = false
     @State private var blockCandidate: PublicNoteRow?
+    @State private var heartsInFlight: Set<UUID> = []
     @State private var commentsTarget: CommentsTarget?
 
     enum PeopleTab: String, CaseIterable {
@@ -953,15 +954,18 @@ struct MovieDetailView: View {
         .padding(.vertical, 6)
     }
 
-    /// Optimistic heart, reverted if the call fails.
+    /// Optimistic heart, reverted if the call fails. One in flight per
+    /// note — rapid double-taps can't race the server.
     private func toggleHeart(on row: PublicNoteRow) {
         guard let eventId = row.eventId,
-              let index = publicNotes.firstIndex(where: { $0.id == row.id }) else { return }
+              let index = publicNotes.firstIndex(where: { $0.id == row.id }),
+              heartsInFlight.insert(row.id).inserted else { return }
         Haptics.tap()
         let wasLiked = publicNotes[index].likedByMe
         publicNotes[index].likedByMe.toggle()
         publicNotes[index].likeCount += wasLiked ? -1 : 1
         Task {
+            defer { heartsInFlight.remove(row.id) }
             do { try await SupabaseService.shared.toggleLike(eventID: eventId) }
             catch {
                 if let i = publicNotes.firstIndex(where: { $0.id == row.id }) {

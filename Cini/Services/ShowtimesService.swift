@@ -35,7 +35,11 @@ enum ShowtimesError: Error {
 final class ShowtimesService: ShowtimesProviding {
     static let shared = ShowtimesService()
 
-    private let session = URLSession.shared
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 20
+        return URLSession(configuration: config)
+    }()
 
     func showtimes(for movie: Movie, zipcode: String, date: Date) async throws -> [TheaterShowtimes] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
