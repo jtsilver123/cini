@@ -77,6 +77,32 @@ final class LetterboxdImporterTests: XCTestCase {
         XCTAssertEqual(titles[0].rating, 4.5)
     }
 
+    func testRewatchRowsMergeKeepingEveryDate() {
+        let csv = """
+        Date,Name,Year,Letterboxd URI,Rating,Rewatch,Tags,Watched Date
+        2024-03-10,Dune,2021,uri,4.0,No,,2024-01-15
+        2024-03-11,Dune,2021,uri,4.5,Yes,,2024-02-20
+        2024-03-12,Dune,2021,uri,5.0,Yes,,2024-03-10
+        """
+        let titles = LetterboxdImporter.dedupe(LetterboxdImporter.parse(csv: csv))
+        XCTAssertEqual(titles.count, 1, "rewatches collapse to one film")
+        XCTAssertEqual(titles[0].watchDates, ["2024-01-15", "2024-02-20", "2024-03-10"],
+                       "…but every watch date survives")
+    }
+
+    func testCiniExportHeadersRoundTrip() {
+        // CiniExporter writes Title,Year,tmdbID,Rating10,WatchedDate — the
+        // importer must read its own export losslessly.
+        let csv = """
+        Title,Year,tmdbID,Rating10,WatchedDate
+        Heat,1995,949,9,2024-03-09
+        """
+        let titles = LetterboxdImporter.parse(csv: csv)
+        XCTAssertEqual(titles.count, 1)
+        XCTAssertEqual(titles[0].rating, 4.5, "Rating10 9 normalizes to 4.5 stars")
+        XCTAssertEqual(titles[0].watchedOn, "2024-03-09")
+    }
+
     func testWatchlistDateIsNotAWatchDate() {
         let csv = """
         Date,Name,Year,Letterboxd URI

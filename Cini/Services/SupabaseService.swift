@@ -568,6 +568,8 @@ final class SupabaseService {
         let poster_path: String?
         let review: String?
         let watched_on: String?
+        /// Every diary date — rewatches each become their own entry.
+        let watched_dates: [String]
     }
 
     /// Reviews land as public notes (never overwriting an in-app edit)

@@ -5,7 +5,7 @@ struct CiniApp: App {
     @UIApplicationDelegateAdaptor(PushManager.self) private var pushManager
     @State private var session = AppSession()
     @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
-    /// "dark" (default — the screening room) · "light" · "system".
+    /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
 
     private var colorScheme: ColorScheme? {

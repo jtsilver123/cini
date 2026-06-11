@@ -67,6 +67,7 @@ struct CiniChatAvailableView: View {
     @State private var showAttachPicker = false
     @State private var attachedMovie: Movie?
     @State private var logMovie: Movie?
+    @State private var needsContextRefresh = false
     @FocusState private var inputFocused: Bool
 
     struct ChatMessage: Identifiable, Equatable {
@@ -87,6 +88,7 @@ struct CiniChatAvailableView: View {
             chips.append("Pick from my Want to Watch list for tonight")
         }
         chips.append("Surprise me with a hidden gem")
+        chips.append("What can you do for me?")
         return chips
     }
 
@@ -180,7 +182,11 @@ struct CiniChatAvailableView: View {
             }
             .presentationDetents([.medium, .large])
         }
-        .fullScreenCover(item: $logMovie) { movie in
+        .fullScreenCover(item: $logMovie, onDismiss: {
+            // They may have just ranked something — the next prompt
+            // carries a fresh taste snapshot so advice never goes stale.
+            needsContextRefresh = true
+        }) { movie in
             LogFlowView(movie: movie)
         }
     }
@@ -310,7 +316,7 @@ struct CiniChatAvailableView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(styled(message.text))
                     .font(.subheadline)
-                    .foregroundStyle(message.isUser ? .white : Theme.ink)
+                    .foregroundStyle(message.isUser ? Theme.background : Theme.ink)
                 // Receipts for what the agent DID, not just said.
                 if !message.actions.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -446,6 +452,16 @@ struct CiniChatAvailableView: View {
                 ? "Tell me about \(movie.title)\(year) — would I like it given my taste?"
                 : "About the movie \(movie.title)\(year): \(text)"
             attachedMovie = nil
+        }
+
+        if needsContextRefresh {
+            needsContextRefresh = false
+            prompt = """
+            (Context update — their taste profile right now:
+            \(Self.tasteSummary(store: store)))
+
+            \(prompt)
+            """
         }
 
         messages.append(ChatMessage(isUser: true, text: visible))

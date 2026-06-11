@@ -251,6 +251,16 @@ struct FeedView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
+
+                if #available(iOS 26.0, *) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                        Text("Or tap the sparkles — Ask Cini can pick, save, and rank for you.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                }
             }
             .frame(maxWidth: .infinity)
         }

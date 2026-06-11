@@ -124,7 +124,7 @@ struct MovieDetailView: View {
         }
         .confirmationDialog("Delete your rating for \(movie.title)?",
                             isPresented: $showDeleteRatingConfirm, titleVisibility: .visible) {
-            Button("Delete rating", role: .destructive) {
+            Button("Delete my rating", role: .destructive) {
                 Task {
                     if await store.removeRanking(movieID: movie.tmdbID) {
                         Haptics.success()
@@ -166,7 +166,8 @@ struct MovieDetailView: View {
             Text("You won't see each other's rankings, notes, or activity.")
         }
         .sheet(isPresented: $showEditDetails) {
-            EditDetailsSheet(movie: movie, details: myDetails, cast: cast) {
+            EditDetailsSheet(movie: movie, details: myDetails, cast: cast,
+                             isRanked: myItem != nil) {
                 Task { myDetails = await SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID) }
             }
         }
@@ -1077,18 +1078,23 @@ struct EditDetailsSheet: View {
     let movie: Movie
     let details: SupabaseService.MyMovieDetails?
     let cast: [CastMember]
+    /// Unranked movies have no ranking row: dates/places file into the
+    /// diary instead, and watched-with (rankings-only) stays hidden.
+    var isRanked: Bool = true
     var onSaved: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var draft = EnrichmentDraft()
     @State private var activeRow: EnrichmentCard.Row?
     @State private var saving = false
+    @State private var seededDate: Date?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 EnrichmentCard(movie: movie, draft: $draft,
                                isLocked: false, showsOkay: false, showsStealth: false,
+                               showsWatchedWith: isRanked,
                                onOkay: {}, activeRow: $activeRow)
                     .padding(16)
             }
@@ -1125,6 +1131,7 @@ struct EditDetailsSheet: View {
         draft.watchedWith = Set(details.watchedWithIDs)
         draft.watchedWhere = details.watchedWhere
         draft.watchDate = details.watchDate.flatMap { DateFormatter.posixDay.date(from: $0) }
+        seededDate = draft.watchDate
         draft.cast = Set(details.performances.map { performance in
             // Prefer the live cast entry (carries the character name).
             cast.first { $0.id == performance.id }
@@ -1147,10 +1154,18 @@ struct EditDetailsSheet: View {
                                            isPrivate: false,
                                            containsSpoilers: draft.notesContainSpoilers)
         }
-        try? await supabase.updateRanking(movieID: movie.tmdbID,
-                                          watchedWith: Array(draft.watchedWith),
-                                          watchDate: draft.watchDate,
-                                          watchedWhere: draft.watchedWhere)
+        if isRanked {
+            try? await supabase.updateRanking(movieID: movie.tmdbID,
+                                              watchedWith: Array(draft.watchedWith),
+                                              watchDate: draft.watchDate,
+                                              watchedWhere: draft.watchedWhere)
+        } else if let date = draft.watchDate, date != seededDate {
+            // No ranking row to hang the date on — it becomes a diary
+            // entry instead (only when actually changed, no dupes).
+            try? await supabase.cacheMovie(movie)
+            try? await supabase.logWatch(movieID: movie.tmdbID, on: date,
+                                         where: draft.watchedWhere)
+        }
         try? await supabase.setPerformances(movieID: movie.tmdbID,
                                             cast: Array(draft.cast))
         FriendsCache.shared.warm()   // tag frequencies may have changed

@@ -902,7 +902,7 @@ struct CategorySheet: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
-                        .foregroundStyle(selection == category ? .white : Theme.ink)
+                        .foregroundStyle(selection == category ? Theme.background : Theme.ink)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(selection == category ? Theme.marquee : .clear)

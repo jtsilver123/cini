@@ -14,6 +14,8 @@ struct EnrichmentCard: View {
     /// The movie page reuses this card as an editor — no Okay, no stealth.
     var showsOkay = true
     var showsStealth = true
+    /// Watched-with tags live on the ranking row — hidden until one exists.
+    var showsWatchedWith = true
     var onOkay: () -> Void
 
     private let supabase = SupabaseService.shared
@@ -35,8 +37,10 @@ struct EnrichmentCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            watchedWithSection
-            divider
+            if showsWatchedWith {
+                watchedWithSection
+                divider
+            }
             watchedWhereSection
             divider
             enrichmentRow(.notes, icon: "square.and.pencil", title: "Add notes",
@@ -121,7 +125,7 @@ struct EnrichmentCard: View {
                             } label: {
                                 Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
                                     .font(.subheadline)
-                                    .foregroundStyle(isOn ? .white : Theme.ink)
+                                    .foregroundStyle(isOn ? Theme.background : Theme.ink)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
                                     .background(
@@ -185,7 +189,7 @@ struct EnrichmentCard: View {
                 Image(systemName: icon).font(.caption)
                 Text(title).font(.subheadline)
             }
-            .foregroundStyle(isOn ? .white : Theme.ink)
+            .foregroundStyle(isOn ? Theme.background : Theme.ink)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(

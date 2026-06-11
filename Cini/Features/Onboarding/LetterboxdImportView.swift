@@ -28,6 +28,7 @@ struct LetterboxdImportView: View {
     @State private var pastedText = ""
     @State private var pasteDestination: PasteDestination = .watched
     @State private var pastedToWatchlist = false
+    @State private var detailsImportFailed = false
     @State private var linkCopied = false
 
     enum Phase {
@@ -230,9 +231,15 @@ struct LetterboxdImportView: View {
                         let reviewCount = result.watched.filter { $0.imported.review != nil }.count
                         if reviewCount > 0 {
                             Divider()
-                            summaryRow(icon: "square.and.pencil", count: reviewCount,
-                                       label: "reviews brought over",
-                                       detail: "Each one shows under Your Details on its movie page.")
+                            if detailsImportFailed {
+                                summaryRow(icon: "exclamationmark.triangle", count: reviewCount,
+                                           label: "reviews couldn't sync",
+                                           detail: "Run the same import again to retry — nothing else is affected.")
+                            } else {
+                                summaryRow(icon: "square.and.pencil", count: reviewCount,
+                                           label: "reviews brought over",
+                                           detail: "Each one shows under Your Details on its movie page.")
+                            }
                         }
                         if !result.importedLists.isEmpty {
                             Divider()
@@ -501,10 +508,11 @@ struct LetterboxdImportView: View {
             // Seed the persistent ranking queue (favorites first).
             ImportQueue.shared.seed(with: outcome.watched, store: store)
 
-            // Reviews → Your Details notes; diary dates → the Diary. All
-            // server-side in bulk, so even huge histories land fast.
+            // Reviews → Your Details notes; diary dates (every rewatch) →
+            // the Diary. All server-side in bulk, so huge histories land
+            // fast — and a failure is SAID, never shrugged off.
             let detailItems = outcome.watched
-                .filter { $0.imported.review != nil || $0.imported.watchedOn != nil }
+                .filter { $0.imported.review != nil || !$0.imported.watchDates.isEmpty }
                 .map { match in
                     SupabaseService.ImportDetailItem(
                         tmdb_id: match.movie.tmdbID,
@@ -513,11 +521,22 @@ struct LetterboxdImportView: View {
                         release_year: match.movie.releaseYear,
                         poster_path: match.movie.posterPath,
                         review: match.imported.review,
-                        watched_on: match.imported.watchedOn)
+                        watched_on: match.imported.watchedOn,
+                        watched_dates: match.imported.watchDates.sorted())
                 }
             if !detailItems.isEmpty {
                 progressText = "Saving your reviews and watch dates…"
-                try? await SupabaseService.shared.importMovieDetails(detailItems)
+                do {
+                    try await SupabaseService.shared.importMovieDetails(detailItems)
+                } catch {
+                    // One quiet retry — the RPC is idempotent.
+                    do {
+                        try await SupabaseService.shared.importMovieDetails(detailItems)
+                    } catch {
+                        SupabaseService.logSwallowed("import_movie_details", error)
+                        detailsImportFailed = true
+                    }
+                }
             }
 
             // Letterboxd watchlist → Cini watchlist.
@@ -572,7 +591,9 @@ struct LetterboxdImportView: View {
             }
         }
         let reviews = outcome.watched.filter { $0.imported.review != nil }.count
-        if reviews > 0 { parts.append("\(reviews) review\(reviews == 1 ? "" : "s")") }
+        if reviews > 0 && !detailsImportFailed {
+            parts.append("\(reviews) review\(reviews == 1 ? "" : "s")")
+        }
         if !outcome.importedLists.isEmpty {
             parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
         }
