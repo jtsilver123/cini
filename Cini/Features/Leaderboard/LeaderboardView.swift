@@ -16,7 +16,6 @@ struct LeaderboardView: View {
         "Number of movies on your watched list",
         "How often your rankings convert to friends' watchlist adds",
         "Number of public notes you've written",
-        "Stills and tickets you've posted",
     ]
 
     var body: some View {

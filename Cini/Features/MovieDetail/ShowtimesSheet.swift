@@ -91,7 +91,7 @@ struct ShowtimesSheet: View {
             } else {
                 VStack(spacing: 0) {
                     theaterList
-                    Text("Showtimes by Gracenote · tap a time to buy tickets")
+                    Text("Showtimes by Gracenote · $ = bargain pricing · tickets open in Fandango")
                         .font(.caption2)
                         .foregroundStyle(Theme.gray)
                         .padding(.vertical, 8)
@@ -103,18 +103,13 @@ struct ShowtimesSheet: View {
     private var theaterList: some View {
         List(theaters) { theater in
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(theater.theaterName).font(.subheadline.weight(.bold))
-                        if !theater.address.isEmpty {
-                            Text(theater.address).font(.caption).foregroundStyle(Theme.gray)
-                        }
-                    }
-                    Spacer()
-                    if let distance = theater.distanceMiles {
-                        Text(String(format: "%.1f mi", distance))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(theater.theaterName).font(.subheadline.weight(.bold))
+                    if !theater.amenities.isEmpty {
+                        // The closest thing showtime data has to seat info.
+                        Text(theater.amenities.joined(separator: " · "))
                             .font(.caption)
-                            .foregroundStyle(Theme.gray)
+                            .foregroundStyle(Theme.marquee)
                     }
                 }
                 FlowingChips(showtimes: theater.showtimes)
@@ -174,37 +169,67 @@ struct ShowtimesSheet: View {
     }
 }
 
-/// Showtime chips wrapped onto multiple lines.
+/// Showtime chips wrapped onto multiple lines. Past times dim, the next
+/// upcoming showing glows, "$" marks bargain pricing, and tapping opens
+/// the Fandango app directly when it's installed.
 private struct FlowingChips: View {
     let showtimes: [Showtime]
 
     private let columns = [GridItem(.adaptive(minimum: 86), spacing: 8)]
 
+    /// The first showing that hasn't started yet — tonight's obvious pick.
+    private var nextUp: Showtime? {
+        showtimes.first { $0.startTime > Date() }
+    }
+
     var body: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
             ForEach(showtimes) { showtime in
+                let isPast = showtime.startTime <= Date()
+                let isNext = showtime.id == nextUp?.id
                 Button {
-                    if let url = showtime.bookingURL { UIApplication.shared.open(url) }
+                    if let url = showtime.bookingURL { openTickets(url) }
                 } label: {
                     VStack(spacing: 1) {
-                        Text(showtime.startTime.formatted(date: .omitted, time: .shortened))
+                        Text(chipTitle(showtime))
                             .font(.caption.weight(.semibold))
                         if let format = showtime.format {
-                            Text(format).font(.caption2).foregroundStyle(Theme.gray)
+                            Text(format).font(.caption2)
+                                .foregroundStyle(isNext ? Theme.ink.opacity(0.8) : Theme.gray)
                         }
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.ink)
+                    .background(RoundedRectangle(cornerRadius: 9)
+                        .fill(isNext ? Theme.marquee.opacity(0.18) : .clear))
                     .overlay(RoundedRectangle(cornerRadius: 9)
-                        .strokeBorder(showtime.bookingURL == nil
-                                      ? Theme.hairline : Theme.marquee.opacity(0.6)))
+                        .strokeBorder(showtime.bookingURL == nil || isPast
+                                      ? Theme.hairline
+                                      : Theme.marquee.opacity(isNext ? 1 : 0.6),
+                                      lineWidth: isNext ? 1.4 : 1))
+                    .opacity(isPast ? 0.4 : 1)
                 }
                 .buttonStyle(.plain)
-                // No ticket link from the provider — show the time as
-                // info, not as a button that goes nowhere.
-                .disabled(showtime.bookingURL == nil)
+                // Started already, or no ticket link from the provider —
+                // show the time as info, not a button that goes nowhere.
+                .disabled(showtime.bookingURL == nil || isPast)
+            }
+        }
+    }
+
+    private func chipTitle(_ showtime: Showtime) -> String {
+        let time = showtime.startTime.formatted(date: .omitted, time: .shortened)
+        return showtime.isBargain ? "\(time) · $" : time
+    }
+
+    /// Universal-link first: lands in the Fandango app when it's
+    /// installed, falls back to the browser when it isn't.
+    private func openTickets(_ url: URL) {
+        UIApplication.shared.open(url, options: [.universalLinksOnly: true]) { opened in
+            if !opened {
+                UIApplication.shared.open(url)
             }
         }
     }

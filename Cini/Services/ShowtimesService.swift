@@ -12,15 +12,18 @@ protocol ShowtimesProviding {
 struct TheaterShowtimes: Identifiable, Hashable {
     let id: String
     let theaterName: String
-    let address: String
-    let distanceMiles: Double?
+    /// Theatre-level perks aggregated from its showings ("Recliners",
+    /// "Reserved Seating") — the closest thing Gracenote has to seat info.
+    let amenities: [String]
     let showtimes: [Showtime]
 }
 
 struct Showtime: Identifiable, Hashable {
     let id: String
     let startTime: Date
-    let format: String?      // "IMAX", "3D", …
+    let format: String?      // "IMAX", "4DX", "Dolby", …
+    /// Bargain/matinee pricing flagged by the theatre.
+    let isBargain: Bool
     let bookingURL: URL?
 }
 
@@ -68,19 +71,24 @@ final class ShowtimesService: ShowtimesProviding {
             .max { $0.1 < $1.1 }
         guard let (match, score) = best, score > 0.6 else { return [] }
 
-        // Group its showtimes by theatre.
-        var byTheatre: [String: (name: String, times: [Showtime])] = [:]
+        // Group its showtimes by theatre, collecting seat-comfort perks.
+        var byTheatre: [String: (name: String, perks: Set<String>, times: [Showtime])] = [:]
         for showing in match.showtimes ?? [] {
             guard let theatre = showing.theatre,
                   let start = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
+            let key = theatre.id ?? theatre.name ?? "?"
             let entry = Showtime(
-                id: "\(theatre.id ?? "?")-\(showing.dateTime ?? "")",
+                id: "\(key)-\(showing.dateTime ?? "")",
                 startTime: start,
                 format: showing.format,
-                bookingURL: showing.ticketURI.flatMap(URL.init)
+                isBargain: showing.barg ?? false,
+                bookingURL: showing.secureTicketURL
             )
-            byTheatre[theatre.id ?? theatre.name ?? "?", default: (theatre.name ?? "Theater", [])].times.append(entry)
-            byTheatre[theatre.id ?? theatre.name ?? "?"]?.name = theatre.name ?? "Theater"
+            var bucket = byTheatre[key] ?? (theatre.name ?? "Theater", [], [])
+            bucket.name = theatre.name ?? bucket.name
+            bucket.perks.formUnion(showing.perks)
+            bucket.times.append(entry)
+            byTheatre[key] = bucket
         }
 
         return byTheatre
@@ -88,8 +96,7 @@ final class ShowtimesService: ShowtimesProviding {
                 TheaterShowtimes(
                     id: id,
                     theaterName: value.name,
-                    address: "",
-                    distanceMiles: nil,
+                    amenities: value.perks.sorted(),
                     showtimes: value.times.sorted { $0.startTime < $1.startTime }
                 )
             }
@@ -119,14 +126,42 @@ private struct GNMovie: Decodable {
         let dateTime: String?
         let ticketURI: String?
         let quals: String?
+        let barg: Bool?
 
-        /// Surface premium formats only ("IMAX", "3D", "Dolby").
+        private var qualList: [String] {
+            (quals ?? "").split(separator: "|").map(String.init)
+        }
+
+        /// Premium screen format, if any ("IMAX", "4DX", "Dolby", …).
         var format: String? {
-            guard let quals else { return nil }
-            for premium in ["IMAX", "3D", "Dolby"] where quals.localizedCaseInsensitiveContains(premium) {
-                return premium
+            let premiums = ["IMAX", "4DX", "RPX", "ScreenX", "70mm",
+                            "Dolby", "ATMOS", "3D", "Laser"]
+            for premium in premiums
+            where qualList.contains(where: { $0.localizedCaseInsensitiveContains(premium) }) {
+                return premium == "ATMOS" ? "Dolby Atmos"
+                     : premium == "Laser" ? "Laser" : premium
             }
             return nil
+        }
+
+        /// Seat-comfort perks worth surfacing at the theatre level.
+        var perks: Set<String> {
+            var result: Set<String> = []
+            for qual in qualList {
+                if qual.localizedCaseInsensitiveContains("Recliner") { result.insert("Recliners") }
+                if qual.localizedCaseInsensitiveContains("Reserved Seating") { result.insert("Reserved seating") }
+            }
+            return result
+        }
+
+        /// Gracenote hands out plain-http Fandango links; https is required
+        /// for the Fandango app to claim them as universal links.
+        var secureTicketURL: URL? {
+            guard var raw = ticketURI else { return nil }
+            if raw.hasPrefix("http://") {
+                raw = "https://" + raw.dropFirst("http://".count)
+            }
+            return URL(string: raw)
         }
     }
 

@@ -376,6 +376,8 @@ enum ZipReader {
             let extraLength = Int(u16(data, offset + 30))
             let commentLength = Int(u16(data, offset + 32))
             let localOffset = Int(u32(data, offset + 42))
+            // A corrupt name length must fail cleanly, not crash the slice.
+            guard offset + 46 + nameLength <= data.count else { throw ZipError.malformed }
             let nameData = data.subdata(in: (offset + 46)..<(offset + 46 + nameLength))
             let name = String(data: nameData, encoding: .utf8) ?? ""
             result.append(Entry(name: name, method: method, compressedSize: compressed,
