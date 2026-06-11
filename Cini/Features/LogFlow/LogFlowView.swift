@@ -17,7 +17,7 @@ struct EnrichmentDraft {
 /// The log flow, faithful to Beli's stacked-card overlay and its order:
 ///
 ///   1. movie title card (serif, metadata, ×)
-///   2. "Add to my list of [Movies ▾]"
+///   2. [Movies ▾] [Want to Watch ▾] — media type + destination chips
 ///   3. "How was it?" — three colored circles
 ///   4. details card — who with, labels, notes, date, stealth… then Okay
 ///   5. "Which do you prefer?"  A —OR— B   (Undo · Too tough · Skip)
@@ -169,11 +169,9 @@ struct LogFlowView: View {
     // MARK: Card 2 — category + list destination
 
     private var categoryCard: some View {
+        // Just the two chips — media type and destination list — so both
+        // dropdowns render at full width.
         HStack(spacing: 8) {
-            Text("Add to my list of")
-                .font(.body)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
             Menu {
                 ForEach(MediaCategory.allCases) { option in
                     Button {

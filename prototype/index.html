@@ -1669,7 +1669,6 @@ function logCards(){
       <button class="iconbtn" onclick="closeLog()">${I("x",20)}</button>
     </div>
     <div class="fcard" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-      <span style="font-size:14.5px;">Add to my list of</span>
       <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="toast('Movies · TV · Docs · Anime')">${I("film",15)} Movies ${I("chevD",12)}</button>
       <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="openLogListPicker()">${I(log.targetList?"star":"bookmark",15)} ${log.targetList||"Want to Watch"} ${I("chevD",12)}</button>
     </div>
