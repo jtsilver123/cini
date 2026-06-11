@@ -46,21 +46,6 @@ struct MovieDetailView: View {
                 ShareLink(item: "\(movie.title) — on my Cini list 🎬") {
                     Image(systemName: "square.and.arrow.up")
                 }
-                Menu {
-                    Button {
-                        Task { await store.toggleWatchlist(movie: movie) }
-                    } label: {
-                        Label(store.isOnWatchlist(movie.tmdbID) ? "Remove from Want to Watch" : "Want to Watch",
-                              systemImage: store.isOnWatchlist(movie.tmdbID) ? "bookmark.slash" : "bookmark")
-                    }
-                    if let trailerURL {
-                        Link(destination: trailerURL) {
-                            Label("Watch Trailer", systemImage: "play.rectangle")
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
             }
         }
         .fullScreenCover(isPresented: $showLogFlow) {
@@ -215,16 +200,6 @@ struct MovieDetailView: View {
                 }
                 PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
                     showShowtimes = true
-                }
-                ShareLink(item: "\(movie.title) — on my Cini list 🎬") {
-                    HStack(spacing: 6) {
-                        Image(systemName: "square.and.arrow.up").font(.subheadline.weight(.semibold))
-                        Text("Share").font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(Theme.marquee)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
                 }
             }
             .padding(.horizontal, 16)
