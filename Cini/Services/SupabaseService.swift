@@ -604,61 +604,6 @@ final class SupabaseService {
 
     // MARK: - Shared watchlists
 
-    func sharedLists() async throws -> [SharedListRow] {
-        try await client.from("shared_lists")
-            .select()
-            .order("created_at", ascending: false)
-            .execute().value
-    }
-
-    func createSharedList(name: String, emoji: String) async throws -> SharedListRow {
-        guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
-        struct Row: Encodable { let owner_id: UUID; let name: String; let emoji: String }
-        return try await client.from("shared_lists")
-            .insert(Row(owner_id: me, name: name, emoji: emoji))
-            .select().single()
-            .execute().value
-    }
-
-    func sharedListMovies(listID: UUID) async throws -> [SharedListMovieRow] {
-        try await client.from("shared_list_movies")
-            .select("*, profiles(username)")
-            .eq("list_id", value: listID)
-            .order("created_at", ascending: false)
-            .execute().value
-    }
-
-    func sharedListMembers(listID: UUID) async throws -> [ProfileRow] {
-        struct Edge: Codable {
-            let userId: UUID
-            enum CodingKeys: String, CodingKey { case userId = "user_id" }
-        }
-        let edges: [Edge] = try await client.from("shared_list_members")
-            .select("user_id")
-            .eq("list_id", value: listID)
-            .execute().value
-        guard !edges.isEmpty else { return [] }
-        return try await client.from("profiles")
-            .select().in("id", values: edges.map(\.userId))
-            .execute().value
-    }
-
-    func addToSharedList(listID: UUID, movieID: Int) async throws {
-        guard let me = currentUserID else { return }
-        struct Row: Encodable { let list_id: UUID; let movie_id: Int; let added_by: UUID }
-        try await client.from("shared_list_movies")
-            .upsert(Row(list_id: listID, movie_id: movieID, added_by: me),
-                    onConflict: "list_id,movie_id")
-            .execute()
-    }
-
-    func inviteToSharedList(listID: UUID, userID: UUID) async throws {
-        struct Row: Encodable { let list_id: UUID; let user_id: UUID }
-        try await client.from("shared_list_members")
-            .upsert(Row(list_id: listID, user_id: userID), onConflict: "list_id,user_id")
-            .execute()
-    }
-
     // MARK: - Comments
 
     func comments(eventID: UUID) async throws -> [CommentRow] {
@@ -1067,42 +1012,6 @@ struct RecRow: Codable, Identifiable, Hashable {
         case recScore = "rec_score"
         case friendCount = "friend_count"
         case topFriendUsername = "top_friend_username"
-    }
-}
-
-struct SharedListRow: Codable, Identifiable, Hashable {
-    let id: UUID
-    let ownerId: UUID
-    let name: String
-    let emoji: String
-    let createdAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, emoji
-        case ownerId = "owner_id"
-        case createdAt = "created_at"
-    }
-}
-
-struct SharedListMovieRow: Codable, Identifiable, Hashable {
-    let listId: UUID
-    let movieId: Int
-    let addedBy: UUID
-    let createdAt: Date
-    let profiles: AddedByProfile?
-
-    struct AddedByProfile: Codable, Hashable {
-        let username: String
-    }
-
-    var id: String { "\(listId)-\(movieId)" }
-
-    enum CodingKeys: String, CodingKey {
-        case profiles
-        case listId = "list_id"
-        case movieId = "movie_id"
-        case addedBy = "added_by"
-        case createdAt = "created_at"
     }
 }
 

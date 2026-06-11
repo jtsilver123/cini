@@ -22,6 +22,13 @@ struct YourListsView: View {
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
     @State private var predicted: [Int: Double] = [:]
+    @State private var showFilters = false
+    @State private var showListSearch = false
+    @State private var listQuery = ""
+    @State private var reorderMode = false
+    @State private var showImport = false
+    @State private var directRecs: [DirectRecRow] = []
+    @State private var directRecsLoaded = false
 
     struct RecCandidate: Identifiable, Hashable {
         let movie: Movie
@@ -33,7 +40,7 @@ struct YourListsView: View {
         case watched = "Watched"
         case watchlist = "Want to Watch"
         case recs = "Recs"
-        case shared = "Shared"
+        case friendRecs = "Friend Recs"
     }
 
     var body: some View {
@@ -42,8 +49,9 @@ struct YourListsView: View {
                 header
                 categoryRow
                 subTabs
-                if subTab != .shared {
-                    filterRow
+                if subTab != .friendRecs {
+                    if showFilters { filterRow }
+                    if showListSearch { listSearchField }
                     sortRow
                 }
                 listContent
@@ -55,6 +63,9 @@ struct YourListsView: View {
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
+            }
+            .sheet(isPresented: $showImport) {
+                LetterboxdImportView()
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -70,8 +81,50 @@ struct YourListsView: View {
         }
         .overlay(alignment: .trailing) {
             HStack(spacing: 16) {
-                Image(systemName: "square.and.arrow.up")
-                Image(systemName: "ellipsis")
+                ShareLink(item: "My movie rankings live on Cini 🎬") {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                Menu {
+                    Button {
+                        withAnimation(.snappy) { showFilters.toggle() }
+                    } label: {
+                        Label(showFilters ? "Hide filters" : "Filter this list",
+                              systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                    Button {
+                        withAnimation(.snappy) {
+                            showListSearch.toggle()
+                            if !showListSearch { listQuery = "" }
+                        }
+                    } label: {
+                        Label("Search this list", systemImage: "magnifyingglass")
+                    }
+                    if subTab == .watched {
+                        Button {
+                            withAnimation(.snappy) {
+                                reorderMode.toggle()
+                                if reorderMode {   // reorder works on the full list
+                                    showFilters = false
+                                    listQuery = ""
+                                    showListSearch = false
+                                    genreFilter = nil; decadeFilter = nil
+                                    runtimeFilter = nil; streamingFilter = false
+                                    languageFilter = nil
+                                }
+                            }
+                        } label: {
+                            Label(reorderMode ? "Done reordering" : "Reorder",
+                                  systemImage: "arrow.up.arrow.down")
+                        }
+                    }
+                    Button {
+                        showImport = true
+                    } label: {
+                        Label("Import Existing List", systemImage: "square.and.arrow.down")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
             }
             .foregroundStyle(Theme.ink)
         }
@@ -111,15 +164,94 @@ struct YourListsView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                HStack(spacing: 3) {
-                    Text("More").foregroundStyle(Theme.gray)
-                    Image(systemName: "chevron.down").font(.caption2).foregroundStyle(Theme.gray)
-                }
-                .font(.subheadline)
             }
             .padding(.horizontal, 16)
         }
         .padding(.top, 10)
+    }
+
+    /// Direct recommendations friends sent you — all of them live here.
+    private var friendRecsList: some View {
+        List {
+            if directRecs.isEmpty && directRecsLoaded {
+                VStack(spacing: 8) {
+                    Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
+                    Text("No recs from friends yet")
+                        .font(.subheadline.weight(.semibold))
+                    Text("When a friend taps Recommend on a movie and picks you, it lands here with their note.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+                .listRowBackground(Theme.background)
+            }
+            ForEach(directRecs) { rec in
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        AvatarView(url: rec.profiles?.avatarUrl.flatMap(URL.init), size: 28)
+                        (Text("@\(rec.profiles?.username ?? "friend")").bold()
+                            + Text(" thinks you'll love this"))
+                            .font(.caption)
+                        Spacer()
+                        Button {
+                            Task { await SupabaseService.shared.dismissDirectRec(id: rec.id) }
+                            withAnimation(.snappy) { directRecs.removeAll { $0.id == rec.id } }
+                        } label: {
+                            Image(systemName: "xmark").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if let movie = rec.movies?.asMovie {
+                        WatchlistRowView(movie: movie, predicted: predicted[movie.tmdbID]) {
+                            logMovie = movie
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            store.cache(movie)
+                            detailMovie = movie
+                        }
+                        if let note = rec.note {
+                            Text("“\(note)”")
+                                .font(.subheadline)
+                                .italic()
+                                .foregroundStyle(Theme.ink.opacity(0.9))
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+                .listRowBackground(Theme.background)
+            }
+        }
+        .listStyle(.plain)
+        .task {
+            directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
+            directRecsLoaded = true
+            let ids = directRecs.compactMap { $0.movies?.asMovie.tmdbID }
+            let map = await SupabaseService.shared.predictedScores(movieIDs: ids)
+            predicted.merge(map) { _, new in new }
+        }
+    }
+
+    private var listSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+            TextField("Search this list", text: $listQuery)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !listQuery.isEmpty {
+                Button {
+                    listQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+        .padding(.horizontal, 16)
     }
 
     private var filterRow: some View {
@@ -207,7 +339,7 @@ struct YourListsView: View {
         case .watched: watchedList
         case .watchlist: watchlistList
         case .recs: recsList
-        case .shared: SharedListsView()
+        case .friendRecs: friendRecsList
         }
     }
 
@@ -227,9 +359,11 @@ struct YourListsView: View {
 
     private var filteredWatched: [ScoredItem<Int>] {
         let items = sortDescending ? store.watchedItems : store.watchedItems.reversed()
+        let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
             guard let movie = store.movie(item.id) else { return true }
-            return passesFilters(movie)
+            guard passesFilters(movie) else { return false }
+            return query.isEmpty || movie.title.lowercased().contains(query)
         }
     }
 
@@ -283,16 +417,27 @@ struct YourListsView: View {
                 .listRowBackground(Theme.background)
                 .listRowSeparator(.hidden)
             }
+            if reorderMode {
+                Text("Drag to reorder — scores update automatically")
+                    .font(.caption)
+                    .foregroundStyle(Theme.marquee)
+                    .listRowBackground(Theme.background)
+                    .listRowSeparator(.hidden)
+            }
             ForEach(filteredWatched, id: \.id) { item in
                 if let movie = store.movie(item.id) {
                     WatchedRowView(rank: item.rank, movie: movie, score: item.score)
                         .contentShape(Rectangle())
-                        .onTapGesture { detailMovie = movie }
+                        .onTapGesture { if !reorderMode { detailMovie = movie } }
                         .listRowBackground(Theme.background)
                 }
             }
+            .onMove { from, to in
+                Task { await store.moveRanked(fromOffsets: from, toOffset: to) }
+            }
         }
         .listStyle(.plain)
+        .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
         .overlay {
             if store.watchedItems.isEmpty {
                 emptyList("Log your first movie with the + tab.")

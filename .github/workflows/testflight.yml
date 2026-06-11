@@ -49,7 +49,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            MARKETING_VERSION="1.0.0"
+            MARKETING_VERSION="1.0.${{ github.run_number }}"
 
       # An unsigned archive carries no entitlements, and the export re-sign
       # builds its entitlements from whatever the app already declares — so

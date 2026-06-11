@@ -855,28 +855,13 @@ struct BothWantToWatchScreen: View {
 struct RecsForYouScreen: View {
     @Environment(RankingStore.self) private var store
     @State private var recs: [RecRow] = []
-    @State private var directRecs: [DirectRecRow] = []
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                if !directRecs.isEmpty {
-                    Text("FROM YOUR FRIENDS")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.gray)
-                        .padding(.top, 4)
-                    ForEach(directRecs) { rec in
-                        directRecRow(rec)
-                        Divider()
-                    }
-                    Text("MORE FOR YOU")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.gray)
-                        .padding(.top, 12)
-                }
-                if recs.isEmpty && directRecs.isEmpty {
+                if recs.isEmpty {
                     Text("Follow friends and rank movies — personalized recs land here.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
@@ -915,46 +900,10 @@ struct RecsForYouScreen: View {
             LogFlowView(movie: movie)
         }
         .task {
-            directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
             recs = (try? await SupabaseService.shared.recsForUser()) ?? []
             let rows = (try? await SupabaseService.shared.movies(ids: recs.map(\.movieId))) ?? []
             for row in rows { store.cache(row.asMovie) }
         }
-    }
-
-    /// A friend sent this movie to YOU — sender, optional note, movie row.
-    private func directRecRow(_ rec: DirectRecRow) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                AvatarView(url: rec.profiles?.avatarUrl.flatMap(URL.init), size: 28)
-                (Text("@\(rec.profiles?.username ?? "friend")").bold()
-                    + Text(" thinks you'll love this"))
-                    .font(.caption)
-                Spacer()
-                Button {
-                    Task { await SupabaseService.shared.dismissDirectRec(id: rec.id) }
-                    withAnimation(.snappy) { directRecs.removeAll { $0.id == rec.id } }
-                } label: {
-                    Image(systemName: "xmark").font(.caption).foregroundStyle(Theme.gray)
-                }
-                .buttonStyle(.plain)
-            }
-            if let movie = rec.movies?.asMovie {
-                ActivityMovieRow(
-                    movie: movie,
-                    context: rec.note.map { "“\($0)”" },
-                    contextColor: Theme.ink,
-                    showsQuickActions: true,
-                    onLog: { logMovie = $0 }
-                )
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    store.cache(movie)
-                    detailMovie = movie
-                }
-            }
-        }
-        .padding(.vertical, 6)
     }
 }
 

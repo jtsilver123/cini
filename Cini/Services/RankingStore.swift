@@ -92,6 +92,39 @@ final class RankingStore {
         return scored
     }
 
+    /// Drag-to-reorder: rebuild the list in the new order. The moved item
+    /// adopts its new neighborhood's sentiment (dragging into the loved
+    /// block makes it loved), then the standard rank_insert RPC persists
+    /// the move and rescores server-side.
+    func moveRanked(fromOffsets: IndexSet, toOffset: Int) async {
+        let current = list.scoredItems
+        guard let from = fromOffsets.first, current.indices.contains(from) else { return }
+        var ids = current.map(\.id)
+        let sentimentOf = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0.sentiment) })
+
+        let moving = ids.remove(at: from)
+        let to = min(toOffset > from ? toOffset - 1 : toOffset, ids.count)
+        ids.insert(moving, at: to)
+
+        var newSentiment = sentimentOf[moving] ?? .fine
+        if to > 0, let prev = sentimentOf[ids[to - 1]] {
+            newSentiment = prev
+        } else if to + 1 < ids.count, let next = sentimentOf[ids[to + 1]] {
+            newSentiment = next
+        }
+
+        let items = ids.map {
+            RankedItem(id: $0, sentiment: $0 == moving ? newSentiment : (sentimentOf[$0] ?? .fine))
+        }
+        list = RankingList(items: items)
+
+        let bucketPosition = ids[0..<to].filter {
+            ($0 == moving ? newSentiment : sentimentOf[$0]) == newSentiment
+        }.count
+        _ = try? await supabase.rankInsert(movieID: moving, bucket: newSentiment,
+                                           position: bucketPosition)
+    }
+
     func removeRanking(movieID: Int) async {
         list.remove(movieID)
         try? await supabase.rankRemove(movieID: movieID)
