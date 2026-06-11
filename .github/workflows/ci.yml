@@ -14,6 +14,14 @@ jobs:
       - name: Run unit tests
         run: swift test --package-path RankingEngine
 
+  contract-check:
+    name: Supabase contract check (live queries)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute every app query against production
+        run: python3 scripts/contract_check.py
+
   ios-build:
     name: iOS app build (Xcode)
     runs-on: macos-26

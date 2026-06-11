@@ -178,6 +178,8 @@ struct SendRecSheet: View {
         errorMessage = nil
         sending = true
         defer { sending = false }
+        // direct_recs references movies — make sure this one is cached.
+        try? await SupabaseService.shared.cacheMovie(movie)
         let ok = await SupabaseService.shared.sendDirectRec(
             to: selected.id, movieID: movie.tmdbID, note: note)
         if ok {
