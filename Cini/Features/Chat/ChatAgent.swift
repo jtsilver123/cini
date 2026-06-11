@@ -86,6 +86,17 @@ final class ChatAgentBridge {
     /// Forgiving list lookup: exact name, then containment, then word
     /// overlap and fuzzy similarity — "my heist list" finds
     /// "Best Heist Movies".
+
+    /// "id → Title (Year)" for a batch of movie ids, server-cache backed.
+    static func titles(for ids: [Int]) async -> [Int: String] {
+        let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
+        return Dictionary(uniqueKeysWithValues: rows.map { row in
+            let movie = row.asMovie
+            let year = movie.releaseYear.map { " (\($0))" } ?? ""
+            return (movie.tmdbID, movie.title + year)
+        })
+    }
+
     static func resolveList(named name: String) async -> CustomList? {
         let lists = (try? await SupabaseService.shared.myLists()) ?? []
         let needle = name.trimmingCharacters(in: .whitespaces)
@@ -455,6 +466,117 @@ struct MyListsTool: Tool {
         let lists = (try? await SupabaseService.shared.myLists()) ?? []
         guard !lists.isEmpty else { return "They have no custom lists yet — just the built-in Want to Watch." }
         return lists.map { "\($0.name) (\($0.count) titles)" }.joined(separator: "; ")
+    }
+}
+
+
+@available(iOS 26.0, *)
+struct FriendWatchedTool: Tool {
+    let name = "getFriendRankings"
+    let description = "What a member has watched and ranked, best first, with their scores."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The member's username")
+        var username: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
+            return "No member matched @\(arguments.username)."
+        }
+        let rankings = (try? await SupabaseService.shared.rankings(userID: member.id)) ?? []
+        guard !rankings.isEmpty else {
+            return "Nothing visible on @\(member.username)'s ranked list — it's empty, or their profile is private (following them unlocks it)."
+        }
+        let top = rankings.sorted { $0.score > $1.score }.prefix(12)
+        let names = await ChatAgentBridge.titles(for: top.map(\.movieId))
+        let lines = top.compactMap { row in
+            names[row.movieId].map { "\($0) — \(String(format: "%.1f", row.score))" }
+        }
+        let more = rankings.count > 12 ? " …plus \(rankings.count - 12) more." : ""
+        return "@\(member.username) has ranked \(rankings.count): " + lines.joined(separator: "; ") + more
+    }
+}
+
+@available(iOS 26.0, *)
+struct FriendWantToWatchTool: Tool {
+    let name = "getFriendWantToWatch"
+    let description = "What's on a member's Want to Watch list."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The member's username")
+        var username: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
+            return "No member matched @\(arguments.username)."
+        }
+        let rows = (try? await SupabaseService.shared.watchlist(userID: member.id)) ?? []
+        guard !rows.isEmpty else {
+            return "Nothing visible on @\(member.username)'s Want to Watch — it's empty, or their profile is private."
+        }
+        let names = await ChatAgentBridge.titles(for: rows.map(\.movieId))
+        let listed = rows.prefix(15).compactMap { names[$0.movieId] }
+        let more = rows.count > 15 ? " …plus \(rows.count - 15) more." : ""
+        return "@\(member.username) wants to watch \(rows.count): " + listed.joined(separator: ", ") + more
+    }
+}
+
+@available(iOS 26.0, *)
+struct FriendOverlapTool: Tool {
+    let name = "getOverlapWithFriend"
+    let description = "Movies the user and a member share: both watched (with both scores) and both want to watch — perfect for movie-night picks."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The member's username")
+        var username: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
+            return "No member matched @\(arguments.username)."
+        }
+        guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
+        let theirRankings = (try? await SupabaseService.shared.rankings(userID: member.id)) ?? []
+        let theirWatchlist = (try? await SupabaseService.shared.watchlist(userID: member.id)) ?? []
+
+        var bothWatched: [(id: Int, mine: Double, theirs: Double)] = []
+        for row in theirRankings {
+            if let mine = await store.scoredItem(for: row.movieId)?.score {
+                bothWatched.append((row.movieId, mine, row.score))
+            }
+        }
+        var bothWant: [Int] = []
+        for row in theirWatchlist where await store.isOnWatchlist(row.movieId) {
+            bothWant.append(row.movieId)
+        }
+
+        if bothWatched.isEmpty && bothWant.isEmpty {
+            return "No overlap with @\(member.username) yet — either nothing shared, or their profile is private."
+        }
+        let names = await ChatAgentBridge.titles(
+            for: bothWatched.map(\.id) + bothWant)
+        var parts: [String] = []
+        if !bothWatched.isEmpty {
+            let lines = bothWatched
+                .sorted { $0.theirs > $1.theirs }
+                .prefix(10)
+                .compactMap { entry in
+                    names[entry.id].map {
+                        "\($0) (you \(String(format: "%.1f", entry.mine)), them \(String(format: "%.1f", entry.theirs)))"
+                    }
+                }
+            parts.append("Both watched: " + lines.joined(separator: "; "))
+        }
+        if !bothWant.isEmpty {
+            let listed = bothWant.prefix(10).compactMap { names[$0] }
+            parts.append("Both want to watch (movie-night gold): " + listed.joined(separator: ", "))
+        }
+        return parts.joined(separator: ". ")
     }
 }
 
