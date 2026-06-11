@@ -43,7 +43,7 @@ final class ShowtimesService: ShowtimesProviding {
         }
 
         let day = DateFormatter.posixDay.string(from: date)
-        var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings")!
+        var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
         components.queryItems = [
             URLQueryItem(name: "startDate", value: day),
             URLQueryItem(name: "zip", value: zipcode),
@@ -51,7 +51,8 @@ final class ShowtimesService: ShowtimesProviding {
             URLQueryItem(name: "units", value: "mi"),
             URLQueryItem(name: "api_key", value: apiKey),
         ]
-        let (data, response) = try await session.data(from: components.url!)
+        guard let url = components.url else { throw URLError(.badURL) }
+        let (data, response) = try await session.data(from: url)
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }

@@ -5,6 +5,7 @@ struct SendRecSheet: View {
     let movie: Movie
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var friendsCache = FriendsCache.shared
     @State private var selected: ProfileRow?
@@ -67,14 +68,20 @@ struct SendRecSheet: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
             } else if friends.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)
                     Text("Follow friends first")
                         .font(.subheadline.weight(.semibold))
-                    Text("Recs go to people you follow — find them in Search → Members.")
+                    Text("Recs go to people you follow.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
+                    PillButton(title: "Find members", systemImage: "magnifyingglass", style: .outlined) {
+                        dismiss()
+                        tabRouter.openMembersSearch = true
+                        tabRouter.selection = .search
+                    }
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)

@@ -601,7 +601,7 @@ struct ReleaseCalendarView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(movie.title)
                         .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                        .lineLimit(2)
                     if let date = releaseDate(movie) {
                         Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
                             .font(.caption.weight(.semibold))
