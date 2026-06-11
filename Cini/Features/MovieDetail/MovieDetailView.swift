@@ -173,6 +173,7 @@ struct MovieDetailView: View {
                 Text(movie.title)
                     .font(Theme.detailTitle)
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
 
@@ -182,6 +183,8 @@ struct MovieDetailView: View {
                         Text("(\(community.ratingCount.formatted()) ratings)")
                             .font(.subheadline)
                             .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                     Spacer()
                     if let myItem {
@@ -287,7 +290,9 @@ struct MovieDetailView: View {
                         emptyIcon: "wand.and.stars",
                         emptyTint: Theme.marquee,
                         title: "Rec Score",
-                        subtitle: "How much we think you'll like it"
+                        subtitle: predicted == nil
+                            ? "Rank a few movies to unlock"
+                            : "How much we think you'll like it"
                     )
                 }
                 .buttonStyle(.plain)
@@ -795,8 +800,12 @@ struct MovieDetailView: View {
                     Button(role: .destructive) {
                         Task {
                             try? await SupabaseService.shared.block(row.userId)
-                            publicNotes = (try? await SupabaseService.shared
-                                .publicNotes(movieID: movie.tmdbID)) ?? []
+                            // Refresh only on success — a failed reload must
+                            // not wipe the wall.
+                            if let fresh = try? await SupabaseService.shared
+                                .publicNotes(movieID: movie.tmdbID) {
+                                publicNotes = fresh
+                            }
                         }
                     } label: {
                         Label("Block @\(row.username)", systemImage: "hand.raised")

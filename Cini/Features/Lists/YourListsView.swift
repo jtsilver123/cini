@@ -86,6 +86,7 @@ struct YourListsView: View {
                     showFilters = false; listQuery = ""; showListSearch = false
                     genreFilter = nil; decadeFilter = nil
                     runtimeFilter = nil; streamingFilter = false; languageFilter = nil
+                    sortDescending = true   // drag offsets need canonical order
                 }
                 // Persisted filters must never act invisibly.
                 if hasActiveFilters { showFilters = true }
@@ -109,7 +110,16 @@ struct YourListsView: View {
                 }
                 Menu {
                     Button {
-                        withAnimation(.snappy) { showFilters.toggle() }
+                        withAnimation(.snappy) {
+                            showFilters.toggle()
+                            // Hiding the row must not leave filters acting
+                            // invisibly — clear them on the way out.
+                            if !showFilters {
+                                genreFilter = nil; decadeFilter = nil
+                                runtimeFilter = nil; streamingFilter = false
+                                languageFilter = nil
+                            }
+                        }
                     } label: {
                         Label(showFilters ? "Hide filters" : "Filter this list",
                               systemImage: "line.3.horizontal.decrease.circle")
@@ -133,6 +143,10 @@ struct YourListsView: View {
                                     genreFilter = nil; decadeFilter = nil
                                     runtimeFilter = nil; streamingFilter = false
                                     languageFilter = nil
+                                    // Drag offsets map onto the canonical
+                                    // order — a reversed list would move
+                                    // the wrong rows.
+                                    sortDescending = true
                                 }
                             }
                         } label: {
@@ -443,7 +457,10 @@ struct YourListsView: View {
     }
 
     private var filteredWatched: [ScoredItem<Int>] {
-        let items = sortDescending ? store.watchedItems : store.watchedItems.reversed()
+        // Reorder mode always shows canonical order — drag offsets feed
+        // straight into the engine and a reversed list would corrupt them.
+        let items = (sortDescending || reorderMode)
+            ? store.watchedItems : store.watchedItems.reversed()
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
             guard let movie = store.movie(item.id) else { return true }

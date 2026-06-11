@@ -11,6 +11,7 @@ struct ProfileScreen: View {
 
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var profile: Profile?
     @State private var rankings: [RankingRow] = []
@@ -454,8 +455,11 @@ struct ProfileScreen: View {
             }
             if isSelf {
                 Divider()
-                NavigationLink {
-                    RecsForYouScreen()
+                // One Recs surface, not two: this row jumps to the Lists
+                // tab's Recs instead of duplicating the screen.
+                Button {
+                    tabRouter.pendingListsTab = .recs
+                    tabRouter.selection = .lists
                 } label: {
                     listRow(icon: "heart", title: "Recs for You", count: nil)
                 }
@@ -997,62 +1001,6 @@ struct BothWantToWatchScreen: View {
         }
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
-        }
-    }
-}
-
-/// "Recs for You" pushed from the profile row (self only).
-struct RecsForYouScreen: View {
-    @Environment(RankingStore.self) private var store
-    @State private var recs: [RecRow] = []
-    @State private var detailMovie: Movie?
-    @State private var logMovie: Movie?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
-                if recs.isEmpty {
-                    Text("Follow friends and rank movies — personalized recs land here.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
-                }
-                ForEach(recs) { rec in
-                    if let movie = store.movie(rec.movieId) {
-                        HStack(spacing: 12) {
-                            PosterView(url: movie.posterURL, width: 44)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(movie.title).font(.subheadline.weight(.semibold))
-                                Text(rec.topFriendUsername.map { "Loved by @\($0)" } ?? "Recommended")
-                                    .font(.caption)
-                                    .foregroundStyle(Theme.scoreGreen)
-                            }
-                            Spacer()
-                            ScoreBadge(score: rec.recScore, count: rec.friendCount, size: 44)
-                        }
-                        .padding(.vertical, 6)
-                        .contentShape(Rectangle())
-                        .onTapGesture { detailMovie = movie }
-                        Divider()
-                    }
-                }
-            }
-            .padding(16)
-        }
-        .background(Theme.background)
-        .navigationTitle("Recs for You")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $detailMovie) { movie in
-            MovieDetailView(movie: movie)
-        }
-        .fullScreenCover(item: $logMovie) { movie in
-            LogFlowView(movie: movie)
-        }
-        .task {
-            recs = (try? await SupabaseService.shared.recsForUser()) ?? []
-            let rows = (try? await SupabaseService.shared.movies(ids: recs.map(\.movieId))) ?? []
-            for row in rows { store.cache(row.asMovie) }
         }
     }
 }

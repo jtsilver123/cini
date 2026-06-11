@@ -61,6 +61,7 @@ struct CiniChatAvailableView: View {
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
     @State private var isThinking = false
+    @State private var isRevealing = false
     @State private var session: LanguageModelSession?
     @State private var showReviewPicker = false
     @State private var showAttachPicker = false
@@ -100,23 +101,29 @@ struct CiniChatAvailableView: View {
         VStack(spacing: 0) {
             if messages.isEmpty {
                 // Breeze-style welcome: huge greeting, the composer right
-                // under it, keyboard already up.
-                Spacer(minLength: 24)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(firstName.map { "Hi \($0)," } ?? "Hey you,")
-                    Text("what are we watching?")
-                        .foregroundStyle(Theme.marquee)
+                // under it, keyboard already up. Scrolls so small phones
+                // with the keyboard up never clip the composer.
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(firstName.map { "Hi \($0)," } ?? "Hey you,")
+                            Text("what are we watching?")
+                                .foregroundStyle(Theme.marquee)
+                        }
+                        .font(Theme.serif(34))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 18)
+                        composer
+                        starterChips
+                            .padding(.top, 10)
+                        conciergeBar
+                            .padding(.top, 2)
+                    }
+                    .padding(.top, 24)
                 }
-                .font(Theme.serif(36))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 18)
-                composer
-                starterChips
-                    .padding(.top, 10)
-                conciergeBar
-                    .padding(.top, 2)
-                Spacer()
+                .scrollDismissesKeyboard(.interactively)
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -374,7 +381,7 @@ struct CiniChatAvailableView: View {
 
     private func send() async {
         let text = draft.trimmingCharacters(in: .whitespaces)
-        guard let session, !isThinking else { return }
+        guard let session, !isThinking, !isRevealing else { return }
         guard !text.isEmpty || attachedMovie != nil else { return }
         draft = ""
 
@@ -404,6 +411,8 @@ struct CiniChatAvailableView: View {
 
     /// The reply lands word by word, like someone typing back to you.
     private func reveal(_ full: String) async {
+        isRevealing = true
+        defer { isRevealing = false }
         messages.append(ChatMessage(isUser: false, text: ""))
         let index = messages.count - 1
         let words = full.split(separator: " ", omittingEmptySubsequences: false)

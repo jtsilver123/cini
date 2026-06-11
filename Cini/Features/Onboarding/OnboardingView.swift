@@ -21,6 +21,7 @@ struct OnboardingView: View {
     @State private var usernameError: String?
     @State private var saving = false
     @State private var showImport = false
+    @State private var importStartsWithPaste = false
     @State private var starters: [Movie] = []
     @State private var logMovie: Movie?
 
@@ -61,7 +62,7 @@ struct OnboardingView: View {
         }
         .background(Theme.background)
         .sheet(isPresented: $showImport, onDismiss: { advance() }) {
-            LetterboxdImportView()
+            LetterboxdImportView(startWithPaste: importStartsWithPaste)
         }
         .fullScreenCover(item: $logMovie, onDismiss: {
             if store.watchedCount > 0 { onFinished() }
@@ -276,9 +277,11 @@ struct OnboardingView: View {
 
             VStack(spacing: 12) {
                 PillButton(title: "Import Letterboxd or IMDb", systemImage: "folder") {
+                    importStartsWithPaste = false
                     showImport = true
                 }
                 PillButton(title: "Paste from Apple Notes", systemImage: "note.text", style: .outlined) {
+                    importStartsWithPaste = true
                     showImport = true
                 }
             }

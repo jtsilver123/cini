@@ -6,6 +6,10 @@ import UniformTypeIdentifiers
 /// progress, auto-imports the Letterboxd watchlist, and seeds the
 /// persistent "Movies you may have seen" ranking queue — favorites first.
 struct LetterboxdImportView: View {
+    /// Entry points that promise "paste a list" land directly on the
+    /// paste sheet instead of the full import picker.
+    var startWithPaste = false
+
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -46,6 +50,7 @@ struct LetterboxdImportView: View {
             }
             .background(Theme.background)
             .swipeDismissesKeyboard()
+            .onAppear { if startWithPaste { showPaste = true } }
             .onDisappear { transferTask?.cancel() }
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
