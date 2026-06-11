@@ -6,7 +6,7 @@ struct CiniApp: App {
     @State private var session = AppSession()
     @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
     /// "dark" (default — the screening room) · "light" · "system".
-    @AppStorage("cini.appearance") private var appearance = "dark"
+    @AppStorage("cini.appearance") private var appearance = "system"
 
     private var colorScheme: ColorScheme? {
         switch appearance {

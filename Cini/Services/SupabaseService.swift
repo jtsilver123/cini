@@ -559,6 +559,30 @@ final class SupabaseService {
 
     // MARK: - Diary (every watch is its own row)
 
+    /// One Letterboxd-import row for the bulk RPC below.
+    struct ImportDetailItem: Encodable {
+        let tmdb_id: Int
+        let media_kind: String
+        let title: String
+        let release_year: Int?
+        let poster_path: String?
+        let review: String?
+        let watched_on: String?
+    }
+
+    /// Reviews land as public notes (never overwriting an in-app edit)
+    /// and watch dates as diary rows — one round trip per 200 titles
+    /// instead of hundreds of inserts.
+    func importMovieDetails(_ items: [ImportDetailItem]) async throws {
+        struct Params: Encodable { let p_items: [ImportDetailItem] }
+        var start = 0
+        while start < items.count {
+            let chunk = Array(items[start..<min(start + 200, items.count)])
+            try await client.rpc("import_movie_details", params: Params(p_items: chunk)).execute()
+            start += 200
+        }
+    }
+
     func logWatch(movieID: Int, on date: Date, where location: String?) async throws {
         guard let me = currentUserID else { return }
         struct Row: Encodable {

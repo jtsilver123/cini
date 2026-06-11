@@ -163,6 +163,10 @@ def main():
             ("watchlist_toggle", {"p_movie_id": 27205}),
             ("register_device_token", {"p_token": "contract-check-dummy",
                                        "p_platform": "ios"}),
+            # Idempotent: duplicate diary rows are skipped, notes never clobber.
+            ("import_movie_details", {"p_items": [
+                {"tmdb_id": 27205, "media_kind": "movie", "title": "Inception",
+                 "watched_on": "2024-03-09"}]}),
         ]:
             status, body = http("POST", f"/rest/v1/rpc/{name}", params, token=token)
             record("rpc-write", name, status, body)

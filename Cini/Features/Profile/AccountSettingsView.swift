@@ -16,7 +16,7 @@ struct AccountSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
     @State private var isDeleting = false
-    @AppStorage("cini.appearance") private var appearance = "dark"
+    @AppStorage("cini.appearance") private var appearance = "system"
 
     private var emailLooksValid: Bool {
         let trimmed = newEmail.trimmingCharacters(in: .whitespaces)

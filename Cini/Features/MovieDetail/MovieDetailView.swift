@@ -678,8 +678,9 @@ struct MovieDetailView: View {
     /// the pencil opens the same editors the rank flow uses.
     @ViewBuilder
     private var yourDetailsSection: some View {
-        if myItem != nil || myDetails != nil {
-            VStack(alignment: .leading, spacing: 12) {
+        // Always present — notes, performances, and watch history work
+        // whether or not the movie is ranked yet (imports land here too).
+        VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("Your Details").font(.title3.weight(.bold))
                     Spacer()
@@ -734,10 +735,9 @@ struct MovieDetailView: View {
                             .font(.subheadline)
                     }
                 }
-                }
             }
-            .padding(.horizontal, 16)
         }
+        .padding(.horizontal, 16)
     }
 
     private func watchedLine(_ details: SupabaseService.MyMovieDetails) -> String {

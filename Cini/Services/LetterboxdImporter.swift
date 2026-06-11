@@ -20,6 +20,10 @@ enum LetterboxdImporter {
         /// Lives only in a custom list — never enters the ranking queue
         /// or the watchlist.
         var isListOnly: Bool = false
+        /// reviews.csv text — lands as the movie's note in Your Details.
+        var review: String?
+        /// "yyyy-MM-dd" from diary.csv / watched.csv — lands in the diary.
+        var watchedOn: String?
     }
 
     struct MatchedTitle: Identifiable, Hashable {
@@ -173,26 +177,32 @@ enum LetterboxdImporter {
                                                    lists: [(name: String, titles: [ImportedTitle])]) {
         let entries = try ZipReader.entries(in: data)
         var titles: [ImportedTitle] = []
-        // Prefer watched.csv (full history); diary.csv only adds dates.
-        let wanted = ["watched.csv", "ratings.csv", "watchlist.csv"]
+        // watched.csv is the full history; ratings/diary/reviews enrich it
+        // (stars, precise watch dates, review text) and contribute any
+        // films of their own that watched.csv missed.
+        let wanted = ["watched.csv", "ratings.csv", "diary.csv", "reviews.csv", "watchlist.csv"]
         for name in wanted {
             guard let entry = entries.first(where: { $0.name.lowercased().hasSuffix(name) }),
                   let bytes = try? ZipReader.extract(entry, from: data),
                   let text = String(data: bytes, encoding: .utf8) else { continue }
             let parsed = parse(csv: text, assumeWatchlist: name == "watchlist.csv")
-            if name == "ratings.csv" {
-                // Merge ratings into already-seen watched titles.
-                var ratingByKey: [String: Double] = [:]
-                for entry in parsed { ratingByKey[key(entry)] = entry.rating }
+            switch name {
+            case "ratings.csv", "diary.csv", "reviews.csv":
+                var byKey: [String: ImportedTitle] = [:]
+                for entry in parsed { byKey[key(entry)] = entry }
                 titles = titles.map { title in
                     var copy = title
-                    if copy.rating == nil { copy.rating = ratingByKey[key(title)] }
+                    guard let extra = byKey[key(title)] else { return copy }
+                    if copy.rating == nil { copy.rating = extra.rating }
+                    if copy.review == nil { copy.review = extra.review }
+                    // diary/reviews dates beat watched.csv's logged date.
+                    if let date = extra.watchedOn, name != "ratings.csv" { copy.watchedOn = date }
                     return copy
                 }
-                // Plus any rated film missing from watched.csv.
+                // Plus any film these files know that watched.csv missed.
                 let known = Set(titles.map(key))
                 titles += parsed.filter { !known.contains(key($0)) }
-            } else {
+            default:
                 titles += parsed
             }
         }
@@ -270,6 +280,12 @@ enum LetterboxdImporter {
         let yearIndex = columns.firstIndex { $0 == "year" }
         let ratingIndex = columns.firstIndex { $0 == "rating" || $0 == "your rating" }
         let typeIndex = columns.firstIndex { $0 == "title type" }
+        let reviewIndex = columns.firstIndex { $0 == "review" }
+        // diary/reviews carry "Watched Date"; watched.csv's "Date" is when
+        // it was marked watched — both feed the diary. (Watchlist rows'
+        // "Date" is just when it was saved, so it's ignored there.)
+        let watchedDateIndex = columns.firstIndex { $0 == "watched date" }
+            ?? (assumeWatchlist ? nil : columns.firstIndex { $0 == "date" || $0 == "date rated" })
         let isIMDb = columns.contains("const")
 
         return rows.dropFirst().compactMap { fields in
@@ -284,7 +300,18 @@ enum LetterboxdImporter {
             let year = yearIndex.flatMap { fields.indices.contains($0) ? Int(fields[$0].prefix(4)) : nil }
             var rating = ratingIndex.flatMap { fields.indices.contains($0) ? Double(fields[$0]) : nil }
             if isIMDb, let r = rating { rating = r / 2 }   // 1–10 → 0.5–5
-            return ImportedTitle(title: title, year: year, rating: rating, isWatchlist: assumeWatchlist)
+            var entry = ImportedTitle(title: title, year: year, rating: rating, isWatchlist: assumeWatchlist)
+            if let reviewIndex, fields.indices.contains(reviewIndex) {
+                let review = fields[reviewIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !review.isEmpty { entry.review = review }
+            }
+            if let watchedDateIndex, fields.indices.contains(watchedDateIndex) {
+                let date = fields[watchedDateIndex].trimmingCharacters(in: .whitespaces)
+                if date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+                    entry.watchedOn = date
+                }
+            }
+            return entry
         }
     }
 

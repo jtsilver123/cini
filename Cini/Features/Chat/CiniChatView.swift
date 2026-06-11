@@ -289,10 +289,20 @@ struct CiniChatAvailableView: View {
         return nil
     }
 
+    /// Model replies arrive as markdown — render it (bold titles, lists)
+    /// instead of showing raw asterisks. Falls back to plain text.
+    private func styled(_ text: String) -> AttributedString {
+        (try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(text)
+    }
+
     private func bubble(_ message: ChatMessage) -> some View {
         HStack {
             if message.isUser { Spacer(minLength: 48) }
-            Text(message.text)
+            Text(styled(message.text))
                 .font(.subheadline)
                 .foregroundStyle(message.isUser ? .white : Theme.ink)
                 .padding(.horizontal, 14)

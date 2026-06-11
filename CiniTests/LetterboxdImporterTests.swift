@@ -65,6 +65,27 @@ final class LetterboxdImporterTests: XCTestCase {
         XCTAssertEqual(list.titles.first?.year, 1995)
     }
 
+    func testReviewsCSVCarriesReviewAndWatchedDate() {
+        let csv = """
+        Date,Name,Year,Letterboxd URI,Rating,Rewatch,Review,Tags,Watched Date
+        2024-03-10,Heat,1995,uri,4.5,No,"Pacino and De Niro, one table.",,2024-03-09
+        """
+        let titles = LetterboxdImporter.parse(csv: csv)
+        XCTAssertEqual(titles.count, 1)
+        XCTAssertEqual(titles[0].review, "Pacino and De Niro, one table.")
+        XCTAssertEqual(titles[0].watchedOn, "2024-03-09")
+        XCTAssertEqual(titles[0].rating, 4.5)
+    }
+
+    func testWatchlistDateIsNotAWatchDate() {
+        let csv = """
+        Date,Name,Year,Letterboxd URI
+        2024-01-01,Heat,1995,uri
+        """
+        let titles = LetterboxdImporter.parse(csv: csv, assumeWatchlist: true)
+        XCTAssertNil(titles[0].watchedOn, "saved-on date must not become a diary entry")
+    }
+
     // MARK: CSV edge cases
 
     func testQuotedFieldsWithCommasAndEscapedQuotes() {

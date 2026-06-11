@@ -229,6 +229,13 @@ struct LetterboxdImportView: View {
                                        label: "saved to Want to Watch",
                                        detail: importWatchlist ? nil : "Watchlist import was off.")
                         }
+                        let reviewCount = result.watched.filter { $0.imported.review != nil }.count
+                        if reviewCount > 0 {
+                            Divider()
+                            summaryRow(icon: "square.and.pencil", count: reviewCount,
+                                       label: "reviews brought over",
+                                       detail: "Each one shows under Your Details on its movie page.")
+                        }
                         if !result.importedLists.isEmpty {
                             Divider()
                             summaryRow(icon: "list.star", count: result.importedLists.count,
@@ -496,6 +503,25 @@ struct LetterboxdImportView: View {
             // Seed the persistent ranking queue (favorites first).
             ImportQueue.shared.seed(with: outcome.watched, store: store)
 
+            // Reviews → Your Details notes; diary dates → the Diary. All
+            // server-side in bulk, so even huge histories land fast.
+            let detailItems = outcome.watched
+                .filter { $0.imported.review != nil || $0.imported.watchedOn != nil }
+                .map { match in
+                    SupabaseService.ImportDetailItem(
+                        tmdb_id: match.movie.tmdbID,
+                        media_kind: match.movie.mediaKind,
+                        title: match.movie.title,
+                        release_year: match.movie.releaseYear,
+                        poster_path: match.movie.posterPath,
+                        review: match.imported.review,
+                        watched_on: match.imported.watchedOn)
+                }
+            if !detailItems.isEmpty {
+                progressText = "Saving your reviews and watch dates…"
+                try? await SupabaseService.shared.importMovieDetails(detailItems)
+            }
+
             // Letterboxd watchlist → Cini watchlist.
             if importWatchlist {
                 for match in outcome.watchlist
@@ -547,6 +573,8 @@ struct LetterboxdImportView: View {
                 parts.append("\(outcome.watchlist.count) saved")
             }
         }
+        let reviews = outcome.watched.filter { $0.imported.review != nil }.count
+        if reviews > 0 { parts.append("\(reviews) review\(reviews == 1 ? "" : "s")") }
         if !outcome.importedLists.isEmpty {
             parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
         }
