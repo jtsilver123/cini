@@ -1010,8 +1010,8 @@ function renderProfile(){
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
     </div>
     <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
-      <div style="flex:1;"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>
+      <div style="flex:1; cursor:pointer;" onclick="openFollowList('Followers')"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
+      <div style="flex:1; cursor:pointer;" onclick="openFollowList('Following')"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>
       <div style="flex:1;"><b style="font-size:18px;">${rank}</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
     </div>
     <div class="row-scroll" style="margin-top:14px; justify-content:center;">
@@ -1062,6 +1062,26 @@ function socialChips(s){
         style="display:inline-flex;align-items:center;gap:4px;background:var(--marquee-soft);color:var(--marquee);
                border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:700;text-decoration:none;">↗ ${label}</a>`);
   return chips.length?`<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:9px;">${chips.join("")}</div>`:"";
+}
+function openFollowList(kind){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">${kind}</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="erow" style="border:1px solid var(--hair); border-radius:14px; margin-bottom:12px;" onclick="closeOverlay(); searchTab='members'; go('search');">
+        <span class="ic" style="color:var(--marquee);">${I("users",18)}</span>
+        <span style="flex:1; font-weight:700;">Find friends</span>
+        <span class="sub">${I("chevR",14)}</span>
+      </div>
+      ${MEMBERS.map(p=>`<div class="listrow" style="align-items:center; cursor:pointer;" onclick="if(!event.target.closest('button'))openMember('${p.u}')">
+        <div class="avatar ${p.av}" style="width:46px;height:46px;">${p.n[0]}</div>
+        <div style="flex:1;">
+          <div style="font-weight:600;">${p.n}</div>
+          <div class="sub">@${p.u}</div>
+        </div>
+        <button class="pill ghost ${S.followed[p.u]?"on":""}" style="padding:8px 16px; font-size:12.5px;" onclick="toggleFollow('${p.u}'); openFollowList('${kind}')">${S.followed[p.u]?"Following":"Follow"}</button>
+      </div>`).join("")}
+    </div>`);
 }
 function openEditProfile(){
   const field=(id,label,val,ph)=>`
