@@ -17,6 +17,9 @@ enum LetterboxdImporter {
         /// Letterboxd 0.5–5 stars or IMDb 1–10 normalized to 0–5.
         var rating: Double?
         var isWatchlist: Bool = false
+        /// Lives only in a custom list — never enters the ranking queue
+        /// or the watchlist.
+        var isListOnly: Bool = false
     }
 
     struct MatchedTitle: Identifiable, Hashable {
@@ -25,10 +28,20 @@ enum LetterboxdImporter {
         var id: Int { movie.tmdbID }
     }
 
+    /// A Letterboxd custom list, resolved to TMDB matches.
+    struct ImportedList: Identifiable {
+        let id = UUID()
+        let name: String
+        var matches: [MatchedTitle]
+    }
+
     struct Result {
         var watched: [MatchedTitle] = []
         var watchlist: [MatchedTitle] = []
         var unmatched: [ImportedTitle] = []
+        var importedLists: [ImportedList] = []
+        /// Matches that exist only for list membership.
+        var listPool: [MatchedTitle] = []
         var totalParsed = 0
     }
 
@@ -62,8 +75,9 @@ enum LetterboxdImporter {
         guard let data = try? Data(contentsOf: fileURL) else { throw ImportError.unreadableFile }
 
         var titles: [ImportedTitle]
+        var lists: [(name: String, titles: [ImportedTitle])] = []
         if fileURL.pathExtension.lowercased() == "zip" || data.starts(with: [0x50, 0x4B]) {
-            titles = try parseZip(data)
+            (titles, lists) = try parseZip(data)
         } else {
             guard let text = String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .isoLatin1) else { throw ImportError.unreadableFile }
@@ -76,9 +90,31 @@ enum LetterboxdImporter {
         }
 
         titles = dedupe(titles)
-        guard !titles.isEmpty else { throw ImportError.noTitlesFound }
+        // List titles the user hasn't watched/saved still need a TMDB
+        // match — flagged so they skip the queue and the watchlist.
+        let known = Set(titles.map(key))
+        var extras: [ImportedTitle] = []
+        var extraKeys = Set<String>()
+        for entry in lists.flatMap(\.titles)
+        where !known.contains(key(entry)) && extraKeys.insert(key(entry)).inserted {
+            var copy = entry
+            copy.isListOnly = true
+            extras.append(copy)
+        }
+        guard !titles.isEmpty || !extras.isEmpty else { throw ImportError.noTitlesFound }
 
-        return try await match(titles: titles, tmdb: tmdb, onProgress: onProgress)
+        var result = try await match(titles: titles + extras, tmdb: tmdb, onProgress: onProgress)
+
+        // Resolve each list's membership against everything matched.
+        var movieByKey: [String: MatchedTitle] = [:]
+        for matched in result.watched + result.watchlist + result.listPool {
+            movieByKey[key(matched.imported)] = matched
+        }
+        result.importedLists = lists.compactMap { list in
+            let matches = list.titles.compactMap { movieByKey[key($0)] }
+            return matches.isEmpty ? nil : ImportedList(name: list.name, matches: matches)
+        }
+        return result
     }
 
     /// Pasted text (Apple Notes flow): copy the note, paste in Cini.
@@ -133,7 +169,8 @@ enum LetterboxdImporter {
 
     // MARK: - ZIP container (native: central directory + Compression inflate)
 
-    static func parseZip(_ data: Data) throws -> [ImportedTitle] {
+    static func parseZip(_ data: Data) throws -> (titles: [ImportedTitle],
+                                                   lists: [(name: String, titles: [ImportedTitle])]) {
         let entries = try ZipReader.entries(in: data)
         var titles: [ImportedTitle] = []
         // Prefer watched.csv (full history); diary.csv only adds dates.
@@ -159,7 +196,50 @@ enum LetterboxdImporter {
                 titles += parsed
             }
         }
-        return titles
+
+        // Custom lists ride in a lists/ folder, one CSV each.
+        var lists: [(name: String, titles: [ImportedTitle])] = []
+        for entry in entries
+        where entry.name.lowercased().contains("lists/") && entry.name.lowercased().hasSuffix(".csv") {
+            guard let bytes = try? ZipReader.extract(entry, from: data),
+                  let text = String(data: bytes, encoding: .utf8) else { continue }
+            let fallback = (entry.name as NSString).lastPathComponent
+                .replacingOccurrences(of: ".csv", with: "")
+                .replacingOccurrences(of: "-", with: " ")
+                .localizedCapitalized
+            let list = parseList(csv: text, fallbackName: fallback)
+            if !list.titles.isEmpty { lists.append(list) }
+        }
+        return (titles, lists)
+    }
+
+    /// One lists/<name>.csv: a metadata block (with the list's real name)
+    /// then a Position,Name,Year,… entries block.
+    static func parseList(csv text: String, fallbackName: String) -> (name: String, titles: [ImportedTitle]) {
+        let rows = parseCSVRows(text)
+        var name = fallbackName
+        var entryHeader = -1
+        for (index, row) in rows.enumerated() {
+            let lower = row.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            if lower.first == "date", let nameColumn = lower.firstIndex(of: "name"),
+               rows.indices.contains(index + 1), rows[index + 1].indices.contains(nameColumn) {
+                let candidate = rows[index + 1][nameColumn].trimmingCharacters(in: .whitespaces)
+                if !candidate.isEmpty { name = candidate }
+            }
+            if lower.first == "position" { entryHeader = index; break }
+        }
+        guard entryHeader >= 0, rows.indices.contains(entryHeader) else { return (name, []) }
+        let header = rows[entryHeader].map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        guard let titleColumn = header.firstIndex(of: "name") else { return (name, []) }
+        let yearColumn = header.firstIndex(of: "year")
+        let titles = rows.dropFirst(entryHeader + 1).compactMap { fields -> ImportedTitle? in
+            guard fields.indices.contains(titleColumn) else { return nil }
+            let title = fields[titleColumn].trimmingCharacters(in: .whitespaces)
+            guard !title.isEmpty else { return nil }
+            let year = yearColumn.flatMap { fields.indices.contains($0) ? Int(fields[$0].prefix(4)) : nil }
+            return ImportedTitle(title: title, year: year)
+        }
+        return (name, dedupe(titles))
     }
 
     private static func key(_ title: ImportedTitle) -> String {
@@ -318,9 +398,10 @@ enum LetterboxdImporter {
                 done += 1
                 if let movie {
                     let matched = MatchedTitle(imported: imported, movie: movie)
-                    if imported.isWatchlist { result.watchlist.append(matched) }
+                    if imported.isListOnly { result.listPool.append(matched) }
+                    else if imported.isWatchlist { result.watchlist.append(matched) }
                     else { result.watched.append(matched) }
-                } else {
+                } else if !imported.isListOnly {
                     result.unmatched.append(imported)
                 }
                 await onProgress(.matching(done: done, total: total))

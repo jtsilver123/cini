@@ -228,6 +228,13 @@ struct LetterboxdImportView: View {
                                        label: "added to your watchlist",
                                        detail: importWatchlist ? nil : "Watchlist import was off.")
                         }
+                        if !result.importedLists.isEmpty {
+                            Divider()
+                            summaryRow(icon: "list.star", count: result.importedLists.count,
+                                       label: "lists brought over",
+                                       detail: result.importedLists.map(\.name)
+                                           .joined(separator: ", "))
+                        }
                         if !result.unmatched.isEmpty {
                             Divider()
                             summaryRow(icon: "questionmark.circle", count: result.unmatched.count,
@@ -479,6 +486,23 @@ struct LetterboxdImportView: View {
                 where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
                     await store.toggleWatchlist(movie: match.movie)
                 }
+            }
+
+            // Letterboxd custom lists → Cini lists (same name reused).
+            if !outcome.importedLists.isEmpty {
+                let existing = (try? await SupabaseService.shared.myLists()) ?? []
+                for list in outcome.importedLists {
+                    let target = existing.first {
+                        $0.name.localizedCaseInsensitiveCompare(list.name) == .orderedSame
+                    } ?? (try? await SupabaseService.shared.createList(name: list.name))
+                    guard let target else { continue }
+                    for match in list.matches {
+                        store.cache(match.movie)
+                        try? await SupabaseService.shared.cacheMovie(match.movie)
+                        try? await SupabaseService.shared.addToList(target.id, movieID: match.movie.tmdbID)
+                    }
+                }
+                await store.refreshCustomLists()
             }
 
             result = outcome
