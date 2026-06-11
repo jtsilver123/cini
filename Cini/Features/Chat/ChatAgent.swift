@@ -47,10 +47,32 @@ final class ChatAgentBridge {
         return actions
     }
 
-    /// Best TMDB match for a spoken title ("dune 2021" works too).
+    /// Best TMDB match for a spoken title — forgiving, like a friend who
+    /// knows what you mean: "the new dune movie" still finds Dune.
     static func resolveMovie(_ title: String) async -> Movie? {
-        let results = (try? await TMDBService.shared.search(query: title)) ?? []
-        return results.first
+        var query = title.trimmingCharacters(in: .whitespaces)
+        for filler in ["the movie ", "the film "] where query.lowercased().hasPrefix(filler) {
+            query = String(query.dropFirst(filler.count))
+        }
+        for suffix in [" movie", " film", " the movie", " the film"]
+        where query.lowercased().hasSuffix(suffix) {
+            query = String(query.dropLast(suffix.count))
+        }
+        if let hit = (try? await TMDBService.shared.search(query: query))?.first {
+            return hit
+        }
+        // Still nothing: try the most distinctive word ("that anatomy
+        // courtroom one" → "anatomy").
+        let stop: Set<String> = ["that", "this", "with", "from", "about", "movie",
+                                 "film", "show", "new", "old", "one", "the"]
+        if let longest = query.lowercased().split(separator: " ")
+            .map(String.init)
+            .filter({ $0.count > 3 && !stop.contains($0) })
+            .max(by: { $0.count < $1.count }),
+           longest != query.lowercased() {
+            return (try? await TMDBService.shared.search(query: longest))?.first
+        }
+        return nil
     }
 
     /// Exact-username member lookup via the fuzzy search RPC.
@@ -61,9 +83,37 @@ final class ChatAgentBridge {
         return found.first { $0.username.lowercased() == needle } ?? found.first
     }
 
+    /// Forgiving list lookup: exact name, then containment, then word
+    /// overlap and fuzzy similarity — "my heist list" finds
+    /// "Best Heist Movies".
     static func resolveList(named name: String) async -> CustomList? {
         let lists = (try? await SupabaseService.shared.myLists()) ?? []
-        return lists.first { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }
+        let needle = name.trimmingCharacters(in: .whitespaces)
+        if let exact = lists.first(where: {
+            $0.name.localizedCaseInsensitiveCompare(needle) == .orderedSame
+        }) { return exact }
+
+        let stop: Set<String> = ["my", "the", "a", "of", "list", "lists",
+                                 "movie", "movies", "film", "films"]
+        let needleWords = Set(needle.lowercased().split(separator: " ").map(String.init))
+            .subtracting(stop)
+        let best = lists
+            .map { list -> (CustomList, Double) in
+                var score = Fuzzy.similarity(query: needle, candidate: list.name)
+                if list.name.localizedCaseInsensitiveContains(needle)
+                    || needle.localizedCaseInsensitiveContains(list.name) {
+                    score = max(score, 0.85)
+                }
+                let listWords = Set(list.name.lowercased().split(separator: " ").map(String.init))
+                    .subtracting(stop)
+                let overlap = needleWords.intersection(listWords)
+                if !overlap.isEmpty {
+                    score = max(score, 0.65 + 0.15 * Double(overlap.count))
+                }
+                return (list, score)
+            }
+            .max { $0.1 < $1.1 }
+        return best.flatMap { $0.1 >= 0.6 ? $0.0 : nil }
     }
 }
 
@@ -88,14 +138,14 @@ struct SaveToWatchlistTool: Tool {
         }
         guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
         if await store.isWatched(movie.tmdbID) {
-            return "\(movie.title) is already ranked on their list — no need to save it."
+            return "\(movie.title) is already ranked — it\u{2019}s been watched, no need to save it."
         }
         if await store.isOnWatchlist(movie.tmdbID) {
-            return "\(movie.title) is already on their Want to Watch list."
+            return "\(movie.title) is already saved on the Want to Watch list."
         }
         await store.toggleWatchlist(movie: movie)
         await ChatAgentBridge.shared.note("bookmark.fill", "Saved \(movie.title)", destination: .wantToWatch)
-        return "Done — \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on their Want to Watch list."
+        return "Saved! \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on the Want to Watch list now."
     }
 }
 
@@ -120,7 +170,7 @@ struct RemoveFromWatchlistTool: Tool {
         }
         await store.toggleWatchlist(movie: movie)
         await ChatAgentBridge.shared.note("bookmark.slash", "Removed \(movie.title)", destination: .wantToWatch)
-        return "Removed \(movie.title) from their Want to Watch list."
+        return "Gone — \(movie.title) is off the Want to Watch list."
     }
 }
 
@@ -146,7 +196,7 @@ struct CreateListTool: Tool {
         }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
         await ChatAgentBridge.shared.note("list.star", "Created “\(list.name)”", destination: .customList(list.id))
-        return "Created the list “\(list.name)” — it shows as a tab under My Lists."
+        return "Made it! “\(list.name)” now lives as a tab under My Lists."
     }
 }
 
@@ -184,7 +234,7 @@ struct AddToListTool: Tool {
         }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
         await ChatAgentBridge.shared.note("plus.circle.fill", "\(movie.title) → “\(list.name)”", destination: .customList(list.id))
-        return "Added \(movie.title) to “\(list.name)”."
+        return "Filed! \(movie.title) is on “\(list.name)”."
     }
 }
 
@@ -283,7 +333,7 @@ struct FollowMemberTool: Tool {
         }
         await FriendsCache.shared.refresh()
         await ChatAgentBridge.shared.note("person.badge.plus", "Followed @\(member.username)", destination: .member(member.id, member.username))
-        return "Now following @\(member.username) — their activity joins the feed."
+        return "Following @\(member.username) now — their rankings start showing up in the feed."
     }
 }
 
@@ -389,7 +439,7 @@ struct DeleteRatingTool: Tool {
             return "Couldn't delete the rating — connection trouble."
         }
         await ChatAgentBridge.shared.note("trash", "Deleted rating for \(movie.title)", destination: .movie(movie.tmdbID))
-        return "Deleted their rating for \(movie.title) — notes and diary entries stay."
+        return "Done — the \(movie.title) rating is gone. Notes and diary entries are safe."
     }
 }
 
