@@ -73,6 +73,8 @@ struct CiniChatAvailableView: View {
         let id = UUID()
         let isUser: Bool
         var text: String
+        /// What the agent actually did this turn — confirmation chips.
+        var actions: [AgentAction] = []
     }
 
     /// Starter chips built from the user's own shelf, not generic prompts.
@@ -154,6 +156,9 @@ struct CiniChatAvailableView: View {
         .navigationTitle(messages.isEmpty ? "" : "Ask Cini")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // The agent's tools act through this bridge.
+            ChatAgentBridge.shared.store = store
+            ChatAgentBridge.shared.openLogFlow = { logMovie = $0 }
             configureSession()
             // Open ready to type, like a real concierge desk.
             Task { @MainActor in
@@ -302,16 +307,36 @@ struct CiniChatAvailableView: View {
     private func bubble(_ message: ChatMessage) -> some View {
         HStack {
             if message.isUser { Spacer(minLength: 48) }
-            Text(styled(message.text))
-                .font(.subheadline)
-                .foregroundStyle(message.isUser ? .white : Theme.ink)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(message.isUser ? Theme.marquee : Theme.surface)
-                        .shadow(color: Theme.cardShadow, radius: 4, y: 2)
-                )
+            VStack(alignment: .leading, spacing: 8) {
+                Text(styled(message.text))
+                    .font(.subheadline)
+                    .foregroundStyle(message.isUser ? .white : Theme.ink)
+                // Receipts for what the agent DID, not just said.
+                if !message.actions.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(message.actions) { action in
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Image(systemName: action.icon)
+                                Text(action.label).lineLimit(1)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.scoreGreen)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().strokeBorder(Theme.scoreGreen.opacity(0.5), lineWidth: 1))
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(message.isUser ? Theme.marquee : Theme.surface)
+                    .shadow(color: Theme.cardShadow, radius: 4, y: 2)
+            )
             if !message.isUser { Spacer(minLength: 48) }
         }
         .padding(.horizontal, 16)
@@ -348,22 +373,38 @@ struct CiniChatAvailableView: View {
         let tasteContext = Self.tasteSummary(store: store)
         let name = firstName ?? "the user"
         let streak = profile.map { $0.streakWeeks } ?? 0
-        session = LanguageModelSession(tools: [MovieLookupTool()]) {
+        session = LanguageModelSession(tools: [
+            MovieLookupTool(),
+            SaveToWatchlistTool(), RemoveFromWatchlistTool(),
+            CreateListTool(), AddToListTool(), RemoveFromListTool(), DeleteListTool(),
+            SearchMembersTool(), FollowMemberTool(), UnfollowMemberTool(),
+            SendRecTool(), StartRankingTool(), DeleteRatingTool(), MyListsTool(),
+        ]) {
             """
             You are Cini, \(name)'s personal movie concierge inside the Cini \
             app — warm, playful, and genuinely opinionated, never corporate. \
             Your two jobs: (1) get them to ONE confident pick for tonight — \
             don't list five options; recommend one (with year), say why it \
             fits THEIR taste, and offer one backup at most. (2) When they \
-            mention having seen something, invite them to review it: suggest \
-            tapping "Review a movie" below so it counts on their list. Talk \
-            like a friend who knows their taste cold — reference their actual \
-            rankings and watchlist by name ("since you loved X…"). Keep \
-            answers short (2-4 sentences) and end with a gentle nudge to act: \
-            watch it, save it, or review it. Prefer their watchlist when they \
+            mention having seen something, offer to rank it right here with \
+            the startRanking tool. Talk like a friend who knows their taste \
+            cold — reference their actual rankings and watchlist by name \
+            ("since you loved X…"). Keep answers short (2-4 sentences) and \
+            end with a gentle nudge to act. Prefer their watchlist when they \
             ask what to watch tonight. Use the lookup tool to confirm titles \
             or streaming availability rather than guessing. Never invent \
-            scores or friends. \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when it fits naturally." : "")
+            scores or friends.
+
+            You can ACT, not just talk: your tools do everything they could \
+            do by tapping — save or remove Want to Watch titles, create and \
+            edit and delete lists, find and follow members, send \
+            recommendations, open the ranking flow, delete ratings. When \
+            they ask for an action, just do it with the tool and confirm in \
+            one short line. For destructive actions (deleting a list or a \
+            rating) ask once for confirmation and act on their yes. Never \
+            claim an action you didn't perform with a tool — receipts for \
+            real actions appear under your reply automatically. \
+            \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when it fits naturally." : "")
 
             \(name)'s taste profile:
             \(tasteContext)
@@ -454,7 +495,8 @@ struct CiniChatAvailableView: View {
         }
     }
 
-    /// The reply lands word by word, like someone typing back to you.
+    /// The reply lands word by word, like someone typing back to you —
+    /// then the receipts for any tool actions pop in underneath.
     private func reveal(_ full: String) async {
         isRevealing = true
         defer { isRevealing = false }
@@ -468,6 +510,9 @@ struct CiniChatAvailableView: View {
             try? await Task.sleep(for: .milliseconds(38))
         }
         messages[index].text = full
+        withAnimation(.snappy) {
+            messages[index].actions = ChatAgentBridge.shared.drain()
+        }
     }
 
     private func unavailableMessage(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {

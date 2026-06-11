@@ -2053,7 +2053,8 @@ function renderChat(){
       </div>
     </div>`:`
     <div style="flex:1; overflow-y:auto; padding:14px 0;" id="chatScroll">
-      ${chat.map(c=>`<div class="bubble ${c.u?"user":"bot"}">${c.t}</div>`).join("")}
+      ${chat.map(c=>`<div class="bubble ${c.u?"user":"bot"}">${c.t}${(c.acts||[]).map(a=>
+        `<div style="display:inline-flex; align-items:center; gap:5px; margin-top:8px; padding:5px 10px; border:1px solid rgba(47,191,113,.5); border-radius:999px; color:var(--green); font-size:12px; font-weight:700;">${I("check",13,2.4)} ${a}</div>`).join("")}</div>`).join("")}
       ${chat.length&&chat[chat.length-1].thinking?`<div style="display:flex; align-items:center; gap:8px; padding:4px 22px;"><span style="color:var(--marquee);">${I("spark",16)}</span><span class="sub" id="thinkPhrase" style="font-weight:700; font-size:12.5px;">${THINK_PHRASES[_thinkIdx%THINK_PHRASES.length]}</span></div>`:""}
     </div>
     ${chatComposer()}`}`;
@@ -2098,18 +2099,27 @@ function askCini(q){
     chat.pop();
     const wl=S.watchlist[0]?MOVIES[S.watchlist[0]]:null;
     const top=scoredWatched()[0]?MOVIES[scoredWatched()[0].k]:null;
-    let a;
+    let a, acts=[];
     const ql=q.toLowerCase();
-    if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review a movie</b> below and make it count.`;
+    // The agent ACTS: "save/add <title>" really lands on the watchlist,
+    // with a receipt chip under the reply (mirrors the app's tools).
+    const wantsSave=/\b(add|save|put|bookmark)\b/.test(ql);
+    const namedKey=Object.keys(MOVIES).find(k=>ql.includes(MOVIES[k].t.toLowerCase()));
+    if(wantsSave&&namedKey&&!S.watchlist.includes(namedKey)&&!S.watched.some(w=>w.k===namedKey)){
+      S.watchlist.unshift(namedKey); save();
+      a=`Done — <b>${MOVIES[namedKey].t}</b> (${MOVIES[namedKey].y}) is on your Want to Watch. ${MOVIES[namedKey].on?.[0]?`It's streaming on ${MOVIES[namedKey].on[0]} whenever you're ready.`:""}`;
+      acts=[`Saved ${MOVIES[namedKey].t}`];
+    }
+    else if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review a movie</b> below and make it count.`;
     else if(ql.includes("date")) a=`For date night: <b>Past Lives</b> (2023) — quiet, romantic, 1h 45m, on Paramount+. One pick, full confidence. Bring tissues.`;
     else if(ql.includes("short")&&top) a=`You loved <b>${top.t}</b> — same wavelength in under two hours: <b>The Zone of Interest</b> (1h 45m, on Max). Watch it tonight, thank me tomorrow.`;
     else if(wl) a=`Easy: <b>${wl.t}</b> is sitting right on your watchlist — ${wl.rt}, on ${wl.on[0]}, friends average ${wl.avg.toFixed(1)}. That's tonight's movie. Deal?`;
     else a=`Based on your top-ranked films: <b>Poor Things</b> (2023) — bold, funny, gorgeous, on Hulu. Save it or start it.`;
-    revealWords(a);
+    revealWords(a, acts);
   }, 1700);
 }
 /* The reply lands word by word, like someone typing back. */
-function revealWords(full){
+function revealWords(full, acts){
   chat.push({u:0,t:""});
   const idx=chat.length-1;
   const words=full.split(" ");
@@ -2121,7 +2131,7 @@ function revealWords(full){
     const bubbles=sc?sc.querySelectorAll(".bubble"):[];
     if(bubbles.length) bubbles[bubbles.length-1].innerHTML=chat[idx].t;
     if(sc) sc.scrollTop=sc.scrollHeight;
-    if(i>=words.length){ clearInterval(t); renderChat(); }
+    if(i>=words.length){ clearInterval(t); if(acts&&acts.length) chat[idx].acts=acts; renderChat(); }
   }, 45);
   renderChat();
 }
