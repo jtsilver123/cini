@@ -219,6 +219,18 @@ final class SupabaseService {
             .execute().value) ?? false
     }
 
+    /// Rec Scores ("how much we think you'll like it") for specific
+    /// titles — powers the Want to Watch list badges.
+    func predictedScores(movieIDs: [Int]) async -> [Int: Double] {
+        guard !movieIDs.isEmpty else { return [:] }
+        struct Row: Decodable { let movie_id: Int; let predicted: Double }
+        struct Params: Encodable { let p_movie_ids: [Int] }
+        let rows: [Row] = (try? await client.rpc("predicted_scores",
+                                                 params: Params(p_movie_ids: movieIDs))
+            .execute().value) ?? []
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.movie_id, $0.predicted) })
+    }
+
     // MARK: - My details on a movie (notes, performances, labels, watch)
 
     struct MyMovieDetails {

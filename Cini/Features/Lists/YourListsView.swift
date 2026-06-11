@@ -21,6 +21,7 @@ struct YourListsView: View {
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
+    @State private var predicted: [Int: Double] = [:]
 
     struct RecCandidate: Identifiable, Hashable {
         let movie: Movie
@@ -303,7 +304,7 @@ struct YourListsView: View {
         List {
             ForEach(store.watchlist) { item in
                 if let movie = store.movie(item.movieID) {
-                    WatchlistRowView(movie: movie) {
+                    WatchlistRowView(movie: movie, predicted: predicted[item.movieID]) {
                         logMovie = movie
                     }
                     .contentShape(Rectangle())
@@ -313,6 +314,10 @@ struct YourListsView: View {
             }
         }
         .listStyle(.plain)
+        .task(id: store.watchlist.count) {
+            predicted = await SupabaseService.shared.predictedScores(
+                movieIDs: store.watchlist.map(\.movieID))
+        }
         .overlay {
             if store.watchlist.isEmpty {
                 emptyList("Bookmark movies you want to watch.")
@@ -343,7 +348,8 @@ struct YourListsView: View {
 
             ForEach(filteredRecs) { candidate in
                 VStack(alignment: .leading, spacing: 4) {
-                    WatchlistRowView(movie: candidate.movie) {
+                    WatchlistRowView(movie: candidate.movie,
+                                     predicted: predicted[candidate.movie.tmdbID]) {
                         logMovie = candidate.movie
                     }
                     Text(candidate.reason)
@@ -466,10 +472,11 @@ struct WatchedRowView: View {
 /// filled bookmark, quick-rank (+).
 struct WatchlistRowView: View {
     let movie: Movie
+    /// Rec Score — how much we think the user will like it.
+    var predicted: Double?
     var onQuickRank: () -> Void = {}
 
     @Environment(RankingStore.self) private var store
-    @State private var community: CommunityScore?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -498,14 +505,16 @@ struct WatchlistRowView: View {
                 .padding(.top, 6)
             }
             Spacer()
-            if let community {
-                ScoreBadge(score: community.avgScore, count: community.ratingCount)
+            if let predicted {
+                VStack(spacing: 3) {
+                    ScoreBadge(score: predicted)
+                    Text("Rec Score")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.gray)
+                }
             }
         }
         .padding(.vertical, 6)
-        .task {
-            community = try? await SupabaseService.shared.communityScore(movieID: movie.tmdbID)
-        }
     }
 }
 

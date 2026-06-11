@@ -572,16 +572,16 @@ struct ActivityMovieRow: View {
                         .foregroundStyle(contextColor)
                         .lineLimit(1)
                 }
+                if showsQuickActions && !store.isWatched(movie.tmdbID) {
+                    quickActions
+                        .padding(.top, 4)
+                }
             }
             Spacer(minLength: 8)
-            if showsQuickActions {
-                if store.isWatched(movie.tmdbID) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title3)
-                        .foregroundStyle(Theme.scoreGreen.opacity(0.85))
-                } else {
-                    quickActions
-                }
+            if showsQuickActions && store.isWatched(movie.tmdbID) {
+                Image(systemName: "checkmark.circle")
+                    .font(.title3)
+                    .foregroundStyle(Theme.scoreGreen.opacity(0.85))
             }
             if let score {
                 ScoreBadge(score: score, size: 44)
@@ -729,6 +729,7 @@ struct WatchlistScreen: View {
     @Environment(RankingStore.self) private var store
     @State private var fetched: [WatchlistRow] = []
     @State private var movies: [Int: Movie] = [:]
+    @State private var predicted: [Int: Double] = [:]
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
 
@@ -754,6 +755,7 @@ struct WatchlistScreen: View {
                             movie: movie,
                             context: watchlistContext(movie: movie, savedAt: entry.savedAt),
                             contextColor: movie.availabilityText == nil ? Theme.gray : Theme.marquee,
+                            score: predicted[entry.movieID],
                             showsQuickActions: true,
                             onLog: { logMovie = $0 }
                         )
@@ -775,10 +777,14 @@ struct WatchlistScreen: View {
             LogFlowView(movie: movie)
         }
         .task {
-            guard !isSelf, let userID else { return }
-            fetched = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
-            let rows = (try? await SupabaseService.shared.movies(ids: fetched.map(\.movieId))) ?? []
-            for row in rows { movies[row.tmdbId] = row.asMovie }
+            if !isSelf, let userID {
+                fetched = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
+                let rows = (try? await SupabaseService.shared.movies(ids: fetched.map(\.movieId))) ?? []
+                for row in rows { movies[row.tmdbId] = row.asMovie }
+            }
+            // Rec Score: how much we think YOU'LL like each saved title.
+            predicted = await SupabaseService.shared.predictedScores(
+                movieIDs: entries.map(\.movieID))
         }
     }
 
