@@ -533,8 +533,23 @@ struct CommentsSheet: View {
                             }
                         }
                         .listRowBackground(Theme.background)
-                        // Moderation: long-press any comment.
+                        // Long-press: delete your own, moderate others'.
                         .contextMenu {
+                            if comment.userId == SupabaseService.shared.currentUserID {
+                                Button(role: .destructive) {
+                                    Task {
+                                        do {
+                                            try await SupabaseService.shared.deleteComment(id: comment.id)
+                                            ToastCenter.shared.show("Comment deleted")
+                                            await reload()
+                                        } catch {
+                                            ToastCenter.shared.saveFailed()
+                                        }
+                                    }
+                                } label: {
+                                    Label("Delete my comment", systemImage: "trash")
+                                }
+                            }
                             Button(role: .destructive) {
                                 Task {
                                     await SupabaseService.shared.report(

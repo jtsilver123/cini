@@ -41,6 +41,9 @@ final class ShowtimesService: ShowtimesProviding {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
+        // TV shows (negative ids) have no theatrical showtimes — a fuzzy
+        // match against whatever's playing would invent some.
+        guard movie.tmdbID > 0 else { return [] }
 
         let day = DateFormatter.posixDay.string(from: date)
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()

@@ -46,7 +46,10 @@ final class TabRouter {
     /// the actor's profile; anything else lands on the feed.
     func routePush(userInfo: [AnyHashable: Any]) {
         selection = .feed
-        if let movieID = userInfo["movie_id"] as? Int {
+        let movieID = (userInfo["movie_id"] as? Int)
+            ?? (userInfo["movie_id"] as? NSNumber)?.intValue
+            ?? (userInfo["movie_id"] as? String).flatMap(Int.init)
+        if let movieID {
             pendingPushMovieID = movieID
         } else if let actorID = (userInfo["actor_id"] as? String).flatMap(UUID.init),
                   let username = userInfo["actor_username"] as? String {

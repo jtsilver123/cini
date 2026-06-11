@@ -95,6 +95,16 @@ final class SupabaseService {
         try await client.auth.signOut()
     }
 
+    /// Remove this device's push token (RLS: delete-own only).
+    func unregisterDeviceToken(_ token: String) async {
+        do {
+            try await client.from("device_tokens").delete()
+                .eq("token", value: token).execute()
+        } catch {
+            Self.logSwallowed("unregister_device_token", error)
+        }
+    }
+
     // MARK: - Profiles
 
     func profile(id: UUID) async throws -> ProfileRow {
@@ -920,6 +930,31 @@ final class SupabaseService {
         }
     }
 
+    /// All of YOUR public notes — the reviews file in the export.
+    struct MyNoteRow: Decodable {
+        let movieId: Int
+        let body: String
+        enum CodingKeys: String, CodingKey {
+            case movieId = "movie_id"
+            case body
+        }
+    }
+
+    func myPublicNoteRows() async throws -> [MyNoteRow] {
+        guard let me = currentUserID else { return [] }
+        return try await client.from("notes")
+            .select("movie_id, body")
+            .eq("user_id", value: me)
+            .eq("is_private", value: false)
+            .limit(1000)
+            .execute().value
+    }
+
+    /// Delete YOUR OWN comment (RLS scopes the delete to user_id = you).
+    func deleteComment(id: UUID) async throws {
+        try await client.from("comments").delete().eq("id", value: id).execute()
+    }
+
     func comment(eventID: UUID, body: String) async throws {
         guard let me = currentUserID else { return }
         struct Row: Encodable { let user_id: UUID; let event_id: UUID; let body: String }
@@ -945,6 +980,7 @@ final class SupabaseService {
             .select("*, profiles!comments_user_id_fkey(username, display_name, avatar_url)")
             .eq("event_id", value: eventID)
             .order("created_at")
+            .limit(200)
             .execute().value
     }
 

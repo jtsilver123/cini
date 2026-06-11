@@ -57,6 +57,69 @@ enum CiniExporter {
             urls.append(try write(watchlist, name: "cini-watchlist.csv"))
         }
 
+        // Diary: every watch and rewatch with its date — round-trips with
+        // the importer's diary handling.
+        if let watches: [WatchRow] = try? await SupabaseService.shared.watches(of: me),
+           !watches.isEmpty {
+            var diary = "Title,Year,tmdbID,WatchedDate\n"
+            let diaryMissing = watches.map(\.movieId).filter { movies[$0] == nil }
+            if !diaryMissing.isEmpty,
+               let rows = try? await SupabaseService.shared.movies(ids: diaryMissing) {
+                for row in rows { movies[row.tmdbId] = row.asMovie }
+            }
+            for watch in watches.sorted(by: { $0.watchedOn < $1.watchedOn }) {
+                guard let movie = movies[watch.movieId] else { continue }
+                diary += line([movie.title,
+                               movie.releaseYear.map(String.init) ?? "",
+                               String(movie.tmdbID),
+                               watch.watchedOn])
+            }
+            urls.append(try write(diary, name: "cini-diary.csv"))
+        }
+
+        // Reviews: your public notes, one row per film.
+        if let notes = try? await SupabaseService.shared.myPublicNoteRows(),
+           !notes.isEmpty {
+            var reviews = "Title,Year,tmdbID,Review\n"
+            let noteMissing = notes.map(\.movieId).filter { movies[$0] == nil }
+            if !noteMissing.isEmpty,
+               let rows = try? await SupabaseService.shared.movies(ids: noteMissing) {
+                for row in rows { movies[row.tmdbId] = row.asMovie }
+            }
+            for note in notes {
+                guard let movie = movies[note.movieId] else { continue }
+                reviews += line([movie.title,
+                                 movie.releaseYear.map(String.init) ?? "",
+                                 String(movie.tmdbID),
+                                 note.body])
+            }
+            urls.append(try write(reviews, name: "cini-reviews.csv"))
+        }
+
+        // Custom lists: one CSV each, Letterboxd's list shape.
+        if let lists = try? await SupabaseService.shared.myLists() {
+            for list in lists {
+                guard let ids = try? await SupabaseService.shared.listMovieIDs(list.id),
+                      !ids.isEmpty else { continue }
+                let listMissing = ids.filter { movies[$0] == nil }
+                if !listMissing.isEmpty,
+                   let rows = try? await SupabaseService.shared.movies(ids: listMissing) {
+                    for row in rows { movies[row.tmdbId] = row.asMovie }
+                }
+                var csv = "Position,Name,Year,tmdbID\n"
+                for (index, id) in ids.enumerated() {
+                    guard let movie = movies[id] else { continue }
+                    csv += line([String(index + 1),
+                                 movie.title,
+                                 movie.releaseYear.map(String.init) ?? "",
+                                 String(movie.tmdbID)])
+                }
+                let safeName = list.name.replacingOccurrences(
+                    of: #"[^A-Za-z0-9 _-]"#, with: "", options: .regularExpression)
+                urls.append(try write(csv, name: "cini-list-\(safeName).csv"))
+            }
+        }
+
         return urls
     }
 

@@ -7,6 +7,10 @@ import UserNotifications
 /// banners while the app is foregrounded.
 final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
+    /// The token registered for THIS device — sign-out deletes it so a
+    /// shared phone never keeps receiving the old account's pushes.
+    private(set) static var currentToken: String?
+
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
@@ -27,6 +31,7 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication,
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        Self.currentToken = token
         Task { try? await SupabaseService.shared.registerDeviceToken(token) }
     }
 

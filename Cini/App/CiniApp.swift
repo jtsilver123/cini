@@ -96,6 +96,10 @@ final class AppSession {
     }
 
     func signOut() async {
+        // This device must stop receiving the old account's pushes.
+        if let token = PushManager.currentToken {
+            await supabase.unregisterDeviceToken(token)
+        }
         try? await supabase.signOut()
     }
 }
