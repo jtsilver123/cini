@@ -737,7 +737,10 @@ final class SupabaseService {
     /// A user's own activity stream (RLS-gated like the feed).
     func events(of userID: UUID, limit: Int = 12) async throws -> [FeedEventRow] {
         try await client.from("feed_events")
-            .select("*, profiles(username, display_name, avatar_url), movies(*)")
+            // profiles must name the FK: the likes table adds a second
+            // feed_events↔profiles path and PostgREST rejects the bare
+            // embed as ambiguous (PGRST201), silently emptying the feed.
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies(*)")
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -792,7 +795,10 @@ final class SupabaseService {
     func feed(limit: Int = 50) async throws -> [FeedEventRow] {
         // RLS limits rows to people the viewer can see; order newest first.
         try await client.from("feed_events")
-            .select("*, profiles(username, display_name, avatar_url), movies(*)")
+            // profiles must name the FK: the likes table adds a second
+            // feed_events↔profiles path and PostgREST rejects the bare
+            // embed as ambiguous (PGRST201), silently emptying the feed.
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies(*)")
             .order("created_at", ascending: false)
             .limit(limit)
             .execute().value
