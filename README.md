@@ -52,7 +52,7 @@ docs/                 Architecture notes
 
    ```sh
    xcodegen generate
-   open Cini.xcodeproj
+   xcodegen generate && open Cini.xcodeproj
    ```
 
 2. **Secrets**: copy `Cini/Resources/Secrets.example.xcconfig` to

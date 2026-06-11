@@ -501,15 +501,15 @@ final class SupabaseService {
 
     // MARK: - Leaderboard & rank
 
-    func leaderboard(metric: String, school: String?, genre: String?) async throws -> [LeaderboardRow] {
+    func leaderboard(metric: String, genre: String?) async throws -> [LeaderboardRow] {
         struct Params: Encodable {
             let p_metric: String
-            let p_school: String?
+            let p_school: String?   // RPC signature requires it; always nil
             let p_genre: String?
         }
         return try await client.rpc(
             "leaderboard",
-            params: Params(p_metric: metric, p_school: school, p_genre: genre)
+            params: Params(p_metric: metric, p_school: nil, p_genre: genre)
         ).execute().value
     }
 
@@ -534,8 +534,6 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let username: String
     let displayName: String
     let avatarUrl: String?
-    let school: String?
-    let gradYear: Int?
     let memberSince: Date
     let isPrivate: Bool
     let streakWeeks: Int
@@ -548,10 +546,9 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let letterboxdHandle: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, username, school, bio
+        case id, username, bio
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
-        case gradYear = "grad_year"
         case memberSince = "member_since"
         case isPrivate = "is_private"
         case streakWeeks = "streak_weeks"
@@ -565,7 +562,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
 
     var asProfile: Profile {
         Profile(id: id, username: username, displayName: displayName,
-                avatarURL: avatarUrl.flatMap(URL.init), school: school, gradYear: gradYear,
+                avatarURL: avatarUrl.flatMap(URL.init),
                 memberSince: memberSince, isPrivate: isPrivate,
                 streakWeeks: streakWeeks,
                 lastLoggedWeek: lastLoggedWeek.flatMap { ISO8601DateFormatter.dateOnly.date(from: $0) },
@@ -580,8 +577,6 @@ struct ProfileUpdate: Encodable {
     var username: String?
     var display_name: String?
     var avatar_url: String?
-    var school: String?
-    var grad_year: Int?
     var annual_goal: Int?
     var is_private: Bool?
     var bio: String?
@@ -759,14 +754,13 @@ struct LeaderboardRow: Codable, Identifiable, Hashable {
     let userId: UUID
     let username: String
     let avatarUrl: String?
-    let school: String?
     let value: Int
     let matchPct: Double?
 
     var id: UUID { userId }
 
     enum CodingKeys: String, CodingKey {
-        case username, school, value
+        case username, value
         case userId = "user_id"
         case avatarUrl = "avatar_url"
         case matchPct = "match_pct"

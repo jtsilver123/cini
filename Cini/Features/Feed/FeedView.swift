@@ -146,8 +146,6 @@ struct FeedView: View {
                     .background(Capsule().fill(Theme.velvet))
                 }
                 .buttonStyle(.plain)
-                PillButton(title: "Where to Watch", systemImage: "play.rectangle")
-                PillButton(title: "Showtimes", systemImage: "ticket")
             }
         }
         .scrollClipDisabled()

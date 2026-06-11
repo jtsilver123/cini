@@ -122,7 +122,7 @@ struct LeaderboardView: View {
     private func load() async {
         guard metric != 3 else { rows = []; return }   // photos: post-v1
         rows = (try? await SupabaseService.shared.leaderboard(
-            metric: metricKeys[metric], school: nil, genre: genre)) ?? []
+            metric: metricKeys[metric], genre: genre)) ?? []
     }
 }
 

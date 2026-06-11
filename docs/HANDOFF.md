@@ -120,8 +120,8 @@ run 4; we are now iterating on Apple's upload validator only:
 - Live prototype: https://jtsilver123.github.io/cini/prototype/ — deploys
   via `pages.yml` on push (Pages source = GitHub Actions)
 - Privacy policy: https://jtsilver123.github.io/cini/privacy.html
-- `Cini.xcodeproj` committed (generated on macOS runner); regenerate with
-  `generate-xcodeproj.yml` workflow_dispatch after project.yml changes
+- No committed Xcode project: every pipeline (ci.yml, testflight.yml)
+  runs `xcodegen generate` from project.yml, the single source of truth
 
 ## User-side remaining (after a green build)
 
