@@ -18,6 +18,8 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used once to find your zipcode when you search nearby showtimes.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>DMSerifDisplay-Regular.ttf</string>

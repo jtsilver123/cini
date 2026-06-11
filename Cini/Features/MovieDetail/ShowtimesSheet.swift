@@ -11,6 +11,7 @@ struct ShowtimesSheet: View {
     @State private var date = Date()
     @State private var theaters: [TheaterShowtimes] = []
     @State private var state: LoadState = .idle
+    @State private var isLocating = false
 
     enum LoadState {
         case idle, loading, loaded, notConfigured, error(String)
@@ -40,7 +41,17 @@ struct ShowtimesSheet: View {
     private var controls: some View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
-                Image(systemName: "location").foregroundStyle(Theme.gray)
+                Button {
+                    Task { await fillFromLocation() }
+                } label: {
+                    if isLocating {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "location.fill").foregroundStyle(Theme.marquee)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isLocating)
                 TextField("Zipcode", text: $zipcode)
                     .keyboardType(.numberPad)
                 Button("Search") { Task { await search() } }
@@ -125,6 +136,20 @@ struct ShowtimesSheet: View {
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// Tap the location glyph: permission → position → zipcode → search.
+    private func fillFromLocation() async {
+        isLocating = true
+        defer { isLocating = false }
+        do {
+            zipcode = try await LocationZip.shared.currentZip()
+            await search()
+        } catch LocationZip.LocationError.denied {
+            state = .error("Location is off for Cini — allow it in Settings, or type your zipcode.")
+        } catch {
+            state = .error("Couldn't pin down your location — type your zipcode instead.")
+        }
     }
 
     private func search() async {
