@@ -84,6 +84,12 @@ struct MovieDetailView: View {
         .sheet(isPresented: $showSendRec) {
             SendRecSheet(movie: movie)
         }
+        // Presented from the screen root — sheets attached deep inside the
+        // scrolling stack can silently fail to appear on device.
+        .sheet(item: $commentsTarget) { target in
+            CommentsSheet(eventID: target.id)
+                .presentationDetents([.medium, .large])
+        }
         .task { await loadEverything() }
     }
 
@@ -628,10 +634,6 @@ struct MovieDetailView: View {
             }
         }
         .padding(.horizontal, 16)
-        .sheet(item: $commentsTarget) { target in
-            CommentsSheet(eventID: target.id)
-                .presentationDetents([.medium, .large])
-        }
     }
 
     private func publicNoteRow(_ row: PublicNoteRow) -> some View {
