@@ -526,8 +526,8 @@ function renderFeed(){
         <div class="searchfield" onclick="openSearchForRank()" style="color:var(--gray); cursor:pointer;">${I("search",17)}&ensp;Search a movie, member, etc.</div>
       </div>
       <div class="row-scroll" style="margin-top:10px;">
-        <button class="pill" onclick="openWatchSheet('dune2')">${I("tv",16)} Where to Watch</button>
-        <button class="pill" onclick="toast('Live showtimes are on every movie page in the app')">${I("clock",16)} Showtimes</button>
+        <button class="pill" onclick="S.subTab='trending'; save(); go('lists')">${I("spark",16)} Trending</button>
+        <button class="pill" onclick="S.subTab='shared'; save(); go('lists')">${I("send",16)} Friend Recs</button>
       </div>
     </div>
     ${S.streak>0 && !S.rankedThisWeek ? `
@@ -623,6 +623,22 @@ function renderLists(){
           </div>
           <div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}<span class="chip">${m.nr.split(",")[0]}k</span></div>
         </div>`;}).join(""));
+  } else if(sub==="trending"){
+    content = Object.keys(MOVIES).sort((a,b)=>MOVIES[b].avg-MOVIES[a].avg).map(k=>{
+      const m=MOVIES[k];
+      return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${k}')">
+        <div class="poster" style="width:52px;height:78px; background-image:url('${IMG(m.p)}');"></div>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
+          <div class="meta">${m.y} · Dir. ${m.dir}</div>
+          <div style="display:flex; gap:18px; margin-top:8px;">
+            <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
+            <button class="iconbtn" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>
+          </div>
+        </div>
+        <div style="text-align:center;"><div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}</div>
+          <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>
+      </div>`;}).join("");
   } else {
     content = S.friendRecs.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("send",34,1.4)}</span><b>No recs from friends yet</b>
@@ -667,7 +683,7 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched","Watched"],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"]].map(([k,l])=>
+      ${[["watched","Watched"],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"],["trending","Trending"]].map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     ${S.ui.showFilters?`<div class="row-scroll" style="margin-top:12px;">

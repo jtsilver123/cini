@@ -23,6 +23,9 @@ final class TabRouter {
     /// Set before jumping to search to land on the Members tab.
     var openMembersSearch = false
 
+    /// Set before jumping to lists to land on a specific subtab.
+    var pendingListsTab: YourListsView.SubTab?
+
     func closeSearch() { selection = lastNonSearch }
 }
 

@@ -29,6 +29,7 @@ struct YourListsView: View {
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
+    @State private var trendingMovies: [Movie] = []
 
     struct RecCandidate: Identifiable, Hashable {
         let movie: Movie
@@ -41,6 +42,7 @@ struct YourListsView: View {
         case watchlist = "Want to Watch"
         case recs = "Recs"
         case friendRecs = "Friend Recs"
+        case trending = "Trending"
     }
 
     var body: some View {
@@ -49,7 +51,7 @@ struct YourListsView: View {
                 header
                 categoryRow
                 subTabs
-                if subTab != .friendRecs {
+                if subTab != .friendRecs && subTab != .trending {
                     if showFilters { filterRow }
                     if showListSearch { listSearchField }
                     sortRow
@@ -66,6 +68,12 @@ struct YourListsView: View {
             }
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
+            }
+            .onAppear {
+                if let pending = tabRouter.pendingListsTab {
+                    tabRouter.pendingListsTab = nil
+                    subTab = pending
+                }
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -168,6 +176,34 @@ struct YourListsView: View {
             .padding(.horizontal, 16)
         }
         .padding(.top, 10)
+    }
+
+    /// What's big on TMDB this week, scored for YOUR taste.
+    private var trendingList: some View {
+        List {
+            ForEach(trendingMovies) { movie in
+                WatchlistRowView(movie: movie, predicted: predicted[movie.tmdbID]) {
+                    logMovie = movie
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { detailMovie = movie }
+                .listRowBackground(Theme.background)
+            }
+        }
+        .listStyle(.plain)
+        .overlay {
+            if trendingMovies.isEmpty {
+                ProgressView()
+            }
+        }
+        .task {
+            guard trendingMovies.isEmpty else { return }
+            trendingMovies = (try? await TMDBService.shared.trending()) ?? []
+            for movie in trendingMovies { store.cache(movie) }
+            let map = await SupabaseService.shared.predictedScores(
+                movieIDs: trendingMovies.map(\.tmdbID))
+            predicted.merge(map) { _, new in new }
+        }
     }
 
     /// Direct recommendations friends sent you — all of them live here.
@@ -340,6 +376,7 @@ struct YourListsView: View {
         case .watchlist: watchlistList
         case .recs: recsList
         case .friendRecs: friendRecsList
+        case .trending: trendingList
         }
     }
 

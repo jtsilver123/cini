@@ -25,6 +25,7 @@ struct FeedView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     header
                     searchBar
+                    quickPills
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -112,6 +113,21 @@ struct FeedView: View {
             .foregroundStyle(Theme.ink)
         }
         .padding(.top, 8)
+    }
+
+    /// Jump straight into the lists that answer "what should I watch?"
+    private var quickPills: some View {
+        HStack(spacing: 10) {
+            PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis", style: .outlined) {
+                tabRouter.pendingListsTab = .trending
+                tabRouter.selection = .lists
+            }
+            PillButton(title: "Friend Recs", systemImage: "paperplane", style: .outlined) {
+                tabRouter.pendingListsTab = .friendRecs
+                tabRouter.selection = .lists
+            }
+            Spacer()
+        }
     }
 
     /// Not a field — every search entry point opens the one Search screen.
