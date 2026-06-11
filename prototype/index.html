@@ -1924,7 +1924,15 @@ function openImport(){
 function importPick(){return `
   <div style="display:flex; justify-content:flex-end;"><button class="iconbtn" onclick="closeOverlay()">${I("x",20)}</button></div>
   <div style="text-align:center;">
-    <span style="color:var(--marquee);">${I("download",38,1.5)}</span>
+    <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
+        <div style="display:flex; padding:11px 13px; background:#1A2128; border-radius:14px;">
+          <div style="width:22px;height:22px;border-radius:50%;background:#FF8000;"></div>
+          <div style="width:22px;height:22px;border-radius:50%;background:#00E054;margin-left:-7px;"></div>
+          <div style="width:22px;height:22px;border-radius:50%;background:#40BCF4;margin-left:-7px;"></div>
+        </div>
+        <span style="color:var(--gray); font-weight:800;">\u2192</span>
+        <div class="serif" style="color:var(--marquee); font-size:21px; padding:5px 15px; background:#121011; border:1px solid rgba(232,182,76,.55); border-radius:14px;">cini</div>
+      </div>
     <div class="serif" style="font-size:27px; font-weight:700; margin:8px 0 6px;">Bring your history</div>
     <div class="sub" style="font-size:14px; line-height:1.5;">Cini queues every film you've logged so you can rank them — favorites first.</div>
   </div>
@@ -2193,7 +2201,15 @@ function renderOnboarding(){
     </div>`;
   else if(obStep===3) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
-      <span style="color:var(--gold);">${I("download",38,1.5)}</span>
+      <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
+        <div style="display:flex; padding:11px 13px; background:#1A2128; border-radius:14px;">
+          <div style="width:22px;height:22px;border-radius:50%;background:#FF8000;"></div>
+          <div style="width:22px;height:22px;border-radius:50%;background:#00E054;margin-left:-7px;"></div>
+          <div style="width:22px;height:22px;border-radius:50%;background:#40BCF4;margin-left:-7px;"></div>
+        </div>
+        <span style="color:var(--gray); font-weight:800;">\u2192</span>
+        <div class="serif" style="color:var(--marquee); font-size:21px; padding:5px 15px; background:#121011; border:1px solid rgba(232,182,76,.55); border-radius:14px;">cini</div>
+      </div>
       <div class="serif" style="font-size:32px; font-weight:700;">Bring your history</div>
       <div class="sub" style="line-height:1.5;">Already track movies somewhere? Cini queues your whole history so you can rank it — favorites first.</div>
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px;" onclick="finishOnboarding(); openImport();">Import Letterboxd or IMDb</button>

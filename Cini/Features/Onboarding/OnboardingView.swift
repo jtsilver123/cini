@@ -326,9 +326,7 @@ struct OnboardingView: View {
     private var importStep: some View {
         VStack(spacing: 18) {
             Spacer()
-            Image(systemName: "square.and.arrow.down.on.square")
-                .font(.system(size: 40))
-                .foregroundStyle(Theme.gold)
+            ImportHandoffBadge()
             Text("Bring your history")
                 .font(Theme.serif(34))
             Text("Already track movies somewhere? Cini queues your whole history so you can rank it — favorites first.")

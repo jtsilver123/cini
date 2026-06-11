@@ -119,9 +119,7 @@ struct LetterboxdImportView: View {
     private var pickStep: some View {
         ScrollView {
             VStack(spacing: 20) {
-                Image(systemName: "square.and.arrow.down.on.square")
-                    .font(.system(size: 44))
-                    .foregroundStyle(Theme.marquee)
+                ImportHandoffBadge()
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
@@ -579,5 +577,46 @@ struct LetterboxdImportView: View {
             parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
         }
         return parts.isEmpty ? "Import complete" : "Imported: " + parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Letterboxd → Cini, in one glance
+
+/// The import's promise as a picture: Letterboxd's three-dot mark, an
+/// arrow, and the Cini ticket. (The dots are drawn natively — no
+/// trademarked asset ships in the bundle.)
+struct ImportHandoffBadge: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: -7) {
+                Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
+                    .frame(width: 24, height: 24)
+                Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33))
+                    .frame(width: 24, height: 24)
+                Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
+                    .frame(width: 24, height: 24)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(red: 0.10, green: 0.13, blue: 0.16)))
+
+            Image(systemName: "arrow.right")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(Theme.gray)
+
+            Text("cini")
+                .font(Theme.serif(24))
+                .foregroundStyle(Theme.marquee)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(red: 0.07, green: 0.06, blue: 0.07))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Theme.marquee.opacity(0.55), lineWidth: 1)))
+        }
+        .accessibilityLabel("Import from Letterboxd into Cini")
     }
 }
