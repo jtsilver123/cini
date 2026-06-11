@@ -49,9 +49,8 @@ struct MovieDetailView: View {
                 hero
                 tagRow
                 metadataBlock
-                socialProof
-                actionPills
                 summarySection
+                actionPills
                 scoresSection
                 histogramSection
                 yourDetailsSection
@@ -110,12 +109,16 @@ struct MovieDetailView: View {
             .scaleEffect(heroAppeared ? 1 : 1.06)
             .opacity(heroAppeared ? 1 : 0.6)
 
-            // Artwork dissolves into the background under the info block.
+            // Artwork dissolves into the background under the info block —
+            // an eased curve so there's no visible band, just a melt.
             LinearGradient(
                 stops: [
                     .init(color: .clear, location: 0),
-                    .init(color: Theme.background.opacity(0.55), location: 0.55),
-                    .init(color: Theme.background.opacity(0.96), location: 0.85),
+                    .init(color: Theme.background.opacity(0.10), location: 0.38),
+                    .init(color: Theme.background.opacity(0.34), location: 0.56),
+                    .init(color: Theme.background.opacity(0.62), location: 0.70),
+                    .init(color: Theme.background.opacity(0.85), location: 0.82),
+                    .init(color: Theme.background.opacity(0.96), location: 0.92),
                     .init(color: Theme.background, location: 1),
                 ],
                 startPoint: .top, endPoint: .bottom
@@ -195,27 +198,11 @@ struct MovieDetailView: View {
         .padding(.horizontal, 16)
     }
 
-    private var socialProof: some View {
-        Group {
-            if !friends.isEmpty {
-                HStack(spacing: 8) {
-                    AvatarView(url: friends.first?.avatarUrl.flatMap(URL.init), size: 24)
-                    Text("\(friends.count) friend\(friends.count == 1 ? "" : "s") ranked this")
-                        .font(.subheadline)
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-    }
-
+    /// Three actions, always visible — no horizontal scrolling needed.
+    /// (The trailer link lives with the summary text above.)
     private var actionPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                PillButton(title: "Trailer", systemImage: "play.circle", style: .outlined) {
-                    if let trailerURL { UIApplication.shared.open(trailerURL) }
-                }
-                .disabled(trailerURL == nil)
-                .opacity(trailerURL == nil ? 0.45 : 1)
                 PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
                     showWhereToWatch = true
                 }
@@ -304,21 +291,38 @@ struct MovieDetailView: View {
         .contentShape(Rectangle())
     }
 
-    /// Summary — the overview, clamped to four lines with a "more" toggle.
+    /// Summary — the overview, clamped to four lines with a "more"
+    /// toggle, with the trailer link right where you decide to watch.
     @ViewBuilder
     private var summarySection: some View {
-        if let overview = movie.overview, !overview.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(overview)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.ink.opacity(0.9))
-                    .lineLimit(summaryExpanded ? nil : 4)
-                if overview.count > 220 {
-                    Button(summaryExpanded ? "Less" : "More") {
-                        withAnimation(.snappy) { summaryExpanded.toggle() }
+        let overview = movie.overview?.isEmpty == false ? movie.overview : nil
+        if overview != nil || trailerURL != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                if let overview {
+                    Text(overview)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ink.opacity(0.9))
+                        .lineLimit(summaryExpanded ? nil : 4)
+                    if overview.count > 220 {
+                        Button(summaryExpanded ? "Less" : "More") {
+                            withAnimation(.snappy) { summaryExpanded.toggle() }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                        .buttonStyle(.plain)
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
+                }
+                if let trailerURL {
+                    Button {
+                        UIApplication.shared.open(trailerURL)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.circle.fill")
+                            Text("Watch trailer")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                    }
                     .buttonStyle(.plain)
                 }
             }
@@ -418,14 +422,8 @@ struct MovieDetailView: View {
         Group {
             if !performances.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Top Performances").font(.title3.weight(.bold))
-                        Spacer()
-                        Text("See all")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.marquee)
-                    }
-                    .padding(.horizontal, 16)
+                    Text("Top Performances").font(.title3.weight(.bold))
+                        .padding(.horizontal, 16)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {

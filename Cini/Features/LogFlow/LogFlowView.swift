@@ -9,7 +9,6 @@ struct EnrichmentDraft {
     /// "home" or "theater" — how they watched it.
     var watchedWhere: String?
     var notes = ""
-    var personalNotes = ""
     var cast: Set<CastMember> = []
     var stealthMode = false
 }
@@ -382,9 +381,6 @@ struct LogFlowView: View {
         let supabase = SupabaseService.shared
         if !draft.notes.isEmpty {
             try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes, isPrivate: false)
-        }
-        if !draft.personalNotes.isEmpty {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: draft.personalNotes, isPrivate: true)
         }
         for member in draft.cast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)

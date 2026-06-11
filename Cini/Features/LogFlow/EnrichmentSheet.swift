@@ -26,7 +26,7 @@ struct EnrichmentCard: View {
     private var friends: [ProfileRow] { friendsCache.following }
 
     enum Row: String, Identifiable {
-        case watchedWith, date, notes, performances, personalNotes
+        case watchedWith, date, notes, performances
         var id: String { rawValue }
     }
 
@@ -44,9 +44,6 @@ struct EnrichmentCard: View {
             divider
             enrichmentRow(.date, icon: "calendar", title: "Add watch date",
                           detail: draft.watchDate?.formatted(date: .abbreviated, time: .omitted))
-            divider
-            enrichmentRow(.personalNotes, icon: "eye.slash", title: "Add personal notes",
-                          detail: draft.personalNotes.isEmpty ? nil : "Private")
             divider
             stealthRow
 
@@ -273,8 +270,6 @@ struct EnrichmentRowSheet: View {
                     NoteEditor(title: "Notes", subtitle: "Visible to your friends", text: $draft.notes)
                 case .performances:
                     CastPicker(cast: cast, selected: $draft.cast)
-                case .personalNotes:
-                    NoteEditor(title: "Personal Notes", subtitle: "Only you can see these", text: $draft.personalNotes)
                 }
             }
             .toolbar {
