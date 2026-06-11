@@ -403,7 +403,7 @@ struct CiniChatAvailableView: View {
             let response = try await session.respond(to: prompt)
             isThinking = false
             await reveal(response.content)
-        } catch let error as GenerationError {
+        } catch let error as LanguageModelSession.GenerationError {
             switch error {
             case .guardrailViolation:
                 // The on-device model refuses some legit movie topics
