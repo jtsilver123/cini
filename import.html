@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>Cini — Import from your computer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --marquee:#E8B64C; --velvet:#A8352A; --ink:#F5EEDF; --bg:#131011;
+    --surface:#1D1719; --gray:#A69C91; --hair:rgba(255,255,255,.12);
+    --green:#2FBF71; --red:#D96B6B;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .card{max-width:480px; width:100%; background:var(--surface);
+    border:1px solid rgba(232,182,76,.35); border-radius:20px; padding:36px 32px; text-align:center;}
+  .wordmark{font-family:"DM Serif Display",Georgia,serif; font-size:44px; color:var(--marquee);}
+  .tagline{font-size:10px; letter-spacing:4px; color:var(--gray); font-weight:bold; margin-bottom:26px;}
+  h1{font-size:20px; margin:0 0 8px;}
+  p{font-size:14px; line-height:1.6; color:var(--gray); margin:0 0 20px;}
+  ol{text-align:left; font-size:14px; line-height:1.7; color:var(--ink); padding-left:22px; margin:0 0 22px;}
+  ol a{color:var(--marquee);}
+  input{width:140px; text-align:center; font-size:24px; letter-spacing:6px; text-transform:uppercase;
+    background:var(--bg); color:var(--ink); border:1px solid var(--hair); border-radius:12px;
+    padding:12px 8px; outline:none; font-weight:bold;}
+  input:focus{border-color:var(--marquee);}
+  .drop{margin-top:18px; border:2px dashed rgba(232,182,76,.45); border-radius:14px; padding:34px 16px;
+    cursor:pointer; transition:background .15s;}
+  .drop:hover,.drop.over{background:rgba(232,182,76,.08);}
+  .drop b{color:var(--marquee);}
+  .status{margin-top:16px; font-size:14px; min-height:20px;}
+  .ok{color:var(--green);} .err{color:var(--red);}
+  .footer{margin-top:24px; font-size:11px; color:#6E665D;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="wordmark">cini</div>
+  <div class="tagline">EVERY FILM · RANKED</div>
+  <h1>Send your Letterboxd history to your phone</h1>
+  <ol>
+    <li>On <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a>, click <b style="color:var(--ink);">Export your data</b> and save the .zip</li>
+    <li>Enter the 6-letter code from the Cini app</li>
+    <li>Drop the .zip below — it appears on your phone in seconds</li>
+  </ol>
+  <input id="code" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
+  <div class="drop" id="drop">
+    <b>Drop your export here</b><br>
+    <span style="font-size:13px; color:var(--gray);">or click to choose the .zip / .csv</span>
+    <input type="file" id="file" accept=".zip,.csv,.txt" style="display:none;">
+  </div>
+  <div class="status" id="status"></div>
+  <div class="footer">Files transfer privately to your account only and expire after a day.<br>ADMIT ONE · CINI</div>
+</div>
+<script>
+const codeInput = document.getElementById("code");
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("file");
+const status = document.getElementById("status");
+
+const params = new URLSearchParams(location.search);
+if (params.get("code")) codeInput.value = params.get("code").toUpperCase().slice(0, 6);
+codeInput.addEventListener("input", () => {
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, "");
+});
+
+drop.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
+});
+
+async function upload(file) {
+  const code = codeInput.value.trim();
+  if (code.length !== 6) {
+    status.className = "status err";
+    status.textContent = "Enter the 6-letter code from the Cini app first.";
+    return;
+  }
+  status.className = "status";
+  status.textContent = "Uploading " + file.name + "…";
+  try {
+    const res = await fetch(
+      "https://npumchnkbcajyuhurgez.supabase.co/functions/v1/import-upload?code=" +
+        encodeURIComponent(code) + "&name=" + encodeURIComponent(file.name),
+      { method: "POST", body: file }
+    );
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      status.className = "status ok";
+      status.textContent = "Done! Check your phone — Cini is importing it now. 🎬";
+    } else {
+      status.className = "status err";
+      status.textContent = body.error || "Upload failed — try again.";
+    }
+  } catch {
+    status.className = "status err";
+    status.textContent = "Couldn't reach the server — check your connection.";
+  }
+}
+</script>
+</body>
+</html>

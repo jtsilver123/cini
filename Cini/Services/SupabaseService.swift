@@ -196,6 +196,35 @@ final class SupabaseService {
             .execute().value
     }
 
+    // MARK: - Desktop import transfer
+
+    /// Mint a short-lived transfer code; the user enters it at the web
+    /// import page and the export lands in our private bucket.
+    func createImportCode() async throws -> String {
+        guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
+        let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+        let code = String((0..<6).map { _ in alphabet.randomElement()! })
+        struct Row: Encodable { let code: String; let user_id: UUID }
+        try await client.from("pending_imports")
+            .insert(Row(code: code, user_id: me))
+            .execute()
+        return code
+    }
+
+    /// Storage path of the uploaded export once the computer side is done.
+    func importUploadPath(code: String) async -> String? {
+        struct Row: Decodable { let status: String; let path: String? }
+        let row: Row? = try? await client.from("pending_imports")
+            .select("status, path")
+            .eq("code", value: code)
+            .single().execute().value
+        return row?.status == "ready" ? row?.path : nil
+    }
+
+    func downloadImport(path: String) async throws -> Data {
+        try await client.storage.from("imports").download(path: path)
+    }
+
     // MARK: - Push
 
     /// Store/refresh this device's APNs token so the send-push edge

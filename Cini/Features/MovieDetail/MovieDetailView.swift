@@ -100,6 +100,39 @@ struct MovieDetailView: View {
         }
         .frame(height: 230)
         .clipped()
+        // Quick actions ride the artwork itself (feed-row icons): (+)
+        // ranks, bookmark saves, check = already on your list.
+        .overlay(alignment: .bottomTrailing) {
+            HStack(spacing: 14) {
+                if myItem != nil {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(Theme.scoreGreen)
+                        .padding(8)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                Button {
+                    showLogFlow = true
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(.white)
+                        .padding(8)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+                Button {
+                    Task { await store.toggleWatchlist(movie: movie) }
+                } label: {
+                    Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                        .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                        .padding(8)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+            }
+            .font(.title3)
+            .padding(.trailing, 14)
+            .padding(.bottom, 22)
+        }
         .onAppear {
             withAnimation(.snappy(duration: 0.5)) { heroAppeared = true }
         }
@@ -118,23 +151,6 @@ struct MovieDetailView: View {
                         .font(.subheadline)
                 }
                 Spacer()
-                Button {
-                    showLogFlow = true
-                } label: {
-                    Text(myItem == nil ? "Rank" : "Rank again")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                }
-                .buttonStyle(.plain)
-                .glassCapsule()
-
-                if myItem != nil {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(Theme.scoreGreen)
-                }
             }
         }
         .padding(.horizontal, 16)

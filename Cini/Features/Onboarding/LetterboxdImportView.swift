@@ -12,6 +12,8 @@ struct LetterboxdImportView: View {
     @State private var phase: Phase = .pick
     @State private var importWatchlist = true
     @State private var result: LetterboxdImporter.Result?
+    @State private var transferCode: String?
+    @State private var transferTask: Task<Void, Never>?
     @State private var progressText = ""
     @State private var progressFraction: Double = 0
     @State private var errorMessage: String?
@@ -34,6 +36,7 @@ struct LetterboxdImportView: View {
             }
             .background(Theme.background)
             .swipeDismissesKeyboard()
+            .onDisappear { transferTask?.cancel() }
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -157,6 +160,8 @@ struct LetterboxdImportView: View {
                 }
                 .buttonStyle(.plain)
 
+                desktopCard
+
                 Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
@@ -271,6 +276,122 @@ struct LetterboxdImportView: View {
             errorMessage = (error as? LocalizedError)?.errorDescription
                 ?? "Couldn't read that list."
             withAnimation(.snappy) { phase = .pick }
+        }
+    }
+
+    // MARK: Desktop transfer - export on a computer, beam it here
+
+    private var importPageURL: String { "https://jtsilver123.github.io/cini/import/" }
+
+    @ViewBuilder
+    private var desktopCard: some View {
+        HairlineCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "desktopcomputer")
+                        .foregroundStyle(Theme.marquee)
+                    Text("Easier on a computer?")
+                        .font(.subheadline.weight(.bold))
+                }
+                if let transferCode {
+                    Text("On your computer, open the page below, enter this code, and drop in your export - it lands here automatically.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                    HStack {
+                        Spacer()
+                        Text(transferCode)
+                            .font(.system(size: 34, weight: .bold, design: .monospaced))
+                            .tracking(6)
+                            .foregroundStyle(Theme.marquee)
+                        Spacer()
+                    }
+                    Text(importPageURL.replacingOccurrences(of: "https://", with: ""))
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text("Waiting for your upload… code works for 30 minutes")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gray)
+                    }
+                    Link(destination: emailMyselfURL(code: transferCode)) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "envelope")
+                            Text("Email me the link").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
+                    }
+                } else {
+                    Text("Letterboxd's export is simplest from a browser. Get a code, do the export on your computer, and the file beams straight to your phone.")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                    Button {
+                        Task { await startDesktopTransfer() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "laptopcomputer.and.iphone")
+                            Text("Get a transfer code").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func emailMyselfURL(code: String) -> URL {
+        let body = [
+            "Do this on your computer:",
+            "",
+            "1. Go to https://letterboxd.com/settings/data and click \"Export your data\"",
+            "2. Open \(importPageURL)?code=\(code)",
+            "3. Drop the .zip in - it appears in Cini on your phone automatically",
+            "",
+            "The code (\(code)) works for 30 minutes; grab a fresh one in the app if it expires.",
+        ].joined(separator: "\n")
+        var components = URLComponents(string: "mailto:")!
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "Import your Letterboxd into Cini"),
+            URLQueryItem(name: "body", value: body),
+        ]
+        return components.url ?? URL(string: "mailto:")!
+    }
+
+    private func startDesktopTransfer() async {
+        guard let code = try? await SupabaseService.shared.createImportCode() else {
+            errorMessage = "Couldn't start a transfer - check your connection."
+            return
+        }
+        transferCode = code
+        transferTask?.cancel()
+        transferTask = Task {
+            // Poll for the upload until the code's 30-minute window closes.
+            for _ in 0..<600 {
+                try? await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+                if let path = await SupabaseService.shared.importUploadPath(code: code) {
+                    await importFromStorage(path: path)
+                    return
+                }
+            }
+            transferCode = nil
+        }
+    }
+
+    private func importFromStorage(path: String) async {
+        do {
+            let data = try await SupabaseService.shared.downloadImport(path: path)
+            let filename = (path as NSString).lastPathComponent
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(filename)
+            try data.write(to: tempURL)
+            transferCode = nil
+            await runImport(from: tempURL)
+        } catch {
+            errorMessage = "Got your file but couldn't read it - try again."
         }
     }
 
