@@ -54,6 +54,9 @@ struct Movie: Identifiable, Codable, Hashable {
     var originalLanguage: String?
     /// "On Netflix, Max" — filled from the TMDB watch-provider endpoint.
     var streamingOn: [String] = []
+    /// TMDB popularity signal; blended into search ranking so big titles
+    /// surface even on loose queries.
+    var popularity: Double? = nil
 
     var id: Int { tmdbID }
 

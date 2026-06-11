@@ -16,6 +16,7 @@ struct MovieDetailView: View {
     @State private var performances: [PerformanceCount] = []
     @State private var providers: WatchProviders?
     @State private var trailerURL: URL?
+    @State private var tags: [String] = []
     @State private var showLogFlow = false
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
@@ -139,10 +140,13 @@ struct MovieDetailView: View {
         .padding(.horizontal, 16)
     }
 
+    /// Community labels for THIS movie (what members tagged it while
+    /// ranking); TMDB theme keywords until anyone has. Hidden when neither
+    /// exists yet.
+    @ViewBuilder
     private var tagRow: some View {
-        Group {
-            let tags = ["Mindblower", "Slow Burn", "Date Night", "Rewatchable"]
-            Text(tags.map { $0 }.joined(separator: " · "))
+        if !tags.isEmpty {
+            Text(tags.prefix(4).joined(separator: " · "))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.marquee)
                 .padding(.horizontal, 16)
@@ -366,6 +370,8 @@ struct MovieDetailView: View {
         async let friendsTask = SupabaseService.shared.friendScores(movieID: movie.tmdbID)
         async let histogramTask = SupabaseService.shared.scoreHistogram(movieID: movie.tmdbID)
         async let performancesTask = SupabaseService.shared.topPerformances(movieID: movie.tmdbID)
+        async let labelsTask = SupabaseService.shared.movieTopLabels(movieID: movie.tmdbID)
+        async let keywordsTask = TMDBService.shared.keywords(for: movie.tmdbID)
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -376,6 +382,8 @@ struct MovieDetailView: View {
             movie = enriched
             store.cache(enriched)
         }
+        let communityLabels = (try? await labelsTask) ?? []
+        tags = communityLabels.isEmpty ? ((try? await keywordsTask) ?? []) : communityLabels
         trailerURL = try? await trailerTask
         community = try? await communityTask
         friends = (try? await friendsTask) ?? []

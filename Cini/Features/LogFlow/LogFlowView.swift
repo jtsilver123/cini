@@ -387,6 +387,10 @@ struct LogFlowView: View {
         for member in draft.cast {
             try? await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
         }
+        if !draft.labels.isEmpty {
+            try? await supabase.setRankingLabels(movieID: movie.tmdbID,
+                                                 labels: Array(draft.labels))
+        }
         if !draft.watchedWith.isEmpty || draft.watchDate != nil {
             try? await supabase.updateRanking(movieID: movie.tmdbID,
                                               watchedWith: Array(draft.watchedWith),

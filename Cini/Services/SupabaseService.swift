@@ -210,6 +210,24 @@ final class SupabaseService {
 
     // MARK: - Notes, performances, labels
 
+    /// Replace this user's labels on a ranked movie.
+    func setRankingLabels(movieID: Int, labels: [String]) async throws {
+        struct Params: Encodable { let p_movie_id: Int; let p_labels: [String] }
+        try await client.rpc("set_ranking_labels",
+                             params: Params(p_movie_id: movieID, p_labels: labels))
+            .execute()
+    }
+
+    /// The community's most-used labels for a movie (anonymous aggregate).
+    func movieTopLabels(movieID: Int) async throws -> [String] {
+        struct Row: Decodable { let name: String }
+        struct Params: Encodable { let p_movie_id: Int }
+        let rows: [Row] = try await client.rpc("movie_top_labels",
+                                               params: Params(p_movie_id: movieID))
+            .execute().value
+        return rows.map(\.name)
+    }
+
     func upsertNote(movieID: Int, body: String, isPrivate: Bool) async throws {
         guard let userID = currentUserID else { return }
         struct Row: Encodable {

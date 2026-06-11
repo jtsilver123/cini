@@ -407,6 +407,16 @@ struct SearchView: View {
             defer { isSearching = false }
             if tab == 0 {
                 var results = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
+                // Subtitle queries ("new hope") match famous films via
+                // their alternative titles, but TMDB buries them on page 2.
+                // When page 1 has no notable title, pull the next page so
+                // the popularity ranking below can rescue them.
+                if results.map({ $0.popularity ?? 0 }).max() ?? 0 < 5, results.count >= 15 {
+                    let more = (try? await TMDBService.shared.search(query: text, year: nil, page: 2)) ?? []
+                    for movie in more where !results.contains(where: { $0.tmdbID == movie.tmdbID }) {
+                        results.append(movie)
+                    }
+                }
                 // TMDB goes blank on typos — retry with progressively
                 // trimmed input, then the longest word on its own.
                 if results.count < 3, text.count > 3 {
@@ -429,12 +439,21 @@ struct SearchView: View {
                     }
                 }
                 guard !Task.isCancelled else { return }
-                // Closest titles first — predictive even when typed wrong.
+                // Title similarity and popularity in roughly equal measure:
+                // big films win loose queries ("new hope" -> Star Wars, pop
+                // 27 vs 0.5) while typo-corrected and exact matches still
+                // top their own searches. Weights validated against live
+                // TMDB data for all three cases.
                 if results.count > 1 {
-                    results.sort {
-                        Fuzzy.similarity(query: text, candidate: $0.title)
-                            > Fuzzy.similarity(query: text, candidate: $1.title)
+                    let needle = text.lowercased().trimmingCharacters(in: .whitespaces)
+                    func rank(_ movie: Movie) -> Double {
+                        var similarity = Fuzzy.similarity(query: text, candidate: movie.title)
+                        if movie.title.lowercased().contains(needle) {
+                            similarity = max(similarity, 0.82)
+                        }
+                        return 0.5 * similarity + 0.6 * min(movie.popularity ?? 0, 30) / 30
                     }
+                    results.sort { rank($0) > rank($1) }
                 }
                 movieResults = results
                 for movie in movieResults { store.cache(movie) }

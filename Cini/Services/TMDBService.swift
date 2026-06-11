@@ -34,11 +34,12 @@ final class TMDBService {
 
     // MARK: - Endpoints
 
-    func search(query: String, year: Int? = nil) async throws -> [Movie] {
-        var items = [URLQueryItem(name: "query", value: query)]
+    func search(query: String, year: Int? = nil, page: Int = 1) async throws -> [Movie] {
+        var items = [URLQueryItem(name: "query", value: query),
+                     URLQueryItem(name: "page", value: String(page))]
         if let year { items.append(URLQueryItem(name: "primary_release_year", value: String(year))) }
-        let page: SearchPage = try await get("/search/movie", query: items, cachePolicy: .reloadIgnoringLocalCacheData)
-        return page.results.map(\.asMovie)
+        let result: SearchPage = try await get("/search/movie", query: items, cachePolicy: .reloadIgnoringLocalCacheData)
+        return result.results.map(\.asMovie)
     }
 
     func trending() async throws -> [Movie] {
@@ -51,6 +52,19 @@ final class TMDBService {
         if let year { items.append(URLQueryItem(name: "primary_release_year", value: String(year))) }
         let page: SearchPage = try await get("/discover/movie", query: items)
         return page.results.map(\.asMovie)
+    }
+
+    /// Human-readable theme keywords ("space opera", "heist") — the tag
+    /// fallback before any Cini member has labeled the movie.
+    func keywords(for movieID: Int) async throws -> [String] {
+        struct KeywordsPage: Codable {
+            struct Keyword: Codable { let name: String }
+            let keywords: [Keyword]
+        }
+        let page: KeywordsPage = try await get("/movie/\(movieID)/keywords")
+        return page.keywords
+            .map(\.name.localizedCapitalized)
+            .filter { $0.count <= 22 }
     }
 
     func similar(to movieID: Int) async throws -> [Movie] {
@@ -149,6 +163,7 @@ private struct MovieDTO: Codable {
     let overview: String?
     let genreIds: [Int]?
     let originalLanguage: String?
+    let popularity: Double?
 
     var asMovie: Movie {
         Movie(
@@ -163,7 +178,8 @@ private struct MovieDTO: Codable {
             runtimeMinutes: nil,
             director: nil,
             overview: overview,
-            originalLanguage: originalLanguage
+            originalLanguage: originalLanguage,
+            popularity: popularity
         )
     }
 
