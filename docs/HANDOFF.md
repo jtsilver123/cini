@@ -69,6 +69,13 @@ run 4; we are now iterating on Apple's upload validator only:
    per_page 1 — parse the oversized JSON overflow file with python),
    then `get_job_logs` (failed_only) if red; repeat until green.
 
+### BUILD POLICY (user directive, 2026-06-11)
+
+**Never trigger a TestFlight build unless the user explicitly asks.**
+Commit and push code freely; CI validates every push. Builds are batched
+and shipped on request only — Apple caps uploads per app per day
+(ITMS-90382) and we burned a full day's quota on auto-triggers.
+
 ### How to re-trigger a build (Claude can do this via MCP)
 
 `actions_run_trigger` → workflow `testflight.yml`, ref
