@@ -195,6 +195,36 @@ struct SegmentedPillControl: View {
     }
 }
 
+/// ShareLink dressed exactly like PillButton's outlined style so share
+/// actions sit flush next to regular pills.
+struct PillShareLink: View {
+    let title: String
+    let item: String
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            ShareLink(item: item) {
+                label
+            }
+            .buttonStyle(.glass)
+        } else {
+            ShareLink(item: item) {
+                label
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var label: some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.marquee)
+    }
+}
+
 // MARK: - Member row
 
 /// The one member row: avatar, name, @username or reason line, optional

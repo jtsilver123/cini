@@ -29,6 +29,9 @@ struct ProfileScreen: View {
     @State private var showEditProfile = false
     @State private var showSettings = false
     @State private var showInviteSheet = false
+    @State private var showSuggested = false
+    @State private var suggested: [SuggestedMember] = []
+    @State private var followedSuggested: Set<UUID> = []
     @State private var detailMovie: Movie?
     @State private var loaded = false
     @State private var lastLoaded: Date = .distantPast
@@ -251,19 +254,34 @@ struct ProfileScreen: View {
     @ViewBuilder
     private var buttonRow: some View {
         if isSelf {
-            HStack(spacing: 10) {
-                PillButton(title: "Edit profile", style: .outlined) {
-                    showEditProfile = true
+            VStack(spacing: 12) {
+                HStack(spacing: 10) {
+                    PillButton(title: "Edit profile", style: .outlined) {
+                        showEditProfile = true
+                    }
+                    PillShareLink(title: "Share profile",
+                                  item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬")
+                    Button {
+                        withAnimation(.snappy) { showSuggested.toggle() }
+                        if suggested.isEmpty {
+                            Task {
+                                suggested = (try? await SupabaseService.shared.suggestedMembers()) ?? []
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Theme.marquee)
+                            .rotationEffect(.degrees(showSuggested ? 180 : 0))
+                            .padding(9)
+                            .overlay(Circle().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                    }
+                    .buttonStyle(.plain)
                 }
-                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬") {
-                    Text("Share profile")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                if showSuggested {
+                    suggestedStrip
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .buttonStyle(.plain)
             }
         } else if let id = resolvedID {
             PillButton(title: following ? "Following" : "Follow",
@@ -279,6 +297,70 @@ struct ProfileScreen: View {
                 }
             }
         }
+    }
+
+    /// Horizontal "Suggested for you" — quick follows without leaving
+    /// the profile.
+    private var suggestedStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(suggested.prefix(12)) { member in
+                    VStack(spacing: 8) {
+                        NavigationLink {
+                            MemberProfileView(userID: member.id, username: member.username)
+                        } label: {
+                            VStack(spacing: 6) {
+                                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 56)
+                                Text(member.displayName.isEmpty ? member.username : member.displayName)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                    .lineLimit(1)
+                                Text(member.matchPct.map { "\(Int($0))% match" }
+                                     ?? "\(member.watched) films")
+                                    .font(.caption2)
+                                    .foregroundStyle(Theme.gray)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            Task {
+                                if followedSuggested.contains(member.id) {
+                                    followedSuggested.remove(member.id)
+                                    try? await SupabaseService.shared.unfollow(member.id)
+                                } else {
+                                    followedSuggested.insert(member.id)
+                                    try? await SupabaseService.shared.follow(member.id)
+                                }
+                            }
+                        } label: {
+                            Text(followedSuggested.contains(member.id) ? "Following" : "Follow")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(followedSuggested.contains(member.id) ? Theme.marquee : .white)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 6)
+                                .background(Capsule().fill(followedSuggested.contains(member.id)
+                                                           ? Theme.marqueeSoft : Theme.velvet))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(10)
+                    .frame(width: 118)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Theme.surface)
+                            .overlay(RoundedRectangle(cornerRadius: 14)
+                                .strokeBorder(Theme.hairline, lineWidth: 1))
+                    )
+                }
+                if suggested.isEmpty {
+                    Text("Suggestions appear as members join — invite your crew!")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .padding(.vertical, 20)
+                }
+            }
+        }
+        .scrollClipDisabled()
     }
 
     // MARK: List rows (Beli: Been / Want to Try / Recs for You)
