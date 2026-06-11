@@ -20,9 +20,10 @@ struct EnrichmentCard: View {
     /// clear-background cover silently fail to present on device).
     @Binding var activeRow: Row?
 
-    @State private var friends: [ProfileRow] = []
-    @State private var friendCounts: [UUID: Int] = [:]
+    @State private var friendsCache = FriendsCache.shared
     @State private var friendScores: [FriendScoreRow] = []
+
+    private var friends: [ProfileRow] { friendsCache.following }
 
     enum Row: String, Identifiable {
         case watchedWith, date, notes, performances, personalNotes
@@ -73,8 +74,7 @@ struct EnrichmentCard: View {
         .frame(maxWidth: .infinity)
         .floatingCard()
         .task {
-            friends = (try? await supabase.following()) ?? []
-            friendCounts = await supabase.watchedWithCounts()
+            friendsCache.refreshIfStale()   // chips render from cache instantly
             friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
     }
@@ -87,12 +87,7 @@ struct EnrichmentCard: View {
 
     /// Friends you tag most often, first; the chips are one-tap, and the
     /// chevron opens the full searchable multi-select picker.
-    private var sortedFriends: [ProfileRow] {
-        friends.sorted {
-            let a = friendCounts[$0.id] ?? 0, b = friendCounts[$1.id] ?? 0
-            return a == b ? $0.username < $1.username : a > b
-        }
-    }
+    private var sortedFriends: [ProfileRow] { friendsCache.byTagFrequency }
 
     private var watchedWithSection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -282,24 +277,15 @@ struct EnrichmentRowSheet: View {
 struct WatchedWithPicker: View {
     @Binding var selected: Set<UUID>
 
-    @State private var friends: [ProfileRow] = []
-    @State private var counts: [UUID: Int] = [:]
+    @State private var friendsCache = FriendsCache.shared
     @State private var query = ""
-    @State private var loaded = false
-
-    private let supabase = SupabaseService.shared
 
     private var visible: [ProfileRow] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        return friends
-            .filter {
-                q.isEmpty || $0.username.lowercased().contains(q)
-                    || $0.displayName.lowercased().contains(q)
-            }
-            .sorted {
-                let a = counts[$0.id] ?? 0, b = counts[$1.id] ?? 0
-                return a == b ? $0.username < $1.username : a > b
-            }
+        return friendsCache.byTagFrequency.filter {
+            q.isEmpty || $0.username.lowercased().contains(q)
+                || $0.displayName.lowercased().contains(q)
+        }
     }
 
     var body: some View {
@@ -341,12 +327,12 @@ struct WatchedWithPicker: View {
                 .buttonStyle(.plain)
             }
 
-            if loaded && friends.isEmpty {
+            if friendsCache.following.isEmpty {
                 Text("Follow friends from the Search tab to tag them here.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .listRowSeparator(.hidden)
-            } else if loaded && visible.isEmpty {
+            } else if visible.isEmpty {
                 Text("No friends match “\(query)”.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
@@ -356,11 +342,7 @@ struct WatchedWithPicker: View {
         .listStyle(.plain)
         .navigationTitle("Watched with")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            friends = (try? await supabase.following()) ?? []
-            counts = await supabase.watchedWithCounts()
-            loaded = true
-        }
+        .task { friendsCache.refreshIfStale() }
     }
 }
 

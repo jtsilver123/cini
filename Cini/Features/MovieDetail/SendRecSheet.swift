@@ -6,13 +6,16 @@ struct SendRecSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var friends: [ProfileRow] = []
+    @State private var friendsCache = FriendsCache.shared
     @State private var selected: ProfileRow?
     @State private var note = ""
     @State private var sending = false
     @State private var sent = false
     @State private var errorMessage: String?
     @State private var loaded = false
+
+    /// Cache-first: friends you tag most show first, instantly.
+    private var friends: [ProfileRow] { friendsCache.byTagFrequency }
 
     var body: some View {
         NavigationStack {
@@ -35,7 +38,11 @@ struct SendRecSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .task {
-            friends = (try? await SupabaseService.shared.following()) ?? []
+            if friendsCache.following.isEmpty {
+                await friendsCache.refresh()
+            } else {
+                friendsCache.refreshIfStale()
+            }
             loaded = true
         }
     }
@@ -55,7 +62,7 @@ struct SendRecSheet: View {
 
             Divider()
 
-            if !loaded {
+            if !loaded && friends.isEmpty {
                 ProgressView()
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)

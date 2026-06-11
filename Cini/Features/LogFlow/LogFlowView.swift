@@ -394,6 +394,8 @@ struct LogFlowView: View {
                                               watchedWith: Array(draft.watchedWith),
                                               watchDate: draft.watchDate,
                                               watchedWhere: draft.watchedWhere)
+            // Tag frequencies just changed — keep the chip order current.
+            FriendsCache.shared.warm()
         }
         if draft.stealthMode {
             try? await supabase.hideRankEvent(movieID: movie.tmdbID)

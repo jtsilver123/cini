@@ -252,10 +252,46 @@ struct FeedView: View {
     }
 
     private func loadFeed() async {
-        events = (try? await SupabaseService.shared.feed()) ?? []
+        // Cold start: show the last feed from disk instantly while the
+        // fresh one loads — the app never opens to a blank screen.
+        if events.isEmpty, let cached = FeedDiskCache.load() {
+            events = cached
+        }
+        if let fresh = try? await SupabaseService.shared.feed() {
+            events = fresh
+            FeedDiskCache.save(fresh)
+        }
         likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
         feedLoaded = true
+    }
+}
+
+/// Last-known feed, persisted so launch shows content immediately.
+enum FeedDiskCache {
+    private static var url: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("feed-cache.json")
+    }
+
+    static func load() -> [FeedEventRow]? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode([FeedEventRow].self, from: data)
+    }
+
+    static func save(_ events: [FeedEventRow]) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(events) {
+            try? data.write(to: url, options: .atomic)
+        }
+    }
+
+    /// On sign-out — the next account must not see this user's feed.
+    static func clear() {
+        try? FileManager.default.removeItem(at: url)
     }
 }
 

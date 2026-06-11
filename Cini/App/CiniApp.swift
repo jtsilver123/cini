@@ -62,10 +62,14 @@ final class AppSession {
                 if session != nil {
                     await loadProfile()
                     PushManager.enable()
+                    // Warm the social cache so the log flow's friend chips
+                    // and Recommend sheet open instantly.
+                    FriendsCache.shared.warm()
                 }
             case .signedOut:
                 isAuthenticated = false
                 profile = nil
+                FeedDiskCache.clear()
             default:
                 break
             }
