@@ -477,6 +477,23 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// How often each friend has been tagged in "watched with" across all
+    /// of the user's rankings — ranks the picker so frequent movie
+    /// companions surface first.
+    func watchedWithCounts() async -> [UUID: Int] {
+        guard let me = currentUserID else { return [:] }
+        struct Row: Decodable { let watched_with: [UUID]? }
+        let rows: [Row] = (try? await client.from("rankings")
+            .select("watched_with")
+            .eq("user_id", value: me)
+            .execute().value) ?? []
+        var counts: [UUID: Int] = [:]
+        for row in rows {
+            for id in row.watched_with ?? [] { counts[id, default: 0] += 1 }
+        }
+        return counts
+    }
+
     /// Members following `userID` (.followers) or whom they follow
     /// (.following) — newest edge first.
     enum FollowDirection { case followers, following }

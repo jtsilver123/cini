@@ -1295,8 +1295,33 @@ function renderDetail(){
 let log=null;
 function openLog(k){
   buzz();
-  log={k, bucket:null, stage:"sentiment", snapshot:JSON.stringify(S.watched)};
+  log={k, bucket:null, stage:"sentiment", with:[], snapshot:JSON.stringify(S.watched)};
   renderOverlay(`<div id="logStack" style="display:flex; flex-direction:column; gap:11px;">${logCards()}</div>`);
+}
+function toggleWatchedWith(u, el){
+  if(!log) return;
+  log.with = log.with||[];
+  const i=log.with.indexOf(u);
+  if(i>=0) log.with.splice(i,1); else log.with.push(u);
+  if(el) el.classList.toggle("on");
+}
+/* Full picker: every friend, most-tagged first, searchable, multi-select. */
+function openWatchedWithPicker(q=""){
+  if(!log) return;
+  const ql=q.trim().toLowerCase();
+  const list=MEMBERS.filter(p=>!ql||p.n.toLowerCase().includes(ql)||p.u.includes(ql));
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Watched with</b>
+      <button class="iconbtn" onclick="closeOverlay(); renderOverlay(\`<div id='logStack' style='display:flex; flex-direction:column; gap:11px;'>\${logCards()}</div>\`)">${I("check",18)}</button></div>
+    <div class="sheet-body">
+      <div class="searchfield" style="margin-bottom:10px;">${I("search",16)}<input id="wwQ" placeholder="Search friends" value="${esc(q)}" oninput="openWatchedWithPicker(this.value); setTimeout(()=>{const e=$('wwQ'); if(e){e.focus(); e.setSelectionRange(e.value.length,e.value.length);}},0)"></div>
+      <div class="sub" style="margin-bottom:8px;">Most-tagged friends first</div>
+      ${list.map(p=>`<div class="erow" onclick="toggleWatchedWith('${p.u}'); openWatchedWithPicker('${esc(q)}')">
+        <div class="avatar ${p.av}" style="width:36px;height:36px;font-size:14px;">${p.n[0]}</div>
+        <span style="flex:1; font-weight:600;">${p.n} <span class="sub">@${p.u}</span></span>
+        <span style="color:${log.with&&log.with.includes(p.u)?"var(--marquee)":"var(--gray)"};">${log.with&&log.with.includes(p.u)?IF("check",18):I("plus",18)}</span>
+      </div>`).join("")||`<div class="empty" style="padding:24px;"><b>No friends match</b></div>`}
+    </div>`);
 }
 function closeLog(){
   // Abandoned mid-flow: restore the list (a re-rank removes the entry early).
@@ -1332,8 +1357,8 @@ function logCards(){
   if(log.bucket){
     html+=`
       <div class="fcard">
-        <div class="erow" style="padding-top:2px;"><span class="ic">${I("users",18)}</span><span style="flex:1;">Who did you watch with?</span></div>
-        <div class="chips">${MEMBERS.slice(0,3).map(p=>`<button class="chip-f" onclick="this.classList.toggle('on')">${p.n}</button>`).join("")}</div>
+        <div class="erow" style="padding-top:2px;" onclick="openWatchedWithPicker()"><span class="ic">${I("users",18)}</span><span style="flex:1;">Who did you watch with?</span><span class="sub">${I("chevR",14)}</span></div>
+        <div class="chips">${MEMBERS.slice(0,3).map(p=>`<button class="chip-f ${log.with&&log.with.includes(p.u)?"on":""}" onclick="toggleWatchedWith('${p.u}',this)">${p.n}</button>`).join("")}</div>
         ${[["tag","Add labels (date night, etc.)"],["pencil","Add notes"],["star","Add favorite performances"],["calendar","Add watch date"],["eyeoff","Add personal notes"]].map(([ic,l])=>
           `<div class="erow" onclick="toast('${l} — full editor in the app')"><span class="ic">${I(ic,18)}</span><span style="flex:1;">${l}</span><span class="sub">${I("chevR",14)}</span></div>`).join("")}
         <div class="erow" style="cursor:default;">

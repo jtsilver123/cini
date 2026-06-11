@@ -21,10 +21,11 @@ struct EnrichmentCard: View {
     @Binding var activeRow: Row?
 
     @State private var friends: [ProfileRow] = []
+    @State private var friendCounts: [UUID: Int] = [:]
     @State private var friendScores: [FriendScoreRow] = []
 
     enum Row: String, Identifiable {
-        case labels, date, notes, performances, personalNotes
+        case watchedWith, labels, date, notes, performances, personalNotes
         var id: String { rawValue }
     }
 
@@ -74,6 +75,7 @@ struct EnrichmentCard: View {
         .floatingCard()
         .task {
             friends = (try? await supabase.following()) ?? []
+            friendCounts = await supabase.watchedWithCounts()
             friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
     }
@@ -84,17 +86,33 @@ struct EnrichmentCard: View {
 
     // MARK: Who did you watch with?
 
+    /// Friends you tag most often, first; the chips are one-tap, and the
+    /// chevron opens the full searchable multi-select picker.
+    private var sortedFriends: [ProfileRow] {
+        friends.sorted {
+            let a = friendCounts[$0.id] ?? 0, b = friendCounts[$1.id] ?? 0
+            return a == b ? $0.username < $1.username : a > b
+        }
+    }
+
     private var watchedWithSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 14) {
-                Image(systemName: "person.2").frame(width: 28)
-                Text("Who did you watch with?")
-                Spacer()
+            Button {
+                guard !isLocked else { return }
+                activeRow = .watchedWith
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "person.2").frame(width: 28).foregroundStyle(Theme.ink)
+                    Text("Who did you watch with?").foregroundStyle(Theme.ink)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                }
             }
+            .buttonStyle(.plain)
             if !friends.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(friends) { friend in
+                        ForEach(sortedFriends) { friend in
                             let isOn = draft.watchedWith.contains(friend.id)
                             Button {
                                 guard !isLocked else { return }
@@ -189,6 +207,8 @@ struct EnrichmentRowSheet: View {
         NavigationStack {
             Group {
                 switch row {
+                case .watchedWith:
+                    WatchedWithPicker(selected: $draft.watchedWith)
                 case .labels:
                     LabelPicker(selected: $draft.labels)
                 case .date:
@@ -220,6 +240,93 @@ struct EnrichmentRowSheet: View {
 }
 
 // MARK: - Sub-pickers
+
+/// Full "Who did you watch with?" picker: multi-select over everyone you
+/// follow, frequent movie companions first, with a search field.
+struct WatchedWithPicker: View {
+    @Binding var selected: Set<UUID>
+
+    @State private var friends: [ProfileRow] = []
+    @State private var counts: [UUID: Int] = [:]
+    @State private var query = ""
+    @State private var loaded = false
+
+    private let supabase = SupabaseService.shared
+
+    private var visible: [ProfileRow] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return friends
+            .filter {
+                q.isEmpty || $0.username.lowercased().contains(q)
+                    || $0.displayName.lowercased().contains(q)
+            }
+            .sorted {
+                let a = counts[$0.id] ?? 0, b = counts[$1.id] ?? 0
+                return a == b ? $0.username < $1.username : a > b
+            }
+    }
+
+    var body: some View {
+        List {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                TextField("Search friends", text: $query)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+            .listRowSeparator(.hidden)
+
+            ForEach(visible) { friend in
+                Button {
+                    if selected.contains(friend.id) { selected.remove(friend.id) }
+                    else { selected.insert(friend.id) }
+                } label: {
+                    MemberRow(
+                        avatarURL: friend.avatarUrl.flatMap(URL.init),
+                        title: friend.displayName.isEmpty ? friend.username : friend.displayName,
+                        subtitle: "@\(friend.username)"
+                    ) {
+                        Image(systemName: selected.contains(friend.id)
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .foregroundStyle(selected.contains(friend.id) ? Theme.marquee : Theme.gray)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            if loaded && friends.isEmpty {
+                Text("Follow friends from the Search tab to tag them here.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .listRowSeparator(.hidden)
+            } else if loaded && visible.isEmpty {
+                Text("No friends match “\(query)”.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .listRowSeparator(.hidden)
+            }
+        }
+        .listStyle(.plain)
+        .navigationTitle("Watched with")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            friends = (try? await supabase.following()) ?? []
+            counts = await supabase.watchedWithCounts()
+            loaded = true
+        }
+    }
+}
 
 struct LabelPicker: View {
     @Binding var selected: Set<String>
