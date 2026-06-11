@@ -8,10 +8,21 @@ import FoundationModels
 
 /// One thing the agent actually DID — rendered as a confirmation chip
 /// under its reply so actions are always visible, never just claimed.
+/// Tapping a chip takes you to what it touched.
 struct AgentAction: Identifiable, Equatable, Hashable {
     let id = UUID()
     let icon: String
     let label: String
+    var destination: AgentDestination?
+}
+
+/// Where a tapped receipt chip lands.
+enum AgentDestination: Equatable, Hashable {
+    case wantToWatch
+    case listsHome
+    case customList(UUID)
+    case movie(Int)
+    case member(UUID, String)
 }
 
 /// Ask Cini's tools run outside the SwiftUI tree; this bridge carries the
@@ -26,8 +37,9 @@ final class ChatAgentBridge {
     var openLogFlow: ((Movie) -> Void)?
     private(set) var actions: [AgentAction] = []
 
-    func note(_ icon: String, _ label: String) {
-        actions.append(AgentAction(icon: icon, label: label))
+    func note(_ icon: String, _ label: String,
+              destination: AgentDestination? = nil) {
+        actions.append(AgentAction(icon: icon, label: label, destination: destination))
     }
 
     func drain() -> [AgentAction] {
@@ -82,7 +94,7 @@ struct SaveToWatchlistTool: Tool {
             return "\(movie.title) is already on their Want to Watch list."
         }
         await store.toggleWatchlist(movie: movie)
-        await ChatAgentBridge.shared.note("bookmark.fill", "Saved \(movie.title)")
+        await ChatAgentBridge.shared.note("bookmark.fill", "Saved \(movie.title)", destination: .wantToWatch)
         return "Done — \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on their Want to Watch list."
     }
 }
@@ -107,7 +119,7 @@ struct RemoveFromWatchlistTool: Tool {
             return "\(movie.title) isn't on their Want to Watch list."
         }
         await store.toggleWatchlist(movie: movie)
-        await ChatAgentBridge.shared.note("bookmark.slash", "Removed \(movie.title)")
+        await ChatAgentBridge.shared.note("bookmark.slash", "Removed \(movie.title)", destination: .wantToWatch)
         return "Removed \(movie.title) from their Want to Watch list."
     }
 }
@@ -133,7 +145,7 @@ struct CreateListTool: Tool {
             return "Couldn't create the list — connection trouble."
         }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
-        await ChatAgentBridge.shared.note("list.star", "Created “\(list.name)”")
+        await ChatAgentBridge.shared.note("list.star", "Created “\(list.name)”", destination: .customList(list.id))
         return "Created the list “\(list.name)” — it shows as a tab under My Lists."
     }
 }
@@ -171,7 +183,7 @@ struct AddToListTool: Tool {
             return "Couldn't add \(movie.title) — connection trouble."
         }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
-        await ChatAgentBridge.shared.note("plus.circle.fill", "\(movie.title) → “\(list.name)”")
+        await ChatAgentBridge.shared.note("plus.circle.fill", "\(movie.title) → “\(list.name)”", destination: .customList(list.id))
         return "Added \(movie.title) to “\(list.name)”."
     }
 }
@@ -198,7 +210,7 @@ struct RemoveFromListTool: Tool {
         }
         try? await SupabaseService.shared.removeFromList(list.id, movieID: movie.tmdbID)
         await ChatAgentBridge.shared.store?.refreshCustomLists()
-        await ChatAgentBridge.shared.note("minus.circle", "\(movie.title) ✕ “\(list.name)”")
+        await ChatAgentBridge.shared.note("minus.circle", "\(movie.title) ✕ “\(list.name)”", destination: .customList(list.id))
         return "Removed \(movie.title) from “\(list.name)”."
     }
 }
@@ -224,7 +236,7 @@ struct DeleteListTool: Tool {
             return "Couldn't delete the list — connection trouble."
         }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
-        await ChatAgentBridge.shared.note("trash", "Deleted “\(list.name)”")
+        await ChatAgentBridge.shared.note("trash", "Deleted “\(list.name)”", destination: .listsHome)
         return "Deleted the list “\(list.name)”."
     }
 }
@@ -270,7 +282,7 @@ struct FollowMemberTool: Tool {
             return "Couldn't follow @\(member.username) — connection trouble."
         }
         await FriendsCache.shared.refresh()
-        await ChatAgentBridge.shared.note("person.badge.plus", "Followed @\(member.username)")
+        await ChatAgentBridge.shared.note("person.badge.plus", "Followed @\(member.username)", destination: .member(member.id, member.username))
         return "Now following @\(member.username) — their activity joins the feed."
     }
 }
@@ -292,7 +304,7 @@ struct UnfollowMemberTool: Tool {
         }
         try? await SupabaseService.shared.unfollow(member.id)
         await FriendsCache.shared.refresh()
-        await ChatAgentBridge.shared.note("person.badge.minus", "Unfollowed @\(member.username)")
+        await ChatAgentBridge.shared.note("person.badge.minus", "Unfollowed @\(member.username)", destination: .member(member.id, member.username))
         return "Unfollowed @\(member.username)."
     }
 }
@@ -325,7 +337,7 @@ struct SendRecTool: Tool {
         guard sent else {
             return "Couldn't send — recs only go to people they follow. Offer to follow @\(member.username) first."
         }
-        await ChatAgentBridge.shared.note("paperplane.fill", "\(movie.title) → @\(member.username)")
+        await ChatAgentBridge.shared.note("paperplane.fill", "\(movie.title) → @\(member.username)", destination: .member(member.id, member.username))
         return "Sent \(movie.title) to @\(member.username)."
     }
 }
@@ -348,7 +360,7 @@ struct StartRankingTool: Tool {
         await MainActor.run {
             ChatAgentBridge.shared.store?.cache(movie)
             ChatAgentBridge.shared.openLogFlow?(movie)
-            ChatAgentBridge.shared.note("plus.circle", "Ranking \(movie.title)")
+            ChatAgentBridge.shared.note("plus.circle", "Ranking \(movie.title)", destination: .movie(movie.tmdbID))
         }
         return "The ranking flow for \(movie.title) just opened on screen — they'll pick how they felt and compare. Keep your reply to one short line."
     }
@@ -376,7 +388,7 @@ struct DeleteRatingTool: Tool {
         guard await store.removeRanking(movieID: movie.tmdbID) else {
             return "Couldn't delete the rating — connection trouble."
         }
-        await ChatAgentBridge.shared.note("trash", "Deleted rating for \(movie.title)")
+        await ChatAgentBridge.shared.note("trash", "Deleted rating for \(movie.title)", destination: .movie(movie.tmdbID))
         return "Deleted their rating for \(movie.title) — notes and diary entries stay."
     }
 }

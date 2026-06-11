@@ -125,7 +125,11 @@ struct YourListsView: View {
             } message: {
                 Text("Add movies to it from any movie page with \"Add to List\".")
             }
+            .onChange(of: tabRouter.pendingCustomListID) { _, _ in
+                consumePendingCustomList()
+            }
             .onAppear {
+                consumePendingCustomList()
                 if let pending = tabRouter.pendingListsTab {
                     tabRouter.pendingListsTab = nil
                     subTab = pending
@@ -149,6 +153,23 @@ struct YourListsView: View {
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
+            }
+        }
+    }
+
+    /// An agent receipt chip can deep-link straight into a custom list —
+    /// even one created seconds ago that this tab hasn't fetched yet.
+    private func consumePendingCustomList() {
+        guard let pending = tabRouter.pendingCustomListID else { return }
+        tabRouter.pendingCustomListID = nil
+        if customLists.contains(where: { $0.id == pending }) {
+            withAnimation(.snappy) { selectedListID = pending }
+        } else {
+            Task {
+                customLists = (try? await SupabaseService.shared.myLists()) ?? customLists
+                if customLists.contains(where: { $0.id == pending }) {
+                    withAnimation(.snappy) { selectedListID = pending }
+                }
             }
         }
     }

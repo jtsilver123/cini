@@ -30,6 +30,10 @@ final class TabRouter {
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?
 
+    /// Set before jumping to lists to open a specific custom list
+    /// (agent receipt chips use this).
+    var pendingCustomListID: UUID?
+
     /// Set before jumping to search to land on a browse mode ("trending").
     var pendingSearchBrowse: SearchView.BrowseKind?
 

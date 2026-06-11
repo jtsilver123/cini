@@ -58,6 +58,9 @@ struct CiniChatAvailableView: View {
     let store: RankingStore
     var profile: Profile?
 
+    @Environment(TabRouter.self) private var tabRouter
+    @Environment(\.dismiss) private var dismissChat
+
     @State private var messages: [ChatMessage] = []
     @State private var draft = ""
     @State private var isThinking = false
@@ -321,17 +324,32 @@ struct CiniChatAvailableView: View {
                 if !message.actions.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(message.actions) { action in
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill")
-                                Image(systemName: action.icon)
-                                Text(action.label).lineLimit(1)
+                            // The receipt is a door: tap it to go to the
+                            // list/movie/member the agent just touched.
+                            Button {
+                                if let destination = action.destination {
+                                    open(destination)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Image(systemName: action.icon)
+                                    Text(action.label).lineLimit(1)
+                                    if action.destination != nil {
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2.weight(.bold))
+                                    }
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.scoreGreen)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule().strokeBorder(Theme.scoreGreen.opacity(0.5), lineWidth: 1))
+                                .contentShape(Capsule())
                             }
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.scoreGreen)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().strokeBorder(Theme.scoreGreen.opacity(0.5), lineWidth: 1))
+                            .buttonStyle(.plain)
+                            .disabled(action.destination == nil)
                         }
                     }
                 }
@@ -508,6 +526,30 @@ struct CiniChatAvailableView: View {
         } else {
             isThinking = false
             await reveal("I hit a snag answering that — try rephrasing, or ask something shorter.")
+        }
+    }
+
+    /// A tapped receipt chip: close the chat and land on what the agent
+    /// touched. Movie/member reuse the push deep-link plumbing.
+    private func open(_ destination: AgentDestination) {
+        Haptics.tap()
+        dismissChat()
+        switch destination {
+        case .wantToWatch:
+            tabRouter.pendingListsTab = .watchlist
+            tabRouter.selection = .lists
+        case .listsHome:
+            tabRouter.pendingListsTab = nil
+            tabRouter.selection = .lists
+        case .customList(let id):
+            tabRouter.pendingCustomListID = id
+            tabRouter.selection = .lists
+        case .movie(let id):
+            tabRouter.pendingPushMovieID = id
+            tabRouter.selection = .feed
+        case .member(let id, let username):
+            tabRouter.pendingPushMember = MemberRef(id: id, username: username)
+            tabRouter.selection = .feed
         }
     }
 
