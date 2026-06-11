@@ -69,6 +69,14 @@ run 4; we are now iterating on Apple's upload validator only:
    per_page 1 — parse the oversized JSON overflow file with python),
    then `get_job_logs` (failed_only) if red; repeat until green.
 
+### UI PRINCIPLE (user directive, 2026-06-11)
+
+**Re-use UI locations and components.** Identical actions live in
+identical places everywhere ((+)/bookmark = scrimmed circles bottom-right
+on artwork via ArtworkQuickActions; scores = trailing ScoreBadge;
+member rows = MemberRow). Prefer extracting a shared component over
+duplicating a pattern, so placements physically cannot drift.
+
 ### BUILD POLICY (user directive, 2026-06-11)
 
 **Never trigger a TestFlight build unless the user explicitly asks.**

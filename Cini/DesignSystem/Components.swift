@@ -225,6 +225,40 @@ struct PillShareLink: View {
     }
 }
 
+/// The (+) / bookmark pair that rides artwork (movie hero, feed cards):
+/// scrimmed circles, gold fill when saved. One component so the
+/// placement and look stay identical app-wide.
+struct ArtworkQuickActions: View {
+    let movie: Movie
+    var onLog: (Movie) -> Void
+
+    @Environment(RankingStore.self) private var store
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Button {
+                onLog(movie)
+            } label: {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(Circle().fill(.black.opacity(0.45)))
+            }
+            .buttonStyle(.plain)
+            Button {
+                Task { await store.toggleWatchlist(movie: movie) }
+            } label: {
+                Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                    .padding(8)
+                    .background(Circle().fill(.black.opacity(0.45)))
+            }
+            .buttonStyle(.plain)
+        }
+        .font(.title3)
+    }
+}
+
 // MARK: - Member row
 
 /// The one member row: avatar, name, @username or reason line, optional

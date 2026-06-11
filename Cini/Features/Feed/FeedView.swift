@@ -320,18 +320,6 @@ struct FeedCard: View {
                             .foregroundStyle(Theme.ink)
                     }
                 }
-                Spacer()
-                if let movie {
-                    Button { onQuickAdd(movie) } label: {
-                        Image(systemName: "plus.circle")
-                    }
-                    Button {
-                        Task { await store.toggleWatchlist(movie: movie) }
-                    } label: {
-                        Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                    }
-                }
             }
             .font(.body)
             .foregroundStyle(Theme.ink)
@@ -365,6 +353,13 @@ struct FeedCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         )
+        // Same corner as the movie page: (+) / bookmark on the artwork.
+        .overlay(alignment: .bottomTrailing) {
+            if let movie {
+                ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
+                    .padding(12)
+            }
+        }
         // The whole card opens the referenced title; the action buttons
         // inside still win their own taps.
         .contentShape(Rectangle())

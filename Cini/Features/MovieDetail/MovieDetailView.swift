@@ -128,22 +128,9 @@ struct MovieDetailView: View {
                             .font(.title2.weight(.semibold))
                             .foregroundStyle(Theme.scoreGreen)
                     } else {
-                        Button {
+                        ArtworkQuickActions(movie: movie) { _ in
                             showLogFlow = true
-                        } label: {
-                            Image(systemName: "plus.circle")
-                                .font(.title)
-                                .foregroundStyle(Theme.ink)
                         }
-                        .buttonStyle(.plain)
-                        Button {
-                            Task { await store.toggleWatchlist(movie: movie) }
-                        } label: {
-                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                                .font(.title)
-                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }

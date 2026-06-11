@@ -504,13 +504,14 @@ function renderFeed(){
           <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}</button>
           <button class="iconbtn" onclick="openComments('${e.id}')">${I("comment")}${comments.length?`<span style="font-size:11px;font-weight:700;"> ${comments.length}</span>`:""}</button>
           <button class="iconbtn" onclick="share('${esc(m.t)} on Cini')">${I("send")}</button>
-          <span class="spacer"></span>
-          <button class="iconbtn" onclick="openLog('${e.movie}')">${I("plus")}</button>
-          <button class="iconbtn" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>
         </div>
         <div class="sub" style="margin-top:7px;">${e.when}</div>
       </div>
       ${e.kind==="ranked"?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
+      <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="openLog('${e.movie}')">${I("plus",18)}</button>
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>
+      </div>
     </div>`;
   }).join("");
 
