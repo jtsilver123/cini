@@ -1,13 +1,14 @@
 # HANDOFF — read this first in any new session
 
-**UPLOAD CAP: Apple ITMS-90382 daily TestFlight upload limit hit
-(2026-06-11 ~04:30 UTC); resets ~24h. Code at HEAD is healthy (CI green;
-archive/export/entitlement-verify pass). When the cap lifts, trigger ONE
-testflight.yml run — it carries everything since installed build 27.**
-
-**STATUS: Cini IS on TestFlight** — round 6 (run 27311568113, commit
-3d728a5) uploaded successfully and the user has it installed. The loop
-below continues for follow-up builds.
+**STATUS (2026-06-11): Cini IS on TestFlight and current.** Run
+27351261665 (commit 8af610d) uploaded successfully — it carries
+everything since build 27: desktop-import overhaul, Pending-in-Watched,
+the public "Everyone" wall (report/block + spoiler flags), person pages,
+custom lists, diary/rewatches, the Beli-style Rank again menu, the Ask
+Cini concierge redesign, genre/director/browse search, showtimes with
+Fandango app handoff, and three audit passes (all CI-green; E2E DB
+contract test passed against prod; Supabase advisors clean).
+Migrations through 0025 applied to prod.
 
 **Open thread: Apple sign-in fails on device** ("didn't complete" =
 ASAuthorization fails before Supabase is ever called). Portal capability
