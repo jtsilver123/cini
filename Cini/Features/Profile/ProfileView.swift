@@ -49,6 +49,7 @@ struct ProfileScreen: View {
             .padding(16)
         }
         .background(Theme.background)
+        .refreshable { await load() }
         .sheet(isPresented: $showImport) {
             LetterboxdImportView()
         }
@@ -76,36 +77,46 @@ struct ProfileScreen: View {
 
     // MARK: Data
 
+    /// Everything loads in parallel — serially this took over a second of
+    /// visible stagger on device.
     private func load() async {
         guard let id = resolvedID else { return }
         let supabase = SupabaseService.shared
-        profile = try? await supabase.profile(id: id).asProfile
+
+        async let profileTask = supabase.profile(id: id)
+        async let rankingsTask = supabase.rankings(userID: id)
+        async let eventsTask = supabase.events(of: id)
+        async let followersTask = supabase.followCount(of: id, direction: "following_id")
+        async let followingTask = supabase.followCount(of: id, direction: "follower_id")
+        async let rankTask = supabase.globalRank(userID: id)
+
+        profile = try? await profileTask.asProfile
+        rankings = (try? await rankingsTask) ?? []
 
         if isSelf {
-            rankings = (try? await supabase.rankings(userID: id)) ?? []
             movies = store.movies
+            watchlistCount = store.watchlistCount
         } else {
-            following = await supabase.isFollowing(id)
-            matchPct = await supabase.tasteMatch(with: id)
-            rankings = (try? await supabase.rankings(userID: id)) ?? []
+            async let followingState = supabase.isFollowing(id)
+            async let match = supabase.tasteMatch(with: id)
+            async let memberWatchlistTask = supabase.watchlist(userID: id)
             let rows = (try? await supabase.movies(ids: rankings.map(\.movieId))) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }
+            following = await followingState
+            matchPct = await match
+            let memberWatchlist = (try? await memberWatchlistTask) ?? []
+            watchlistCount = memberWatchlist.count
+            bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
         }
+
         // Best -> worst across buckets.
         let order = ["loved": 0, "fine": 1, "disliked": 2]
         rankings.sort { (order[$0.bucket] ?? 3, $0.position) < (order[$1.bucket] ?? 3, $1.position) }
 
-        events = (try? await supabase.events(of: id)) ?? []
-        followerCount = await supabase.followCount(of: id, direction: "following_id")
-        followingCount = await supabase.followCount(of: id, direction: "follower_id")
-        globalRank = try? await supabase.globalRank(userID: id)
-        if isSelf {
-            watchlistCount = store.watchlistCount
-        } else {
-            let memberWatchlist = (try? await supabase.watchlist(userID: id)) ?? []
-            watchlistCount = memberWatchlist.count
-            bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
-        }
+        events = (try? await eventsTask) ?? []
+        followerCount = await followersTask
+        followingCount = await followingTask
+        globalRank = try? await rankTask
         loaded = true
     }
 
@@ -497,7 +508,7 @@ struct ActivityMovieRow: View {
                 Text("\(rank)")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.gray)
-                    .frame(width: 26, alignment: .leading)
+                    .frame(minWidth: 26, alignment: .leading)
             }
             PosterView(url: movie.posterURL, width: 52)
             VStack(alignment: .leading, spacing: 3) {

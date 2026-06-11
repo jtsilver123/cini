@@ -20,6 +20,7 @@ struct SearchView: View {
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
+    @State private var isSearching = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -132,6 +133,17 @@ struct SearchView: View {
                     .autocorrectionDisabled()
                     .focused($searchFocused)
                     .onChange(of: query) { _, _ in scheduleSearch() }
+                if isSearching {
+                    ProgressView().controlSize(.small)
+                } else if !query.isEmpty {
+                    Button {
+                        query = ""
+                        scheduleSearch()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
@@ -381,6 +393,8 @@ struct SearchView: View {
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(250))   // debounce
             guard !Task.isCancelled else { return }
+            isSearching = true
+            defer { isSearching = false }
             if tab == 0 {
                 var results = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
                 // TMDB goes blank on typos — retry with progressively

@@ -335,9 +335,11 @@ struct FeedCard: View {
                 Button { showComments = true } label: {
                     Image(systemName: "bubble.right")
                 }
-                ShareLink(item: URL(string: "https://cini.app/movie/\(movie?.tmdbID ?? 0)")!) {
-                    Image(systemName: "paperplane")
-                        .foregroundStyle(Theme.ink)
+                if let movie {
+                    ShareLink(item: URL(string: "https://cini.app/movie/\(movie.tmdbID)")!) {
+                        Image(systemName: "paperplane")
+                            .foregroundStyle(Theme.ink)
+                    }
                 }
                 Spacer()
                 if let movie {

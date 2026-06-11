@@ -40,3 +40,24 @@ division), auth dead ends, list/empty states, and network failure paths.
   notifications to their rightful owner); tighten with a shared secret
   header when convenient.
 - Feed pagination: first page only.
+
+
+# iPhone UX pass — 2026-06-11
+
+| Area | Issue | Fix |
+|---|---|---|
+| Auth | Content overflowed on small iPhones with the keyboard open | Screen scrolls when space runs out (layout unchanged otherwise); interactive keyboard dismissal |
+| Log flow | Double-tapping "Okay" started two ranking sessions (could double-commit) | Phase guard |
+| Log flow | Heart/comment glyphs in "What your friends think" looked tappable but were decorative | Removed |
+| Movie detail | Ellipsis in the toolbar was a dead image | Real menu: add/remove watchlist, watch trailer |
+| Feed | Share on a movieless event produced a broken /movie/0 link | Share hidden when there's no movie |
+| Profile | 8 sequential network calls -> >1s of visible stagger | All parallel (async let); pull-to-refresh added |
+| Lists | 4-digit rank numbers clipped | Min-width column |
+| Search | No feedback while results loaded; no quick clear | Inline spinner while searching; (x) clears the query |
+| Leaderboard | Invite button was white-on-gold (rebrand leftover) | Velvet fill |
+
+Verified OK in the same pass: movie detail loads parallel; chat send is
+double-tap guarded; comments composer can't double-send; Your Lists
+headers already frozen; system back gestures intact everywhere
+(navigationDestination throughout); haptics on log-flow actions; empty
+states on all lists; sheet detents on all pickers.

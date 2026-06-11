@@ -21,6 +21,24 @@ struct AuthView: View {
     private enum Field { case email, password }
 
     var body: some View {
+        GeometryReader { geo in
+            ScrollView {
+                content
+                    .frame(minHeight: geo.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background(
+            Theme.background
+                .contentShape(Rectangle())
+                .onTapGesture { focusedField = nil }
+                .ignoresSafeArea()
+        )
+        .swipeDismissesKeyboard()
+    }
+
+    private var content: some View {
         VStack(spacing: 22) {
             Spacer()
 
@@ -116,17 +134,6 @@ struct AuthView: View {
             Spacer()
         }
         .padding(28)
-        // Keyboard dismissal lives on a layer BEHIND the content: taps on
-        // empty space reach it, taps on controls don't. A tap gesture on
-        // the container itself swallows touches on SignInWithAppleButton
-        // (UIKit-backed), making the Apple button completely dead.
-        .background(
-            Theme.background
-                .contentShape(Rectangle())
-                .onTapGesture { focusedField = nil }
-                .ignoresSafeArea()
-        )
-        .swipeDismissesKeyboard()
     }
 
     private func field(_ placeholder: String, text: Binding<String>,

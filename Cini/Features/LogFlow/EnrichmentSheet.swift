@@ -338,12 +338,6 @@ struct FriendThinkRow: View {
                 (Text("Notes: ").bold() + Text(note))
                     .font(.subheadline)
             }
-            HStack(spacing: 18) {
-                Image(systemName: "heart")
-                Image(systemName: "bubble.right")
-            }
-            .font(.body)
-            .foregroundStyle(Theme.ink)
             Text(friend.rankedAt.formatted(.dateTime.month(.wide).year()))
                 .font(.caption)
                 .foregroundStyle(Theme.gray)

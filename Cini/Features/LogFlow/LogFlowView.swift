@@ -234,7 +234,7 @@ struct LogFlowView: View {
     // MARK: Step 4 → 5: Okay starts the comparisons
 
     private func startComparisons() {
-        guard let sentiment else { return }
+        guard let sentiment, phase == .enrich else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let newSession = store.beginSession(movie: movie, sentiment: sentiment)
         session = newSession

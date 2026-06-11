@@ -46,7 +46,21 @@ struct MovieDetailView: View {
                 ShareLink(item: URL(string: "https://cini.app/movie/\(movie.tmdbID)")!) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                Image(systemName: "ellipsis")
+                Menu {
+                    Button {
+                        Task { await store.toggleWatchlist(movie: movie) }
+                    } label: {
+                        Label(store.isOnWatchlist(movie.tmdbID) ? "Remove from Watchlist" : "Add to Watchlist",
+                              systemImage: store.isOnWatchlist(movie.tmdbID) ? "bookmark.slash" : "bookmark")
+                    }
+                    if let trailerURL {
+                        Link(destination: trailerURL) {
+                            Label("Watch Trailer", systemImage: "play.rectangle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
             }
         }
         .fullScreenCover(isPresented: $showLogFlow) {
