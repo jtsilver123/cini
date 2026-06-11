@@ -21,7 +21,8 @@ struct LeaderboardView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            // Header and controls stay frozen; only the rankings scroll.
+            VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     SegmentedPillControl(segments: metrics, selection: $metric)
@@ -32,9 +33,16 @@ struct LeaderboardView: View {
                         .foregroundStyle(Theme.gray)
 
                     filters
-                    rankedRows
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+                .background(Theme.background)
+                ScrollView {
+                    rankedRows
+                        .padding(.horizontal, 16)
+                }
+                .refreshable { await load() }
             }
             .background(Theme.background)
             .task { await load() }

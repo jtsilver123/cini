@@ -36,20 +36,29 @@ struct ProfileScreen: View {
     private var resolvedID: UUID? { userID ?? session.profile?.id }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 18) {
-                if isSelf { header }
-                identity
-                statRow
-                buttonRow
-                listRows
-                statCards
-                profileTabs
+        // The self header (name, share, menu) stays frozen; content scrolls.
+        VStack(spacing: 0) {
+            if isSelf {
+                header
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+                    .background(Theme.background)
             }
-            .padding(16)
+            ScrollView {
+                VStack(spacing: 18) {
+                    identity
+                    statRow
+                    buttonRow
+                    listRows
+                    statCards
+                    profileTabs
+                }
+                .padding(16)
+            }
+            .refreshable { await load() }
         }
         .background(Theme.background)
-        .refreshable { await load() }
         .sheet(isPresented: $showImport) {
             LetterboxdImportView()
         }

@@ -787,7 +787,7 @@ function renderLeaderboard(){
       </div>`).join("");
 
   $("screen-leaderboard").innerHTML = `
-    <div class="pad" style="display:flex; align-items:center; padding-top:16px;">
+    <div class="pad" style="position:sticky; top:0; z-index:30; background:var(--bg); display:flex; align-items:center; padding-top:16px; padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
       <span class="serif" style="font-size:38px; font-weight:700;">Leaderboard</span>
       <span class="spacer"></span>
       <button class="pill" onclick="share('Join me on Cini — rank every movie you’ve seen')">Invite</button>
@@ -878,7 +878,7 @@ function renderProfile(){
     : `<div class="sub" style="text-align:center; padding:28px;">Rank or watchlist a movie and it shows up here.</div>`;
 
   $("screen-profile").innerHTML = `
-    <div class="pad" style="display:flex; align-items:center; padding-top:14px;">
+    <div class="pad" style="position:sticky; top:0; z-index:30; background:var(--bg); display:flex; align-items:center; padding-top:14px; padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
       ${isSelf
         ? `<b style="font-size:21px;">${name}</b><span class="spacer"></span>
            <span style="display:flex; gap:18px;">
