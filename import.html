@@ -72,7 +72,13 @@ if (params.get("code")) {
   codeInput.value = params.get("code").toUpperCase().slice(0, 6);
   codeInput.style.display = "none";
   document.getElementById("codeStep").style.display = "none";
-  document.getElementById("linked").style.display = "inline-block";
+  const linked = document.getElementById("linked");
+  const name = (params.get("name") || "").slice(0, 30);
+  // textContent, never innerHTML — the name rides in from a URL.
+  linked.textContent = name
+    ? "\u2713 Linked to " + name + "\u2019s Cini app on your phone"
+    : "\u2713 Linked to the Cini app on your phone";
+  linked.style.display = "inline-block";
 }
 codeInput.addEventListener("input", () => {
   codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z2-9]/g, "");

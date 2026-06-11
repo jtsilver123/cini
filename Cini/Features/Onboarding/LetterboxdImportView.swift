@@ -10,6 +10,7 @@ struct LetterboxdImportView: View {
     /// paste sheet instead of the full import picker.
     var startWithPaste = false
 
+    @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -396,8 +397,18 @@ struct LetterboxdImportView: View {
         }
     }
 
+    /// The link carries the first name so the import page can confirm
+    /// WHOSE phone it's linked to ("Linked to Jake's Cini app").
     private func transferLink(code: String) -> String {
-        "\(importPageURL)?code=\(code)"
+        var link = "\(importPageURL)?code=\(code)"
+        let name = session.profile.map {
+            $0.displayName.split(separator: " ").first.map(String.init) ?? $0.username
+        }
+        if let name, !name.isEmpty,
+           let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
+            link += "&name=\(encoded)"
+        }
+        return link
     }
 
     private func emailMyselfURL(code: String) -> URL {
