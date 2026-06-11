@@ -1960,7 +1960,7 @@ function importLinkSent(){
       <button class="lnk" onclick="toast('Email sent again')">${I("mail",15)} Resend email</button>
       <button class="lnk" onclick="toast('Link copied')">${I("share",15)} Copy the link</button>
     </div>
-    <button class="lnk" style="width:100%; justify-content:center; margin-top:18px; font-size:12.5px;" onclick="pasteDest=null; importProgress()">Demo: pretend the upload just arrived →</button>`;
+    <button class="lnk" style="width:100%; justify-content:center; margin-top:18px; font-size:12.5px;" onclick="pasteDest=null; toast('Your export landed — importing now 🎬'); importProgress()">Demo: pretend the upload just arrived →</button>`;
 }
 let pasteDest=null;
 function importPaste(){

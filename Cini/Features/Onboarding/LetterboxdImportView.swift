@@ -296,8 +296,11 @@ struct LetterboxdImportView: View {
                 ImportQueue.shared.seed(with: outcome.watched, store: store)
             }
             result = outcome
+            Haptics.success()
+            ToastCenter.shared.show(successLine(for: outcome))
             withAnimation(.snappy) { phase = .summary }
         } catch {
+            Haptics.error()
             errorMessage = (error as? LocalizedError)?.errorDescription
                 ?? "Couldn't read that list."
             withAnimation(.snappy) { phase = .pick }
@@ -447,6 +450,8 @@ struct LetterboxdImportView: View {
 
     private func importFromStorage(path: String) async {
         do {
+            Haptics.tap()
+            ToastCenter.shared.show("Your export landed — importing now 🎬")
             let data = try await SupabaseService.shared.downloadImport(path: path)
             let filename = (path as NSString).lastPathComponent
             let tempURL = FileManager.default.temporaryDirectory
@@ -509,11 +514,31 @@ struct LetterboxdImportView: View {
             }
 
             result = outcome
+            Haptics.success()
+            ToastCenter.shared.show(successLine(for: outcome))
             withAnimation(.snappy) { phase = .summary }
         } catch {
+            Haptics.error()
             errorMessage = (error as? LocalizedError)?.errorDescription
                 ?? "Something went wrong reading that file."
             withAnimation(.snappy) { phase = .pick }
         }
+    }
+
+    /// "Imported 389 to rank · 57 saved · 2 lists" — the one-line receipt.
+    private func successLine(for outcome: LetterboxdImporter.Result) -> String {
+        var parts: [String] = []
+        if pastedToWatchlist {
+            parts.append("\(outcome.watched.count) saved to Want to Watch")
+        } else {
+            if !outcome.watched.isEmpty { parts.append("\(outcome.watched.count) to rank") }
+            if importWatchlist && !outcome.watchlist.isEmpty {
+                parts.append("\(outcome.watchlist.count) saved")
+            }
+        }
+        if !outcome.importedLists.isEmpty {
+            parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
+        }
+        return parts.isEmpty ? "Import complete" : "Imported: " + parts.joined(separator: " · ")
     }
 }
