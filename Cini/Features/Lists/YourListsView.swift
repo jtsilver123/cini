@@ -809,6 +809,7 @@ struct WatchlistRowView: View {
     var onQuickRank: () -> Void = {}
 
     @Environment(RankingStore.self) private var store
+    @State private var showSaveSheet = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -840,7 +841,7 @@ struct WatchlistRowView: View {
                         Image(systemName: "plus.circle")
                     }
                     Button {
-                        Task { await store.toggleWatchlist(movie: movie) }
+                        bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                             .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
@@ -852,6 +853,11 @@ struct WatchlistRowView: View {
             .frame(minHeight: 78)
         }
         .padding(.vertical, 6)
+        .sheet(isPresented: $showSaveSheet) {
+            SaveToListSheet(movie: movie)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
     }
 }
 

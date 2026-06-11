@@ -14,6 +14,9 @@ final class RankingStore {
     /// Rec Scores for the watchlist, prefetched in the background at
     /// launch so Want to Watch renders its badges instantly.
     private(set) var predictedScores: [Int: Double] = [:]
+    /// The user's custom lists — cached so a bookmark tap can decide
+    /// instantly whether to offer a destination chooser.
+    private(set) var customLists: [CustomList] = []
     private(set) var isLoaded = false
 
     private let supabase: SupabaseService
@@ -49,6 +52,7 @@ final class RankingStore {
             // Fire-and-forget: warm the Want to Watch Rec Scores so the
             // Lists tab opens with badges already in place.
             Task { await refreshPredictedScores() }
+            Task { await refreshCustomLists() }
         } catch {
             assertionFailure("RankingStore.load failed: \(error)")
         }
@@ -57,6 +61,10 @@ final class RankingStore {
     func refreshPredictedScores() async {
         let scores = await supabase.predictedScores(movieIDs: watchlist.map(\.movieID))
         predictedScores.merge(scores) { _, new in new }
+    }
+
+    func refreshCustomLists() async {
+        customLists = (try? await supabase.myLists()) ?? customLists
     }
 
     // MARK: - Reading

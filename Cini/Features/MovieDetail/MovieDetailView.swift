@@ -26,7 +26,6 @@ struct MovieDetailView: View {
     @State private var showLogFlow = false
     @State private var showRankAgainDialog = false
     @State private var showRewatchSheet = false
-    @State private var showAddToList = false
     @State private var revealedSpoilers: Set<UUID> = []
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
@@ -123,10 +122,6 @@ struct MovieDetailView: View {
             }
             .presentationDetents([.height(420)])
             .presentationDragIndicator(.visible)
-        }
-        .sheet(isPresented: $showAddToList) {
-            AddToListSheet(movie: movie)
-                .presentationDetents([.medium, .large])
         }
         .navigationDestination(item: $personTarget) { member in
             PersonScreen(member: member, originTitle: movie.title)
@@ -272,9 +267,6 @@ struct MovieDetailView: View {
                 }
                 PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined) {
                     showSendRec = true
-                }
-                PillButton(title: "Add to List", systemImage: "text.badge.plus", style: .outlined) {
-                    showAddToList = true
                 }
             }
             .padding(.horizontal, 16)

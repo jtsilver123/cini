@@ -233,6 +233,7 @@ struct ArtworkQuickActions: View {
     var onLog: (Movie) -> Void
 
     @Environment(RankingStore.self) private var store
+    @State private var showSaveSheet = false
 
     var body: some View {
         HStack(spacing: 14) {
@@ -246,7 +247,7 @@ struct ArtworkQuickActions: View {
             }
             .buttonStyle(.plain)
             Button {
-                Task { await store.toggleWatchlist(movie: movie) }
+                bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
             } label: {
                 Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                     .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
@@ -256,6 +257,117 @@ struct ArtworkQuickActions: View {
             .buttonStyle(.plain)
         }
         .font(.title3)
+        .sheet(isPresented: $showSaveSheet) {
+            SaveToListSheet(movie: movie)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+/// One bookmark rule everywhere: already saved → instant remove; no
+/// custom lists → instant save to Want to Watch; otherwise ask where.
+@MainActor
+func bookmarkTapped(movie: Movie, store: RankingStore, askDestination: () -> Void) {
+    if store.isOnWatchlist(movie.tmdbID) || store.customLists.isEmpty {
+        Task { await store.toggleWatchlist(movie: movie) }
+    } else {
+        askDestination()
+    }
+}
+
+/// Where should this go? Want to Watch leads; your own lists (or a new
+/// one) sit right under it. One tap saves and closes.
+struct SaveToListSheet: View {
+    let movie: Movie
+
+    @Environment(RankingStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var newName = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                HStack(spacing: 12) {
+                    PosterView(url: movie.posterURL, width: 36)
+                    Text(movie.title)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(2)
+                    Spacer()
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Theme.background)
+
+                Button {
+                    Task { await store.toggleWatchlist(movie: movie) }
+                    dismiss()
+                } label: {
+                    saveRow(icon: "bookmark.fill", tint: Theme.marquee,
+                            title: "Want to Watch", subtitle: "Default")
+                }
+                .listRowBackground(Theme.background)
+
+                ForEach(store.customLists) { list in
+                    Button {
+                        Task {
+                            try? await SupabaseService.shared.cacheMovie(movie)
+                            try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
+                        }
+                        dismiss()
+                    } label: {
+                        saveRow(icon: "list.star", tint: Theme.ink,
+                                title: list.name,
+                                subtitle: "\(list.count) title\(list.count == 1 ? "" : "s")")
+                    }
+                    .listRowBackground(Theme.background)
+                }
+
+                HStack {
+                    TextField("New list", text: $newName)
+                    Button("Create & save") {
+                        let name = newName.trimmingCharacters(in: .whitespaces)
+                        newName = ""
+                        guard !name.isEmpty else { return }
+                        Task {
+                            if let list = try? await SupabaseService.shared.createList(name: name) {
+                                try? await SupabaseService.shared.cacheMovie(movie)
+                                try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
+                                await store.refreshCustomLists()
+                            }
+                        }
+                        dismiss()
+                    }
+                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .listRowBackground(Theme.background)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Save to…")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func saveRow(icon: String, tint: Color, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(tint)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
     }
 }
 
