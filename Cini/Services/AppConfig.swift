@@ -7,10 +7,9 @@ enum AppConfig {
     static var supabaseURL: URL { URL(string: value(for: "SUPABASE_URL"))! }
     static var supabaseAnonKey: String { value(for: "SUPABASE_ANON_KEY") }
 
-    /// MovieGlu (or compatible) showtimes API credentials. Optional —
-    /// the Showtimes UI degrades to a "coming soon" state without them.
-    static var showtimesAPIKey: String? { optionalValue(for: "MOVIEGLU_API_KEY") }
-    static var showtimesAuthorization: String? { optionalValue(for: "MOVIEGLU_AUTHORIZATION") }
+    /// Gracenote OnConnect showtimes key. Optional — the Showtimes UI
+    /// degrades to a "coming soon" state without it.
+    static var showtimesAPIKey: String? { optionalValue(for: "GRACENOTE_API_KEY") }
 
     private static func value(for key: String) -> String {
         guard let value = Bundle.main.object(forInfoDictionaryKey: key) as? String, !value.isEmpty else {

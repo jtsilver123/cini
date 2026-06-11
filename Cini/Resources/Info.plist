@@ -10,10 +10,8 @@
 	<string>$(SUPABASE_URL)</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
-	<key>MOVIEGLU_API_KEY</key>
-	<string>$(MOVIEGLU_API_KEY)</string>
-	<key>MOVIEGLU_AUTHORIZATION</key>
-	<string>$(MOVIEGLU_AUTHORIZATION)</string>
+	<key>GRACENOTE_API_KEY</key>
+	<string>$(GRACENOTE_API_KEY)</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

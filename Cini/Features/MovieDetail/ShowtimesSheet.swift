@@ -68,7 +68,7 @@ struct ShowtimesSheet: View {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         case .notConfigured:
             placeholder(icon: "ticket", title: "Showtimes coming soon",
-                        message: "Showtimes need a MovieGlu API key — see README to enable them in this build.")
+                        message: "Showtimes aren't enabled in this build.")
         case .error(let message):
             placeholder(icon: "exclamationmark.triangle", title: "Couldn't load showtimes", message: message)
         case .loaded:
@@ -76,7 +76,13 @@ struct ShowtimesSheet: View {
                 placeholder(icon: "ticket", title: "No showings",
                             message: "\(movie.title) isn't playing near \(zipcode) on this date.")
             } else {
-                theaterList
+                VStack(spacing: 0) {
+                    theaterList
+                    Text("Showtimes by Gracenote · tap a time to buy tickets")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.gray)
+                        .padding(.vertical, 8)
+                }
             }
         }
     }
@@ -87,7 +93,9 @@ struct ShowtimesSheet: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(theater.theaterName).font(.subheadline.weight(.bold))
-                        Text(theater.address).font(.caption).foregroundStyle(Theme.gray)
+                        if !theater.address.isEmpty {
+                            Text(theater.address).font(.caption).foregroundStyle(Theme.gray)
+                        }
                     }
                     Spacer()
                     if let distance = theater.distanceMiles {
@@ -124,7 +132,7 @@ struct ShowtimesSheet: View {
         state = .loading
         do {
             theaters = try await ShowtimesService.shared.showtimes(
-                for: movie.title, zipcode: zipcode, date: date)
+                for: movie, zipcode: zipcode, date: date)
             state = .loaded
         } catch ShowtimesError.notConfigured {
             state = .notConfigured

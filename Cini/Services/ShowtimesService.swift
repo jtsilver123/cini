@@ -1,15 +1,12 @@
 import Foundation
-import CoreLocation
 
 /// Showtimes near a zipcode — Cini's analog of Beli's "Reserve now".
-///
-/// Theatrical showtime data has no truly open API; this service is built
-/// around a small protocol so the backing provider can be swapped. The
-/// default implementation targets MovieGlu (https://developer.movieglu.com),
-/// which offers a free developer tier. Without credentials the UI shows a
-/// graceful empty state instead of failing.
+/// Backed by Gracenote OnConnect (data.tmsapi.com): one call returns every
+/// movie showing near the zip, we pick ours by fuzzy title + year match,
+/// then group its showtimes by theatre. Without a key the UI degrades to
+/// the "coming soon" state.
 protocol ShowtimesProviding {
-    func showtimes(for movieTitle: String, zipcode: String, date: Date) async throws -> [TheaterShowtimes]
+    func showtimes(for movie: Movie, zipcode: String, date: Date) async throws -> [TheaterShowtimes]
 }
 
 struct TheaterShowtimes: Identifiable, Hashable {
@@ -23,7 +20,7 @@ struct TheaterShowtimes: Identifiable, Hashable {
 struct Showtime: Identifiable, Hashable {
     let id: String
     let startTime: Date
-    let format: String?      // "IMAX", "Dolby", "Standard"
+    let format: String?      // "IMAX", "3D", …
     let bookingURL: URL?
 }
 
@@ -36,119 +33,109 @@ final class ShowtimesService: ShowtimesProviding {
     static let shared = ShowtimesService()
 
     private let session = URLSession.shared
-    private let geocoder = CLGeocoder()
 
-    func showtimes(for movieTitle: String, zipcode: String, date: Date) async throws -> [TheaterShowtimes] {
-        guard let apiKey = AppConfig.showtimesAPIKey,
-              let authorization = AppConfig.showtimesAuthorization else {
+    func showtimes(for movie: Movie, zipcode: String, date: Date) async throws -> [TheaterShowtimes] {
+        guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
 
-        // MovieGlu keys off lat/long; resolve the zipcode locally first.
-        guard let placemark = try await geocoder.geocodeAddressString(zipcode).first,
-              let location = placemark.location else {
-            throw ShowtimesError.zipcodeNotFound
-        }
-        let geolocation = String(format: "%.4f;%.4f",
-                                 location.coordinate.latitude, location.coordinate.longitude)
+        let day = DateFormatter.gracenoteDay.string(from: date)
+        var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings")!
+        components.queryItems = [
+            URLQueryItem(name: "startDate", value: day),
+            URLQueryItem(name: "zip", value: zipcode),
+            URLQueryItem(name: "radius", value: "15"),
+            URLQueryItem(name: "units", value: "mi"),
+            URLQueryItem(name: "api_key", value: apiKey),
+        ]
+        let (data, response) = try await session.data(from: components.url!)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
+        guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
 
-        // 1. Resolve the film in MovieGlu's catalog.
-        guard let film: FilmLiveSearch.Film = try await request(
-            path: "filmLiveSearch", query: ["query": movieTitle, "n": "1"],
-            apiKey: apiKey, authorization: authorization, geolocation: geolocation,
-            transform: { (r: FilmLiveSearch) in r.films.first }
-        ) else { return [] }
+        let listings = try JSONDecoder().decode([GNMovie].self, from: data)
 
-        // 2. Fetch showtimes near the location.
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let response: FilmShowTimes = try await request(
-            path: "filmShowTimes",
-            query: ["film_id": String(film.filmId), "date": formatter.string(from: date), "n": "10"],
-            apiKey: apiKey, authorization: authorization, geolocation: geolocation,
-            transform: { $0 }
-        )
-
-        return response.cinemas.map { cinema in
-            TheaterShowtimes(
-                id: String(cinema.cinemaId),
-                theaterName: cinema.cinemaName,
-                address: cinema.address ?? "",
-                distanceMiles: cinema.distance,
-                showtimes: cinema.allTimes.compactMap { time in
-                    guard let start = Self.parseTime(time.startTime, on: date) else { return nil }
-                    return Showtime(
-                        id: "\(cinema.cinemaId)-\(time.startTime)",
-                        startTime: start,
-                        format: time.format,
-                        bookingURL: nil
-                    )
+        // Find our film among everything playing nearby: best fuzzy title
+        // match, with the release year as a strong signal.
+        let best = listings
+            .map { listing -> (GNMovie, Double) in
+                var score = Fuzzy.similarity(query: movie.title, candidate: listing.title)
+                if let want = movie.releaseYear, let got = listing.releaseYear {
+                    score += want == got ? 0.15 : (abs(want - got) > 1 ? -0.25 : 0)
                 }
+                return (listing, score)
+            }
+            .max { $0.1 < $1.1 }
+        guard let (match, score) = best, score > 0.6 else { return [] }
+
+        // Group its showtimes by theatre.
+        var byTheatre: [String: (name: String, times: [Showtime])] = [:]
+        for showing in match.showtimes ?? [] {
+            guard let theatre = showing.theatre,
+                  let start = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
+            let entry = Showtime(
+                id: "\(theatre.id ?? "?")-\(showing.dateTime ?? "")",
+                startTime: start,
+                format: showing.format,
+                bookingURL: showing.ticketURI.flatMap(URL.init)
             )
+            byTheatre[theatre.id ?? theatre.name ?? "?", default: (theatre.name ?? "Theater", [])].times.append(entry)
+            byTheatre[theatre.id ?? theatre.name ?? "?"]?.name = theatre.name ?? "Theater"
         }
-    }
 
-    private static func parseTime(_ hhmm: String, on day: Date) -> Date? {
-        let parts = hhmm.split(separator: ":").compactMap { Int($0) }
-        guard parts.count >= 2 else { return nil }
-        return Calendar.current.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: day)
-    }
-
-    private func request<R: Decodable, T>(
-        path: String, query: [String: String],
-        apiKey: String, authorization: String, geolocation: String,
-        transform: (R) -> T
-    ) async throws -> T {
-        var components = URLComponents(string: "https://api-gate2.movieglu.com/\(path)/")!
-        components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
-        var request = URLRequest(url: components.url!)
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue(authorization, forHTTPHeaderField: "Authorization")
-        request.setValue("CINI", forHTTPHeaderField: "client")
-        request.setValue("US", forHTTPHeaderField: "territory")
-        request.setValue("v200", forHTTPHeaderField: "api-version")
-        request.setValue(geolocation, forHTTPHeaderField: "geolocation")
-        request.setValue(ISO8601DateFormatter().string(from: Date()), forHTTPHeaderField: "device-datetime")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            throw URLError(.badServerResponse)
-        }
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return transform(try decoder.decode(R.self, from: data))
+        return byTheatre
+            .map { id, value in
+                TheaterShowtimes(
+                    id: id,
+                    theaterName: value.name,
+                    address: "",
+                    distanceMiles: nil,
+                    showtimes: value.times.sorted { $0.startTime < $1.startTime }
+                )
+            }
+            .sorted { $0.theaterName < $1.theaterName }
     }
 }
 
-// MARK: - MovieGlu DTOs
+private extension DateFormatter {
+    static let gracenoteDay: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
 
-private struct FilmLiveSearch: Decodable {
-    struct Film: Decodable {
-        let filmId: Int
-        let filmName: String
-    }
-    let films: [Film]
+    /// "2026-06-11T19:30" — local time, no zone or seconds.
+    static let gracenoteDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm"
+        return f
+    }()
 }
 
-private struct FilmShowTimes: Decodable {
-    struct Cinema: Decodable {
-        struct Showings: Decodable {
-            struct TimeEntry: Decodable {
-                let startTime: String
-            }
-            let times: [TimeEntry]
-        }
-        let cinemaId: Int
-        let cinemaName: String
-        let address: String?
-        let distance: Double?
-        let showings: [String: Showings]?
+// MARK: - Gracenote OnConnect DTOs
 
-        var allTimes: [(startTime: String, format: String?)] {
-            (showings ?? [:]).flatMap { kind, showing in
-                showing.times.map { ($0.startTime, kind == "Standard" ? nil : kind) }
+private struct GNMovie: Decodable {
+    struct Showing: Decodable {
+        struct Theatre: Decodable {
+            let id: String?
+            let name: String?
+        }
+        let theatre: Theatre?
+        let dateTime: String?
+        let ticketURI: String?
+        let quals: String?
+
+        /// Surface premium formats only ("IMAX", "3D", "Dolby").
+        var format: String? {
+            guard let quals else { return nil }
+            for premium in ["IMAX", "3D", "Dolby"] where quals.localizedCaseInsensitiveContains(premium) {
+                return premium
             }
-            .sorted { $0.startTime < $1.startTime }
+            return nil
         }
     }
-    let cinemas: [Cinema]
+
+    let title: String
+    let releaseYear: Int?
+    let showtimes: [Showing]?
 }
