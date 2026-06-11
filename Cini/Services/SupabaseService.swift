@@ -896,8 +896,13 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
     let eventType: String
     let movieId: Int?
     let createdAt: Date
+    let payload: Payload?
     let profiles: EmbeddedProfile?
     let movies: MovieRow?
+
+    struct Payload: Codable, Hashable {
+        let score: Double?
+    }
 
     struct EmbeddedProfile: Codable, Hashable {
         let username: String

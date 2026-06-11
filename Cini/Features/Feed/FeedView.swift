@@ -171,7 +171,6 @@ struct FeedView: View {
                     onQuickAdd: { logMovie = $0 },
                     onOpenMember: { memberTarget = $0 }
                 )
-                Divider()
             }
         }
     }
@@ -298,11 +297,9 @@ struct FeedCard: View {
                     }
                 }
                 Spacer()
-                if let movie {
-                    Button { onOpenMovie(movie) } label: {
-                        PosterView(url: movie.posterURL, width: 52)
-                    }
-                    .buttonStyle(.plain)
+                // Score sits where every list row puts it.
+                if event.eventType == "ranked", let score = event.payload?.score {
+                    ScoreBadge(score: score, size: 44)
                 }
             }
 
@@ -344,7 +341,30 @@ struct FeedCard: View {
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
         }
-        .padding(.vertical, 6)
+        .padding(14)
+        // The artwork lives IN the card: blended along the right edge
+        // under a fade so the text stays clean.
+        .background(
+            ZStack(alignment: .trailing) {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Theme.surface)
+                if let movie {
+                    CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.clear
+                    }
+                    .frame(width: 150)
+                    .frame(maxHeight: .infinity)
+                    .mask(
+                        LinearGradient(colors: [.clear, .black],
+                                       startPoint: .leading, endPoint: .trailing)
+                    )
+                    .opacity(0.32)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        )
         // The whole card opens the referenced title; the action buttons
         // inside still win their own taps.
         .contentShape(Rectangle())

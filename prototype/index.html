@@ -489,10 +489,13 @@ function renderFeed(){
     const m=MOVIES[e.movie];
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
     const headline = e.kind==="ranked"
-      ? `${name} ranked <b>${m.t}</b> <span class="gtxt" style="font-weight:800;">${e.score.toFixed(1)}</span>`
+      ? `${name} ranked <b>${m.t}</b>`
       : `${name} wants to watch <b>${m.t}</b>`;
     const comments=(S.comments[e.id]||[]);
-    return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${e.movie}')">
+    return `<div style="cursor:pointer; margin:0 14px 14px; padding:14px; border-radius:16px; position:relative; overflow:hidden;
+        background:linear-gradient(90deg, var(--surface) 52%, rgba(29,23,25,.55) 75%, rgba(29,23,25,.25)), url('${IMG(m.bd||m.p)}') right center / auto 100% no-repeat;
+        border:1px solid var(--hair); display:flex; gap:12px; align-items:flex-start;"
+        onclick="if(!event.target.closest('button'))openDetail('${e.movie}')">
       <button class="avatar ${e.av}" style="width:48px;height:48px;border:none;font-size:18px;" onclick="openMember('${e.u}')">${e.who[0].toUpperCase()}</button>
       <div style="flex:1;">
         <div style="font-size:14.5px;">${headline}</div>
@@ -507,7 +510,7 @@ function renderFeed(){
         </div>
         <div class="sub" style="margin-top:7px;">${e.when}</div>
       </div>
-      <div class="poster" style="width:54px;height:81px; background-image:url('${IMG(m.p)}'); cursor:pointer;" onclick="openDetail('${e.movie}')"></div>
+      ${e.kind==="ranked"?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
     </div>`;
   }).join("");
 
