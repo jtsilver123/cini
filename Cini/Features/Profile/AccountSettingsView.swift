@@ -5,7 +5,11 @@ import SwiftUI
 /// hamburger menu.
 struct AccountSettingsView: View {
     @Environment(AppSession.self) private var session
+    @Environment(RankingStore.self) private var store
 
+    @State private var exporting = false
+    @State private var exportURLs: [URL] = []
+    @State private var showExportShare = false
     @State private var newEmail = ""
     @State private var message: String?
     @State private var errorMessage: String?
@@ -67,6 +71,23 @@ struct AccountSettingsView: View {
             }
 
             Section {
+                Button {
+                    Task { await exportData() }
+                } label: {
+                    HStack {
+                        Label("Export my movies", systemImage: "square.and.arrow.up.on.square")
+                        Spacer()
+                        if exporting { ProgressView() }
+                    }
+                }
+                .disabled(exporting)
+            } header: {
+                Text("Your data")
+            } footer: {
+                Text("Letterboxd-compatible CSVs of your ranked films (with scores and watch dates) and your watchlist — your data goes wherever you do.")
+            }
+
+            Section {
                 Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
                     Label("Privacy Policy", systemImage: "hand.raised")
                 }
@@ -104,6 +125,26 @@ struct AccountSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("There's no undo — your rankings, watchlist, and followers are gone for good.")
+        }
+        .sheet(isPresented: $showExportShare) {
+            ActivityShareSheet(items: exportURLs)
+        }
+    }
+
+    private func exportData() async {
+        errorMessage = nil
+        exporting = true
+        defer { exporting = false }
+        do {
+            let urls = try await CiniExporter.makeLetterboxdFiles(store: store)
+            guard !urls.isEmpty else {
+                errorMessage = "Nothing to export yet — rank or watchlist a movie first."
+                return
+            }
+            exportURLs = urls
+            showExportShare = true
+        } catch {
+            errorMessage = "Export failed — check your connection and try again."
         }
     }
 
@@ -187,4 +228,17 @@ struct ChangePasswordView: View {
             .navigationTitle("Change Password")
             .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+
+/// One-tap system share sheet (ShareLink needs its items up front; the
+/// export builds them on demand).
+struct ActivityShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

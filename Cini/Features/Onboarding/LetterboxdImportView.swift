@@ -98,41 +98,13 @@ struct LetterboxdImportView: View {
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
-                Text("Import your Letterboxd export and Cini queues every film you've logged so you can rank them — favorites first. Your Letterboxd watchlist comes along too.")
+                Text("Takes about 1 minute. Letterboxd's export only works from a computer — grab a code here, do the export there, and it beams straight to your phone.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
 
-                HairlineCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Label {
-                            Text("In Letterboxd, open your **Profile**, tap the **gear icon** in the top left, scroll down to **Advanced settings**, and tap **Export your data** — the .zip saves to Files")
-                        } icon: {
-                            Text("1").bold().foregroundStyle(Theme.marquee)
-                        }
-                        Label {
-                            Text("Come back here and **choose that file** (no need to unzip)")
-                        } icon: {
-                            Text("2").bold().foregroundStyle(Theme.marquee)
-                        }
-                        Label {
-                            Text("IMDb ratings CSVs work too")
-                        } icon: {
-                            Text("3").bold().foregroundStyle(Theme.marquee)
-                        }
-                        Link(destination: URL(string: "https://letterboxd.com/settings/data/")!) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "safari")
-                                Text("Open Letterboxd export page")
-                                    .font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(Theme.marquee)
-                        }
-                        .padding(.top, 2)
-                    }
-                    .font(.subheadline)
-                }
+                desktopCard
 
                 Toggle(isOn: $importWatchlist) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -145,22 +117,28 @@ struct LetterboxdImportView: View {
                 .tint(Theme.marquee)
                 .padding(.horizontal, 4)
 
-                PillButton(title: "Choose export file", systemImage: "folder") {
-                    showPicker = true
-                }
-
-                Button {
-                    showPaste = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "note.text")
-                        Text("Or paste from Apple Notes").font(.subheadline.weight(.semibold))
+                HStack(spacing: 22) {
+                    Button {
+                        showPicker = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "folder")
+                            Text("Already have the file?").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
                     }
-                    .foregroundStyle(Theme.marquee)
+                    .buttonStyle(.plain)
+                    Button {
+                        showPaste = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "note.text")
+                            Text("Paste a list").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-
-                desktopCard
 
                 Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
                     .font(.caption)
@@ -290,8 +268,16 @@ struct LetterboxdImportView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "desktopcomputer")
                         .foregroundStyle(Theme.marquee)
-                    Text("Easier on a computer?")
+                    Text("Import from your computer")
                         .font(.subheadline.weight(.bold))
+                    Spacer()
+                    Text("~1 MIN")
+                        .font(.system(size: 10, weight: .heavy))
+                        .tracking(1.5)
+                        .foregroundStyle(Theme.background)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Theme.marquee))
                 }
                 if let transferCode {
                     Text("On your computer, open the page below, enter this code, and drop in your export - it lands here automatically.")
@@ -323,19 +309,22 @@ struct LetterboxdImportView: View {
                         .foregroundStyle(Theme.marquee)
                     }
                 } else {
-                    Text("Letterboxd's export is simplest from a browser. Get a code, do the export on your computer, and the file beams straight to your phone.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                    Button {
-                        Task { await startDesktopTransfer() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "laptopcomputer.and.iphone")
-                            Text("Get a transfer code").font(.subheadline.weight(.semibold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label { Text("Tap below for a 6-letter code") } icon: {
+                            Text("1").bold().foregroundStyle(Theme.marquee)
                         }
-                        .foregroundStyle(Theme.marquee)
+                        Label { Text("On your computer: export at **letterboxd.com/settings/data**") } icon: {
+                            Text("2").bold().foregroundStyle(Theme.marquee)
+                        }
+                        Label { Text("Drop the .zip at our import page — it lands here by itself") } icon: {
+                            Text("3").bold().foregroundStyle(Theme.marquee)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    PillButton(title: "Get a transfer code", systemImage: "laptopcomputer.and.iphone") {
+                        Task { await startDesktopTransfer() }
+                    }
+                    .frame(maxWidth: .infinity)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
