@@ -89,6 +89,27 @@ final class SupabaseService {
         try await client.from("profiles").select().eq("id", value: id).single().execute().value
     }
 
+    /// Notification kinds this user has muted (enforced by a DB trigger
+    /// at notification creation, silencing both bell and push).
+    func mutedNotificationKinds() async -> Set<String> {
+        guard let id = currentUserID else { return [] }
+        struct Row: Decodable { let muted_notification_kinds: [String] }
+        let row: Row? = try? await client.from("profiles")
+            .select("muted_notification_kinds")
+            .eq("id", value: id)
+            .single().execute().value
+        return Set(row?.muted_notification_kinds ?? [])
+    }
+
+    func setMutedNotificationKinds(_ kinds: Set<String>) async throws {
+        guard let id = currentUserID else { return }
+        struct Update: Encodable { let muted_notification_kinds: [String] }
+        try await client.from("profiles")
+            .update(Update(muted_notification_kinds: kinds.sorted()))
+            .eq("id", value: id)
+            .execute()
+    }
+
     /// Case-insensitive availability check (your own name counts as free).
     func usernameAvailable(_ username: String) async -> Bool {
         struct Params: Encodable { let p_username: String }

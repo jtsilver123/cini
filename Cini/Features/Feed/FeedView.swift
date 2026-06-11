@@ -545,6 +545,15 @@ struct NotificationsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink {
+                    NotificationPreferencesView()
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+            }
+        }
         .task {
             rows = (try? await SupabaseService.shared.notifications()) ?? []
             loaded = true

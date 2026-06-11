@@ -34,6 +34,16 @@ struct AccountSettingsView: View {
             ChangePasswordSection()
 
             Section {
+                NavigationLink {
+                    NotificationPreferencesView()
+                } label: {
+                    Label("Notifications", systemImage: "bell.badge")
+                }
+            } footer: {
+                Text("Choose which kinds of alerts Cini sends you.")
+            }
+
+            Section {
                 Button("Log out", role: .destructive) {
                     Task { await session.signOut() }
                 }
