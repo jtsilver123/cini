@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Supabase
 import RankingEngine
 
@@ -6,6 +7,17 @@ import RankingEngine
 /// transactional RPCs from supabase/migrations/0003_functions.sql.
 final class SupabaseService {
     static let shared = SupabaseService()
+
+    /// Swallowed errors still get logged — silent contract drift is how
+    /// the feed, the recs inbox, and invites all broke invisibly. Anything
+    /// that degrades gracefully must shout here first.
+    static func logSwallowed(_ context: String, _ error: Error) {
+        Logger(subsystem: "app.cini.ios", category: "supabase")
+            .error("\(context, privacy: .public): \(String(describing: error), privacy: .public)")
+        #if DEBUG
+        print("⚠️ supabase \(context): \(error)")
+        #endif
+    }
 
     let client: SupabaseClient
 
@@ -113,8 +125,14 @@ final class SupabaseService {
     /// Case-insensitive availability check (your own name counts as free).
     func usernameAvailable(_ username: String) async -> Bool {
         struct Params: Encodable { let p_username: String }
-        return (try? await client.rpc("username_available", params: Params(p_username: username))
-            .execute().value) ?? true   // on network failure, let the DB constraint decide
+        do {
+            return try await client.rpc("username_available", params: Params(p_username: username))
+                .execute().value
+        } catch {
+            // On failure, let the DB unique constraint decide at save time.
+            Self.logSwallowed("username_available", error)
+            return true
+        }
     }
 
     func updateProfile(_ update: ProfileUpdate) async throws {
@@ -215,8 +233,13 @@ final class SupabaseService {
     @discardableResult
     func redeemInvite(from username: String) async -> Bool {
         struct Params: Encodable { let p_username: String }
-        return (try? await client.rpc("redeem_invite_from", params: Params(p_username: username))
-            .execute().value) ?? false
+        do {
+            return try await client.rpc("redeem_invite_from", params: Params(p_username: username))
+                .execute().value
+        } catch {
+            Self.logSwallowed("redeem_invite_from", error)
+            return false
+        }
     }
 
     /// Rec Scores ("how much we think you'll like it") for specific
@@ -316,17 +339,22 @@ final class SupabaseService {
             let p_note: String?
         }
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (try? await client.rpc(
-            "send_direct_rec",
-            params: Params(p_recipient: recipient, p_movie_id: movieID,
-                           p_note: trimmed.isEmpty ? nil : trimmed)
-        ).execute().value) ?? false
+        do {
+            return try await client.rpc(
+                "send_direct_rec",
+                params: Params(p_recipient: recipient, p_movie_id: movieID,
+                               p_note: trimmed.isEmpty ? nil : trimmed)
+            ).execute().value
+        } catch {
+            Self.logSwallowed("send_direct_rec", error)
+            return false
+        }
     }
 
     func directRecs() async throws -> [DirectRecRow] {
         guard let me = currentUserID else { return [] }
         return try await client.from("direct_recs")
-            .select("id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies(*)")
+            .select("id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies!direct_recs_movie_id_fkey(*)")
             .eq("recipient_id", value: me)
             .order("created_at", ascending: false)
             .limit(20)
@@ -437,10 +465,16 @@ final class SupabaseService {
     func blockedIDs() async -> Set<UUID> {
         guard let me = currentUserID else { return [] }
         struct Row: Decodable { let blocked_id: UUID }
-        let rows: [Row] = (try? await client.from("blocks")
-            .select("blocked_id").eq("blocker_id", value: me)
-            .execute().value) ?? []
-        return Set(rows.map(\.blocked_id))
+        do {
+            let rows: [Row] = try await client.from("blocks")
+                .select("blocked_id").eq("blocker_id", value: me)
+                .execute().value
+            return Set(rows.map(\.blocked_id))
+        } catch {
+            // Failing open here would resurface blocked users — log loudly.
+            Self.logSwallowed("blockedIDs", error)
+            return []
+        }
     }
 
     func report(kind: String, subjectID: String, reason: String? = nil) async {
@@ -634,8 +668,13 @@ final class SupabaseService {
 
     func moviePageStats(movieID: Int) async -> MoviePageStats? {
         struct Params: Encodable { let p_movie_id: Int }
-        return try? await client.rpc("movie_page_stats", params: Params(p_movie_id: movieID))
-            .execute().value
+        do {
+            return try await client.rpc("movie_page_stats", params: Params(p_movie_id: movieID))
+                .execute().value
+        } catch {
+            Self.logSwallowed("movie_page_stats", error)
+            return nil
+        }
     }
 
     // MARK: - Ranking enrichment
@@ -740,7 +779,7 @@ final class SupabaseService {
             // profiles must name the FK: the likes table adds a second
             // feed_events↔profiles path and PostgREST rejects the bare
             // embed as ambiguous (PGRST201), silently emptying the feed.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies(*)")
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)")
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -798,7 +837,7 @@ final class SupabaseService {
             // profiles must name the FK: the likes table adds a second
             // feed_events↔profiles path and PostgREST rejects the bare
             // embed as ambiguous (PGRST201), silently emptying the feed.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies(*)")
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)")
             .order("created_at", ascending: false)
             .limit(limit)
             .execute().value
@@ -863,7 +902,7 @@ final class SupabaseService {
 
     func comments(eventID: UUID) async throws -> [CommentRow] {
         try await client.from("comments")
-            .select("*, profiles(username, display_name, avatar_url)")
+            .select("*, profiles!comments_user_id_fkey(username, display_name, avatar_url)")
             .eq("event_id", value: eventID)
             .order("created_at")
             .execute().value
@@ -874,7 +913,7 @@ final class SupabaseService {
     func notifications(limit: Int = 50) async throws -> [NotificationRow] {
         guard let me = currentUserID else { return [] }
         return try await client.from("notifications")
-            .select("*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies(title, poster_path)")
+            .select("*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)")
             .eq("recipient_id", value: me)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -1119,6 +1158,9 @@ struct RankingRow: Codable, Identifiable, Hashable {
     let bucket: String
     let position: Int
     let score: Double
+    /// Postgres `date` column — MUST stay String: the decoder's ISO8601
+    /// strategies require a time part, so typing this `Date?` silently
+    /// kills the whole row decode.
     let watchDate: String?
     let createdAt: Date
 
@@ -1272,7 +1314,10 @@ struct CustomList: Codable, Identifiable, Hashable {
 struct WatchRow: Codable, Identifiable, Hashable {
     let id: UUID
     let movieId: Int
-    let watchedOn: String     // "2026-06-11"
+    /// Postgres `date` column — MUST stay String ("2026-06-11"): the
+    /// decoder's ISO8601 strategies require a time part, so `Date` here
+    /// silently kills the whole row decode.
+    let watchedOn: String
     let watchedWhere: String?
 
     enum CodingKeys: String, CodingKey {

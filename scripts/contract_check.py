@@ -64,7 +64,7 @@ READS = [
     ("my_note", "notes", "body, is_private, contains_spoilers"),
     ("my_performances", "favorite_performances", "tmdb_person_id, person_name, profile_path"),
     ("my_rank_details", "rankings", "watch_date, watched_with, watched_where, ranking_labels(labels(name))"),
-    ("direct_recs", "direct_recs", "id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies(*)"),
+    ("direct_recs", "direct_recs", "id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies!direct_recs_movie_id_fkey(*)"),
     ("pending_imports", "pending_imports", "status, path"),
     ("blocked_ids", "blocks", "blocked_id"),
     ("custom_lists", "custom_lists", "id, user_id, name, is_private, created_at, custom_list_items(count)"),
@@ -76,11 +76,11 @@ READS = [
     ("following_edges", "follows", "following_id"),
     ("follow_edges_both", "follows", "follower_id, following_id"),
     ("watched_with_tags", "rankings", "watched_with"),
-    ("feed", "feed_events", "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies(*)"),
+    ("feed", "feed_events", "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)"),
     ("taste_match", "taste_matches", "pct"),
     ("my_likes", "likes", "event_id"),
-    ("comments", "comments", "*, profiles(username, display_name, avatar_url)"),
-    ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies(title, poster_path)"),
+    ("comments", "comments", "*, profiles!comments_user_id_fkey(username, display_name, avatar_url)"),
+    ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
     ("community_score", "movie_community_scores", "*"),
 ]
 
