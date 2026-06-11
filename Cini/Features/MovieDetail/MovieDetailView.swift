@@ -204,8 +204,10 @@ struct MovieDetailView: View {
                 PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
                     showWhereToWatch = true
                 }
-                PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
-                    showShowtimes = true
+                if movie.mediaKind != "tv" {
+                    PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
+                        showShowtimes = true
+                    }
                 }
                 PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined) {
                     showSendRec = true

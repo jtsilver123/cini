@@ -72,11 +72,14 @@ struct Movie: Identifiable, Codable, Hashable {
         return genreText.isEmpty ? cert : "\(cert) | \(genreText)"
     }
 
-    /// "2024 · Dir. Denis Villeneuve"
+    /// "2024 · Dir. Denis Villeneuve" — or "TV · 2008 · By Vince Gilligan"
     var bylineText: String {
         var parts: [String] = []
+        if mediaKind == "tv" { parts.append("TV") }
         if let releaseYear { parts.append(String(releaseYear)) }
-        if let director { parts.append("Dir. \(director)") }
+        if let director {
+            parts.append(mediaKind == "tv" ? "By \(director)" : "Dir. \(director)")
+        }
         return parts.joined(separator: " · ")
     }
 

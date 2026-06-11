@@ -34,12 +34,23 @@ final class TMDBService {
 
     // MARK: - Endpoints
 
+    /// TV shows ride the same Int plumbing as movies by using NEGATIVE
+    /// tmdb ids (the two id spaces overlap at TMDB). A show is ranked as
+    /// a whole — never per season or episode.
+    static func mediaPath(_ id: Int, suffix: String = "") -> String {
+        (id < 0 ? "/tv/\(-id)" : "/movie/\(id)") + suffix
+    }
+
     func search(query: String, year: Int? = nil, page: Int = 1) async throws -> [Movie] {
-        var items = [URLQueryItem(name: "query", value: query),
+        let items = [URLQueryItem(name: "query", value: query),
                      URLQueryItem(name: "page", value: String(page))]
-        if let year { items.append(URLQueryItem(name: "primary_release_year", value: String(year))) }
-        let result: SearchPage = try await get("/search/movie", query: items, cachePolicy: .reloadIgnoringLocalCacheData)
-        return result.results.map(\.asMovie)
+        // multi = movies + TV in one call (people filtered out in mapping)
+        let result: MultiSearchPage = try await get("/search/multi", query: items, cachePolicy: .reloadIgnoringLocalCacheData)
+        var movies = result.results.compactMap(\.asMovie)
+        if let year {
+            movies = movies.filter { $0.releaseYear == nil || $0.releaseYear == year }
+        }
+        return movies
     }
 
     func trending() async throws -> [Movie] {
@@ -59,9 +70,15 @@ final class TMDBService {
     func keywords(for movieID: Int) async throws -> [String] {
         struct KeywordsPage: Codable {
             struct Keyword: Codable { let name: String }
-            let keywords: [Keyword]
+            let movieKeywords: [Keyword]?
+            let tvKeywords: [Keyword]?
+            var keywords: [Keyword] { movieKeywords ?? tvKeywords ?? [] }
+            enum CodingKeys: String, CodingKey {
+                case movieKeywords = "keywords"
+                case tvKeywords = "results"
+            }
         }
-        let page: KeywordsPage = try await get("/movie/\(movieID)/keywords")
+        let page: KeywordsPage = try await get(Self.mediaPath(movieID, suffix: "/keywords"))
         return page.keywords
             .map(\.name.localizedCapitalized)
             .filter { $0.count <= 22 }
@@ -80,6 +97,11 @@ final class TMDBService {
 
     /// Full detail with credits and US certification in one round trip.
     func details(for movieID: Int) async throws -> Movie {
+        if movieID < 0 {
+            let detail: TVDetailDTO = try await get(Self.mediaPath(movieID),
+                query: [URLQueryItem(name: "append_to_response", value: "credits")])
+            return detail.asMovie
+        }
         let detail: DetailDTO = try await get(
             "/movie/\(movieID)",
             query: [URLQueryItem(name: "append_to_response", value: "credits,release_dates")]
@@ -88,18 +110,18 @@ final class TMDBService {
     }
 
     func cast(for movieID: Int) async throws -> [CastMember] {
-        let credits: CreditsDTO = try await get("/movie/\(movieID)/credits")
+        let credits: CreditsDTO = try await get(Self.mediaPath(movieID, suffix: "/credits"))
         return credits.cast
     }
 
     /// Watch providers for "Where to Watch" (US region by default).
     func watchProviders(for movieID: Int, region: String = "US") async throws -> WatchProviders {
-        let response: ProvidersResponse = try await get("/movie/\(movieID)/watch/providers")
+        let response: ProvidersResponse = try await get(Self.mediaPath(movieID, suffix: "/watch/providers"))
         return response.results[region] ?? WatchProviders(link: nil, flatrate: nil, rent: nil, buy: nil)
     }
 
     func trailerURL(for movieID: Int) async throws -> URL? {
-        let videos: VideosDTO = try await get("/movie/\(movieID)/videos")
+        let videos: VideosDTO = try await get(Self.mediaPath(movieID, suffix: "/videos"))
         let trailer = videos.results.first { $0.site == "YouTube" && $0.type == "Trailer" }
             ?? videos.results.first { $0.site == "YouTube" }
         return trailer.flatMap { URL(string: "https://www.youtube.com/watch?v=\($0.key)") }
@@ -160,6 +182,91 @@ private struct SearchPage: Codable {
     let results: [MovieDTO]
 }
 
+/// /search/multi rows: movies, TV shows, and people (people are dropped).
+private struct MultiSearchPage: Codable {
+    let results: [MultiDTO]
+}
+
+private struct MultiDTO: Codable {
+    let id: Int
+    let mediaType: String?
+    // movie fields
+    let title: String?
+    let releaseDate: String?
+    // tv fields
+    let name: String?
+    let firstAirDate: String?
+    // shared
+    let posterPath: String?
+    let backdropPath: String?
+    let overview: String?
+    let genreIds: [Int]?
+    let originalLanguage: String?
+    let popularity: Double?
+
+    var asMovie: Movie? {
+        switch mediaType {
+        case "movie":
+            guard let title else { return nil }
+            return Movie(
+                tmdbID: id, mediaKind: "movie", title: title,
+                releaseYear: releaseDate.flatMap { Int($0.prefix(4)) },
+                posterPath: posterPath, backdropPath: backdropPath,
+                genres: (genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                certification: nil, runtimeMinutes: nil, director: nil,
+                overview: overview, originalLanguage: originalLanguage,
+                popularity: popularity, releaseDateFull: releaseDate
+            )
+        case "tv":
+            guard let name else { return nil }
+            // Negative id keeps TV out of the movie id space everywhere.
+            return Movie(
+                tmdbID: -id, mediaKind: "tv", title: name,
+                releaseYear: firstAirDate.flatMap { Int($0.prefix(4)) },
+                posterPath: posterPath, backdropPath: backdropPath,
+                genres: (genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                certification: nil, runtimeMinutes: nil, director: nil,
+                overview: overview, originalLanguage: originalLanguage,
+                popularity: popularity, releaseDateFull: firstAirDate
+            )
+        default:
+            return nil   // person results
+        }
+    }
+}
+
+/// Whole-show TV detail mapped onto the Movie shape (negative id).
+private struct TVDetailDTO: Codable {
+    struct Genre: Codable { let name: String }
+    struct Creator: Codable { let name: String }
+    let id: Int
+    let name: String
+    let firstAirDate: String?
+    let posterPath: String?
+    let backdropPath: String?
+    let overview: String?
+    let genres: [Genre]?
+    let episodeRunTime: [Int]?
+    let createdBy: [Creator]?
+    let numberOfSeasons: Int?
+    let originalLanguage: String?
+    let popularity: Double?
+
+    var asMovie: Movie {
+        Movie(
+            tmdbID: -id, mediaKind: "tv", title: name,
+            releaseYear: firstAirDate.flatMap { Int($0.prefix(4)) },
+            posterPath: posterPath, backdropPath: backdropPath,
+            genres: (genres ?? []).map(\.name),
+            certification: numberOfSeasons.map { "\($0) season\($0 == 1 ? "" : "s")" },
+            runtimeMinutes: episodeRunTime?.first,
+            director: createdBy?.first?.name,
+            overview: overview, originalLanguage: originalLanguage,
+            popularity: popularity, releaseDateFull: firstAirDate
+        )
+    }
+}
+
 private struct MovieDTO: Codable {
     let id: Int
     let title: String
@@ -195,6 +302,9 @@ private struct MovieDTO: Codable {
         99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
         27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance",
         878: "Sci-Fi", 10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
+        // TV genre ids
+        10759: "Action", 10762: "Kids", 10763: "News", 10764: "Reality",
+        10765: "Sci-Fi", 10766: "Soap", 10767: "Talk", 10768: "War",
     ]
 }
 

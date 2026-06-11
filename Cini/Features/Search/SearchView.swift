@@ -149,7 +149,7 @@ struct SearchView: View {
         VStack(spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
-                TextField(tab == 0 ? "Search movie, genre, mood" : "Search members", text: $query)
+                TextField(tab == 0 ? "Search movies & TV shows" : "Search members", text: $query)
                     .autocorrectionDisabled()
                     .focused($searchFocused)
                     .onChange(of: query) { _, _ in scheduleSearch() }
