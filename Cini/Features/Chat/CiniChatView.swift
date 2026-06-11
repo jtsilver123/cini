@@ -62,6 +62,11 @@ struct CiniChatAvailableView: View {
     @State private var draft = ""
     @State private var isThinking = false
     @State private var session: LanguageModelSession?
+    @State private var showReviewPicker = false
+    @State private var showAttachPicker = false
+    @State private var attachedMovie: Movie?
+    @State private var logMovie: Movie?
+    @FocusState private var inputFocused: Bool
 
     struct ChatMessage: Identifiable, Equatable {
         let id = UUID()
@@ -93,40 +98,181 @@ struct CiniChatAvailableView: View {
 
     private var chat: some View {
         VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        header
-                        ForEach(messages) { message in
-                            bubble(message)
-                        }
-                        if isThinking {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                Text("Thinking…").font(.caption).foregroundStyle(Theme.gray)
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                    }
-                    .padding(.vertical, 16)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .onChange(of: messages) { _, _ in
-                    if let last = messages.last {
-                        withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                    }
-                }
-            }
-
             if messages.isEmpty {
+                // Breeze-style welcome: huge greeting, the composer right
+                // under it, keyboard already up.
+                Spacer(minLength: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(firstName.map { "Hi \($0)," } ?? "Hey you,")
+                    Text("what are we watching?")
+                        .foregroundStyle(Theme.marquee)
+                }
+                .font(Theme.serif(36))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 18)
+                composer
                 starterChips
+                    .padding(.top, 10)
+                conciergeBar
+                    .padding(.top, 2)
+                Spacer()
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(messages) { message in
+                                bubble(message)
+                            }
+                            if isThinking {
+                                ThinkingTicker()
+                                    .padding(.horizontal, 16)
+                                    .id("thinking")
+                            }
+                        }
+                        .padding(.vertical, 16)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: messages) { _, _ in
+                        if let last = messages.last {
+                            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                        }
+                    }
+                }
+                conciergeBar
+                composer
             }
-            inputBar
         }
         .background(Theme.background)
-        .navigationTitle("Ask Cini")
+        .navigationTitle(messages.isEmpty ? "" : "Ask Cini")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { configureSession() }
+        .onAppear {
+            configureSession()
+            // Open ready to type, like a real concierge desk.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(450))
+                inputFocused = true
+            }
+        }
+        .sheet(isPresented: $showReviewPicker) {
+            ChatReviewPicker(title: "Review a movie") { movie in
+                showReviewPicker = false
+                logMovie = movie
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showAttachPicker) {
+            ChatReviewPicker(title: "Talk about a movie") { movie in
+                attachedMovie = movie
+                showAttachPicker = false
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
+        }
+    }
+
+    /// Big friendly composer: multi-line field, a (+) to pull a specific
+    /// movie into the conversation, and send.
+    private var composer: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let attachedMovie {
+                HStack(spacing: 6) {
+                    Image(systemName: "film")
+                    Text(attachedMovie.title).lineLimit(1)
+                    Button {
+                        self.attachedMovie = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Theme.marqueeSoft))
+            }
+            TextField("Ask Cini anything…", text: $draft, axis: .vertical)
+                .font(.body)
+                .lineLimit(1...5)
+                .focused($inputFocused)
+                .onSubmit { Task { await send() } }
+            HStack {
+                Button {
+                    showAttachPicker = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Theme.fill))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Button {
+                    Task { await send() }
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Theme.background)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Theme.marquee))
+                }
+                .buttonStyle(.plain)
+                .disabled((draft.trimmingCharacters(in: .whitespaces).isEmpty
+                           && attachedMovie == nil) || isThinking)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Theme.marquee.opacity(0.45), lineWidth: 1.2))
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
+    }
+
+    /// The concierge's two jobs, always one tap away: pick tonight's
+    /// movie, or review something straight from the chat.
+    private var conciergeBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                draft = "What should I watch tonight?"
+                Task { await send() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "popcorn")
+                    Text("What to watch")
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Theme.marquee)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(Theme.marqueeSoft))
+            }
+            .buttonStyle(.plain)
+            .disabled(isThinking)
+            Button {
+                showReviewPicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.pencil")
+                    Text("Review a movie")
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(Theme.marquee)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(Theme.marqueeSoft))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     private var firstName: String? {
@@ -134,31 +280,6 @@ struct CiniChatAvailableView: View {
         if let name, !name.isEmpty { return name }
         if let username = profile?.username, !username.hasPrefix("user_") { return username }
         return nil
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles").foregroundStyle(Theme.marquee)
-                Text(firstName.map { "Hey \($0) 👋" } ?? "Ask Cini")
-                    .font(Theme.serif(26))
-            }
-            Text(greeting)
-                .font(.caption)
-                .foregroundStyle(Theme.gray)
-        }
-        .padding(.horizontal, 16)
-    }
-
-    /// A line that proves Cini knows them — never the same cold opener.
-    private var greeting: String {
-        if let top = store.watchedItems.first.flatMap({ store.movie($0.id) }) {
-            return "I know \(top.title) tops your list — let's find the next one. Private and on-device, always."
-        }
-        if !store.watchlist.isEmpty {
-            return "You've got \(store.watchlist.count) movies on your Want to Watch list — want help picking? Private and on-device, always."
-        }
-        return "Your movie-buff friend who actually remembers what you like. Private and on-device, always."
     }
 
     private func bubble(_ message: ChatMessage) -> some View {
@@ -203,25 +324,6 @@ struct CiniChatAvailableView: View {
         .padding(.bottom, 8)
     }
 
-    private var inputBar: some View {
-        HStack(spacing: 10) {
-            TextField("Ask for a movie…", text: $draft, axis: .vertical)
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 18).fill(Theme.fill))
-                .onSubmit { Task { await send() } }
-            Button {
-                Task { await send() }
-            } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title)
-                    .foregroundStyle(Theme.marquee)
-            }
-            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || isThinking)
-        }
-        .padding(12)
-        .background(.thinMaterial)
-    }
-
     // MARK: - Model session
 
     private func configureSession() {
@@ -231,15 +333,20 @@ struct CiniChatAvailableView: View {
         let streak = profile.map { $0.streakWeeks } ?? 0
         session = LanguageModelSession(tools: [MovieLookupTool()]) {
             """
-            You are Cini, \(name)'s movie-buff friend inside the Cini app — \
-            warm, playful, and genuinely opinionated, never corporate. Talk \
-            like a friend who knows their taste cold: reference their actual \
-            rankings and watchlist by name when relevant ("since you loved \
-            X…"). Keep answers short (2-4 sentences), concrete, and specific \
-            — always name movies with their year. Prefer their watchlist when \
-            they ask what to watch tonight. Use the lookup tool to confirm \
-            titles or streaming availability rather than guessing. Never \
-            invent scores or friends. \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when it fits naturally." : "")
+            You are Cini, \(name)'s personal movie concierge inside the Cini \
+            app — warm, playful, and genuinely opinionated, never corporate. \
+            Your two jobs: (1) get them to ONE confident pick for tonight — \
+            don't list five options; recommend one (with year), say why it \
+            fits THEIR taste, and offer one backup at most. (2) When they \
+            mention having seen something, invite them to review it: suggest \
+            tapping "Review a movie" below so it counts on their list. Talk \
+            like a friend who knows their taste cold — reference their actual \
+            rankings and watchlist by name ("since you loved X…"). Keep \
+            answers short (2-4 sentences) and end with a gentle nudge to act: \
+            watch it, save it, or review it. Prefer their watchlist when they \
+            ask what to watch tonight. Use the lookup tool to confirm titles \
+            or streaming availability rather than guessing. Never invent \
+            scores or friends. \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when it fits naturally." : "")
 
             \(name)'s taste profile:
             \(tasteContext)
@@ -267,20 +374,46 @@ struct CiniChatAvailableView: View {
 
     private func send() async {
         let text = draft.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty, let session, !isThinking else { return }
+        guard let session, !isThinking else { return }
+        guard !text.isEmpty || attachedMovie != nil else { return }
         draft = ""
-        messages.append(ChatMessage(isUser: true, text: text))
-        isThinking = true
-        defer { isThinking = false }
-        do {
-            let response = try await session.respond(to: text)
-            messages.append(ChatMessage(isUser: false, text: response.content))
-        } catch {
-            messages.append(ChatMessage(
-                isUser: false,
-                text: "I hit a snag answering that — try rephrasing, or ask something shorter."
-            ))
+
+        // An attached movie pins the conversation to that title.
+        var visible = text
+        var prompt = text
+        if let movie = attachedMovie {
+            let year = movie.releaseYear.map { " (\($0))" } ?? ""
+            visible = "🎬 \(movie.title)\(text.isEmpty ? "" : " — \(text)")"
+            prompt = text.isEmpty
+                ? "Tell me about \(movie.title)\(year) — would I like it given my taste?"
+                : "About the movie \(movie.title)\(year): \(text)"
+            attachedMovie = nil
         }
+
+        messages.append(ChatMessage(isUser: true, text: visible))
+        isThinking = true
+        do {
+            let response = try await session.respond(to: prompt)
+            isThinking = false
+            await reveal(response.content)
+        } catch {
+            isThinking = false
+            await reveal("I hit a snag answering that — try rephrasing, or ask something shorter.")
+        }
+    }
+
+    /// The reply lands word by word, like someone typing back to you.
+    private func reveal(_ full: String) async {
+        messages.append(ChatMessage(isUser: false, text: ""))
+        let index = messages.count - 1
+        let words = full.split(separator: " ", omittingEmptySubsequences: false)
+        var shown = ""
+        for word in words {
+            shown += (shown.isEmpty ? "" : " ") + word
+            messages[index].text = shown
+            try? await Task.sleep(for: .milliseconds(38))
+        }
+        messages[index].text = full
     }
 
     private func unavailableMessage(_ reason: SystemLanguageModel.Availability.UnavailableReason) -> String {
@@ -328,3 +461,121 @@ struct MovieLookupTool: Tool {
 }
 
 #endif
+
+// MARK: - Shared chat chrome (no FoundationModels dependency)
+
+/// The "thinking" state as a little show: pulsing sparkles + rotating
+/// film-buff phrases instead of a plain spinner.
+struct ThinkingTicker: View {
+    @State private var phraseIndex = 0
+
+    private let phrases = [
+        "Rolling the projector…",
+        "Digging through your rankings…",
+        "Consulting the archives…",
+        "Cueing up something good…",
+        "Checking what your friends loved…",
+    ]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(Theme.marquee)
+                .symbolEffect(.variableColor.iterative, options: .repeating)
+            Text(phrases[phraseIndex])
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+                .contentTransition(.opacity)
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.6))
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    phraseIndex = (phraseIndex + 1) % phrases.count
+                }
+            }
+        }
+    }
+}
+
+/// "Review a movie" from the chat: quick picker over your Want to Watch
+/// plus full TMDB search — picking one opens the standard log flow.
+struct ChatReviewPicker: View {
+    var title: String = "Review a movie"
+    var onPick: (Movie) -> Void
+
+    @Environment(RankingStore.self) private var store
+
+    @State private var query = ""
+    @State private var results: [Movie] = []
+    @State private var searchTask: Task<Void, Never>?
+
+    private var watchlistMovies: [Movie] {
+        store.watchlist.compactMap { store.movie($0.movieID) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                    TextField("Search movies & TV shows", text: $query)
+                        .autocorrectionDisabled()
+                        .onChange(of: query) { _, _ in schedule() }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Theme.background)
+
+                if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                    if !watchlistMovies.isEmpty {
+                        Text("FROM YOUR WANT TO WATCH")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.gray)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Theme.background)
+                        ForEach(watchlistMovies.prefix(10)) { movie in
+                            pickRow(movie)
+                        }
+                    }
+                } else {
+                    ForEach(results) { movie in
+                        pickRow(movie)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func pickRow(_ movie: Movie) -> some View {
+        MovieSuggestionRow(
+            movie: movie,
+            onRank: {
+                store.cache(movie)
+                onPick(movie)
+            },
+            onOpen: {
+                store.cache(movie)
+                onPick(movie)
+            }
+        )
+        .listRowBackground(Theme.background)
+    }
+
+    private func schedule() {
+        searchTask?.cancel()
+        let text = query.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { results = []; return }
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            results = (try? await TMDBService.shared.search(query: text)) ?? []
+        }
+    }
+}

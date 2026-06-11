@@ -1897,46 +1897,112 @@ function importDone(){
 
 /* =================== ASK CINI (chat) =================== */
 let chat=[];
+let chatAttach=null;
+const THINK_PHRASES=["Rolling the projector…","Digging through your rankings…","Consulting the archives…","Cueing up something good…","Checking what your friends loved…"];
+let _thinkIdx=0, _thinkTimer=null;
+function chatComposer(){
+  return `
+    <div style="margin:0 16px 10px; background:var(--surface); border:1.2px solid rgba(232,182,76,.45); border-radius:22px; padding:14px;">
+      ${chatAttach?`<span style="display:inline-flex; align-items:center; gap:6px; background:var(--marquee-soft); color:var(--marquee); font-size:12px; font-weight:700; border-radius:999px; padding:5px 10px; margin-bottom:8px;">${I("film",13)} ${MOVIES[chatAttach].t} <span style="cursor:pointer;" onclick="chatAttach=null; renderChat()">✕</span></span>`:""}
+      <input id="chatInput" placeholder="Ask Cini anything…" style="width:100%; background:none; border:none; outline:none; color:var(--ink); font:inherit; font-size:16px; padding:2px 0 10px;" onkeydown="if(event.key==='Enter')askCini(this.value)">
+      <div style="display:flex; align-items:center;">
+        <button style="width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,.09);color:var(--ink);font-size:18px;cursor:pointer;" onclick="openChatAttach()">+</button>
+        <span class="spacer"></span>
+        <button style="width:36px;height:36px;border-radius:50%;border:none;background:var(--marquee);color:var(--bg);font-weight:800;font-size:16px;cursor:pointer;" onclick="askCini($('chatInput').value)">↑</button>
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; margin:0 16px 96px;">
+      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="askCini('What should I watch tonight?')">🍿 What to watch</button>
+      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="openChatReview()">✍️ Review a movie</button>
+    </div>`;
+}
 function renderChat(){
   $("screen-chat").innerHTML=`
     <div class="pad" style="display:flex; align-items:center; padding-top:10px; flex:0 0 auto;">
-      <button class="iconbtn" onclick="go('feed')">${I("chevL",22,2)}</button>
-      <div style="flex:1; text-align:center;"><b>Ask Cini</b>
-        <div class="sub" style="font-size:10.5px;">On-device AI · private · knows your taste</div></div>
-      <span style="width:30px;"></span>
+      <button class="iconbtn" onclick="go('feed')">${I("x",22,2)}</button>
+      <span class="spacer"></span>
     </div>
+    ${chat.length===0?`
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+      <div class="serif" style="font-size:34px; font-weight:700; line-height:1.2; padding:0 22px 20px;">Hi Jake,<br><span style="color:var(--marquee);">what are we watching?</span></div>
+      ${chatComposer()}
+      <div class="row-scroll" style="margin-top:2px;">
+        ${["Something like my #1 but shorter","Date night pick from my watchlist","Surprise me with a hidden gem"].map(q=>
+          `<button class="pill ghost" style="font-size:12px;" onclick="askCini('${esc(q)}')">${q}</button>`).join("")}
+      </div>
+    </div>`:`
     <div style="flex:1; overflow-y:auto; padding:14px 0;" id="chatScroll">
-      ${chat.length===0?`<div class="empty" style="padding-top:40px;"><span style="color:var(--marquee);">${I("spark",34,1.5)}</span>
-        <b>What should I watch tonight?</b>
-        <span class="sub">Cini knows your rankings and watchlist.<br>Try a starter:</span></div>
-      <div class="row-scroll" style="justify-content:center; flex-wrap:wrap;">
-        ${["What should I watch tonight?","Something like my #1 but shorter","Date night pick from my watchlist"].map(q=>
-          `<button class="pill ghost" style="font-size:12.5px;" onclick="askCini('${esc(q)}')">${q}</button>`).join("")}
-      </div>`:""}
       ${chat.map(c=>`<div class="bubble ${c.u?"user":"bot"}">${c.t}</div>`).join("")}
-      ${chat.length&&chat[chat.length-1].thinking?`<div class="bubble bot"><span class="tdots"><span></span><span></span><span></span></span></div>`:""}
+      ${chat.length&&chat[chat.length-1].thinking?`<div style="display:flex; align-items:center; gap:8px; padding:4px 22px;"><span style="color:var(--marquee);">${I("spark",16)}</span><span class="sub" id="thinkPhrase" style="font-weight:700; font-size:12.5px;">${THINK_PHRASES[_thinkIdx%THINK_PHRASES.length]}</span></div>`:""}
     </div>
-    <div class="chatbar" style="margin-bottom:86px;">
-      <input id="chatInput" placeholder="Ask for a movie…" onkeydown="if(event.key==='Enter')askCini(this.value)">
-      <button class="sendbtn" onclick="askCini($('chatInput').value)">↑</button>
-    </div>`;
-  const sc=$("chatScroll"); sc.scrollTop=sc.scrollHeight;
+    ${chatComposer()}`}`;
+  const sc=$("chatScroll"); if(sc) sc.scrollTop=sc.scrollHeight;
+  const inp=$("chatInput"); if(inp&&chat.length===0) inp.focus();
+}
+function openChatAttach(){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Talk about a movie</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      ${Object.keys(MOVIES).map(k=>`<div class="erow" onclick="chatAttach='${k}'; closeOverlay(); renderChat(); setTimeout(()=>{const e=$('chatInput'); if(e)e.focus();},50)">
+        <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(MOVIES[k].p)}');"></div>
+        <span style="flex:1; font-weight:600;">${MOVIES[k].t} <span class="sub">${MOVIES[k].y}</span></span>
+      </div>`).join("")}
+    </div>`);
+}
+function openChatReview(){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Review a movie</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="margin-bottom:8px;">Pick one and the rating flow opens right here.</div>
+      ${Object.keys(MOVIES).map(k=>`<div class="erow" onclick="closeOverlay(); openLog('${k}')">
+        <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(MOVIES[k].p)}');"></div>
+        <span style="flex:1; font-weight:600;">${MOVIES[k].t} <span class="sub">${MOVIES[k].y}</span></span>
+        <span class="sub">${I("plus",16)}</span>
+      </div>`).join("")}
+    </div>`);
 }
 function askCini(q){
-  q=(q||"").trim(); if(!q) return;
-  buzz(); chat.push({u:1,t:q},{u:0,t:"",thinking:1}); renderChat();
+  q=(q||"").trim();
+  if(!q&&!chatAttach) return;
+  const attached=chatAttach?MOVIES[chatAttach]:null;
+  const visible=attached?`🎬 ${attached.t}${q?` — ${q}`:""}`:q;
+  chatAttach=null;
+  buzz(); chat.push({u:1,t:visible},{u:0,t:"",thinking:1}); renderChat();
+  _thinkIdx=0;
+  _thinkTimer=setInterval(()=>{ _thinkIdx++; const el=$("thinkPhrase"); if(el) el.textContent=THINK_PHRASES[_thinkIdx%THINK_PHRASES.length]; }, 1400);
   setTimeout(()=>{
+    clearInterval(_thinkTimer);
     chat.pop();
     const wl=S.watchlist[0]?MOVIES[S.watchlist[0]]:null;
     const top=scoredWatched()[0]?MOVIES[scoredWatched()[0].k]:null;
     let a;
     const ql=q.toLowerCase();
-    if(ql.includes("date")) a=`For date night I'd grab <b>Past Lives</b> (2023) — quiet, romantic, 1h 45m, on Paramount+. Bring tissues.`;
-    else if(ql.includes("short")&&top) a=`You loved <b>${top.t}</b> — for the same wavelength in under two hours, try <b>The Zone of Interest</b> (1h 45m, on Max). Heavier, but unshakeable.`;
-    else if(wl) a=`Easy: <b>${wl.t}</b> is sitting right on your watchlist — ${wl.rt}, streaming on ${wl.on[0]}. Your friends average it ${wl.avg.toFixed(1)}.`;
-    else a=`Based on your top-ranked films, try <b>Poor Things</b> (2023) — bold, funny, gorgeous, on Hulu.`;
-    chat.push({u:0,t:a}); renderChat();
-  }, 900);
+    if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review a movie</b> below and make it count.`;
+    else if(ql.includes("date")) a=`For date night: <b>Past Lives</b> (2023) — quiet, romantic, 1h 45m, on Paramount+. One pick, full confidence. Bring tissues.`;
+    else if(ql.includes("short")&&top) a=`You loved <b>${top.t}</b> — same wavelength in under two hours: <b>The Zone of Interest</b> (1h 45m, on Max). Watch it tonight, thank me tomorrow.`;
+    else if(wl) a=`Easy: <b>${wl.t}</b> is sitting right on your watchlist — ${wl.rt}, on ${wl.on[0]}, friends average ${wl.avg.toFixed(1)}. That's tonight's movie. Deal?`;
+    else a=`Based on your top-ranked films: <b>Poor Things</b> (2023) — bold, funny, gorgeous, on Hulu. Save it or start it.`;
+    revealWords(a);
+  }, 1700);
+}
+/* The reply lands word by word, like someone typing back. */
+function revealWords(full){
+  chat.push({u:0,t:""});
+  const idx=chat.length-1;
+  const words=full.split(" ");
+  let i=0;
+  const t=setInterval(()=>{
+    i++;
+    chat[idx].t=words.slice(0,i).join(" ");
+    const sc=$("chatScroll");
+    const bubbles=sc?sc.querySelectorAll(".bubble"):[];
+    if(bubbles.length) bubbles[bubbles.length-1].innerHTML=chat[idx].t;
+    if(sc) sc.scrollTop=sc.scrollHeight;
+    if(i>=words.length){ clearInterval(t); renderChat(); }
+  }, 45);
+  renderChat();
 }
 
 /* =================== ONBOARDING (first run) =================== */
