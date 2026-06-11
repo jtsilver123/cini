@@ -1,0 +1,3 @@
+-- Rec Score for given titles (mirrors prod migration `predicted_scores`):
+-- recs-v2 blend computed FOR the supplied ids (Want to Watch badges).
+-- Canonical definition lives in production.
