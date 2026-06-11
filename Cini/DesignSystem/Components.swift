@@ -263,17 +263,4 @@ struct AvatarView: View {
 
 // MARK: - Progress dots (comparison flow)
 
-struct ProgressDots: View {
-    let total: Int
-    let completed: Int
 
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<max(total, 1), id: \.self) { i in
-                Circle()
-                    .fill(i < completed ? Theme.marquee : Theme.gray.opacity(0.3))
-                    .frame(width: 7, height: 7)
-            }
-        }
-    }
-}
