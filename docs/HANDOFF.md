@@ -1,30 +1,43 @@
 # HANDOFF — read this first in any new session
 
-**STATUS (2026-06-11): Cini IS on TestFlight and current.** Run
-27351261665 (commit 8af610d) uploaded successfully — it carries
-everything since build 27: desktop-import overhaul, Pending-in-Watched,
-the public "Everyone" wall (report/block + spoiler flags), person pages,
-custom lists, diary/rewatches, the Beli-style Rank again menu, the Ask
-Cini concierge redesign, genre/director/browse search, showtimes with
-Fandango app handoff, and three audit passes (all CI-green; E2E DB
-contract test passed against prod; Supabase advisors clean).
-Migrations through 0025 applied to prod.
+**STATUS (2026-06-11 evening): preparing App Store submission.** Build
+1.0.37 (run 27358267832, commit d608b08) is on TestFlight; the NEXT
+build (user-requested, gated on CI for 46e2e6d) carries the big
+data-layer fixes below plus push deep links and final UI polish.
+Migrations through **0028** applied to prod and mirrored in
+supabase/migrations/.
 
-**Open thread: Apple sign-in fails on device** ("didn't complete" =
-ASAuthorization fails before Supabase is ever called). Portal capability
-verified ENABLED via ASC API (bundle resource D2B3UT2M3J has
-APPLE_ID_AUTH). Diagnosis: the unsigned-archive strategy meant the
-`com.apple.developer.applesignin` entitlement was never embedded in the
-code signature. Fix shipped: archive now signs with cloud-managed
-distribution signing (auth-key flags + `-allowProvisioningUpdates` on the
-ARCHIVE step; `CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution` at
-the Cini TARGET level in project.yml so SPM targets stay automatic).
-Round 7 FAILED (automatic signing rejects a manual distribution
-identity). Round 8 (run 27312970128) SUCCEEDED with the final strategy:
-unsigned archive -> ad-hoc entitlement stamp -> distribution export -> a
-verify step that fails the build if the IPA lacks applesignin or
-aps-environment. Build 8 on TestFlight has Apple sign-in + push
-registration. Round 9 (edit profile + socials) triggered after f013b80.
+**The silent-contract-drift saga (critical context):** three production
+features were broken invisibly because server schema drifted under
+correct-looking Swift, all swallowed by `try?`:
+1. likes table made `feed_events→profiles` embeds ambiguous (PGRST201)
+   → profile Activity empty + feed serving stale disk cache. Fixed by
+   naming FKs in every embed.
+2. `direct_recs` had no FK to movies (PGRST200) → friend-recs inbox
+   never loaded. Fixed in migration 0027.
+3. `notifications_kind_check` was never updated for direct_rec /
+   invite_joined / watchlist_showing → **sending a rec, invite
+   redemption, and showtime alerts all rolled back entirely**. Fixed in
+   migration 0028 (+ cleared showtime_notices so alerts re-fire).
+
+**The systemic guard: `scripts/contract_check.py`** executes every app
+query/RPC verbatim against production; it runs as a CI job
+(`contract-check`) on every push and turns red on any schema drift.
+`--write` mode also exercises mutating RPCs as the demo account. A deep
+decode audit verified all structs/dates/optionality/embeds against live
+JSON — clean. Swallowed errors in hot paths now log via OSLog
+(`SupabaseService.logSwallowed`). watch_date/watched_on MUST stay String
+(date-only columns can't decode as Date — comments in code explain).
+
+**Marketing site is live**: https://jtsilver123.github.io/cini/ (landing
++ terms.html + privacy.html, brand-matched; pages.yml publishes them).
+Support email everywhere: jtsilver123@gmail.com (NOTHING bettercampus).
+Paste-ready App Store metadata: docs/APP_STORE_LISTING.md.
+Leaked-password protection: N/A on the free Supabase plan — do not raise.
+
+Apple sign-in on device: RESOLVED (unsigned archive → ad-hoc entitlement
+stamp → cloud-signed export → verify step; in testflight.yml since
+build 8).
 
 Push notifications: full pipeline shipped — device_tokens table + RPC
 (migration 0007), notifications trigger -> pg_net -> send-push edge
@@ -118,8 +131,12 @@ and shipped on request only — Apple caps uploads per app per day
 - Old App-Manager key `J4369F4GMF`: unused — user should revoke
 - Bundle ID: `app.cini.ios` · App record created in App Store Connect
 - Supabase project: `npumchnkbcajyuhurgez` (user's personal org; the
-  Supabase MCP in new sessions connects to it). All 6 migrations applied;
-  advisors clean; pg_cron nightly taste-match scheduled
+  Supabase MCP in new sessions connects to it). Migrations 0001–0028
+  applied; advisors clean (SECURITY DEFINER WARNs are intentional
+  authenticated RPCs; leaked-password WARN is N/A on free plan); pg_cron:
+  nightly taste-match + predicted-cache-nightly
+- App Review demo account: appreview@cini-demo.com / CiniReview2026!
+  (has seeded data; also used by scripts/contract_check.py)
 - TMDB key: in `Cini/Resources/Secrets.xcconfig` (committed; client-safe)
 - Apple provider in Supabase: ENABLED, Client ID `app.cini.ios`, no secret
   (native flow) — verified by token probes (forged token → "Bad ID token";
@@ -135,12 +152,15 @@ and shipped on request only — Apple caps uploads per app per day
   (DB triggers tested in prod), leaderboard (all metrics verified in prod),
   recs engine, shared watchlists, Letterboxd ZIP + Apple Notes import,
   Ask Cini (Apple Foundation Models, on-device), dark cinema brand
-- CI (`ci.yml`): engine tests (39) + app build + app tests (12) on simulator
-  — last verified green at commit 9857776; later commits only touched
-  workflows/prototype
+- CI (`ci.yml`): engine tests (39) + app build/tests on simulator + the
+  live Supabase contract check — green through 46e2e6d-era commits
 - Live prototype: https://jtsilver123.github.io/cini/prototype/ — deploys
-  via `pages.yml` on push (Pages source = GitHub Actions)
-- Privacy policy: https://jtsilver123.github.io/cini/privacy.html
+  via `pages.yml` on push, alongside the marketing site at the root
+- Legal pages: …/cini/privacy.html and …/cini/terms.html (linked from
+  Settings and the sign-in screen)
+- Push deep links: send-push payload carries kind/movie_id/actor_* and
+  PushManager routes taps via TabRouter.shared (movie pushes → movie
+  page, follower pushes → profile)
 - No committed Xcode project: every pipeline (ci.yml, testflight.yml)
   runs `xcodegen generate` from project.yml, the single source of truth
 
