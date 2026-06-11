@@ -24,7 +24,24 @@ struct SearchView: View {
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
     @State private var isSearching = false
+    @State private var browse: BrowseKind?
+    @State private var browseResults: [Movie] = []
     @FocusState private var searchFocused: Bool
+
+    /// One-tap browsing for people who don't want to type.
+    enum BrowseKind: String, CaseIterable {
+        case releases = "Release Date"
+        case popular = "Popular"
+        case trending = "Trending"
+
+        var icon: String {
+            switch self {
+            case .releases: "calendar"
+            case .popular: "flame"
+            case .trending: "chart.line.uptrend.xyaxis"
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +52,7 @@ struct SearchView: View {
                     brandRow
                     tabsRow
                     searchFields
+                    if tab == 0 { browseRow }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -45,6 +63,8 @@ struct SearchView: View {
                         if tab == 0 {
                             if !movieResults.isEmpty {
                                 resultsSection
+                            } else if browse != nil {
+                                browseSection
                             } else {
                                 recentsSection
                                 maybeSeenSection
@@ -167,6 +187,63 @@ struct SearchView: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
         }
+    }
+
+    /// Release Date · Popular · Trending — browse without typing.
+    private var browseRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(BrowseKind.allCases, id: \.self) { kind in
+                    PillButton(title: kind.rawValue, systemImage: kind.icon,
+                               style: browse == kind ? .filled : .outlined) {
+                        withAnimation(.snappy) {
+                            browse = browse == kind ? nil : kind
+                        }
+                        Task { await loadBrowse() }
+                    }
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    @ViewBuilder
+    private var browseSection: some View {
+        if browseResults.isEmpty {
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(browseResults) { movie in
+                    MovieSuggestionRow(
+                        movie: movie,
+                        onRank: { logMovie = movie },
+                        onOpen: { detailMovie = movie }
+                    )
+                    Divider()
+                }
+            }
+        }
+    }
+
+    private func loadBrowse() async {
+        guard let kind = browse else { return }
+        browseResults = []
+        var result: [Movie]
+        switch kind {
+        case .releases:
+            result = (try? await TMDBService.shared.upcoming()) ?? []
+            // Soonest first — it's a release calendar, not a chart.
+            result.sort { ($0.releaseDateFull ?? "") < ($1.releaseDateFull ?? "") }
+        case .popular:
+            result = (try? await TMDBService.shared.popular()) ?? []
+        case .trending:
+            result = (try? await TMDBService.shared.trending()) ?? []
+        }
+        guard browse == kind else { return }   // user switched mid-flight
+        browseResults = result
+        for movie in result { store.cache(movie) }
     }
 
     // MARK: Results

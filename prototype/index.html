@@ -871,11 +871,13 @@ function renderSearch(){
           ${searchQ?`<button class="iconbtn" style="color:var(--gray);" onclick="searchQ=''; render();">${I("x",15)}</button>`:""}</div>
       </div>
       <div class="row-scroll" style="margin-top:12px;">
-        <button class="pill" onclick="go('chat')">${I("spark",16)} Ask Cini</button>
-        <button class="pill" onclick="toast('Trending: Dune: Part Two')">Trending</button>
+        ${[["releases","Release Date","calendar"],["popular","Popular","flame"],["trending","Trending","spark"]].map(([b,l,ic])=>
+          `<button class="pill ${searchBrowse===b?"":"out"}" onclick="searchBrowse=searchBrowse==='${b}'?null:'${b}'; render()">${I(ic,15)} ${l}</button>`).join("")}
       </div>
     </div>
-    <div id="searchResults">${results!==null
+    <div id="searchResults">${results===null&&searchBrowse
+      ? browseList()
+      : results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)
       : `
       <h2 class="section">MOVIES YOU MAY HAVE SEEN</h2>
@@ -895,6 +897,30 @@ function renderSearchKeepFocus(){
   const el2=$("searchInput"); el2.focus(); el2.setSelectionRange(pos,pos);
 }
 function dismissQueue(k){ buzz(); S.queue=S.queue.filter(x=>x!==k); save(); toast("Removed — never saw it"); render(); }
+/* Browse without typing: Release Date / Popular / Trending. */
+let searchBrowse=null;
+function browseList(){
+  const keys=Object.keys(MOVIES);
+  const sorted = searchBrowse==="releases"
+    ? keys.sort((a,b)=>MOVIES[b].y-MOVIES[a].y)
+    : searchBrowse==="popular"
+      ? keys.sort((a,b)=>parseFloat(MOVIES[b].nr.replace(",",""))-parseFloat(MOVIES[a].nr.replace(",","")))
+      : keys.sort((a,b)=>MOVIES[b].avg-MOVIES[a].avg);
+  const label={releases:"BY RELEASE DATE", popular:"MOST POPULAR", trending:"TRENDING THIS WEEK"}[searchBrowse];
+  return `<h2 class="section">${label}</h2>` + sorted.map(k=>{
+    const m=MOVIES[k];
+    return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${k}')">
+      <div class="poster" style="width:42px;height:63px; background-image:url('${IMG(m.p)}');"></div>
+      <div style="flex:1;">
+        <div style="font-weight:600;">${m.t}</div>
+        <div class="sub" style="margin-top:2px;">${m.y} · ${m.dir}</div>
+      </div>
+      <div style="display:flex; gap:16px; align-items:center;">
+        <button class="iconbtn" onclick="openLog('${k}')">${I("plus")}</button>
+        <button class="iconbtn" onclick="toggleWatchlist('${k}')">${bmIcon(k)}</button>
+      </div>
+    </div>`;}).join("");
+}
 function renderMembersTab(){
   searchTab="members";
   $("screen-search").innerHTML = `
