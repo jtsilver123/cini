@@ -398,7 +398,7 @@ struct MemberRow<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(url: avatarURL, size: 46)
+            AvatarView(url: avatarURL, size: 46, name: title)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -437,13 +437,31 @@ struct HairlineCard<Content: View>: View {
 struct AvatarView: View {
     let url: URL?
     var size: CGFloat = 44
+    /// Display name or username — no photo shows their initials instead
+    /// of a generic silhouette.
+    var name: String? = nil
+
+    private var initials: String {
+        guard let name, !name.isEmpty else { return "" }
+        let words = name.split(separator: " ").prefix(2)
+        return words.compactMap { $0.first.map(String.init) }.joined().uppercased()
+    }
 
     var body: some View {
         CachedAsyncImage(url: url) { image in
             image.resizable().scaledToFill()
         } placeholder: {
-            Circle().fill(Theme.gray.opacity(0.25))
-                .overlay(Image(systemName: "person.fill").foregroundStyle(Theme.gray))
+            if initials.isEmpty {
+                Circle().fill(Theme.gray.opacity(0.25))
+                    .overlay(Image(systemName: "person.fill").foregroundStyle(Theme.gray))
+            } else {
+                Circle().fill(Theme.marqueeSoft)
+                    .overlay(
+                        Text(initials)
+                            .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.marquee)
+                    )
+            }
         }
         .frame(width: size, height: size)
         .clipShape(Circle())

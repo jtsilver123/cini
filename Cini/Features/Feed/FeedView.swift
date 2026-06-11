@@ -344,7 +344,8 @@ struct FeedCard: View {
                 Button {
                     onOpenMember(MemberRef(id: event.userId, username: actorName))
                 } label: {
-                    AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48)
+                    AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48,
+                               name: event.profiles?.displayName ?? event.profiles?.username)
                 }
                 .buttonStyle(.plain)
 
@@ -477,7 +478,8 @@ struct CommentsSheet: View {
                                 MemberProfileView(userID: comment.userId,
                                                   username: comment.profiles?.username ?? "member")
                             } label: {
-                                AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36)
+                                AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
+                                           name: comment.profiles?.displayName ?? comment.profiles?.username)
                             }
                             .buttonStyle(.plain)
                             VStack(alignment: .leading, spacing: 3) {
@@ -650,7 +652,8 @@ struct NotificationsView: View {
                             memberTarget = MemberRef(id: actorId, username: actor.username)
                         }
                     } label: {
-                        AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42)
+                        AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
+                           name: row.actor?.displayName ?? row.actor?.username)
                     }
                     .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 3) {

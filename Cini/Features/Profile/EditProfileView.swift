@@ -49,7 +49,8 @@ struct EditProfileView: View {
             Form {
                 Section {
                     VStack(spacing: 12) {
-                        AvatarView(url: avatarURL ?? profile.avatarURL, size: 96)
+                        AvatarView(url: avatarURL ?? profile.avatarURL, size: 96,
+                                   name: profile.displayName.isEmpty ? profile.username : profile.displayName)
                         PhotosPicker(selection: $photoItem, matching: .images) {
                             if isUploadingPhoto {
                                 ProgressView()

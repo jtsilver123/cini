@@ -804,7 +804,8 @@ struct MovieDetailView: View {
                     memberTarget = MemberRef(id: row.userId, username: row.username)
                 } label: {
                     HStack(spacing: 12) {
-                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44)
+                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44,
+                                   name: row.displayName?.isEmpty == false ? row.displayName : row.username)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(row.displayName?.isEmpty == false ? row.displayName! : row.username)
                                 .font(.subheadline.weight(.semibold))

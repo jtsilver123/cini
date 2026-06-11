@@ -232,7 +232,8 @@ struct ProfileScreen: View {
 
     private var identity: some View {
         VStack(spacing: 8) {
-            AvatarView(url: profile?.avatarURL, size: 104)
+            AvatarView(url: profile?.avatarURL, size: 104,
+                       name: profile.map { $0.displayName.isEmpty ? $0.username : $0.displayName } ?? username)
             Text("@\(profile?.username ?? username ?? "—")").font(.headline)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
             if let bio = profile?.bio, !bio.isEmpty {
@@ -401,7 +402,8 @@ struct ProfileScreen: View {
                             MemberProfileView(userID: member.id, username: member.username)
                         } label: {
                             VStack(spacing: 6) {
-                                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 56)
+                                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 56,
+                                           name: member.displayName.isEmpty ? member.username : member.displayName)
                                 Text(member.displayName.isEmpty ? member.username : member.displayName)
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Theme.ink)

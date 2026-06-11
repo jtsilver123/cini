@@ -86,7 +86,7 @@ struct LeaderboardView: View {
                             .font(.title3)
                             .foregroundStyle(Theme.gray)
                             .frame(width: 28, alignment: .leading)
-                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 48)
+                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 48, name: row.username)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("@\(row.username)")
                                 .font(.subheadline.weight(.semibold))

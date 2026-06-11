@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 /// First-run flow for a brand-new account:
 ///
@@ -20,6 +21,9 @@ struct OnboardingView: View {
     @State private var displayName = ""
     @State private var usernameError: String?
     @State private var saving = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var avatarURL: URL?
+    @State private var isUploadingPhoto = false
     @State private var showImport = false
     @State private var importStartsWithPaste = false
     @State private var starters: [Movie] = []
@@ -61,6 +65,9 @@ struct OnboardingView: View {
             .animation(.snappy, value: step)
         }
         .background(Theme.background)
+        // Full-screen cover sits above RootTabView's overlay, so onboarding
+        // mounts its own toast surface.
+        .overlay { ToastOverlay() }
         .sheet(isPresented: $showImport, onDismiss: { advance() }) {
             LetterboxdImportView(startWithPaste: importStartsWithPaste)
         }
@@ -152,7 +159,38 @@ struct OnboardingView: View {
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
 
+            // Photo + name: skipping the photo still shows their initials
+            // everywhere, which the avatar previews live as they type.
+            VStack(spacing: 8) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    ZStack(alignment: .bottomTrailing) {
+                        AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 84,
+                                   name: displayName.isEmpty ? username : displayName)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(Theme.marquee)
+                            .background(Circle().fill(Theme.background))
+                    }
+                }
+                .buttonStyle(.plain)
+                if isUploadingPhoto {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text(avatarURL == nil ? "Add a photo" : "Change photo")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                }
+            }
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                Task { await uploadPhoto(item) }
+            }
+
             VStack(spacing: 10) {
+                TextField("Your name", text: $displayName)
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+
                 HStack(spacing: 4) {
                     Text("@").foregroundStyle(Theme.gray)
                     TextField("username", text: $username)
@@ -191,10 +229,6 @@ struct OnboardingView: View {
                 }
                 .frame(height: 4)
                 .animation(.snappy(duration: 0.2), value: username.count)
-
-                TextField("Display name (optional)", text: $displayName)
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
 
                 HStack(spacing: 4) {
                     Text("@").foregroundStyle(Theme.gray)
@@ -236,6 +270,34 @@ struct OnboardingView: View {
         if usernameError != nil || availability == .taken { return Theme.scoreRed }
         if availability == .available { return Theme.scoreGreen }
         return Theme.gray
+    }
+
+    private func uploadPhoto(_ item: PhotosPickerItem) async {
+        isUploadingPhoto = true
+        defer { isUploadingPhoto = false }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else {
+            ToastCenter.shared.show("Couldn't read that photo — try another.")
+            return
+        }
+        // Avatars render at ~100pt; 512px keeps uploads tiny and sharp.
+        let side: CGFloat = 512
+        let scale = max(side / image.size.width, side / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let resized = UIGraphicsImageRenderer(size: size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
+            ToastCenter.shared.show("Couldn't process that photo — try another.")
+            return
+        }
+        do {
+            avatarURL = try await SupabaseService.shared.uploadAvatar(jpeg)
+            Haptics.success()
+        } catch {
+            Haptics.error()
+            ToastCenter.shared.show("Photo upload failed — check your connection.")
+        }
     }
 
     private func saveUsername() async {

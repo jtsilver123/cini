@@ -433,7 +433,7 @@ struct CastPicker: View {
                 if selected.contains(member) { selected.remove(member) } else { selected.insert(member) }
             } label: {
                 HStack(spacing: 12) {
-                    AvatarView(url: member.photoURL, size: 40)
+                    AvatarView(url: member.photoURL, size: 40, name: member.name)
                     VStack(alignment: .leading) {
                         Text(member.name).foregroundStyle(Theme.ink)
                         if let character = member.character {
@@ -467,7 +467,8 @@ struct FriendThinkRow: View {
                     onOpenProfile?(friend)
                 } label: {
                     HStack(spacing: 12) {
-                        AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44)
+                        AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44,
+                                   name: friend.displayName ?? friend.username)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(friend.displayName ?? friend.username).font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)

@@ -126,7 +126,8 @@ struct SendRecSheet: View {
             selected = selected?.id == friend.id ? nil : friend
         } label: {
             HStack(spacing: 12) {
-                AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 42)
+                AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 42,
+                           name: friend.displayName.isEmpty ? friend.username : friend.displayName)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
                         .font(.subheadline.weight(.semibold))
