@@ -619,6 +619,14 @@ struct RankedListScreen: View {
                         TextField("Filter this list", text: $searchText)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                        if !searchText.isEmpty {
+                            Button {
+                                searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
