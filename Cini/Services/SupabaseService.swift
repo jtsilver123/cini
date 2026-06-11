@@ -580,6 +580,7 @@ struct ProfileUpdate: Encodable {
     var annual_goal: Int?
     var is_private: Bool?
     var bio: String?
+    var home_zip: String?
     var instagram_handle: String?
     var tiktok_handle: String?
     var x_handle: String?

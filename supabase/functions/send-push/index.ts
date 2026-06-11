@@ -79,6 +79,8 @@ function headline(kind: string, actor: string, movie: string | null): string {
     case "comment": return `@${actor} commented on ${movie ?? "a movie"}`;
     case "friend_ranked_watchlist_movie":
       return `@${actor} ranked ${movie ?? "a movie"} — it's on your watchlist`;
+    case "watchlist_showing":
+      return `${movie ?? "A watchlist movie"} is playing in theaters near you 🎬`;
     default: return `@${actor} did something new on Cini`;
   }
 }

@@ -562,6 +562,7 @@ struct NotificationsView: View {
         case "like": text = "**\(who)** liked your activity on **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your watchlist"
+        case "watchlist_showing": text = "**\(movie)** from your watchlist is playing near you 🎬"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)
