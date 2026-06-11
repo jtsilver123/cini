@@ -382,7 +382,37 @@ struct SearchView: View {
             try? await Task.sleep(for: .milliseconds(250))   // debounce
             guard !Task.isCancelled else { return }
             if tab == 0 {
-                movieResults = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
+                var results = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
+                // TMDB goes blank on typos — retry with progressively
+                // trimmed input, then the longest word on its own.
+                if results.count < 3, text.count > 3 {
+                    var attempts: [String] = []
+                    var trimmed = text
+                    for _ in 0..<2 where trimmed.count > 3 {
+                        trimmed = String(trimmed.dropLast())
+                        attempts.append(trimmed)
+                    }
+                    if let longest = text.split(separator: " ").max(by: { $0.count < $1.count }),
+                       longest.count > 3, String(longest) != text {
+                        attempts.append(String(longest))
+                    }
+                    for attempt in attempts where results.count < 5 {
+                        guard !Task.isCancelled else { return }
+                        let more = (try? await TMDBService.shared.search(query: attempt, year: nil)) ?? []
+                        for movie in more where !results.contains(where: { $0.tmdbID == movie.tmdbID }) {
+                            results.append(movie)
+                        }
+                    }
+                }
+                guard !Task.isCancelled else { return }
+                // Closest titles first — predictive even when typed wrong.
+                if results.count > 1 {
+                    results.sort {
+                        Fuzzy.similarity(query: text, candidate: $0.title)
+                            > Fuzzy.similarity(query: text, candidate: $1.title)
+                    }
+                }
+                movieResults = results
                 for movie in movieResults { store.cache(movie) }
             } else {
                 memberResults = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []

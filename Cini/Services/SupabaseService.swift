@@ -101,8 +101,16 @@ final class SupabaseService {
         try await client.from("profiles").update(update).eq("id", value: id).execute()
     }
 
+    /// Trigram-fuzzy member search (typos in usernames/display names still
+    /// match); falls back to plain substring search if the RPC is missing.
     func searchMembers(query: String) async throws -> [ProfileRow] {
-        try await client.from("profiles")
+        struct Params: Encodable { let p_query: String }
+        if let fuzzy: [ProfileRow] = try? await client
+            .rpc("search_members", params: Params(p_query: query))
+            .execute().value {
+            return fuzzy
+        }
+        return try await client.from("profiles")
             .select()
             .ilike("username", pattern: "%\(query)%")
             .limit(25)

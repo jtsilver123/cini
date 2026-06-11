@@ -645,11 +645,36 @@ function surprise(){
 /* =================== SEARCH =================== */
 let searchQ="";
 function renderSearchScreen(){ searchTab==="movies" ? renderSearch() : renderMembersTab(); }
+/* Typo-tolerant matching: edit distance vs the title and its prefix. */
+function fuzzySim(q,t){
+  if(t.includes(q)) return 1;
+  const dist=(a,b)=>{
+    const m=a.length,n=b.length;
+    if(!m) return n; if(!n) return m;
+    let prev=Array.from({length:n+1},(_,j)=>j), cur=new Array(n+1);
+    for(let i=1;i<=m;i++){
+      cur[0]=i;
+      for(let j=1;j<=n;j++){
+        cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1));
+        if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) cur[j]=Math.min(cur[j], prev[j-1]);
+      }
+      [prev,cur]=[cur,prev];
+    }
+    return prev[n];
+  };
+  const whole=1-dist(q,t)/Math.max(q.length,t.length);
+  const pre=1-dist(q,t.slice(0,q.length))/q.length;
+  return Math.max(whole, pre*0.95);
+}
 function renderSearch(){
   searchTab="movies";
   const all=Object.keys(MOVIES);
-  const results = searchQ.trim()
-    ? all.filter(k=>MOVIES[k].t.toLowerCase().includes(searchQ.trim().toLowerCase()))
+  const q=searchQ.trim().toLowerCase();
+  const results = q
+    ? all.map(k=>[k, fuzzySim(q, MOVIES[k].t.toLowerCase())])
+        .filter(([,s])=>s>0.45)
+        .sort((a,b)=>b[1]-a[1])
+        .map(([k])=>k)
     : null;
   const queue=S.queue.filter(k=>!S.watched.some(w=>w.k===k));
 
