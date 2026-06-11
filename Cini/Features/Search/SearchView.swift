@@ -473,6 +473,16 @@ struct SearchView: View {
             isSearching = true
             defer { isSearching = false }
             if tab == 0 {
+                // Genre and director queries are first-class: "horror"
+                // fills with the genre's most popular, "nolan" with his
+                // filmography — both lead the title matches.
+                async let genreTask: [Movie] = {
+                    guard let genreID = TMDBService.genreID(matching: text) else { return [] }
+                    return (try? await TMDBService.shared.popular(genreID: genreID)) ?? []
+                }()
+                async let directorTask: [Movie] = text.count >= 4
+                    ? ((try? await TMDBService.shared.directedMovies(matching: text)) ?? [])
+                    : []
                 var results = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
                 // Subtitle queries ("new hope") match famous films via
                 // their alternative titles, but TMDB buries them on page 2.
@@ -522,6 +532,18 @@ struct SearchView: View {
                     }
                     results.sort { rank($0) > rank($1) }
                 }
+                // Director matches lead, then the genre's most popular,
+                // then title matches — deduped.
+                let special = (await directorTask) + (await genreTask)
+                if !special.isEmpty {
+                    var merged: [Movie] = []
+                    var seen = Set<Int>()
+                    for movie in special + results where seen.insert(movie.tmdbID).inserted {
+                        merged.append(movie)
+                    }
+                    results = merged
+                }
+                guard !Task.isCancelled else { return }
                 movieResults = results
                 for movie in movieResults { store.cache(movie) }
             } else {

@@ -11,12 +11,14 @@ struct YourListsView: View {
     @State private var category: MediaCategory = .movies
     @State private var showCategorySheet = false
     @State private var subTab: SubTab = .watched
-    @State private var sortDescending = true
-    @State private var genreFilter: String?
-    @State private var decadeFilter: Int?
-    @State private var runtimeFilter: Int?       // max minutes
-    @State private var streamingFilter = false
-    @State private var languageFilter: String?   // ISO 639-1 code
+    // Sort + filters persist across launches — the list stays the way
+    // the user left it.
+    @AppStorage("lists.sortDescending") private var sortDescending = true
+    @AppStorage("lists.genreFilter") private var genreFilter: String?
+    @AppStorage("lists.decadeFilter") private var decadeFilter: Int?
+    @AppStorage("lists.runtimeFilter") private var runtimeFilter: Int?   // max minutes
+    @AppStorage("lists.streamingFilter") private var streamingFilter = false
+    @AppStorage("lists.languageFilter") private var languageFilter: String?   // ISO 639-1
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
@@ -77,6 +79,8 @@ struct YourListsView: View {
                     tabRouter.pendingListsTab = nil
                     subTab = pending
                 }
+                // Persisted filters must never act invisibly.
+                if hasActiveFilters { showFilters = true }
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -567,7 +571,10 @@ struct YourListsView: View {
         List {
             ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
-                    WatchlistRowView(movie: movie, predicted: predicted[item.movieID]) {
+                    // Prefetched at launch — badges render instantly.
+                    WatchlistRowView(movie: movie,
+                                     predicted: predicted[item.movieID]
+                                         ?? store.predictedScores[item.movieID]) {
                         logMovie = movie
                     }
                     .contentShape(Rectangle())
@@ -578,8 +585,7 @@ struct YourListsView: View {
         }
         .listStyle(.plain)
         .task(id: store.watchlist.count) {
-            predicted = await SupabaseService.shared.predictedScores(
-                movieIDs: store.watchlist.map(\.movieID))
+            await store.refreshPredictedScores()
         }
         .overlay {
             if store.watchlist.isEmpty {

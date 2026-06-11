@@ -11,6 +11,9 @@ final class RankingStore {
     private(set) var list = RankingList<Int>()
     private(set) var movies: [Int: Movie] = [:]          // metadata cache
     private(set) var watchlist: [WatchlistItem] = []
+    /// Rec Scores for the watchlist, prefetched in the background at
+    /// launch so Want to Watch renders its badges instantly.
+    private(set) var predictedScores: [Int: Double] = [:]
     private(set) var isLoaded = false
 
     private let supabase: SupabaseService
@@ -43,9 +46,17 @@ final class RankingStore {
             let rows = try await supabase.movies(ids: Array(allIDs))
             for row in rows { movies[row.tmdbId] = row.asMovie }
             isLoaded = true
+            // Fire-and-forget: warm the Want to Watch Rec Scores so the
+            // Lists tab opens with badges already in place.
+            Task { await refreshPredictedScores() }
         } catch {
             assertionFailure("RankingStore.load failed: \(error)")
         }
+    }
+
+    func refreshPredictedScores() async {
+        let scores = await supabase.predictedScores(movieIDs: watchlist.map(\.movieID))
+        predictedScores.merge(scores) { _, new in new }
     }
 
     // MARK: - Reading

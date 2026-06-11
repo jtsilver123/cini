@@ -145,6 +145,90 @@ final class TMDBService {
         )
     }
 
+    // MARK: - Genre & director queries (first-class search inputs)
+
+    /// Movie-genre id whose name matches the query ("horror", "sci fi",
+    /// "science fiction", "comdey"…) — nil when the query isn't a genre.
+    static func genreID(matching query: String) -> Int? {
+        let q = query.lowercased().filter(\.isLetter)
+        guard q.count >= 3 else { return nil }
+        if q == "sciencefiction" || q == "scifi" { return 878 }
+        let movieGenres = [28, 12, 16, 35, 80, 99, 18, 10751, 14, 36, 27,
+                           10402, 9648, 10749, 878, 53, 10752, 37]
+        for id in movieGenres {
+            guard let name = MovieDTO.genreNames[id] else { continue }
+            let n = name.lowercased().filter(\.isLetter)
+            if n == q { return id }
+            if q.count >= 5, Fuzzy.similarity(query: q, candidate: n) >= 0.85 { return id }
+        }
+        return nil
+    }
+
+    /// Most popular titles in a genre — what a genre query should return.
+    func popular(genreID: Int) async throws -> [Movie] {
+        let page: SearchPage = try await get("/discover/movie", query: [
+            URLQueryItem(name: "with_genres", value: String(genreID)),
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+        ])
+        return page.results.map(\.asMovie)
+    }
+
+    /// Movies directed by the person best matching the query, most
+    /// popular first. Empty when the query isn't a director.
+    func directedMovies(matching query: String) async throws -> [Movie] {
+        struct PersonPage: Codable {
+            struct Person: Codable {
+                let id: Int
+                let name: String
+                let popularity: Double?
+                let knownForDepartment: String?
+            }
+            let results: [Person]
+        }
+        let page: PersonPage = try await get(
+            "/search/person", query: [URLQueryItem(name: "query", value: query)])
+        let q = query.lowercased()
+        guard let person = page.results.first(where: {
+            ($0.popularity ?? 0) >= 3 &&
+            ($0.knownForDepartment == "Directing"
+             || $0.name.lowercased().contains(q)
+             || Fuzzy.similarity(query: query, candidate: $0.name) >= 0.75)
+        }) else { return [] }
+
+        struct CreditsPage: Codable {
+            struct CrewCredit: Codable {
+                let id: Int
+                let title: String?
+                let job: String?
+                let posterPath: String?
+                let backdropPath: String?
+                let genreIds: [Int]?
+                let releaseDate: String?
+                let overview: String?
+                let originalLanguage: String?
+                let popularity: Double?
+            }
+            let crew: [CrewCredit]
+        }
+        let credits: CreditsPage = try await get("/person/\(person.id)/movie_credits")
+        var seen = Set<Int>()
+        return credits.crew
+            .filter { $0.job == "Director" && $0.title != nil }
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            .compactMap { credit in
+                guard seen.insert(credit.id).inserted, let title = credit.title else { return nil }
+                return Movie(
+                    tmdbID: credit.id, mediaKind: "movie", title: title,
+                    releaseYear: credit.releaseDate.flatMap { Int($0.prefix(4)) },
+                    posterPath: credit.posterPath, backdropPath: credit.backdropPath,
+                    genres: (credit.genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                    certification: nil, runtimeMinutes: nil, director: person.name,
+                    overview: credit.overview, originalLanguage: credit.originalLanguage,
+                    popularity: credit.popularity, releaseDateFull: credit.releaseDate
+                )
+            }
+    }
+
     /// Watch providers for "Where to Watch" (US region by default).
     func watchProviders(for movieID: Int, region: String = "US") async throws -> WatchProviders {
         let response: ProvidersResponse = try await get(Self.mediaPath(movieID, suffix: "/watch/providers"))

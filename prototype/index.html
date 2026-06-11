@@ -824,10 +824,18 @@ function renderSearch(){
   searchTab="movies";
   const all=Object.keys(MOVIES);
   const q=searchQ.trim().toLowerCase();
+  /* Title, director, or genre — a genre/director hit ranks by popularity. */
   const results = q
-    ? all.map(k=>[k, fuzzySim(q, MOVIES[k].t.toLowerCase())])
+    ? all.map(k=>{
+        const m=MOVIES[k];
+        const s=Math.max(
+          fuzzySim(q, m.t.toLowerCase()),
+          fuzzySim(q, m.dir.toLowerCase()),
+          ...m.g.map(g=>fuzzySim(q, g.toLowerCase())));
+        return [k, s, m.avg];
+      })
         .filter(([,s])=>s>0.45)
-        .sort((a,b)=>b[1]-a[1])
+        .sort((a,b)=>b[1]-a[1] || b[2]-a[2])
         .map(([k])=>k)
     : null;
 

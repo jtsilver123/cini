@@ -77,6 +77,10 @@ struct EnrichmentCard: View {
             friendsCache.refreshIfStale()   // chips render from cache instantly
             friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
+        // Opening the date editor makes the date theirs — stop managing it.
+        .onChange(of: activeRow) { _, row in
+            if row == .date { dateAutoFilled = false }
+        }
     }
 
     private var divider: some View {
@@ -155,11 +159,25 @@ struct EnrichmentCard: View {
         .padding(.vertical, 9)
     }
 
+    /// "In theaters" almost always means "watched today" — prefill the
+    /// date quietly (it shows on the watch-date row, still editable) and
+    /// take it back if they un-pick theaters without having touched it.
+    @State private var dateAutoFilled = false
+
     private func watchedWhereChip(_ title: String, icon: String, value: String) -> some View {
         let isOn = draft.watchedWhere == value
         return Button {
             guard !isLocked else { return }
             draft.watchedWhere = isOn ? nil : value
+            if value == "theater" {
+                if !isOn && draft.watchDate == nil {
+                    draft.watchDate = .now
+                    dateAutoFilled = true
+                } else if isOn && dateAutoFilled {
+                    draft.watchDate = nil
+                    dateAutoFilled = false
+                }
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: icon).font(.caption)
