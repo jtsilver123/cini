@@ -306,6 +306,36 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Members following `userID` (.followers) or whom they follow
+    /// (.following) — newest edge first.
+    enum FollowDirection { case followers, following }
+
+    func followMembers(of userID: UUID, direction: FollowDirection) async throws -> [ProfileRow] {
+        struct Edge: Codable {
+            let followerId: UUID
+            let followingId: UUID
+            enum CodingKeys: String, CodingKey {
+                case followerId = "follower_id"
+                case followingId = "following_id"
+            }
+        }
+        let matchColumn = direction == .followers ? "following_id" : "follower_id"
+        let edges: [Edge] = try await client.from("follows")
+            .select("follower_id, following_id")
+            .eq(matchColumn, value: userID)
+            .order("created_at", ascending: false)
+            .execute().value
+        let ids = edges.map { direction == .followers ? $0.followerId : $0.followingId }
+        guard !ids.isEmpty else { return [] }
+        let rows: [ProfileRow] = try await client.from("profiles")
+            .select()
+            .in("id", values: ids)
+            .execute().value
+        // restore edge order (newest follow first)
+        let order = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        return rows.sorted { (order[$0.id] ?? .max) < (order[$1.id] ?? .max) }
+    }
+
     /// A user's own activity stream (RLS-gated like the feed).
     func events(of userID: UUID, limit: Int = 12) async throws -> [FeedEventRow] {
         try await client.from("feed_events")

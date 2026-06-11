@@ -200,8 +200,23 @@ struct ProfileScreen: View {
 
     private var statRow: some View {
         HStack {
-            stat("\(followerCount)", "Followers")
-            stat("\(followingCount)", "Following")
+            if let id = resolvedID {
+                NavigationLink {
+                    FollowListScreen(userID: id, direction: .followers)
+                } label: {
+                    stat("\(followerCount)", "Followers")
+                }
+                .buttonStyle(.plain)
+                NavigationLink {
+                    FollowListScreen(userID: id, direction: .following)
+                } label: {
+                    stat("\(followingCount)", "Following")
+                }
+                .buttonStyle(.plain)
+            } else {
+                stat("\(followerCount)", "Followers")
+                stat("\(followingCount)", "Following")
+            }
             stat(globalRank.map { "#\($0)" } ?? "—", "Rank on Cini")
         }
     }
@@ -209,9 +224,11 @@ struct ProfileScreen: View {
     private func stat(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.title3.weight(.bold))
+                .foregroundStyle(Theme.ink)
             Text(label).font(.subheadline).foregroundStyle(Theme.gray)
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder

@@ -14,6 +14,7 @@ final class LocationZip: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
+    private var awaitingAuthorization = false
 
     func currentZip() async throws -> String {
         let location = try await currentLocation()
@@ -30,43 +31,59 @@ final class LocationZip: NSObject, CLLocationManagerDelegate {
         case .denied, .restricted:
             throw LocationError.denied
         case .notDetermined:
-            manager.requestWhenInUseAuthorization()
+            // Ask first; the actual location request happens in the
+            // authorization callback. Requesting while undetermined races
+            // the permission prompt and fails on the user's first tap.
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                self.awaitingAuthorization = true
+                self.manager.requestWhenInUseAuthorization()
+            }
         default:
-            break
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                self.manager.requestLocation()
+            }
         }
-        return try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-            self.manager.requestLocation()
-        }
+    }
+
+    private func resume(with result: Result<CLLocation, Error>) {
+        guard let pending = continuation else { return }
+        continuation = nil
+        awaitingAuthorization = false
+        pending.resume(with: result)
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didUpdateLocations locations: [CLLocation]) {
         Task { @MainActor in
             if let location = locations.first {
-                continuation?.resume(returning: location)
+                resume(with: .success(location))
             } else {
-                continuation?.resume(throwing: LocationError.unavailable)
+                resume(with: .failure(LocationError.unavailable))
             }
-            continuation = nil
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didFailWithError error: Error) {
         Task { @MainActor in
-            continuation?.resume(throwing: LocationError.unavailable)
-            continuation = nil
+            resume(with: .failure(LocationError.unavailable))
         }
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         Task { @MainActor in
-            // If the user denies the fresh prompt, fail fast instead of
-            // leaving the spinner running until timeout.
-            if manager.authorizationStatus == .denied, continuation != nil {
-                continuation?.resume(throwing: LocationError.denied)
-                continuation = nil
+            switch manager.authorizationStatus {
+            case .authorizedWhenInUse, .authorizedAlways:
+                if awaitingAuthorization {
+                    awaitingAuthorization = false
+                    manager.requestLocation()
+                }
+            case .denied, .restricted:
+                resume(with: .failure(LocationError.denied))
+            default:
+                break   // still undetermined: keep waiting for the prompt
             }
         }
     }

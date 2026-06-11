@@ -439,7 +439,9 @@ struct SearchView: View {
                 movieResults = results
                 for movie in movieResults { store.cache(movie) }
             } else {
-                memberResults = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []
+                let found = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []
+                guard !Task.isCancelled else { return }
+                memberResults = found
             }
         }
     }
