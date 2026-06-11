@@ -2126,8 +2126,9 @@ function revealWords(full){
 }
 
 /* =================== ONBOARDING (first run) =================== */
-let obStep=0, obName="";
+let obStep=0, obName="", obFullName="";
 function obValid(){ return /^[a-z0-9_.]{3,30}$/.test(obName); }
+function obInitials(){ return obFullName.trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase(); }
 function renderOnboarding(){
   const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
@@ -2159,6 +2160,13 @@ function renderOnboarding(){
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
       <div class="serif" style="font-size:32px; font-weight:700;">Claim your @</div>
       <div class="sub">This is how friends find and follow you.</div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:7px;">
+        <div class="avatar av1" id="obAv" style="width:84px; height:84px; font-size:30px; cursor:pointer;"
+          onclick="toast('Photo picker opens here — skip it and your initials stand in')">${obInitials()||"+"}</div>
+        <div class="sub" style="font-size:11.5px;">Add a photo</div>
+      </div>
+      <input id="obFull" value="${obFullName}" placeholder="Your name" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;"
+        oninput="obFullName=this.value; $('obAv').textContent=obInitials()||'+';">
       <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border-radius:12px; padding:13px;">
         <span class="sub">@</span>
         <input id="obUser" value="${obName}" placeholder="username" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;"
