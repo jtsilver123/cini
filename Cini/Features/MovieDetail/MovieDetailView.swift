@@ -25,6 +25,7 @@ struct MovieDetailView: View {
     @State private var showAllCast = false
     @State private var showLogFlow = false
     @State private var showRankAgainDialog = false
+    @State private var showDeleteRatingConfirm = false
     @State private var showRewatchSheet = false
     @State private var showEditDetails = false
     @State private var revealedSpoilers: Set<UUID> = []
@@ -108,7 +109,7 @@ struct MovieDetailView: View {
                 .presentationDetents([.height(300)])
                 .presentationDragIndicator(.visible)
         }
-        // Beli's "Rank again" menu: rerank, reorder, or log a rewatch.
+        // Beli's "Rank again" menu: rerank, reorder, rewatch — or out.
         .confirmationDialog("Rank again", isPresented: $showRankAgainDialog) {
             Button("Rerank this movie") { showLogFlow = true }
             Button("Reorder within my list") {
@@ -116,7 +117,25 @@ struct MovieDetailView: View {
                 tabRouter.selection = .lists
             }
             Button("Log a rewatch") { showRewatchSheet = true }
+            Button("Delete my rating", role: .destructive) {
+                showDeleteRatingConfirm = true
+            }
             Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Delete your rating for \(movie.title)?",
+                            isPresented: $showDeleteRatingConfirm, titleVisibility: .visible) {
+            Button("Delete rating", role: .destructive) {
+                Task {
+                    if await store.removeRanking(movieID: movie.tmdbID) {
+                        Haptics.success()
+                        ToastCenter.shared.show("Rating deleted")
+                        myDetails = await SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID)
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It comes off your ranked list and your score clears. Notes and diary entries stay.")
         }
         // Blocking is heavy — always confirm before mutual invisibility.
         .confirmationDialog(

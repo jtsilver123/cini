@@ -314,6 +314,7 @@ const IMG = p => `https://image.tmdb.org/t/p/w342/${p}.jpg`;
 /* ---------- SVG icon system (consistent 1.7px stroke, like the tab bar) */
 const ICONS = {
   heart:'<path d="M12 20s-7-4.6-9.3-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.3 11C19 15.4 12 20 12 20z"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
   comment:'<path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/>',
   send:'<path d="M22 2 11 13"/><path d="M22 2 15 21l-4-8-8-4z"/>',
   plus:'<circle cx="12" cy="12" r="9"/><line x1="12" y1="8.5" x2="12" y2="15.5"/><line x1="8.5" y1="12" x2="15.5" y2="12"/>',
@@ -1473,7 +1474,8 @@ function openRankAgain(k){
     <div class="sheet-body">
       <div class="erow" onclick="closeOverlay(); openLog('${k}')"><span class="ic">${I("pencil",18)}</span><span style="flex:1;">Rerank this movie</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="closeOverlay(); S.ui.reorder=true; S.subTab='watched'; save(); go('lists')"><span class="ic">${I("sort",18)}</span><span style="flex:1;">Reorder within my list</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" style="border-bottom:none;" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Log a rewatch</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Log a rewatch</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" style="border-bottom:none; color:var(--red);" onclick="if(confirm('Delete your rating? It comes off your ranked list and your score clears. Notes and diary entries stay.')){ S.watched=S.watched.filter(w=>w.k!=='${k}'); save(); closeOverlay(); toast('Rating deleted'); render(); }"><span class="ic" style="color:var(--red);">${I("trash",18)}</span><span style="flex:1;">Delete my rating</span></div>
     </div>`);
 }
 function openRewatch(k){

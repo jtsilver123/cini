@@ -158,9 +158,21 @@ final class RankingStore {
                                            position: bucketPosition)
     }
 
-    func removeRanking(movieID: Int) async {
-        list.remove(movieID)
-        try? await supabase.rankRemove(movieID: movieID)
+    /// Server-first: a delete that failed remotely must not vanish locally
+    /// only to resurrect on the next refresh.
+    @discardableResult
+    func removeRanking(movieID: Int) async -> Bool {
+        do {
+            try await supabase.rankRemove(movieID: movieID)
+            list.remove(movieID)
+            // The 'ranked' feed event points at a rating that no longer
+            // exists — pull it too.
+            try? await supabase.hideRankEvent(movieID: movieID)
+            return true
+        } catch {
+            ToastCenter.shared.saveFailed()
+            return false
+        }
     }
 
     // MARK: - Watchlist
