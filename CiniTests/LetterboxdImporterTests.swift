@@ -29,7 +29,7 @@ final class LetterboxdImporterTests: XCTestCase {
     }
 
     func testParseZipMergesRatingsAndWatchlist() throws {
-        let titles = try LetterboxdImporter.parseZip(Self.fixtureZip)
+        let (titles, _) = try LetterboxdImporter.parseZip(Self.fixtureZip)
 
         // 4 watched + 1 rated-but-not-watched + 1 new watchlist title.
         // Dune appears in watched AND watchlist -> watched wins after dedupe
@@ -46,6 +46,23 @@ final class LetterboxdImporterTests: XCTestCase {
 
         // Watchlist entries flagged correctly.
         XCTAssertTrue(titles.contains { $0.title == "The Zone of Interest" && $0.isWatchlist })
+    }
+
+    func testParseListCSVReadsNameAndEntries() {
+        let csv = """
+        Letterboxd list export v7
+        Date,Name,Tags,URL,Description
+        2024-01-15,Best Heist Movies,,https://letterboxd.com/x/,desc
+
+        Position,Name,Year,URL,Description
+        1,Heat,1995,uri,
+        2,Inside Man,2006,uri,
+        """
+        let list = LetterboxdImporter.parseList(csv: csv, fallbackName: "fallback")
+        XCTAssertEqual(list.name, "Best Heist Movies")
+        XCTAssertEqual(list.titles.count, 2)
+        XCTAssertEqual(list.titles.first?.title, "Heat")
+        XCTAssertEqual(list.titles.first?.year, 1995)
     }
 
     // MARK: CSV edge cases
