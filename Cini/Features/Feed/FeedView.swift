@@ -15,7 +15,7 @@ struct FeedView: View {
     @State private var showRankSheet = false
     @State private var showMenuImport = false
     @State private var showSettings = false
-    @State private var showChangePassword = false
+    @State private var showInviteSheet = false
 
     var body: some View {
         NavigationStack {
@@ -52,8 +52,9 @@ struct FeedView: View {
             .navigationDestination(isPresented: $showSettings) {
                 AccountSettingsView()
             }
-            .navigationDestination(isPresented: $showChangePassword) {
-                ChangePasswordView()
+            .sheet(isPresented: $showInviteSheet) {
+                InviteSheet()
+                    .presentationDetents([.medium])
             }
         }
     }
@@ -94,9 +95,9 @@ struct FeedView: View {
                         Label("Import Existing List", systemImage: "square.and.arrow.down")
                     }
                     Button {
-                        showChangePassword = true
+                        showInviteSheet = true
                     } label: {
-                        Label("Change Password", systemImage: "key")
+                        Label("Invite a Friend", systemImage: "person.badge.plus")
                     }
                     Button(role: .destructive) {
                         Task { await session.signOut() }

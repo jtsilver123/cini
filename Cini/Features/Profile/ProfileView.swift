@@ -28,7 +28,7 @@ struct ProfileScreen: View {
     @State private var showImport = false
     @State private var showEditProfile = false
     @State private var showSettings = false
-    @State private var showChangePassword = false
+    @State private var showInviteSheet = false
     @State private var detailMovie: Movie?
     @State private var loaded = false
 
@@ -69,8 +69,9 @@ struct ProfileScreen: View {
         .navigationDestination(isPresented: $showSettings) {
             AccountSettingsView()
         }
-        .navigationDestination(isPresented: $showChangePassword) {
-            ChangePasswordView()
+        .sheet(isPresented: $showInviteSheet) {
+            InviteSheet()
+                .presentationDetents([.medium])
         }
         .onAppear { Task { await load() } }
     }
@@ -143,9 +144,9 @@ struct ProfileScreen: View {
                         Label("Import Existing List", systemImage: "square.and.arrow.down")
                     }
                     Button {
-                        showChangePassword = true
+                        showInviteSheet = true
                     } label: {
-                        Label("Change Password", systemImage: "key")
+                        Label("Invite a Friend", systemImage: "person.badge.plus")
                     }
                     Button(role: .destructive) {
                         Task { await session.signOut() }
