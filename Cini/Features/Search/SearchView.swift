@@ -12,6 +12,10 @@ struct SearchView: View {
     @State private var movieResults: [Movie] = []
     @State private var memberResults: [ProfileRow] = []
     @State private var followedFromSearch: Set<UUID> = []
+    @State private var suggested: [SuggestedMember] = []
+    @State private var contactMatches: [SuggestedMember] = []
+    @State private var contactsChecked = false
+    @State private var showInvite = false
     @State private var recents: [Movie] = RecentSearches.load()
     @State private var maybeSeen: [Movie] = []
     @State private var dismissedMaybeSeen: Set<Int> = []
@@ -32,7 +36,6 @@ struct SearchView: View {
                     brandRow
                     tabsRow
                     searchFields
-                    quickPills
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -47,6 +50,8 @@ struct SearchView: View {
                                 recentsSection
                                 maybeSeenSection
                             }
+                        } else if memberResults.isEmpty && query.trimmingCharacters(in: .whitespaces).isEmpty {
+                            suggestedSection
                         } else {
                             membersSection
                         }
@@ -67,9 +72,14 @@ struct SearchView: View {
             }
             .task { await loadSuggestions() }
             .onAppear {
-                // Arriving via the + tab with nothing typed: keyboard up,
-                // ready to log a movie.
-                if query.isEmpty { searchFocused = true }
+                if tabRouter.openMembersSearch {
+                    tabRouter.openMembersSearch = false
+                    tab = 1
+                } else if query.isEmpty {
+                    // Arriving via the + tab with nothing typed: keyboard
+                    // up, ready to log a movie.
+                    searchFocused = true
+                }
             }
         }
     }
@@ -160,33 +170,6 @@ struct SearchView: View {
         }
     }
 
-    private var quickPills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis") {
-                    Task {
-                        movieResults = (try? await TMDBService.shared.trending()) ?? []
-                        for movie in movieResults { store.cache(movie) }
-                    }
-                }
-                NavigationLink {
-                    RecsForYouScreen()
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "heart").font(.subheadline.weight(.semibold))
-                        Text("Recs").font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(Theme.marquee)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .scrollClipDisabled()
-    }
-
     // MARK: Results
 
     private var resultsSection: some View {
@@ -206,6 +189,142 @@ struct SearchView: View {
                 Divider()
             }
         }
+    }
+
+    // MARK: Suggested for you (growth: follow lots of people fast)
+
+    private var suggestedSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !contactMatches.isEmpty {
+                Text("FROM YOUR CONTACTS")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(.top, 4)
+                ForEach(contactMatches) { member in
+                    suggestedRow(member, reason: "In your contacts")
+                    Divider()
+                }
+            } else if !contactsChecked {
+                Button {
+                    Task { await findContacts() }
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.checkmark")
+                            .font(.title3)
+                            .foregroundStyle(Theme.marquee)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Find friends from contacts")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("See who you know on Cini — contacts never leave this check")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                    }
+                    .padding(12)
+                }
+                .buttonStyle(.plain)
+                .floatingCard(cornerRadius: 14)
+                .padding(.vertical, 6)
+            }
+
+            Text("SUGGESTED FOR YOU")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+                .padding(.top, 10)
+            if suggested.isEmpty {
+                Text("Suggestions appear as more members join — invite your crew to get it going.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .padding(.vertical, 12)
+            }
+            ForEach(suggested) { member in
+                suggestedRow(member, reason: suggestionReason(member))
+                Divider()
+            }
+
+            Button {
+                showInvite = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "paperplane.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(Theme.marquee)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Invite friends to Cini")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                        Text("They enter your @username when they join — you follow each other automatically")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                    Spacer()
+                }
+                .padding(12)
+            }
+            .buttonStyle(.plain)
+            .floatingCard(cornerRadius: 14)
+            .padding(.vertical, 10)
+        }
+        .sheet(isPresented: $showInvite) {
+            InviteSheet()
+                .presentationDetents([.medium])
+        }
+        .task {
+            if suggested.isEmpty {
+                suggested = (try? await SupabaseService.shared.suggestedMembers()) ?? []
+            }
+        }
+    }
+
+    private func suggestionReason(_ member: SuggestedMember) -> String {
+        if let pct = member.matchPct, pct > 0 {
+            return "\(Int(pct))% taste match · \(member.watched) films"
+        }
+        return member.watched > 0 ? "\(member.watched) films ranked" : "New here too"
+    }
+
+    private func suggestedRow(_ member: SuggestedMember, reason: String) -> some View {
+        NavigationLink {
+            MemberProfileView(userID: member.id, username: member.username)
+        } label: {
+            HStack(spacing: 12) {
+                AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 46)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(member.displayName.isEmpty ? member.username : member.displayName)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(Theme.scoreGreen)
+                }
+                Spacer()
+                PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
+                           style: followedFromSearch.contains(member.id) ? .outlined : .filled) {
+                    Task {
+                        if followedFromSearch.contains(member.id) {
+                            followedFromSearch.remove(member.id)
+                            try? await SupabaseService.shared.unfollow(member.id)
+                        } else {
+                            followedFromSearch.insert(member.id)
+                            try? await SupabaseService.shared.follow(member.id)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func findContacts() async {
+        contactsChecked = true
+        let emails = await ContactsEmails.fetch()
+        guard !emails.isEmpty else { return }
+        contactMatches = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
     }
 
     private var membersSection: some View {

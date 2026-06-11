@@ -249,7 +249,7 @@ struct FeedCard: View {
         case "ranked":
             return Text("\(actorName) ranked ") + title
         case "watchlisted":
-            return Text("\(actorName) added ") + title + Text(" to their watchlist")
+            return Text("\(actorName) wants to watch ") + title
         case "noted":
             return Text("\(actorName) wrote about ") + title
         case "streak_milestone":
@@ -548,8 +548,9 @@ struct NotificationsView: View {
         case "new_follower": text = "**\(who)** started following you"
         case "like": text = "**\(who)** liked your activity on **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
-        case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your watchlist"
+        case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
         case "watchlist_showing": text = "**\(movie)** from your watchlist is playing near you 🎬"
+        case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)

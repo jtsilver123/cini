@@ -1,0 +1,8 @@
+-- Growth + recs v2 (mirrors prod migrations `growth_suggestions_and_invites`
+-- and `recs_v2_taste_blend`). Canonical definitions live in production:
+--   suggested_members(p_limit) — taste-match + watch-count suggestions
+--   members_from_emails(p_emails) — contacts matching
+--   redeem_invite_from(p_username) — mutual follow + invite_joined notice
+--   recs_for_user(p_limit) v2 — friend signal (taste-weighted, consensus
+--   boost) + the user's own genre affinity + Bayesian community average,
+--   with a genre/community fallback for users with no friends yet.

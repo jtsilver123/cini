@@ -72,7 +72,7 @@ struct ProfileScreen: View {
         .navigationDestination(isPresented: $showChangePassword) {
             ChangePasswordView()
         }
-        .task { await load() }
+        .onAppear { Task { await load() } }
     }
 
     // MARK: Data
@@ -279,7 +279,7 @@ struct ProfileScreen: View {
             NavigationLink {
                 WatchlistScreen(userID: resolvedID, isSelf: isSelf)
             } label: {
-                listRow(icon: "bookmark", title: "Watchlist", count: watchlistCount)
+                listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
             }
             .buttonStyle(.plain)
             if !isSelf {
@@ -445,7 +445,7 @@ struct ProfileScreen: View {
         let text: String
         switch event.eventType {
         case "ranked": text = "\(who) ranked **\(title)**"
-        case "watchlisted": text = "\(who) added **\(title)** to watchlist"
+        case "watchlisted": text = "\(who) wants to watch **\(title)**"
         case "noted": text = "\(who) wrote about **\(title)**"
         default: text = "\(who) shared an update"
         }
@@ -725,7 +725,7 @@ struct WatchlistScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if entries.isEmpty {
-                    Text("Watchlist is empty.")
+                    Text("Nothing on your Want to Watch list yet.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
@@ -749,7 +749,7 @@ struct WatchlistScreen: View {
             .padding(16)
         }
         .background(Theme.background)
-        .navigationTitle("Watchlist (\(entries.count))")
+        .navigationTitle("Want to Watch (\(entries.count))")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)

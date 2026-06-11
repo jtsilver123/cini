@@ -78,9 +78,11 @@ function headline(kind: string, actor: string, movie: string | null): string {
     case "like": return `@${actor} liked your activity on ${movie ?? "a movie"}`;
     case "comment": return `@${actor} commented on ${movie ?? "a movie"}`;
     case "friend_ranked_watchlist_movie":
-      return `@${actor} ranked ${movie ?? "a movie"} — it's on your watchlist`;
+      return `@${actor} ranked ${movie ?? "a movie"} — it's on your Want to Watch list`;
     case "watchlist_showing":
-      return `${movie ?? "A watchlist movie"} is playing in theaters near you 🎬`;
+      return `${movie ?? "A movie you want to watch"} is playing in theaters near you 🎬`;
+    case "invite_joined":
+      return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
     default: return `@${actor} did something new on Cini`;
   }
 }

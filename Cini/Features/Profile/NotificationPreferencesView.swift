@@ -9,10 +9,12 @@ struct NotificationPreferencesView: View {
         ("new_follower", "New followers", "Someone starts following you"),
         ("like", "Likes", "A friend likes your activity"),
         ("comment", "Comments", "A friend comments on your activity"),
-        ("friend_ranked_watchlist_movie", "Watchlist ranked by a friend",
-         "A friend ranks a movie that's on your watchlist"),
+        ("friend_ranked_watchlist_movie", "Want to Watch ranked by a friend",
+         "A friend ranks a movie on your Want to Watch list"),
         ("watchlist_showing", "Playing near you",
-         "A watchlist movie hits theaters near your saved zipcode"),
+         "A Want to Watch movie hits theaters near your saved zipcode"),
+        ("invite_joined", "Invites accepted",
+         "Someone joins Cini with your username"),
     ]
 
     @State private var muted: Set<String> = []

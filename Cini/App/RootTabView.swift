@@ -20,6 +20,9 @@ final class TabRouter {
     /// The page under search — where its X returns to.
     private(set) var lastNonSearch: RootTabView.Tab = .feed
 
+    /// Set before jumping to search to land on the Members tab.
+    var openMembersSearch = false
+
     func closeSearch() { selection = lastNonSearch }
 }
 

@@ -16,6 +16,7 @@ struct OnboardingView: View {
 
     @State private var step = 0
     @State private var username = ""
+    @State private var inviterUsername = ""
     @State private var displayName = ""
     @State private var usernameError: String?
     @State private var saving = false
@@ -180,6 +181,15 @@ struct OnboardingView: View {
                 TextField("Display name (optional)", text: $displayName)
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+
+                HStack(spacing: 4) {
+                    Text("@").foregroundStyle(Theme.gray)
+                    TextField("Friend who invited you (optional)", text: $inviterUsername)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
             }
             .padding(.horizontal, 28)
 
@@ -221,6 +231,11 @@ struct OnboardingView: View {
             try await SupabaseService.shared.updateProfile(
                 ProfileUpdate(username: username,
                               display_name: displayName.isEmpty ? nil : displayName))
+            // Invited by a friend: follow each other automatically.
+            let inviter = inviterUsername.trimmingCharacters(in: .whitespaces)
+            if !inviter.isEmpty {
+                await SupabaseService.shared.redeemInvite(from: inviter)
+            }
             await session.loadProfile()
             advance()
         } catch {

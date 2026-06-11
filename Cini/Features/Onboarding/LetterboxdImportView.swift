@@ -109,7 +109,7 @@ struct LetterboxdImportView: View {
                 Toggle(isOn: $importWatchlist) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Also import my watchlist").font(.subheadline.weight(.semibold))
-                        Text("Letterboxd watchlist → Cini watchlist, instantly")
+                        Text("Letterboxd watchlist → your Want to Watch list")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                     }

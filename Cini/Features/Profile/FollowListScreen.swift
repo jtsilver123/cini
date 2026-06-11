@@ -8,6 +8,7 @@ struct FollowListScreen: View {
     let direction: SupabaseService.FollowDirection
 
     @Environment(AppSession.self) private var session
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var members: [ProfileRow] = []
     @State private var iFollow: Set<UUID> = []
@@ -18,6 +19,25 @@ struct FollowListScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                Button {
+                    tabRouter.openMembersSearch = true
+                    tabRouter.selection = .search
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "person.badge.plus")
+                            .foregroundStyle(Theme.marquee)
+                        Text("Find friends")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Theme.ink)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                    }
+                    .padding(12)
+                }
+                .buttonStyle(.plain)
+                .floatingCard(cornerRadius: 14)
+                .padding(.bottom, 12)
+
                 if members.isEmpty && loaded {
                     VStack(spacing: 8) {
                         Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)

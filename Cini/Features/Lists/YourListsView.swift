@@ -30,7 +30,7 @@ struct YourListsView: View {
 
     enum SubTab: String, CaseIterable {
         case watched = "Watched"
-        case watchlist = "Watchlist"
+        case watchlist = "Want to Watch"
         case recs = "Recs"
         case shared = "Shared"
     }

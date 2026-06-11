@@ -18,6 +18,8 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>NSContactsUsageDescription</key>
+	<string>Used once to find which of your contacts are already on Cini. Contacts are never stored.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used once to find your zipcode when you search nearby showtimes.</string>
 	<key>UIAppFonts</key>

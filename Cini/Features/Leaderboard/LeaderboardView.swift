@@ -132,14 +132,14 @@ struct InviteSheet: View {
     @Environment(AppSession.self) private var session
 
     private var inviteText: String {
-        "Join me on Cini — we rank every movie head-to-head. Search @\(session.profile?.username ?? "me") when you sign up 🎬"
+        "Join me on Cini — we rank every movie head-to-head 🎬 Enter my username (\(session.profile?.username ?? "me")) when you sign up and we'll follow each other automatically."
     }
 
     var body: some View {
         VStack(spacing: 18) {
             Text("Invite friends to Cini")
                 .font(Theme.serif(26))
-            Text("Compare taste, race the leaderboard, and swap recs.")
+            Text("Compare taste, race the leaderboard, and swap recs. Friends who enter your @username at signup follow you automatically.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)

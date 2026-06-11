@@ -76,7 +76,7 @@ struct CiniChatAvailableView: View {
             chips.append("Something like \(top.title) but I haven't seen")
         }
         if !store.watchlist.isEmpty {
-            chips.append("Pick from my watchlist for tonight")
+            chips.append("Pick from my Want to Watch list for tonight")
         }
         chips.append("Surprise me with a hidden gem")
         return chips
@@ -156,7 +156,7 @@ struct CiniChatAvailableView: View {
             return "I know \(top.title) tops your list — let's find the next one. Private and on-device, always."
         }
         if !store.watchlist.isEmpty {
-            return "You've got \(store.watchlist.count) movies waiting on your watchlist — want help picking? Private and on-device, always."
+            return "You've got \(store.watchlist.count) movies on your Want to Watch list — want help picking? Private and on-device, always."
         }
         return "Your movie-buff friend who actually remembers what you like. Private and on-device, always."
     }

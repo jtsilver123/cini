@@ -485,7 +485,7 @@ function renderFeed(){
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
     const headline = e.kind==="ranked"
       ? `${name} ranked <b>${m.t}</b> <span class="gtxt" style="font-weight:800;">${e.score.toFixed(1)}</span>`
-      : `${name} added <b>${m.t}</b> to their watchlist`;
+      : `${name} wants to watch <b>${m.t}</b>`;
     const comments=(S.comments[e.id]||[]);
     return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${e.movie}')">
       <button class="avatar ${e.av}" style="width:48px;height:48px;border:none;font-size:18px;" onclick="openMember('${e.u}')">${e.who[0].toUpperCase()}</button>
@@ -627,7 +627,7 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched","Watched"],["watchlist","Watchlist"],["recs","Recs"],["shared","Shared"]].map(([k,l])=>
+      ${[["watched","Watched"],["watchlist","Want to Watch"],["recs","Recs"],["shared","Shared"]].map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     <div class="row-scroll" style="margin-top:12px;">
@@ -909,7 +909,7 @@ function renderProfile(){
     </div>
     <div style="margin-top:10px;">
       ${listRow("check","Watched",count, isSelf?"S.subTab='watched'; save(); go('lists')":`openMemberList('${handle}')`)}
-      ${listRow("bookmark","Watchlist",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`openMemberWatchlist('${handle}')`)}
+      ${listRow("bookmark","Want to Watch",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`openMemberWatchlist('${handle}')`)}
       ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')")
               :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
     </div>
@@ -1020,7 +1020,7 @@ function openMemberList(u){
     `<div class="sub" style="text-align:center; padding:14px;">Top of ${p.watched.toLocaleString()} ranked films</div>`);
 }
 function openMemberWatchlist(u){
-  memberSheet(`@${u} · Watchlist`, ()=>{
+  memberSheet(`@${u} · Want to Watch`, ()=>{
     const list=memberWatchlistOf(u);
     return list.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("bookmark",34,1.4)}</span><b>Nothing saved yet</b></div>`

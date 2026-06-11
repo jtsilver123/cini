@@ -50,7 +50,7 @@ struct MovieDetailView: View {
                     Button {
                         Task { await store.toggleWatchlist(movie: movie) }
                     } label: {
-                        Label(store.isOnWatchlist(movie.tmdbID) ? "Remove from Watchlist" : "Add to Watchlist",
+                        Label(store.isOnWatchlist(movie.tmdbID) ? "Remove from Want to Watch" : "Want to Watch",
                               systemImage: store.isOnWatchlist(movie.tmdbID) ? "bookmark.slash" : "bookmark")
                     }
                     if let trailerURL {

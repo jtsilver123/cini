@@ -196,6 +196,29 @@ final class SupabaseService {
             .execute().value
     }
 
+    // MARK: - Growth: suggestions, contacts, invites
+
+    func suggestedMembers() async throws -> [SuggestedMember] {
+        struct Params: Encodable { let p_limit: Int }
+        return try await client.rpc("suggested_members", params: Params(p_limit: 25))
+            .execute().value
+    }
+
+    func membersFromEmails(_ emails: [String]) async throws -> [SuggestedMember] {
+        struct Params: Encodable { let p_emails: [String] }
+        return try await client.rpc("members_from_emails", params: Params(p_emails: emails))
+            .execute().value
+    }
+
+    /// New member entered a friend's @username: mutual follow + the
+    /// inviter gets a notification.
+    @discardableResult
+    func redeemInvite(from username: String) async -> Bool {
+        struct Params: Encodable { let p_username: String }
+        return (try? await client.rpc("redeem_invite_from", params: Params(p_username: username))
+            .execute().value) ?? false
+    }
+
     // MARK: - Desktop import transfer
 
     /// Mint a short-lived transfer code; the user enters it at the web
@@ -668,6 +691,33 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 bio: bio,
                 instagramHandle: instagramHandle, tiktokHandle: tiktokHandle,
                 xHandle: xHandle, letterboxdHandle: letterboxdHandle)
+    }
+}
+
+/// Row from suggested_members / members_from_emails.
+struct SuggestedMember: Decodable, Identifiable, Hashable {
+    let id: UUID
+    let username: String
+    let displayName: String
+    let avatarUrl: String?
+    let matchPct: Double?
+    let watched: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id, username, watched
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case matchPct = "match_pct"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        username = try c.decode(String.self, forKey: .username)
+        displayName = (try? c.decode(String.self, forKey: .displayName)) ?? ""
+        avatarUrl = try? c.decode(String.self, forKey: .avatarUrl)
+        matchPct = try? c.decode(Double.self, forKey: .matchPct)
+        watched = (try? c.decode(Int.self, forKey: .watched)) ?? 0
     }
 }
 
