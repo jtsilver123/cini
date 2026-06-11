@@ -55,7 +55,9 @@ struct YourListsView: View {
                 if subTab != .friendRecs && subTab != .trending {
                     if showFilters { filterRow }
                     if showListSearch { listSearchField }
-                    sortRow
+                    // Recs are relevance-ordered; a date/score sort there
+                    // would lie about what the toggle does.
+                    if subTab != .recs { sortRow }
                 }
                 listContent
             }
@@ -303,16 +305,29 @@ struct YourListsView: View {
         .padding(.horizontal, 16)
     }
 
+    private var hasActiveFilters: Bool {
+        genreFilter != nil || decadeFilter != nil || runtimeFilter != nil
+            || streamingFilter || languageFilter != nil
+    }
+
     private var filterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Button {} label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .padding(10)
-                        .foregroundStyle(Theme.ink)
+                if hasActiveFilters {
+                    Button {
+                        withAnimation(.snappy) {
+                            genreFilter = nil; decadeFilter = nil
+                            runtimeFilter = nil; streamingFilter = false
+                            languageFilter = nil
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .padding(10)
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .buttonStyle(.plain)
+                    .glassCapsule()
                 }
-                .buttonStyle(.plain)
-                .glassCapsule()
 
                 Menu {
                     Button("All Genres") { genreFilter = nil }
@@ -374,7 +389,15 @@ struct YourListsView: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
+            Button {
+                withAnimation(.snappy) {
+                    showListSearch.toggle()
+                    if !showListSearch { listQuery = "" }
+                }
+            } label: {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 6)
@@ -528,9 +551,21 @@ struct YourListsView: View {
         }
     }
 
+    /// Want to Watch respects the same sort toggle (date added), search
+    /// query, and filter pills as Watched.
+    private var filteredWatchlist: [WatchlistItem] {
+        let items = sortDescending ? store.watchlist : store.watchlist.reversed()
+        let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        return items.filter { item in
+            guard let movie = store.movie(item.movieID) else { return true }
+            guard passesFilters(movie) else { return false }
+            return query.isEmpty || movie.title.lowercased().contains(query)
+        }
+    }
+
     private var watchlistList: some View {
         List {
-            ForEach(store.watchlist) { item in
+            ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
                     WatchlistRowView(movie: movie, predicted: predicted[item.movieID]) {
                         logMovie = movie

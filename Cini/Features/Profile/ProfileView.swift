@@ -144,7 +144,7 @@ struct ProfileScreen: View {
 
     private var header: some View {
         HStack {
-            Text(profile?.displayName.isEmpty == false ? profile!.displayName : "Profile")
+            Text(profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? "Profile")
                 .font(.title2.weight(.bold))
             Spacer()
             HStack(spacing: 18) {
@@ -287,13 +287,18 @@ struct ProfileScreen: View {
             PillButton(title: following ? "Following" : "Follow",
                        style: following ? .outlined : .filled) {
                 Task {
-                    if following {
-                        try? await SupabaseService.shared.unfollow(id)
-                    } else {
-                        try? await SupabaseService.shared.follow(id)
+                    let wasFollowing = following
+                    following.toggle()   // optimistic; reverted on failure
+                    do {
+                        if wasFollowing {
+                            try await SupabaseService.shared.unfollow(id)
+                        } else {
+                            try await SupabaseService.shared.follow(id)
+                        }
+                        await load()   // visibility may have changed
+                    } catch {
+                        following = wasFollowing
                     }
-                    following.toggle()
-                    await load()   // visibility may have changed
                 }
             }
         }
@@ -324,12 +329,15 @@ struct ProfileScreen: View {
                         .buttonStyle(.plain)
                         Button {
                             Task {
+                                // Optimistic flip, reverted if the call fails.
                                 if followedSuggested.contains(member.id) {
                                     followedSuggested.remove(member.id)
-                                    try? await SupabaseService.shared.unfollow(member.id)
+                                    do { try await SupabaseService.shared.unfollow(member.id) }
+                                    catch { followedSuggested.insert(member.id) }
                                 } else {
                                     followedSuggested.insert(member.id)
-                                    try? await SupabaseService.shared.follow(member.id)
+                                    do { try await SupabaseService.shared.follow(member.id) }
+                                    catch { followedSuggested.remove(member.id) }
                                 }
                             }
                         } label: {
@@ -814,6 +822,7 @@ struct WatchlistScreen: View {
     @State private var predicted: [Int: Double] = [:]
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
+    @State private var listLoaded = false
 
     /// (movieID, savedAt) — live store for self, fetched rows for others.
     private var entries: [(movieID: Int, savedAt: Date)] {
@@ -825,11 +834,17 @@ struct WatchlistScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if entries.isEmpty {
-                    Text("Nothing on your Want to Watch list yet.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
+                    if isSelf || listLoaded {
+                        Text("Nothing on your Want to Watch list yet.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 32)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 32)
+                    }
                 }
                 ForEach(entries, id: \.movieID) { entry in
                     if let movie = movies[entry.movieID] ?? store.movie(entry.movieID) {
@@ -864,6 +879,7 @@ struct WatchlistScreen: View {
                 let rows = (try? await SupabaseService.shared.movies(ids: fetched.map(\.movieId))) ?? []
                 for row in rows { movies[row.tmdbId] = row.asMovie }
             }
+            listLoaded = true
             // Rec Score: how much we think YOU'LL like each saved title.
             predicted = await SupabaseService.shared.predictedScores(
                 movieIDs: entries.map(\.movieID))

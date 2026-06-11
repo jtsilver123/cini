@@ -227,6 +227,12 @@ struct SearchView: View {
                 .buttonStyle(.plain)
                 .floatingCard(cornerRadius: 14)
                 .padding(.vertical, 6)
+            } else {
+                // Checked but no matches — say so instead of vanishing.
+                Text("None of your contacts are on Cini yet — invite them below.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .padding(.vertical, 6)
             }
 
             Text("SUGGESTED FOR YOU")

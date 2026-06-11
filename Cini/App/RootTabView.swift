@@ -46,23 +46,27 @@ struct RootTabView: View {
             }
         }
         .environment(router)
-        // Ask Cini floats bottom-right on every page.
+        // Ask Cini floats bottom-right on every page — but only where the
+        // on-device model can exist (iOS 26+). Older OSes shouldn't see a
+        // prominent button that leads to an unavailable screen.
         .overlay(alignment: .bottomTrailing) {
-            Button {
-                showChat = true
-            } label: {
-                Image(systemName: "sparkles")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Theme.background)
-                    .frame(width: 50, height: 50)
-                    .background(Circle().fill(Theme.marquee))
-                    .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+            if #available(iOS 26.0, *) {
+                Button {
+                    showChat = true
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(Theme.background)
+                        .frame(width: 50, height: 50)
+                        .background(Circle().fill(Theme.marquee))
+                        .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Ask Cini")
+                .padding(.trailing, 16)
+                .padding(.bottom, 64)
+                .ignoresSafeArea(.keyboard)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Ask Cini")
-            .padding(.trailing, 16)
-            .padding(.bottom, 64)
-            .ignoresSafeArea(.keyboard)
         }
         .sheet(isPresented: $showChat) {
             NavigationStack {

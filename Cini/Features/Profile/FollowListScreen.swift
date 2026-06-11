@@ -38,6 +38,11 @@ struct FollowListScreen: View {
                 .floatingCard(cornerRadius: 14)
                 .padding(.bottom, 12)
 
+                if !loaded {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                }
                 if members.isEmpty && loaded {
                     VStack(spacing: 8) {
                         Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)
@@ -87,12 +92,15 @@ struct FollowListScreen: View {
     }
 
     private func toggleFollow(_ id: UUID) async {
+        // Optimistic flip, reverted if the call fails.
         if iFollow.contains(id) {
             iFollow.remove(id)
-            try? await SupabaseService.shared.unfollow(id)
+            do { try await SupabaseService.shared.unfollow(id) }
+            catch { iFollow.insert(id) }
         } else {
             iFollow.insert(id)
-            try? await SupabaseService.shared.follow(id)
+            do { try await SupabaseService.shared.follow(id) }
+            catch { iFollow.remove(id) }
         }
     }
 

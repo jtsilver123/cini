@@ -197,9 +197,14 @@ private struct FlowingChips: View {
                     .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(Theme.ink)
-                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.marquee.opacity(0.6)))
+                    .overlay(RoundedRectangle(cornerRadius: 9)
+                        .strokeBorder(showtime.bookingURL == nil
+                                      ? Theme.hairline : Theme.marquee.opacity(0.6)))
                 }
                 .buttonStyle(.plain)
+                // No ticket link from the provider — show the time as
+                // info, not as a button that goes nowhere.
+                .disabled(showtime.bookingURL == nil)
             }
         }
     }

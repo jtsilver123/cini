@@ -14,7 +14,14 @@ struct AccountSettingsView: View {
     @State private var message: String?
     @State private var errorMessage: String?
     @State private var showDeleteConfirm = false
+    @State private var showLogoutConfirm = false
     @State private var isDeleting = false
+
+    private var emailLooksValid: Bool {
+        let trimmed = newEmail.trimmingCharacters(in: .whitespaces)
+        guard let at = trimmed.firstIndex(of: "@"), at != trimmed.startIndex else { return false }
+        return trimmed[trimmed.index(after: at)...].contains(".")
+    }
 
     var body: some View {
         Form {
@@ -28,7 +35,7 @@ struct AccountSettingsView: View {
                 Button("Send confirmation to new email") {
                     Task { await changeEmail() }
                 }
-                .disabled(!newEmail.contains("@"))
+                .disabled(!emailLooksValid)
             } header: {
                 Text("Email")
             } footer: {
@@ -49,7 +56,7 @@ struct AccountSettingsView: View {
 
             Section {
                 Button("Log out", role: .destructive) {
-                    Task { await session.signOut() }
+                    showLogoutConfirm = true
                 }
             }
 
@@ -57,17 +64,20 @@ struct AccountSettingsView: View {
                 Button(role: .destructive) {
                     showDeleteConfirm = true
                 } label: {
-                    if isDeleting {
-                        ProgressView()
-                    } else {
+                    HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Delete my account")
+                            Text(isDeleting ? "Deleting…" : "Delete my account")
                             Text("Permanently deletes your rankings, lists, and follows.")
                                 .font(.caption)
                                 .foregroundStyle(Theme.gray)
                         }
+                        if isDeleting {
+                            Spacer()
+                            ProgressView()
+                        }
                     }
                 }
+                .disabled(isDeleting)
             }
 
             Section {
@@ -117,6 +127,13 @@ struct AccountSettingsView: View {
         .background(Theme.background)
         .navigationTitle("Account Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Log out of Cini?",
+                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+            Button("Log out", role: .destructive) {
+                Task { await session.signOut() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .confirmationDialog("Delete your account forever?",
                             isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete everything", role: .destructive) {

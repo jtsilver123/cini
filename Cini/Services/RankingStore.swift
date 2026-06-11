@@ -87,7 +87,14 @@ final class RankingStore {
                 watchDate: watchDate
             )
         } catch {
-            assertionFailure("rank_insert failed: \(error)")
+            // One retry — a transient network blip shouldn't drop a rank.
+            try? await Task.sleep(for: .seconds(1))
+            _ = try? await supabase.rankInsert(
+                movieID: session.newItemID,
+                bucket: session.sentiment,
+                position: session.resolvedBucketPosition!,
+                watchDate: watchDate
+            )
         }
         return scored
     }

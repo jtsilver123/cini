@@ -408,6 +408,7 @@ struct LetterboxdImportView: View {
             errorMessage = "Couldn't start a transfer - check your connection."
             return
         }
+        errorMessage = nil
         transferCode = code
         linkCopied = false
         if thenOpenEmail {
@@ -428,6 +429,7 @@ struct LetterboxdImportView: View {
                 }
             }
             transferCode = nil
+            errorMessage = "That link expired — email yourself a fresh one."
         }
     }
 

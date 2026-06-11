@@ -55,7 +55,11 @@ struct SendRecSheet: View {
 
             Divider()
 
-            if friends.isEmpty && loaded {
+            if !loaded {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+            } else if friends.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)
                     Text("Follow friends first")
@@ -153,7 +157,7 @@ struct SendRecSheet: View {
     }
 
     private func send() async {
-        guard let selected else { return }
+        guard let selected, !sending else { return }
         errorMessage = nil
         sending = true
         defer { sending = false }

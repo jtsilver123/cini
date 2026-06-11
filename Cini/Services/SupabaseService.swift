@@ -588,6 +588,19 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Which of these feed events the current user already liked — one
+    /// query for the whole visible feed, so hearts survive a refresh.
+    func myLikedEventIDs(_ eventIDs: [UUID]) async -> Set<UUID> {
+        guard let me = currentUserID, !eventIDs.isEmpty else { return [] }
+        struct Row: Decodable { let event_id: UUID }
+        let rows: [Row] = (try? await client.from("likes")
+            .select("event_id")
+            .eq("user_id", value: me)
+            .in("event_id", values: eventIDs)
+            .execute().value) ?? []
+        return Set(rows.map(\.event_id))
+    }
+
     func toggleLike(eventID: UUID) async throws {
         guard let me = currentUserID else { return }
         struct Row: Encodable { let user_id: UUID; let event_id: UUID }

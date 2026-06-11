@@ -7,6 +7,8 @@ struct FeedView: View {
     @Environment(TabRouter.self) private var tabRouter
 
     @State private var events: [FeedEventRow] = []
+    @State private var likedEventIDs: Set<UUID> = []
+    @State private var feedLoaded = false
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
@@ -16,6 +18,7 @@ struct FeedView: View {
     @State private var showMenuImport = false
     @State private var showSettings = false
     @State private var showInviteSheet = false
+    @State private var showLogoutConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -101,12 +104,19 @@ struct FeedView: View {
                         Label("Invite a Friend", systemImage: "person.badge.plus")
                     }
                     Button(role: .destructive) {
-                        Task { await session.signOut() }
+                        showLogoutConfirm = true
                     } label: {
                         Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")
+                }
+                .confirmationDialog("Log out of Cini?",
+                                    isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+                    Button("Log out", role: .destructive) {
+                        Task { await session.signOut() }
+                    }
+                    Button("Cancel", role: .cancel) {}
                 }
             }
             .font(.title3)
@@ -161,12 +171,19 @@ struct FeedView: View {
             }
 
             if events.isEmpty {
-                emptyState
+                if feedLoaded {
+                    emptyState
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 60)
+                }
             }
 
             ForEach(events) { event in
                 FeedCard(
                     event: event,
+                    initiallyLiked: likedEventIDs.contains(event.id),
                     onOpenMovie: { detailMovie = $0 },
                     onQuickAdd: { logMovie = $0 },
                     onOpenMember: { memberTarget = $0 }
@@ -209,16 +226,18 @@ struct FeedView: View {
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
                 HStack(spacing: 10) {
-                    NavigationLink {
-                        CiniChatView()
-                    } label: {
-                        Text("Ask Cini")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.marquee)
-                            .padding(.horizontal, 14).padding(.vertical, 9)
-                            .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                    if #available(iOS 26.0, *) {
+                        NavigationLink {
+                            CiniChatView()
+                        } label: {
+                            Text("Ask Cini")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                                .padding(.horizontal, 14).padding(.vertical, 9)
+                                .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     PillButton(title: "Import history", systemImage: "square.and.arrow.down") {
                         showImport = true
                     }
@@ -234,7 +253,9 @@ struct FeedView: View {
 
     private func loadFeed() async {
         events = (try? await SupabaseService.shared.feed()) ?? []
+        likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
+        feedLoaded = true
     }
 }
 
@@ -248,6 +269,7 @@ struct MemberRef: Identifiable, Hashable {
 
 struct FeedCard: View {
     let event: FeedEventRow
+    var initiallyLiked = false
     var onOpenMovie: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
     var onOpenMember: (MemberRef) -> Void = { _ in }
@@ -305,8 +327,11 @@ struct FeedCard: View {
 
             HStack(spacing: 18) {
                 Button {
-                    liked.toggle()
-                    Task { try? await SupabaseService.shared.toggleLike(eventID: event.id) }
+                    liked.toggle()   // optimistic; reverted if the call fails
+                    Task {
+                        do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
+                        catch { liked.toggle() }
+                    }
                 } label: {
                     Image(systemName: liked ? "heart.fill" : "heart")
                         .foregroundStyle(liked ? .red : Theme.ink)
@@ -366,6 +391,11 @@ struct FeedCard: View {
         .onTapGesture {
             if let movie { onOpenMovie(movie) }
         }
+        // Liked state arrives after the card renders (one query for the
+        // whole feed) — adopt it whenever it changes.
+        .onChange(of: initiallyLiked, initial: true) { _, isLiked in
+            liked = isLiked
+        }
         .sheet(isPresented: $showComments) {
             CommentsSheet(event: event)
                 .presentationDetents([.medium, .large])
@@ -385,7 +415,11 @@ struct CommentsSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if comments.isEmpty && loaded {
+                if !loaded {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                } else if comments.isEmpty {
                     Spacer()
                     Text("No comments yet — say something nice.")
                         .font(.subheadline)

@@ -188,6 +188,8 @@ struct MovieDetailView: View {
                 PillButton(title: "Trailer", systemImage: "play.circle", style: .outlined) {
                     if let trailerURL { UIApplication.shared.open(trailerURL) }
                 }
+                .disabled(trailerURL == nil)
+                .opacity(trailerURL == nil ? 0.45 : 1)
                 PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
                     showWhereToWatch = true
                 }
