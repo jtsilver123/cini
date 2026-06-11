@@ -97,6 +97,32 @@ final class ChatAgentBridge {
         })
     }
 
+    private static let listStopWords: Set<String> = [
+        "my", "the", "a", "of", "list", "lists", "movie", "movies", "film", "films",
+    ]
+
+    private static func significantWords(in text: String) -> Set<String> {
+        let words = text.lowercased().split(separator: " ").map(String.init)
+        return Set(words).subtracting(listStopWords)
+    }
+
+    /// How well a spoken name matches a list name (0–1). Small named
+    /// helpers — the one-expression version timed out the type checker.
+    static func listMatchScore(needle: String, candidate: String) -> Double {
+        var score: Double = Fuzzy.similarity(query: needle, candidate: candidate)
+        if candidate.localizedCaseInsensitiveContains(needle)
+            || needle.localizedCaseInsensitiveContains(candidate) {
+            score = max(score, 0.85)
+        }
+        let overlap = significantWords(in: needle).intersection(significantWords(in: candidate))
+        if !overlap.isEmpty {
+            score = max(score, 0.65 + 0.15 * Double(overlap.count))
+        }
+        return score
+    }
+
+    /// Forgiving list lookup: exact name, then containment, word overlap,
+    /// and fuzzy similarity — "my heist list" finds "Best Heist Movies".
     static func resolveList(named name: String) async -> CustomList? {
         let lists = (try? await SupabaseService.shared.myLists()) ?? []
         let needle = name.trimmingCharacters(in: .whitespaces)
@@ -104,27 +130,16 @@ final class ChatAgentBridge {
             $0.name.localizedCaseInsensitiveCompare(needle) == .orderedSame
         }) { return exact }
 
-        let stop: Set<String> = ["my", "the", "a", "of", "list", "lists",
-                                 "movie", "movies", "film", "films"]
-        let needleWords = Set(needle.lowercased().split(separator: " ").map(String.init))
-            .subtracting(stop)
-        let best = lists
-            .map { list -> (CustomList, Double) in
-                var score = Fuzzy.similarity(query: needle, candidate: list.name)
-                if list.name.localizedCaseInsensitiveContains(needle)
-                    || needle.localizedCaseInsensitiveContains(list.name) {
-                    score = max(score, 0.85)
-                }
-                let listWords = Set(list.name.lowercased().split(separator: " ").map(String.init))
-                    .subtracting(stop)
-                let overlap = needleWords.intersection(listWords)
-                if !overlap.isEmpty {
-                    score = max(score, 0.65 + 0.15 * Double(overlap.count))
-                }
-                return (list, score)
+        var bestList: CustomList?
+        var bestScore: Double = 0
+        for list in lists {
+            let score = listMatchScore(needle: needle, candidate: list.name)
+            if score > bestScore {
+                bestScore = score
+                bestList = list
             }
-            .max { $0.1 < $1.1 }
-        return best.flatMap { $0.1 >= 0.6 ? $0.0 : nil }
+        }
+        return bestScore >= 0.6 ? bestList : nil
     }
 }
 
@@ -489,10 +504,12 @@ struct FriendWatchedTool: Tool {
         guard !rankings.isEmpty else {
             return "Nothing visible on @\(member.username)'s ranked list — it's empty, or their profile is private (following them unlocks it)."
         }
-        let top = rankings.sorted { $0.score > $1.score }.prefix(12)
+        let top = Array(rankings.sorted { $0.score > $1.score }.prefix(12))
         let names = await ChatAgentBridge.titles(for: top.map(\.movieId))
-        let lines = top.compactMap { row in
-            names[row.movieId].map { "\($0) — \(String(format: "%.1f", row.score))" }
+        var lines: [String] = []
+        for row in top {
+            guard let title = names[row.movieId] else { continue }
+            lines.append(title + " — " + String(format: "%.1f", row.score))
         }
         let more = rankings.count > 12 ? " …plus \(rankings.count - 12) more." : ""
         return "@\(member.username) has ranked \(rankings.count): " + lines.joined(separator: "; ") + more
@@ -546,13 +563,15 @@ struct FriendOverlapTool: Tool {
 
         var bothWatched: [(id: Int, mine: Double, theirs: Double)] = []
         for row in theirRankings {
-            if let mine = await store.scoredItem(for: row.movieId)?.score {
-                bothWatched.append((row.movieId, mine, row.score))
+            let item = await store.scoredItem(for: row.movieId)
+            if let mine = item?.score {
+                bothWatched.append((id: row.movieId, mine: mine, theirs: row.score))
             }
         }
         var bothWant: [Int] = []
-        for row in theirWatchlist where await store.isOnWatchlist(row.movieId) {
-            bothWant.append(row.movieId)
+        for row in theirWatchlist {
+            let saved = await store.isOnWatchlist(row.movieId)
+            if saved { bothWant.append(row.movieId) }
         }
 
         if bothWatched.isEmpty && bothWant.isEmpty {
@@ -562,14 +581,14 @@ struct FriendOverlapTool: Tool {
             for: bothWatched.map(\.id) + bothWant)
         var parts: [String] = []
         if !bothWatched.isEmpty {
-            let lines = bothWatched
-                .sorted { $0.theirs > $1.theirs }
-                .prefix(10)
-                .compactMap { entry in
-                    names[entry.id].map {
-                        "\($0) (you \(String(format: "%.1f", entry.mine)), them \(String(format: "%.1f", entry.theirs)))"
-                    }
-                }
+            let ranked = Array(bothWatched.sorted { $0.theirs > $1.theirs }.prefix(10))
+            var lines: [String] = []
+            for entry in ranked {
+                guard let title = names[entry.id] else { continue }
+                let mine = String(format: "%.1f", entry.mine)
+                let theirs = String(format: "%.1f", entry.theirs)
+                lines.append(title + " (you " + mine + ", them " + theirs + ")")
+            }
             parts.append("Both watched: " + lines.joined(separator: "; "))
         }
         if !bothWant.isEmpty {
