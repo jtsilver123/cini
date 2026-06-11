@@ -204,29 +204,38 @@ struct MovieDetailView: View {
 
     private var scoresSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Scores").font(.title3.weight(.bold))
-                Spacer()
-                Text("See all scores")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
-            }
+            Text("Scores").font(.title3.weight(.bold))
 
             HStack(alignment: .top, spacing: 12) {
-                scoreColumn(
-                    badge: myItem.map { ScoreBadge(score: $0.score, size: 60) },
-                    title: "Your Cini Rating",
-                    subtitle: myItem.map { "#\($0.rank) on your Watched list" } ?? "Not ranked yet"
-                )
+                // Empty = an invitation: the dashed circle carries a gold +
+                // and the whole column starts the rank flow.
+                Button {
+                    showLogFlow = true
+                } label: {
+                    scoreColumn(
+                        badge: myItem.map { ScoreBadge(score: $0.score, size: 60) },
+                        emptyIcon: "plus",
+                        emptyTint: Theme.marquee,
+                        title: "Your Cini Rating",
+                        subtitle: myItem.map { "#\($0.rank) on your Watched list" } ?? "Tap to rank it"
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(myItem != nil)
+
                 scoreColumn(
                     badge: friendAverage.map { ScoreBadge(score: $0, count: friends.count, size: 60) },
+                    emptyIcon: "person.2",
                     title: "Friend Score",
-                    subtitle: "What your friends think"
+                    subtitle: friends.isEmpty ? "No friends have ranked it yet"
+                                              : "What your friends think"
                 )
                 scoreColumn(
                     badge: community.map { ScoreBadge(score: $0.avgScore, count: $0.ratingCount, size: 60) },
+                    emptyIcon: "sparkles",
                     title: "Average Score",
-                    subtitle: "What all of Cini thinks"
+                    subtitle: community == nil ? "Be the first on Cini to rank it"
+                                               : "What all of Cini thinks"
                 )
             }
         }
@@ -238,18 +247,30 @@ struct MovieDetailView: View {
         return (friends.map(\.score).reduce(0, +) / Double(friends.count) * 10).rounded() / 10
     }
 
-    private func scoreColumn(badge: ScoreBadge?, title: String, subtitle: String) -> some View {
+    private func scoreColumn(badge: ScoreBadge?, emptyIcon: String,
+                             emptyTint: Color = Theme.gray,
+                             title: String, subtitle: String) -> some View {
         VStack(spacing: 6) {
             if let badge {
                 badge
             } else {
-                Circle().strokeBorder(Theme.hairline, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
-                    .frame(width: 60, height: 60)
+                ZStack {
+                    Circle().strokeBorder(
+                        emptyTint.opacity(emptyTint == Theme.gray ? 0.45 : 0.8),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                    Image(systemName: emptyIcon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(emptyTint.opacity(emptyTint == Theme.gray ? 0.6 : 1))
+                }
+                .frame(width: 60, height: 60)
             }
-            Text(title).font(.caption.weight(.bold)).multilineTextAlignment(.center)
+            Text(title).font(.caption.weight(.bold))
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
             Text(subtitle).font(.caption2).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 
     private var performancesSection: some View {

@@ -335,9 +335,14 @@ struct ProfileScreen: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.marquee)
                     Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.marquee)
-                    Text(globalRank.map { "#\($0)" } ?? "—")
-                        .font(.title2.weight(.bold))
+                    Text(globalRank.map { "#\($0)" } ?? "Unranked")
+                        .font(globalRank == nil ? .headline : .title2.weight(.bold))
                         .foregroundStyle(Theme.marquee)
+                    if globalRank == nil && isSelf {
+                        Text("Rank a movie to enter the board")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gray)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -345,13 +350,20 @@ struct ProfileScreen: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: "flame.fill").font(.title3).foregroundStyle(Theme.gold)
                     Text("Current Streak").font(.subheadline).foregroundStyle(Theme.marquee)
-                    Text("\(profile?.streakWeeks ?? 0) weeks")
+                    let weeks = profile?.streakWeeks ?? 0
+                    Text(weeks == 1 ? "1 week" : "\(weeks) weeks")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Theme.marquee)
-                    if isSelf, let p = profile, p.streakWeeks > 0, !p.hasLoggedThisWeek {
-                        Text("Rank this week to keep it")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.gold)
+                    if isSelf, let p = profile {
+                        if p.streakWeeks == 0 {
+                            Text("Rank one movie to light the flame")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.gray)
+                        } else if !p.hasLoggedThisWeek {
+                            Text("Rank this week to keep it")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.gold)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
