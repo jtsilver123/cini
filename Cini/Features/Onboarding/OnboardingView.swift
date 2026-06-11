@@ -178,6 +178,19 @@ struct OnboardingView: View {
                 .padding(14)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
 
+                // Fills as you type toward the 3-character minimum, then
+                // turns green — the length rule you can see.
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Theme.fill)
+                        Capsule()
+                            .fill(username.count >= 3 ? Theme.scoreGreen : Theme.marquee)
+                            .frame(width: geo.size.width * min(CGFloat(username.count) / 3, 1))
+                    }
+                }
+                .frame(height: 4)
+                .animation(.snappy(duration: 0.2), value: username.count)
+
                 TextField("Display name (optional)", text: $displayName)
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
