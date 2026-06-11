@@ -10,8 +10,8 @@ struct LeaderboardView: View {
     @State private var rows: [LeaderboardRow] = []
     @State private var showInvite = false
 
-    private let metrics = ["Watched", "Influence", "Notes", "Photos"]
-    private let metricKeys = ["watched", "influence", "notes", "photos"]
+    private let metrics = ["Watched", "Influence", "Notes"]
+    private let metricKeys = ["watched", "influence", "notes"]
     private let metricCopy = [
         "Number of movies on your watched list",
         "How often your rankings convert to friends' watchlist adds",
@@ -103,12 +103,10 @@ struct LeaderboardView: View {
 
             if rows.isEmpty {
                 VStack(spacing: 6) {
-                    Image(systemName: metric == 3 ? "camera" : "trophy")
+                    Image(systemName: "trophy")
                         .font(.title2)
                         .foregroundStyle(Theme.gray)
-                    Text(metric == 3
-                         ? "Photos are coming soon — post stills and tickets after launch."
-                         : "No rankings yet — invite friends to start the race.")
+                    Text("No rankings yet — invite friends to start the race.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
@@ -120,7 +118,6 @@ struct LeaderboardView: View {
     }
 
     private func load() async {
-        guard metric != 3 else { rows = []; return }   // photos: post-v1
         rows = (try? await SupabaseService.shared.leaderboard(
             metric: metricKeys[metric], genre: genre)) ?? []
     }

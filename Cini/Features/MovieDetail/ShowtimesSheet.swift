@@ -8,6 +8,7 @@ struct ShowtimesSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("showtimes.zipcode") private var zipcode = ""
 
+    var initialDate: Date? = nil
     @State private var date = Date()
     @State private var theaters: [TheaterShowtimes] = []
     @State private var state: LoadState = .idle
@@ -34,6 +35,7 @@ struct ShowtimesSheet: View {
             }
         }
         .onAppear {
+            if let initialDate, initialDate > Date() { date = initialDate }
             if zipcode.count == 5 { Task { await search() } }
         }
     }

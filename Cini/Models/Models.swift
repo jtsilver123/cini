@@ -57,6 +57,8 @@ struct Movie: Identifiable, Codable, Hashable {
     /// TMDB popularity signal; blended into search ranking so big titles
     /// surface even on loose queries.
     var popularity: Double? = nil
+    /// Full "yyyy-MM-dd" release date when known (release calendar).
+    var releaseDateFull: String? = nil
 
     var id: Int { tmdbID }
 

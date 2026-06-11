@@ -67,6 +67,12 @@ final class TMDBService {
             .filter { $0.count <= 22 }
     }
 
+    /// Theatrical releases coming soon (release calendar).
+    func upcoming() async throws -> [Movie] {
+        let page: SearchPage = try await get("/movie/upcoming", query: [URLQueryItem(name: "region", value: "US")])
+        return page.results.map(\.asMovie)
+    }
+
     func similar(to movieID: Int) async throws -> [Movie] {
         let page: SearchPage = try await get("/movie/\(movieID)/similar")
         return page.results.map(\.asMovie)
@@ -179,7 +185,8 @@ private struct MovieDTO: Codable {
             director: nil,
             overview: overview,
             originalLanguage: originalLanguage,
-            popularity: popularity
+            popularity: popularity,
+            releaseDateFull: releaseDate
         )
     }
 

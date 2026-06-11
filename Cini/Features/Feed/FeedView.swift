@@ -431,22 +431,64 @@ struct CommentsSheet: View {
 
 struct ReleaseCalendarView: View {
     @State private var upcoming: [Movie] = []
+    @State private var ticketsMovie: Movie?
+    @State private var detailMovie: Movie?
+
+    private static let dayParser: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    private func releaseDate(_ movie: Movie) -> Date? {
+        movie.releaseDateFull.flatMap { Self.dayParser.date(from: $0) }
+    }
 
     var body: some View {
         List(upcoming) { movie in
             HStack(spacing: 12) {
-                PosterView(url: movie.posterURL, width: 44)
-                VStack(alignment: .leading) {
-                    Text(movie.title).font(.subheadline.weight(.semibold))
-                    if let year = movie.releaseYear {
-                        Text(String(year)).font(.caption).foregroundStyle(Theme.gray)
+                PosterView(url: movie.posterURL, width: 48)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(movie.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                    if let date = releaseDate(movie) {
+                        Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    if !movie.genres.isEmpty {
+                        Text(movie.genres.prefix(2).joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
                     }
                 }
+                Spacer()
+                PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
+                    ticketsMovie = movie
+                }
             }
+            .contentShape(Rectangle())
+            .onTapGesture { detailMovie = movie }
+            .listRowBackground(Theme.background)
         }
+        .listStyle(.plain)
+        .background(Theme.background)
         .navigationTitle("Release Calendar")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $ticketsMovie) { movie in
+            // Pre-aimed at release day so presale showtimes appear.
+            ShowtimesSheet(movie: movie, initialDate: releaseDate(movie))
+        }
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
         .task {
-            upcoming = (try? await TMDBService.shared.trending()) ?? []
+            let movies = (try? await TMDBService.shared.upcoming()) ?? []
+            // Soonest first; undated entries sink.
+            upcoming = movies.sorted {
+                (releaseDate($0) ?? .distantFuture) < (releaseDate($1) ?? .distantFuture)
+            }
         }
     }
 }

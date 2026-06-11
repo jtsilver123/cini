@@ -7,6 +7,7 @@ import Foundation
 /// file for their watchlist importer.
 enum CiniExporter {
 
+    @MainActor
     static func makeLetterboxdFiles(store: RankingStore) async throws -> [URL] {
         guard let me = SupabaseService.shared.currentUserID else {
             throw URLError(.userAuthenticationRequired)
