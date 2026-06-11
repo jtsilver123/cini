@@ -433,7 +433,7 @@ struct FeedCard: View {
             liked = isLiked
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet(event: event)
+            CommentsSheet(eventID: event.id)
                 .presentationDetents([.medium, .large])
         }
     }
@@ -442,7 +442,9 @@ struct FeedCard: View {
 // MARK: - Comments
 
 struct CommentsSheet: View {
-    let event: FeedEventRow
+    /// Comments hang off a feed event — the feed passes its card's event,
+    /// the movie page passes the 'ranked' event behind a public rating.
+    let eventID: UUID
 
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
@@ -512,7 +514,7 @@ struct CommentsSheet: View {
     }
 
     private func reload() async {
-        comments = (try? await SupabaseService.shared.comments(eventID: event.id)) ?? []
+        comments = (try? await SupabaseService.shared.comments(eventID: eventID)) ?? []
         loaded = true
     }
 
@@ -521,7 +523,7 @@ struct CommentsSheet: View {
         guard !body.isEmpty else { return }
         draft = ""
         do {
-            try await SupabaseService.shared.comment(eventID: event.id, body: body)
+            try await SupabaseService.shared.comment(eventID: eventID, body: body)
         } catch {
             draft = body   // give the text back instead of eating it
         }

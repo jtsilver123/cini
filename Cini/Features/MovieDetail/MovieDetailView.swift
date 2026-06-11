@@ -27,6 +27,19 @@ struct MovieDetailView: View {
     @State private var showShowtimes = false
     @State private var showSendRec = false
     @State private var memberTarget: MemberRef?
+    @State private var peopleTab: PeopleTab = .friends
+    @State private var publicNotes: [PublicNoteRow] = []
+    @State private var publicNotesLoaded = false
+    @State private var commentsTarget: CommentsTarget?
+
+    enum PeopleTab: String, CaseIterable {
+        case friends = "Friends"
+        case everyone = "Everyone"
+    }
+
+    struct CommentsTarget: Identifiable {
+        let id: UUID
+    }
 
     private var myItem: ScoredItem<Int>? { store.scoredItem(for: movie.tmdbID) }
 
@@ -45,7 +58,7 @@ struct MovieDetailView: View {
                 castSection
                 detailsSection
                 performancesSection
-                friendsSection
+                peopleSection
             }
             .padding(.bottom, 32)
         }
@@ -553,22 +566,152 @@ struct MovieDetailView: View {
                       : "\(count) rating\(count == 1 ? "" : "s")"
     }
 
-    private var friendsSection: some View {
+    /// "What people think" — Friends (everyone you follow who ranked it)
+    /// and Everyone (any member's rating that came with a public note).
+    private var peopleSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("What your friends think").font(.title3.weight(.bold))
-            if friends.isEmpty {
-                Text("None of your friends have ranked this yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-            }
-            ForEach(friends) { friend in
-                FriendThinkRow(friend: friend) { tapped in
-                    memberTarget = MemberRef(id: tapped.userId, username: tapped.username)
+            Text("What people think").font(.title3.weight(.bold))
+
+            // Same underline tabs as Your Lists.
+            HStack(spacing: 22) {
+                ForEach(PeopleTab.allCases, id: \.self) { tab in
+                    Button {
+                        withAnimation(.snappy) { peopleTab = tab }
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(tab.rawValue)
+                                .font(.subheadline.weight(peopleTab == tab ? .bold : .regular))
+                                .foregroundStyle(peopleTab == tab ? Theme.ink : Theme.gray)
+                            Rectangle()
+                                .fill(peopleTab == tab ? Theme.ink : .clear)
+                                .frame(height: 2)
+                        }
+                        .fixedSize()
+                    }
+                    .buttonStyle(.plain)
                 }
-                Divider()
+            }
+
+            switch peopleTab {
+            case .friends:
+                if friends.isEmpty {
+                    Text("None of your friends have ranked this yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                }
+                ForEach(friends) { friend in
+                    FriendThinkRow(friend: friend) { tapped in
+                        memberTarget = MemberRef(id: tapped.userId, username: tapped.username)
+                    }
+                    Divider()
+                }
+            case .everyone:
+                Text("Ratings that came with a note show here.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                if publicNotes.isEmpty {
+                    if publicNotesLoaded {
+                        Text("No notes from the community yet — rank it and say something.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .padding(.vertical, 8)
+                    } else {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                }
+                ForEach(publicNotes) { row in
+                    publicNoteRow(row)
+                    Divider()
+                }
             }
         }
         .padding(.horizontal, 16)
+        .sheet(item: $commentsTarget) { target in
+            CommentsSheet(eventID: target.id)
+                .presentationDetents([.medium, .large])
+        }
+    }
+
+    private func publicNoteRow(_ row: PublicNoteRow) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Button {
+                    memberTarget = MemberRef(id: row.userId, username: row.username)
+                } label: {
+                    HStack(spacing: 12) {
+                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.displayName?.isEmpty == false ? row.displayName! : row.username)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("@\(row.username)").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                ScoreBadge(score: row.score, size: 44)
+            }
+
+            (Text("Notes: ").bold() + Text(row.note))
+                .font(.subheadline)
+
+            // Heart + comment, exactly where the feed puts them.
+            HStack(spacing: 18) {
+                Button {
+                    toggleHeart(on: row)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: row.likedByMe ? "heart.fill" : "heart")
+                            .foregroundStyle(row.likedByMe ? .red : Theme.ink)
+                        if row.likeCount > 0 {
+                            Text("\(row.likeCount)").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                }
+                Button {
+                    if let eventId = row.eventId {
+                        commentsTarget = CommentsTarget(id: eventId)
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bubble.right")
+                        if row.commentCount > 0 {
+                            Text("\(row.commentCount)").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                }
+                Spacer()
+                Text(row.rankedAt.formatted(.dateTime.month(.wide).year()))
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            .font(.body)
+            .foregroundStyle(Theme.ink)
+            .buttonStyle(.plain)
+            .disabled(row.eventId == nil)
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// Optimistic heart, reverted if the call fails.
+    private func toggleHeart(on row: PublicNoteRow) {
+        guard let eventId = row.eventId,
+              let index = publicNotes.firstIndex(where: { $0.id == row.id }) else { return }
+        let wasLiked = publicNotes[index].likedByMe
+        publicNotes[index].likedByMe.toggle()
+        publicNotes[index].likeCount += wasLiked ? -1 : 1
+        Task {
+            do { try await SupabaseService.shared.toggleLike(eventID: eventId) }
+            catch {
+                if let i = publicNotes.firstIndex(where: { $0.id == row.id }) {
+                    publicNotes[i].likedByMe = wasLiked
+                    publicNotes[i].likeCount += wasLiked ? 1 : -1
+                }
+            }
+        }
     }
 
     // MARK: Data
@@ -587,6 +730,7 @@ struct MovieDetailView: View {
         async let keywordsTask = TMDBService.shared.keywords(for: movie.tmdbID)
         async let castTask = TMDBService.shared.cast(for: movie.tmdbID)
         async let extendedTask = TMDBService.shared.extendedDetails(for: movie.tmdbID)
+        async let publicNotesTask = SupabaseService.shared.publicNotes(movieID: movie.tmdbID)
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -607,5 +751,7 @@ struct MovieDetailView: View {
         performances = (try? await performancesTask) ?? []
         cast = (try? await castTask) ?? []
         extended = try? await extendedTask
+        publicNotes = (try? await publicNotesTask) ?? []
+        publicNotesLoaded = true
     }
 }

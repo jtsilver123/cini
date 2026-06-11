@@ -1211,6 +1211,14 @@ function openBothList(u){
 }
 
 /* =================== DETAIL =================== */
+/* Everyone wall: any member's rating that came with a public note. */
+const PUBLIC_NOTES = {
+  dune2:[{n:"Jordan", u:"jordanwatches", av:"av3", score:9.0, note:"Denis doesn’t miss. The sandworm ride alone is worth the ticket.", likes:12},
+         {n:"Priya", u:"priyafilm", av:"av2", score:8.4, note:"Score + sound design carried the back half for me.", likes:5}],
+  opp:[{n:"Sam", u:"samcinema", av:"av4", score:8.8, note:"The Trinity sequence in 70mm is the loudest silence I’ve ever heard.", likes:9}],
+  past:[{n:"Lena", u:"lenawrites", av:"av1", score:8.6, note:"Quietest heartbreak of the year. The bar scene destroyed me.", likes:7}],
+};
+let detailPeopleTab="friends";
 function renderDetail(){
   const k=detailKey, m=MOVIES[k];
   const mine=myEntry(k);
@@ -1305,8 +1313,30 @@ function renderDetail(){
           <span style="font-size:14px;">${v}</span>
         </div>`).join("")}
     </div>`:""}
-    <div class="pad" style="margin-top:22px; margin-bottom:6px;"><b style="font-size:18px;">What your friends think</b></div>
-    ${friendsBlock}`;
+    <div class="pad" style="margin-top:22px; margin-bottom:2px;"><b style="font-size:18px;">What people think</b></div>
+    <div class="subtabs" style="padding-top:4px;">
+      ${[["friends","Friends"],["everyone","Everyone"]].map(([t,l])=>
+        `<button class="subtab ${detailPeopleTab===t?"active":""}" onclick="detailPeopleTab='${t}'; render()">${l}</button>`).join("")}
+    </div>
+    ${detailPeopleTab==="friends" ? friendsBlock : everyoneBlock(k)}`;
+}
+function everyoneBlock(k){
+  const rows=PUBLIC_NOTES[k]||[];
+  return `<div class="pad sub" style="padding:8px 18px 4px; font-size:12px;">Ratings that came with a note show here.</div>` +
+    (rows.length===0
+      ? `<div class="pad sub" style="padding-bottom:12px;">No notes from the community yet — rank it and say something.</div>`
+      : rows.map((r,i)=>`
+    <div class="listrow" style="padding-left:18px;">
+      <div class="avatar ${r.av}" style="width:44px;height:44px;font-size:17px;">${r.n[0]}</div>
+      <div style="flex:1;"><div style="font-weight:600;">${r.n}</div><div class="sub">@${r.u}</div>
+        <div style="margin-top:7px; font-size:14px; line-height:1.45;"><b>Notes:</b> ${r.note}</div>
+        <div style="display:flex; gap:18px; margin-top:9px; align-items:center;">
+          <button class="iconbtn" onclick="toggleLike('pub-${k}-${i}')">${likeIcon("pub-"+k+"-"+i)}</button>
+          <span class="sub" style="font-size:12px; margin-left:-12px;">${r.likes + (S.liked["pub-"+k+"-"+i]?1:0)}</span>
+          <button class="iconbtn" onclick="openComments('f1')">${I("comment")}</button>
+        </div></div>
+      <div class="badge sm ${scoreClass(r.score)}">${r.score.toFixed(1)}</div>
+    </div>`).join(""));
 }
 
 /* =================== LOG FLOW (Beli order: sentiment → details → compare → result) */

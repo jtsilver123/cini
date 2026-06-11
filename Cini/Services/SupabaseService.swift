@@ -595,6 +595,15 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// "What people think → Everyone": every visible rating of this movie
+    /// that has a public note, hearts/comments riding the ranked event.
+    func publicNotes(movieID: Int) async throws -> [PublicNoteRow] {
+        struct Params: Encodable { let p_movie_id: Int }
+        return try await client.rpc("movie_public_notes",
+                                    params: Params(p_movie_id: movieID))
+            .execute().value
+    }
+
     /// Which of these feed events the current user already liked — one
     /// query for the whole visible feed, so hearts survive a refresh.
     func myLikedEventIDs(_ eventIDs: [UUID]) async -> Set<UUID> {
@@ -959,6 +968,36 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
         case eventType = "event_type"
         case movieId = "movie_id"
         case createdAt = "created_at"
+    }
+}
+
+/// One row of the public "Everyone" wall on a movie page: a rating that
+/// came with a note, plus its heart/comment counts.
+struct PublicNoteRow: Codable, Identifiable, Hashable {
+    let userId: UUID
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
+    let score: Double
+    let note: String
+    let rankedAt: Date
+    let eventId: UUID?
+    var likeCount: Int
+    var commentCount: Int
+    var likedByMe: Bool
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case username, note, score
+        case userId = "user_id"
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case rankedAt = "ranked_at"
+        case eventId = "event_id"
+        case likeCount = "like_count"
+        case commentCount = "comment_count"
+        case likedByMe = "liked_by_me"
     }
 }
 
