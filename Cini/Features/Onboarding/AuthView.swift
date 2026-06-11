@@ -132,6 +132,11 @@ struct AuthView: View {
             .multilineTextAlignment(.center)
 
             Spacer()
+
+            Link("Privacy Policy",
+                 destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!)
+                .font(.caption2)
+                .foregroundStyle(Theme.gray)
         }
         .padding(28)
     }
@@ -175,6 +180,15 @@ struct AuthView: View {
         defer { isWorking = false }
         do {
             try await SupabaseService.shared.signInWithApple(idToken: token, nonce: nonce)
+            // Apple shares the name only on the FIRST authorization — store
+            // it now or it's gone forever.
+            if let components = credential.fullName {
+                let name = PersonNameComponentsFormatter().string(from: components)
+                    .trimmingCharacters(in: .whitespaces)
+                if !name.isEmpty {
+                    try? await SupabaseService.shared.updateProfile(ProfileUpdate(display_name: name))
+                }
+            }
         } catch {
             errorMessage = friendly(error)
         }

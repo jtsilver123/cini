@@ -43,7 +43,7 @@ struct MovieDetailView: View {
         .ignoresSafeArea(edges: .top)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                ShareLink(item: URL(string: "https://cini.app/movie/\(movie.tmdbID)")!) {
+                ShareLink(item: "\(movie.title) — on my Cini list 🎬") {
                     Image(systemName: "square.and.arrow.up")
                 }
                 Menu {
@@ -186,7 +186,7 @@ struct MovieDetailView: View {
                 PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
                     showShowtimes = true
                 }
-                ShareLink(item: URL(string: "https://cini.app/movie/\(movie.tmdbID)")!) {
+                ShareLink(item: "\(movie.title) — on my Cini list 🎬") {
                     HStack(spacing: 6) {
                         Image(systemName: "square.and.arrow.up").font(.subheadline.weight(.semibold))
                         Text("Share").font(.subheadline.weight(.semibold))

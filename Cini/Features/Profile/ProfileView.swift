@@ -128,8 +128,7 @@ struct ProfileScreen: View {
                 .font(.title2.weight(.bold))
             Spacer()
             HStack(spacing: 18) {
-                ShareLink(item: URL(string: "https://cini.app/@\(profile?.username ?? "")")
-                          ?? URL(string: "https://cini.app")!) {
+                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
                 }
                 Menu {
@@ -222,8 +221,7 @@ struct ProfileScreen: View {
                 PillButton(title: "Edit profile", style: .outlined) {
                     showEditProfile = true
                 }
-                ShareLink(item: URL(string: "https://cini.app/@\(profile?.username ?? "")")
-                          ?? URL(string: "https://cini.app")!) {
+                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬") {
                     Text("Share profile")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.marquee)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 struct FeedView: View {
     @Environment(AppSession.self) private var session
@@ -159,18 +160,6 @@ struct FeedView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.gray)
                 .padding(.top, 6)
-
-            // Composer: ask friends for recs
-            HStack(spacing: 12) {
-                AvatarView(url: session.profile?.avatarURL, size: 44)
-                Text("Ask your friends for recs")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Capsule().fill(Theme.fill))
-            }
 
             if let profile = session.profile, profile.streakAtRisk {
                 streakBanner(profile.streakWeeks)
@@ -334,7 +323,7 @@ struct FeedCard: View {
                     Image(systemName: "bubble.right")
                 }
                 if let movie {
-                    ShareLink(item: URL(string: "https://cini.app/movie/\(movie.tmdbID)")!) {
+                    ShareLink(item: "\(movie.title) — on Cini 🎬") {
                         Image(systemName: "paperplane")
                             .foregroundStyle(Theme.ink)
                     }
@@ -560,6 +549,7 @@ struct NotificationsView: View {
             rows = (try? await SupabaseService.shared.notifications()) ?? []
             loaded = true
             await SupabaseService.shared.markNotificationsRead()
+            try? await UNUserNotificationCenter.current().setBadgeCount(0)
         }
     }
 

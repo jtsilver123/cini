@@ -56,6 +56,22 @@ struct AccountSettingsView: View {
                 }
             }
 
+            Section {
+                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
+                    Label("Privacy Policy", systemImage: "hand.raised")
+                }
+                Link(destination: URL(string: "mailto:jsilver@bettercampus.com?subject=Cini%20support")!) {
+                    Label("Contact Support", systemImage: "envelope")
+                }
+                Link(destination: URL(string: "https://www.themoviedb.org")!) {
+                    Label("Movie data by TMDB", systemImage: "film")
+                }
+            } header: {
+                Text("About")
+            } footer: {
+                Text("This product uses the TMDB API but is not endorsed or certified by TMDB.")
+            }
+
             if let message {
                 Text(message).font(.caption).foregroundStyle(Theme.scoreGreen)
                     .listRowBackground(Color.clear)

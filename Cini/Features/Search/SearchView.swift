@@ -83,13 +83,23 @@ struct SearchView: View {
                 .foregroundStyle(Theme.marquee)
             Spacer()
             Button {
-                tabRouter.closeSearch()
+                // Release search focus FIRST — while the field is focused,
+                // the system search tab can swallow a programmatic tab
+                // switch and the X appears to do nothing.
+                searchFocused = false
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(80))
+                    withAnimation(.snappy) { tabRouter.closeSearch() }
+                }
             } label: {
                 Image(systemName: "xmark")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(Theme.ink)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 40, height: 40)
                     .background(Circle().fill(Theme.fill))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
         }

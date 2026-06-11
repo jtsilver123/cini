@@ -131,20 +131,19 @@ struct LeaderboardView: View {
 struct InviteSheet: View {
     @Environment(AppSession.self) private var session
 
-    private var inviteURL: URL {
-        let code = session.profile?.username ?? "cini"
-        return URL(string: "https://cini.app/invite/\(code)")!
+    private var inviteText: String {
+        "Join me on Cini — we rank every movie head-to-head. Search @\(session.profile?.username ?? "me") when you sign up 🎬"
     }
 
     var body: some View {
         VStack(spacing: 18) {
             Text("Invite friends to Cini")
                 .font(Theme.serif(26))
-            Text("Compare taste, race the leaderboard, and swap recs. New members auto-follow you.")
+            Text("Compare taste, race the leaderboard, and swap recs.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
-            ShareLink(item: inviteURL) {
+            ShareLink(item: inviteText) {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.arrow.up")
                     Text("Share invite link").font(.subheadline.weight(.semibold))
