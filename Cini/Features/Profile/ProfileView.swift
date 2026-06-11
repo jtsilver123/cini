@@ -38,6 +38,7 @@ struct ProfileScreen: View {
     @State private var detailMovie: Movie?
     @State private var loaded = false
     @State private var lastLoaded: Date = .distantPast
+    @State private var showLogoutConfirm = false
 
     private var isSelf: Bool { userID == nil || userID == session.profile?.id }
     private var resolvedID: UUID? { userID ?? session.profile?.id }
@@ -172,12 +173,19 @@ struct ProfileScreen: View {
                         Label("Invite a Friend", systemImage: "person.badge.plus")
                     }
                     Button(role: .destructive) {
-                        Task { await session.signOut() }
+                        showLogoutConfirm = true
                     } label: {
                         Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal").foregroundStyle(Theme.ink)
+                }
+                .confirmationDialog("Log out of Cini?",
+                                    isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+                    Button("Log out", role: .destructive) {
+                        Task { await session.signOut() }
+                    }
+                    Button("Cancel", role: .cancel) {}
                 }
             }
             .font(.title3)
@@ -776,14 +784,18 @@ struct RankedListScreen: View {
     @State private var logMovie: Movie?
     @State private var searchText = ""
     @State private var showSearch = false
+    @State private var filters = MovieFilters()
 
-    /// Rank numbers come from the full list, then the filter applies, so
+    /// Rank numbers come from the full list, then the filters apply, so
     /// "#14" stays #14 while searching.
     private var visible: [(index: Int, row: RankingRow)] {
         let all = Array(rankings.enumerated()).map { (index: $0.offset, row: $0.element) }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return all }
-        return all.filter { movies[$0.row.movieId]?.title.lowercased().contains(query) == true }
+        return all.filter { entry in
+            guard let movie = movies[entry.row.movieId] else { return true }
+            guard filters.passes(movie) else { return false }
+            return query.isEmpty || movie.title.lowercased().contains(query)
+        }
     }
 
     var body: some View {
@@ -806,7 +818,10 @@ struct RankedListScreen: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 2)
+                // Same filter pills as My Lists — on anyone's list.
+                MovieFilterBar(filters: $filters, movies: Array(movies.values))
+                    .padding(.horizontal, -16)
                 if showSearch {
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
@@ -833,7 +848,8 @@ struct RankedListScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
                 } else if visible.isEmpty {
-                    Text("No titles match \"\(searchText)\".")
+                    Text(searchText.isEmpty ? "No titles match these filters."
+                                            : "No titles match \"\(searchText)\".")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
@@ -883,19 +899,31 @@ struct WatchlistScreen: View {
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var listLoaded = false
+    @State private var filters = MovieFilters()
 
     /// (movieID, savedAt) — live store for self, fetched rows for others.
     private var entries: [(movieID: Int, savedAt: Date)] {
-        isSelf ? store.watchlist.map { ($0.movieID, $0.createdAt) }
-               : fetched.map { ($0.movieId, $0.createdAt) }
+        let all = isSelf ? store.watchlist.map { ($0.movieID, $0.createdAt) }
+                         : fetched.map { ($0.movieId, $0.createdAt) }
+        return all.filter { entry in
+            guard let movie = movies[entry.0] ?? store.movie(entry.0) else { return true }
+            return filters.passes(movie)
+        }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Same filter pills as My Lists — on anyone's list.
+                MovieFilterBar(filters: $filters,
+                               movies: isSelf
+                                   ? store.watchlist.compactMap { store.movie($0.movieID) }
+                                   : Array(movies.values))
+                    .padding(.horizontal, -16)
                 if entries.isEmpty {
                     if isSelf || listLoaded {
-                        Text("Nothing on your Want to Watch list yet.")
+                        Text(filters.isActive ? "No titles match these filters."
+                                              : "Nothing on your Want to Watch list yet.")
                             .font(.subheadline)
                             .foregroundStyle(Theme.gray)
                             .frame(maxWidth: .infinity)

@@ -328,3 +328,112 @@ struct AvatarView: View {
 // MARK: - Progress dots (comparison flow)
 
 
+
+// MARK: - Movie filters (shared by My Lists and every member list)
+
+/// The five standard filters. One struct + one bar everywhere, so
+/// filtering looks and behaves identically on your lists and anyone
+/// else's.
+struct MovieFilters: Equatable {
+    var genre: String?
+    var decade: Int?
+    var runtime: Int?         // max minutes
+    var streaming = false
+    var language: String?     // ISO 639-1
+
+    var isActive: Bool {
+        genre != nil || decade != nil || runtime != nil || streaming || language != nil
+    }
+
+    func passes(_ movie: Movie) -> Bool {
+        if let genre, !movie.genres.contains(genre) { return false }
+        if let decade, let year = movie.releaseYear,
+           !(decade..<decade + 10).contains(year) { return false }
+        if let runtime, let minutes = movie.runtimeMinutes, minutes > runtime { return false }
+        if streaming && movie.streamingOn.isEmpty { return false }
+        // Unknown language passes — member lists aren't TMDB-enriched.
+        if let language, let original = movie.originalLanguage,
+           original != language { return false }
+        return true
+    }
+}
+
+/// Horizontal pill row driving a MovieFilters value. The ✕ appears only
+/// while something is active and clears everything.
+struct MovieFilterBar: View {
+    @Binding var filters: MovieFilters
+    /// The movies being filtered — genre/language menus derive from them.
+    var movies: [Movie]
+
+    private var genres: [String] {
+        Array(Set(movies.flatMap(\.genres))).sorted()
+    }
+
+    private var languages: [(code: String, name: String)] {
+        let codes = Set(movies.compactMap(\.originalLanguage))
+        return codes.compactMap { code in
+            Locale.current.localizedString(forLanguageCode: code).map { (code, $0) }
+        }
+        .sorted { $0.1 < $1.1 }
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if filters.isActive {
+                    Button {
+                        withAnimation(.snappy) { filters = MovieFilters() }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .padding(10)
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .buttonStyle(.plain)
+                    .glassCapsule()
+                }
+                Menu {
+                    Button("All Genres") { filters.genre = nil }
+                    ForEach(genres, id: \.self) { genre in
+                        Button(genre) { filters.genre = genre }
+                    }
+                } label: {
+                    FilterPill(title: filters.genre ?? "Genre")
+                }
+                Menu {
+                    Button("All Decades") { filters.decade = nil }
+                    ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { decade in
+                        Button("\(String(decade))s") { filters.decade = decade }
+                    }
+                } label: {
+                    FilterPill(title: filters.decade.map { "\(String($0))s" } ?? "Decade")
+                }
+                Menu {
+                    Button("Anywhere") { filters.streaming = false }
+                    Button("Streaming now") { filters.streaming = true }
+                } label: {
+                    FilterPill(title: filters.streaming ? "Streaming now" : "Streaming")
+                }
+                Menu {
+                    Button("Any runtime") { filters.runtime = nil }
+                    Button("Under 100 min") { filters.runtime = 100 }
+                    Button("Under 2 hours") { filters.runtime = 120 }
+                    Button("Under 2½ hours") { filters.runtime = 150 }
+                } label: {
+                    FilterPill(title: filters.runtime.map { "< \($0) min" } ?? "Runtime")
+                }
+                Menu {
+                    Button("All Languages") { filters.language = nil }
+                    ForEach(languages, id: \.code) { language in
+                        Button(language.name) { filters.language = language.code }
+                    }
+                } label: {
+                    FilterPill(title: filters.language.flatMap {
+                        Locale.current.localizedString(forLanguageCode: $0)
+                    } ?? "Language")
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 10)
+    }
+}

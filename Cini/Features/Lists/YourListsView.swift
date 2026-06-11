@@ -387,69 +387,26 @@ struct YourListsView: View {
             || streamingFilter || languageFilter != nil
     }
 
-    private var filterRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                if hasActiveFilters {
-                    Button {
-                        withAnimation(.snappy) {
-                            genreFilter = nil; decadeFilter = nil
-                            runtimeFilter = nil; streamingFilter = false
-                            languageFilter = nil
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .padding(10)
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .buttonStyle(.plain)
-                    .glassCapsule()
-                }
-
-                Menu {
-                    Button("All Genres") { genreFilter = nil }
-                    ForEach(allGenres, id: \.self) { genre in
-                        Button(genre) { genreFilter = genre }
-                    }
-                } label: {
-                    FilterPill(title: genreFilter ?? "Genre")
-                }
-                Menu {
-                    Button("All Decades") { decadeFilter = nil }
-                    ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { decade in
-                        Button("\(String(decade))s") { decadeFilter = decade }
-                    }
-                } label: {
-                    FilterPill(title: decadeFilter.map { "\(String($0))s" } ?? "Decade")
-                }
-                Menu {
-                    Button("Anywhere") { streamingFilter = false }
-                    Button("Streaming now") { streamingFilter = true }
-                } label: {
-                    FilterPill(title: streamingFilter ? "Streaming now" : "Streaming")
-                }
-                Menu {
-                    Button("Any runtime") { runtimeFilter = nil }
-                    Button("Under 100 min") { runtimeFilter = 100 }
-                    Button("Under 2 hours") { runtimeFilter = 120 }
-                    Button("Under 2½ hours") { runtimeFilter = 150 }
-                } label: {
-                    FilterPill(title: runtimeFilter.map { "< \($0) min" } ?? "Runtime")
-                }
-                Menu {
-                    Button("All Languages") { languageFilter = nil }
-                    ForEach(allLanguages, id: \.code) { language in
-                        Button(language.name) { languageFilter = language.code }
-                    }
-                } label: {
-                    FilterPill(title: languageFilter.flatMap {
-                        Locale.current.localizedString(forLanguageCode: $0)
-                    } ?? "Language")
-                }
+    /// The persisted filter fields exposed as one shared MovieFilters.
+    private var filtersBinding: Binding<MovieFilters> {
+        Binding(
+            get: {
+                MovieFilters(genre: genreFilter, decade: decadeFilter,
+                             runtime: runtimeFilter, streaming: streamingFilter,
+                             language: languageFilter)
+            },
+            set: { filters in
+                genreFilter = filters.genre
+                decadeFilter = filters.decade
+                runtimeFilter = filters.runtime
+                streamingFilter = filters.streaming
+                languageFilter = filters.language
             }
-            .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 10)
+        )
+    }
+
+    private var filterRow: some View {
+        MovieFilterBar(filters: filtersBinding, movies: Array(store.movies.values))
     }
 
     private var sortRow: some View {
@@ -540,18 +497,12 @@ struct YourListsView: View {
         }
     }
 
-    /// Shared filter predicate: genre, decade, runtime, streaming, language.
+    /// Category check + the shared five-filter predicate.
     private func passesFilters(_ movie: Movie) -> Bool {
         if movie.mediaKind != category.mediaKind && !(category == .movies && movie.mediaKind == "movie") {
             return false
         }
-        if let genreFilter, !movie.genres.contains(genreFilter) { return false }
-        if let decadeFilter, let year = movie.releaseYear,
-           !(decadeFilter..<decadeFilter + 10).contains(year) { return false }
-        if let runtimeFilter, let runtime = movie.runtimeMinutes, runtime > runtimeFilter { return false }
-        if streamingFilter && movie.streamingOn.isEmpty { return false }
-        if let languageFilter, movie.originalLanguage != languageFilter { return false }
-        return true
+        return filtersBinding.wrappedValue.passes(movie)
     }
 
     private var filteredWatched: [ScoredItem<Int>] {
@@ -565,14 +516,6 @@ struct YourListsView: View {
             guard passesFilters(movie) else { return false }
             return query.isEmpty || movie.title.lowercased().contains(query)
         }
-    }
-
-    private var allLanguages: [(code: String, name: String)] {
-        let codes = Set(store.movies.values.compactMap(\.originalLanguage))
-        return codes.compactMap { code in
-            Locale.current.localizedString(forLanguageCode: code).map { (code, $0) }
-        }
-        .sorted { $0.1 < $1.1 }
     }
 
     /// Imported titles waiting to be ranked — Letterboxd stars are never
@@ -822,9 +765,6 @@ struct YourListsView: View {
         }
     }
 
-    private var allGenres: [String] {
-        Array(Set(store.movies.values.flatMap(\.genres))).sorted()
-    }
 }
 
 // MARK: - Rows
