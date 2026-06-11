@@ -108,12 +108,18 @@ final class RankingStore {
         } catch {
             // One retry — a transient network blip shouldn't drop a rank.
             try? await Task.sleep(for: .seconds(1))
-            _ = try? await supabase.rankInsert(
-                movieID: session.newItemID,
-                bucket: session.sentiment,
-                position: session.resolvedBucketPosition!,
-                watchDate: watchDate
-            )
+            do {
+                _ = try await supabase.rankInsert(
+                    movieID: session.newItemID,
+                    bucket: session.sentiment,
+                    position: session.resolvedBucketPosition!,
+                    watchDate: watchDate
+                )
+            } catch {
+                // Both attempts failed: the rank lives locally but not on
+                // the server, so the next refresh would drop it. Say so.
+                ToastCenter.shared.saveFailed()
+            }
         }
         return scored
     }

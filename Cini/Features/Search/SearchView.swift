@@ -24,8 +24,12 @@ struct SearchView: View {
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
     @State private var isSearching = false
+    /// The query the last finished search ran with — empty-result messages
+    /// only show once a search has actually completed for the current text.
+    @State private var completedQuery = ""
     @State private var browse: BrowseKind?
     @State private var browseResults: [Movie] = []
+    @State private var browseLoaded = false
     @FocusState private var searchFocused: Bool
 
     /// One-tap browsing for people who don't want to type.
@@ -63,6 +67,9 @@ struct SearchView: View {
                         if tab == 0 {
                             if !movieResults.isEmpty {
                                 resultsSection
+                            } else if !completedQuery.isEmpty {
+                                noResultsMessage(
+                                    "No titles match \"\(completedQuery)\" — check the spelling, or try a director or genre.")
                             } else if browse != nil {
                                 browseSection
                             } else {
@@ -71,6 +78,9 @@ struct SearchView: View {
                             }
                         } else if memberResults.isEmpty && query.trimmingCharacters(in: .whitespaces).isEmpty {
                             suggestedSection
+                        } else if memberResults.isEmpty && !completedQuery.isEmpty {
+                            noResultsMessage(
+                                "No members match \"\(completedQuery)\" — usernames are exact, so check the spelling.")
                         } else {
                             membersSection
                         }
@@ -167,7 +177,11 @@ struct SearchView: View {
 
     private func tabButton(_ title: String, icon: String, index: Int) -> some View {
         Button {
+            let switched = tab != index
             withAnimation(.snappy) { tab = index }
+            // A typed query searches the tab it was typed in — switching
+            // tabs re-runs it in the new domain instead of going blank.
+            if switched { scheduleSearch() }
         } label: {
             VStack(spacing: 8) {
                 HStack(spacing: 6) {
@@ -229,12 +243,30 @@ struct SearchView: View {
         .scrollClipDisabled()
     }
 
+    private func noResultsMessage(_ text: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.title2)
+                .foregroundStyle(Theme.gray)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
     @ViewBuilder
     private var browseSection: some View {
         if browseResults.isEmpty {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
+            if browseLoaded {
+                noResultsMessage("Nothing to show right now — check your connection and try again.")
+            } else {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+            }
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(browseResults) { movie in
@@ -252,6 +284,7 @@ struct SearchView: View {
     private func loadBrowse() async {
         guard let kind = browse else { return }
         browseResults = []
+        browseLoaded = false
         var result: [Movie]
         switch kind {
         case .releases:
@@ -265,6 +298,7 @@ struct SearchView: View {
         }
         guard browse == kind else { return }   // user switched mid-flight
         browseResults = result
+        browseLoaded = true
         for movie in result { store.cache(movie) }
     }
 
@@ -561,6 +595,7 @@ struct SearchView: View {
     private func scheduleSearch() {
         searchTask?.cancel()
         let text = query.trimmingCharacters(in: .whitespaces)
+        completedQuery = ""
         guard !text.isEmpty else {
             movieResults = []
             memberResults = []
@@ -644,11 +679,13 @@ struct SearchView: View {
                 }
                 guard !Task.isCancelled else { return }
                 movieResults = results
+                completedQuery = text
                 for movie in movieResults { store.cache(movie) }
             } else {
                 let found = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []
                 guard !Task.isCancelled else { return }
                 memberResults = found
+                completedQuery = text
             }
         }
     }

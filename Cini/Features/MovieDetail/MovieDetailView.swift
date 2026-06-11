@@ -38,6 +38,7 @@ struct MovieDetailView: View {
     @State private var peopleTab: PeopleTab = .friends
     @State private var publicNotes: [PublicNoteRow] = []
     @State private var publicNotesLoaded = false
+    @State private var blockCandidate: PublicNoteRow?
     @State private var commentsTarget: CommentsTarget?
 
     enum PeopleTab: String, CaseIterable {
@@ -116,6 +117,34 @@ struct MovieDetailView: View {
             }
             Button("Log a rewatch") { showRewatchSheet = true }
             Button("Cancel", role: .cancel) {}
+        }
+        // Blocking is heavy — always confirm before mutual invisibility.
+        .confirmationDialog(
+            "Block @\(blockCandidate?.username ?? "")?",
+            isPresented: Binding(get: { blockCandidate != nil },
+                                 set: { if !$0 { blockCandidate = nil } }),
+            titleVisibility: .visible,
+            presenting: blockCandidate
+        ) { row in
+            Button("Block @\(row.username)", role: .destructive) {
+                Task {
+                    do {
+                        try await SupabaseService.shared.block(row.userId)
+                        ToastCenter.shared.show("Blocked @\(row.username) — their content is hidden")
+                        // Refresh only on success — a failed reload must
+                        // not wipe the wall.
+                        if let fresh = try? await SupabaseService.shared
+                            .publicNotes(movieID: movie.tmdbID) {
+                            publicNotes = fresh
+                        }
+                    } catch {
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("You won't see each other's rankings, notes, or activity.")
         }
         .sheet(isPresented: $showEditDetails) {
             EditDetailsSheet(movie: movie, details: myDetails, cast: cast) {
@@ -829,16 +858,7 @@ struct MovieDetailView: View {
                         Label("Report this note", systemImage: "flag")
                     }
                     Button(role: .destructive) {
-                        Task {
-                            try? await SupabaseService.shared.block(row.userId)
-                            ToastCenter.shared.show("Blocked @\(row.username) — their content is hidden")
-                            // Refresh only on success — a failed reload must
-                            // not wipe the wall.
-                            if let fresh = try? await SupabaseService.shared
-                                .publicNotes(movieID: movie.tmdbID) {
-                                publicNotes = fresh
-                            }
-                        }
+                        blockCandidate = row
                     } label: {
                         Label("Block @\(row.username)", systemImage: "hand.raised")
                     }
@@ -846,7 +866,7 @@ struct MovieDetailView: View {
                     Image(systemName: "ellipsis")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
-                        .padding(6)
+                        .padding(10)
                         .contentShape(Rectangle())
                 }
             }

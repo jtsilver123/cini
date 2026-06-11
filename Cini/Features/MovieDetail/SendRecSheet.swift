@@ -107,6 +107,8 @@ struct SendRecSheet: View {
                         if sending { ProgressView().tint(.white) }
                         Text(selected.map { "Send to @\($0.username)" } ?? "Pick a friend")
                             .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

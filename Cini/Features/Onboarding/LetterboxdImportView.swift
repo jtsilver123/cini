@@ -226,7 +226,7 @@ struct LetterboxdImportView: View {
                                        detail: "Find them under My Lists → Watched → Pending — your favorites are first.")
                             Divider()
                             summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
-                                       label: "added to your watchlist",
+                                       label: "saved to Want to Watch",
                                        detail: importWatchlist ? nil : "Watchlist import was off.")
                         }
                         if !result.importedLists.isEmpty {

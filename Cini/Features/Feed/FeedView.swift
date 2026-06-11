@@ -457,6 +457,7 @@ struct CommentsSheet: View {
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
     @State private var loaded = false
+    @State private var blockCandidate: CommentRow?
 
     var body: some View {
         NavigationStack {
@@ -506,10 +507,7 @@ struct CommentsSheet: View {
                                 Label("Report comment", systemImage: "flag")
                             }
                             Button(role: .destructive) {
-                                Task {
-                                    try? await SupabaseService.shared.block(comment.userId)
-                                    await reload()
-                                }
+                                blockCandidate = comment
                             } label: {
                                 Label("Block @\(comment.profiles?.username ?? "member")",
                                       systemImage: "hand.raised")
@@ -539,6 +537,29 @@ struct CommentsSheet: View {
             .background(Theme.background)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
+        }
+        // Blocking is heavy — always confirm before mutual invisibility.
+        .confirmationDialog(
+            "Block @\(blockCandidate?.profiles?.username ?? "member")?",
+            isPresented: Binding(get: { blockCandidate != nil },
+                                 set: { if !$0 { blockCandidate = nil } }),
+            titleVisibility: .visible,
+            presenting: blockCandidate
+        ) { comment in
+            Button("Block @\(comment.profiles?.username ?? "member")", role: .destructive) {
+                Task {
+                    do {
+                        try await SupabaseService.shared.block(comment.userId)
+                        ToastCenter.shared.show("Blocked — their content is hidden everywhere")
+                        await reload()
+                    } catch {
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("You won't see each other's rankings, notes, or activity.")
         }
         .task { await reload() }
     }

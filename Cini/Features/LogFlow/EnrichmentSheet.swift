@@ -222,7 +222,7 @@ struct EnrichmentCard: View {
             Image(systemName: "lock").frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Stealth mode")
-                Text("Hide this activity from the feed")
+                Text("Hide this from your friends' feeds")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
             }

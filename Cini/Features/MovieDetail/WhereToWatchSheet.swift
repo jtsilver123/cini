@@ -29,7 +29,7 @@ struct WhereToWatchSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { dismiss() } label: { Image(systemName: "chevron.up") }
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
                 }
             }
         }

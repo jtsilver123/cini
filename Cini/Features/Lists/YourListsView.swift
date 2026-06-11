@@ -338,6 +338,8 @@ struct YourListsView: View {
                             withAnimation(.snappy) { directRecs.removeAll { $0.id == rec.id } }
                         } label: {
                             Image(systemName: "xmark").font(.caption).foregroundStyle(Theme.gray)
+                                .padding(8)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

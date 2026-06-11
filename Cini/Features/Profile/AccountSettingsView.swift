@@ -114,7 +114,10 @@ struct AccountSettingsView: View {
                 Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
                     Label("Privacy Policy", systemImage: "hand.raised")
                 }
-                Link(destination: URL(string: "mailto:jsilver@bettercampus.com?subject=Cini%20support")!) {
+                Link(destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!) {
+                    Label("Terms of Use", systemImage: "doc.text")
+                }
+                Link(destination: URL(string: "mailto:jtsilver123@gmail.com?subject=Cini%20support")!) {
                     Label("Contact Support", systemImage: "envelope")
                 }
                 Link(destination: URL(string: "https://www.themoviedb.org")!) {
@@ -149,12 +152,12 @@ struct AccountSettingsView: View {
         }
         .confirmationDialog("Delete your account forever?",
                             isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Delete everything", role: .destructive) {
+            Button("Delete account", role: .destructive) {
                 Task { await deleteAccount() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("There's no undo — your rankings, watchlist, and followers are gone for good.")
+            Text("There's no undo — your rankings, Want to Watch, and followers are gone for good.")
         }
         .sheet(isPresented: $showExportShare) {
             ActivityShareSheet(items: exportURLs)

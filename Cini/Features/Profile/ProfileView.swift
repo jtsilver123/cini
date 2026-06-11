@@ -22,6 +22,7 @@ struct ProfileScreen: View {
     @State private var following = false
     @State private var blocked = false
     @State private var reported = false
+    @State private var showBlockConfirm = false
     @State private var matchPct: Double?
     @State private var globalRank: Int?
     @State private var watchlistCount = 0
@@ -365,16 +366,16 @@ struct ProfileScreen: View {
                     }
                     .disabled(reported)
                     Button(role: .destructive) {
-                        Task {
-                            if blocked {
+                        if blocked {
+                            // Unblocking restores, no confirmation needed.
+                            Task {
                                 try? await SupabaseService.shared.unblock(id)
                                 ToastCenter.shared.show("Unblocked")
-                            } else {
-                                try? await SupabaseService.shared.block(id)
-                                ToastCenter.shared.show("Blocked — their content is hidden everywhere")
+                                blocked = false
+                                await load()
                             }
-                            blocked.toggle()
-                            await load()   // their content disappears server-side
+                        } else {
+                            showBlockConfirm = true
                         }
                     } label: {
                         Label(blocked ? "Unblock member" : "Block member",
@@ -386,6 +387,25 @@ struct ProfileScreen: View {
                         .foregroundStyle(Theme.ink)
                         .padding(10)
                         .contentShape(Rectangle())
+                }
+                // Blocking is heavy — always confirm before mutual invisibility.
+                .confirmationDialog("Block @\(profile?.username ?? username ?? "member")?",
+                                    isPresented: $showBlockConfirm, titleVisibility: .visible) {
+                    Button("Block", role: .destructive) {
+                        Task {
+                            do {
+                                try await SupabaseService.shared.block(id)
+                                ToastCenter.shared.show("Blocked — their content is hidden everywhere")
+                                blocked = true
+                                await load()   // their content disappears server-side
+                            } catch {
+                                ToastCenter.shared.saveFailed()
+                            }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("You won't see each other's rankings, notes, or activity.")
                 }
             }
         }
@@ -623,7 +643,7 @@ struct ProfileScreen: View {
     @ViewBuilder
     private var activityContent: some View {
         if events.isEmpty && loaded {
-            Text(lockedHint ?? (isSelf ? "Rank or watchlist a movie and it shows up here."
+            Text(lockedHint ?? (isSelf ? "Rank or save a movie and it shows up here."
                                        : "No activity visible yet."))
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
@@ -1036,13 +1056,13 @@ struct BothWantToWatchScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 if rows.isEmpty {
-                    Text("No overlap yet — save a few of @\(username)'s watchlist picks and they show up here.")
+                    Text("No overlap yet — save a few of @\(username)'s Want to Watch picks and they show up here.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
                 } else {
-                    Text("On your watchlist and @\(username)'s — perfect for a watch party.")
+                    Text("On both of your Want to Watch lists — perfect for a watch party.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .padding(.bottom, 8)

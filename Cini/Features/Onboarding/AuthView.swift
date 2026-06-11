@@ -133,10 +133,14 @@ struct AuthView: View {
 
             Spacer()
 
-            Link("Privacy Policy",
-                 destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!)
-                .font(.caption2)
-                .foregroundStyle(Theme.gray)
+            HStack(spacing: 14) {
+                Link("Terms of Use",
+                     destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!)
+                Link("Privacy Policy",
+                     destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!)
+            }
+            .font(.caption2)
+            .foregroundStyle(Theme.gray)
         }
         .padding(28)
     }
@@ -162,9 +166,9 @@ struct AuthView: View {
             case .unknown, .failed, .notHandled:
                 // Almost always device/account-side: not signed into iCloud,
                 // or the binary is missing the Sign in with Apple entitlement.
-                errorMessage = "Apple sign-in isn't available right now — check you're signed into iCloud in Settings, or use email below. (code \(code?.rawValue ?? -1))"
+                errorMessage = "Apple sign-in isn't available right now — check you're signed into iCloud in Settings, or use email below."
             default:
-                errorMessage = "Apple sign-in didn't complete — try again. (code \(code?.rawValue ?? -1))"
+                errorMessage = "Apple sign-in didn't complete — try again."
             }
             return
         }

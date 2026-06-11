@@ -9,6 +9,7 @@ struct LeaderboardView: View {
     @State private var genre: String?
     @State private var rows: [LeaderboardRow] = []
     @State private var showInvite = false
+    @State private var loaded = false
 
     private let metrics = ["Watched", "Influence", "Notes"]
     private let metricKeys = ["watched", "influence", "notes"]
@@ -109,17 +110,26 @@ struct LeaderboardView: View {
             }
 
             if rows.isEmpty {
-                VStack(spacing: 6) {
-                    Image(systemName: "trophy")
-                        .font(.title2)
-                        .foregroundStyle(Theme.gray)
-                    Text("No rankings yet — invite friends to start the race.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
-                        .multilineTextAlignment(.center)
+                if !loaded {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 40)
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: "trophy")
+                            .font(.title2)
+                            .foregroundStyle(Theme.gray)
+                        Text("No rankings yet — invite friends to start the race.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .multilineTextAlignment(.center)
+                        PillButton(title: "Invite friends", systemImage: "person.badge.plus") {
+                            showInvite = true
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
             }
         }
     }
@@ -127,6 +137,7 @@ struct LeaderboardView: View {
     private func load() async {
         rows = (try? await SupabaseService.shared.leaderboard(
             metric: metricKeys[metric], genre: genre)) ?? []
+        loaded = true
     }
 }
 
