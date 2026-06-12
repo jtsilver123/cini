@@ -605,7 +605,7 @@ struct ProfileScreen: View {
                             .foregroundStyle(Theme.gray)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             HairlineCard {
                 VStack(alignment: .leading, spacing: 6) {
@@ -627,9 +627,12 @@ struct ProfileScreen: View {
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
+        // Whichever card has the extra caption line sets the height for
+        // BOTH — side-by-side cards must never be different sizes.
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: Activity | Taste Profile tabs
