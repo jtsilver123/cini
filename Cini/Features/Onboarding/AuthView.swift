@@ -17,6 +17,7 @@ struct AuthView: View {
     @State private var awaitingConfirmation = false
     @State private var resentJustNow = false
     @FocusState private var focusedField: Field?
+    @Environment(\.colorScheme) private var colorScheme
 
     private enum Field { case email, password }
 
@@ -63,7 +64,7 @@ struct AuthView: View {
             } onCompletion: { result in
                 Task { await handleApple(result) }
             }
-            .signInWithAppleButtonStyle(.white)
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 50)
             .clipShape(Capsule())
 
@@ -75,8 +76,16 @@ struct AuthView: View {
 
             VStack(spacing: 10) {
                 field("Email", text: $email, keyboard: .emailAddress)
+                    // Keychain autofill needs the content types; without
+                    // them sign-up means typing blind.
+                    .textContentType(.emailAddress)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .password }
                     .focused($focusedField, equals: .email)
                 SecureField("Password", text: $password)
+                    // .newPassword makes iOS offer a strong password and
+                    // save it on account creation.
+                    .textContentType(isSigningUp ? .newPassword : .password)
                     .submitLabel(.go)
                     .onSubmit { Task { await handleEmail() } }
                     .textFieldStyle(.plain)
@@ -244,6 +253,9 @@ struct AuthView: View {
     private func friendly(_ error: Error) -> String {
         let text = "\(error)".lowercased()
         if text.contains("invalid login credentials") { return "Wrong email or password." }
+        if text.contains("validate email") || text.contains("invalid format") {
+            return "That doesn't look like an email address — check for typos."
+        }
         if text.contains("already registered") { return "That email already has an account — sign in instead." }
         if text.contains("email not confirmed") { return "Confirm your email first — check your inbox." }
         if text.contains("network") || text.contains("offline") || text.contains("timed out") {

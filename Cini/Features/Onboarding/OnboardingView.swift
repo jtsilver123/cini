@@ -188,6 +188,8 @@ struct OnboardingView: View {
 
             VStack(spacing: 10) {
                 TextField("Your name", text: $displayName)
+                    .textContentType(.name)
+                    .textInputAutocapitalization(.words)
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
 
@@ -359,8 +361,9 @@ struct OnboardingView: View {
 
     private var firstRankStep: some View {
         VStack(spacing: 14) {
-            Text("Rank your first movie")
+            Text("Rank your first movie or show")
                 .font(Theme.serif(30))
+                .minimumScaleFactor(0.8)
                 .padding(.top, 26)
             Text("Pick anything you've seen — your first one takes zero comparisons.")
                 .font(.subheadline)
