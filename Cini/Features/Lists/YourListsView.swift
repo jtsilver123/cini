@@ -31,6 +31,7 @@ struct YourListsView: View {
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
+    @State private var showRecPicker = false
     // Custom lists live as tabs beside the defaults; defaults can be
     // hidden from Edit Lists (Watched/Want to Watch always stay).
     @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
@@ -94,6 +95,9 @@ struct YourListsView: View {
             }
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
+            }
+            .sheet(isPresented: $showRecPicker) {
+                SendRecMoviePicker()
             }
             .task {
                 customLists = (try? await SupabaseService.shared.myLists()) ?? []
@@ -332,14 +336,27 @@ struct YourListsView: View {
     private var friendRecsList: some View {
         List {
             if directRecs.isEmpty && directRecsLoaded {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
                     Text("No recs from friends yet")
                         .font(.subheadline.weight(.semibold))
-                    Text("When a friend taps Recommend on a movie and picks you, it lands here with their note.")
+                    Text("When a friend taps Recommend on a title and picks you, it lands here with their note.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
+                    // The fix for an empty inbox is more friends or being
+                    // the first to send — hand both over right here.
+                    HStack(spacing: 10) {
+                        PillButton(title: "Find friends", systemImage: "person.badge.plus") {
+                            tabRouter.openMembersSearch = true
+                            tabRouter.selection = .search
+                        }
+                        PillButton(title: "Send a rec", systemImage: "paperplane",
+                                   style: .outlined) {
+                            showRecPicker = true
+                        }
+                    }
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
@@ -980,3 +997,69 @@ struct CategorySheet: View {
     }
 }
 
+
+/// Zero-state "Send a rec": pick one of your ranked titles, then hand off
+/// to the same Recommend sheet the movie page uses.
+struct SendRecMoviePicker: View {
+    @Environment(RankingStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var recMovie: Movie?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if store.watchedItems.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "film").font(.title).foregroundStyle(Theme.gray)
+                        Text("Rank something first — recs come from titles you've watched.")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(store.watchedItems, id: \.id) { item in
+                            if let movie = store.movie(item.id) {
+                                Button {
+                                    recMovie = movie
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        PosterView(url: movie.posterURL, width: 40)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(movie.title)
+                                                .font(.subheadline.weight(.bold))
+                                                .foregroundStyle(Theme.ink)
+                                            Text(movie.bylineText)
+                                                .font(.caption)
+                                                .foregroundStyle(Theme.gray)
+                                        }
+                                        Spacer()
+                                        Text(String(format: "%.1f", item.score))
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(Theme.scoreGreen)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .listRowBackground(Theme.background)
+                            }
+                        }
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .background(Theme.background)
+            .navigationTitle("Send a Rec")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .sheet(item: $recMovie) { movie in
+            SendRecSheet(movie: movie)
+        }
+    }
+}

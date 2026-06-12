@@ -720,7 +720,11 @@ function renderLists(){
   } else {
     content = S.friendRecs.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("send",34,1.4)}</span><b>No recs from friends yet</b>
-        <span class="sub">When a friend taps Recommend on a movie and picks you, it lands here with their note.</span></div>`
+        <span class="sub">When a friend taps Recommend on a movie and picks you, it lands here with their note.</span>
+        <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
+          <button class="pill" onclick="searchTab='members'; go('search')">${I("users",15)} Find friends</button>
+          <button class="pill out" onclick="S.subTab='watched'; save(); go('lists'); toast('Pick a title, then tap Recommend on its page')">${I("send",15)} Send a rec</button>
+        </div></div>`
       : S.friendRecs.map(r=>{
         const m=MOVIES[r.k]; if(!m) return "";
         return `<div style="padding:12px 18px; border-bottom:1px solid var(--hair);">
