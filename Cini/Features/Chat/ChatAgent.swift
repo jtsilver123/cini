@@ -298,27 +298,49 @@ struct CreateListTool: Tool {
 }
 
 /// "Make me a list of the best A24 movies" — one call instead of nine.
-/// The model supplies titles from its own film knowledge; each is
-/// verified against TMDB before it lands, so hallucinations fall out.
+/// Themed asks (genre, studio, mood, era, awards) ride the model's own
+/// film knowledge, TMDB-verified so hallucinations fall out. Person asks
+/// ("shows with Neil Patrick Harris") ride the REAL filmography instead
+/// of model memory.
 @available(iOS 26.0, *)
 struct CurateListTool: Tool {
     let name = "curateList"
-    let description = "Create a list AND fill it: themed asks (genre, director, studio, mood, era). Pass 5-8 real titles you know fit."
+    let description = "Create a list AND fill it. Themed asks (genre, studio, mood, era, awards): pass 5-8 real titles you know. 'Movies/shows with [person]': pass person instead — their real filmography fills it."
 
     @Generable
     struct Arguments {
         @Guide(description: "List name, e.g. Best A24 Movies")
         var name: String
-        @Guide(description: "5-8 movie or show titles that fit the theme")
-        var titles: [String]
+        @Guide(description: "5-8 titles that fit the theme (skip when person is set)")
+        var titles: [String]?
+        @Guide(description: "Actor or director name, only for 'movies/shows with X' asks")
+        var person: String?
+        @Guide(description: "Limit kind: movie or tv (optional)")
+        var kind: String?
     }
 
     func call(arguments: Arguments) async throws -> String {
         let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "The list needs a name." }
-        guard !arguments.titles.isEmpty else {
+
+        // Person asks come from data, not memory.
+        var pool: [Movie] = []
+        if let person = arguments.person?.trimmingCharacters(in: .whitespaces), !person.isEmpty {
+            if let personID = try? await TMDBService.shared.personID(matching: person) {
+                pool = (try? await TMDBService.shared.filmography(personID: personID)) ?? []
+                if arguments.kind == "tv" { pool = pool.filter { $0.mediaKind == "tv" } }
+                if arguments.kind == "movie" { pool = pool.filter { $0.mediaKind != "tv" } }
+                pool = Array(pool.prefix(8))
+            }
+            if pool.isEmpty {
+                return "Couldn't find anyone called \"\(person)\" with credits — check the name."
+            }
+        }
+        let titles = arguments.titles ?? []
+        guard !pool.isEmpty || !titles.isEmpty else {
             return "Pass the titles that belong on it — pick them yourself."
         }
+
         var list = await ChatAgentBridge.resolveList(named: trimmed)
         if list == nil {
             list = try? await SupabaseService.shared.createList(name: trimmed)
@@ -326,7 +348,13 @@ struct CurateListTool: Tool {
         guard let list else { return "Couldn't create the list — connection trouble." }
 
         var added: [String] = []
-        for title in arguments.titles.prefix(10) {
+        for movie in pool {
+            try? await SupabaseService.shared.cacheMovie(movie)
+            if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {
+                added.append(movie.title)
+            }
+        }
+        for title in titles.prefix(10) where pool.isEmpty {
             guard let movie = await ChatAgentBridge.resolveMovie(title) else { continue }
             try? await SupabaseService.shared.cacheMovie(movie)
             if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {

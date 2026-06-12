@@ -287,6 +287,18 @@ final class TMDBService {
                              birthday: dto.birthday)
     }
 
+    /// The most famous person matching a name — the front door to
+    /// filmography() for spoken asks ("shows with Neil Patrick Harris").
+    func personID(matching query: String) async throws -> Int? {
+        struct PersonPage: Codable {
+            struct Person: Codable { let id: Int; let popularity: Double? }
+            let results: [Person]
+        }
+        let page: PersonPage = try await get(
+            "/search/person", query: [URLQueryItem(name: "query", value: query)])
+        return page.results.max(by: { ($0.popularity ?? 0) < ($1.popularity ?? 0) })?.id
+    }
+
     /// Everything they acted in or directed — movies and whole shows
     /// (negative ids), most popular first.
     func filmography(personID: Int) async throws -> [Movie] {
