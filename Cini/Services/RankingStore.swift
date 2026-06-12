@@ -215,8 +215,10 @@ final class RankingStore {
         cache(movie)
         Haptics.tap()
         let wasSaved: Bool
+        var removedItem: WatchlistItem?
         if let index = watchlist.firstIndex(where: { $0.movieID == movie.tmdbID }) {
             wasSaved = true
+            removedItem = watchlist[index]
             watchlist.remove(at: index)
         } else if let userID = supabase.currentUserID {
             wasSaved = false
@@ -234,11 +236,10 @@ final class RankingStore {
             _ = try await supabase.watchlistToggle(movieID: movie.tmdbID)
         } catch {
             // Revert the optimistic flip and say so — silence feels broken.
-            if wasSaved, let userID = supabase.currentUserID {
-                watchlist.insert(
-                    WatchlistItem(id: UUID(), userID: userID, movieID: movie.tmdbID, createdAt: .now),
-                    at: 0
-                )
+            if wasSaved, let original = removedItem {
+                // Restore the EXACT item (id, date, note) — a fresh stand-in
+                // would drift from the server row it still mirrors.
+                watchlist.insert(original, at: 0)
             } else {
                 watchlist.removeAll { $0.movieID == movie.tmdbID }
             }

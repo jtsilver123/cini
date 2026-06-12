@@ -18,6 +18,8 @@
 	</array>
 	<key>UIRequiresFullScreen</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Used to pick a profile photo. Your library is never scanned or uploaded.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Used once to find which of your contacts are already on Cini. Contacts are never stored.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
