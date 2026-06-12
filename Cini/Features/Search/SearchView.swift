@@ -65,7 +65,11 @@ struct SearchView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         if tab == 0 {
-                            if !movieResults.isEmpty {
+                            // TMDB can be slow — skeleton rows say "working
+                            // on it" instead of freezing on stale content.
+                            if isSearching, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                                SearchSkeleton(kind: .titles)
+                            } else if !movieResults.isEmpty {
                                 resultsSection
                             } else if !completedQuery.isEmpty {
                                 noResultsMessage(
@@ -76,6 +80,8 @@ struct SearchView: View {
                                 recentsSection
                                 maybeSeenSection
                             }
+                        } else if isSearching, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                            SearchSkeleton(kind: .members)
                         } else if memberResults.isEmpty && query.trimmingCharacters(in: .whitespaces).isEmpty {
                             suggestedSection
                         } else if memberResults.isEmpty && !completedQuery.isEmpty {
@@ -263,9 +269,7 @@ struct SearchView: View {
             if browseLoaded {
                 noResultsMessage("Nothing to show right now — check your connection and try again.")
             } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                SearchSkeleton(kind: .titles)
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
@@ -740,6 +744,63 @@ struct MovieSuggestionRow: View {
     }
 }
 
+
+/// Shimmering placeholder rows shaped like the real results, shown while
+/// a search or browse fetch is in flight.
+struct SearchSkeleton: View {
+    enum Kind { case titles, members }
+    var kind: Kind = .titles
+    var rows = 8
+
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(0..<rows, id: \.self) { index in
+                row(index)
+                    .padding(.vertical, 8)
+                Divider()
+            }
+        }
+        .opacity(pulse ? 0.45 : 0.9)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Searching")
+    }
+
+    private func row(_ index: Int) -> some View {
+        HStack(spacing: 12) {
+            if kind == .titles {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Theme.fill)
+                    .frame(width: 40, height: 60)
+            } else {
+                Circle().fill(Theme.fill).frame(width: 44, height: 44)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Theme.fill)
+                    .frame(width: index.isMultiple(of: 2) ? 170 : 130, height: 12)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Theme.fill)
+                    .frame(width: index.isMultiple(of: 2) ? 90 : 115, height: 9)
+            }
+            Spacer()
+            if kind == .titles {
+                Circle().fill(Theme.fill).frame(width: 22, height: 22)
+                Circle().fill(Theme.fill).frame(width: 22, height: 22)
+            } else {
+                Capsule().fill(Theme.fill).frame(width: 72, height: 30)
+            }
+        }
+    }
+}
 
 /// Recent searches persist across launches (UserDefaults, newest first).
 enum RecentSearches {
