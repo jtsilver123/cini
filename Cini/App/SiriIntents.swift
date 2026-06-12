@@ -161,13 +161,22 @@ struct OpenWatchlistIntent: AppIntent {
 /// natural speech on its own.
 struct CiniShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        // People rarely say "watchlist" — cover "my list" and "watch
+        // later" phrasings too.
         AppShortcut(
             intent: AddToWatchlistIntent(),
             phrases: [
                 "Add a movie in \(.applicationName)",
                 "Add a movie to my watchlist in \(.applicationName)",
                 "Add a show to my watchlist in \(.applicationName)",
+                "Add a movie to my list in \(.applicationName)",
+                "Add a show to my list in \(.applicationName)",
+                "Add a movie to my lists in \(.applicationName)",
                 "Save a movie in \(.applicationName)",
+                "Save a movie to watch later in \(.applicationName)",
+                "Save a show to watch later in \(.applicationName)",
+                "I want to watch a movie later in \(.applicationName)",
+                "Watch a movie later in \(.applicationName)",
                 "Add to my Want to Watch in \(.applicationName)",
             ],
             shortTitle: "Add to Want to Watch",
@@ -177,7 +186,9 @@ struct CiniShortcuts: AppShortcutsProvider {
             intent: WhatsOnWatchlistIntent(),
             phrases: [
                 "What's on my watchlist in \(.applicationName)",
+                "What's on my list in \(.applicationName)",
                 "What should I watch in \(.applicationName)",
+                "What do I want to watch in \(.applicationName)",
                 "Read my Want to Watch in \(.applicationName)",
             ],
             shortTitle: "What's saved",
@@ -188,6 +199,9 @@ struct CiniShortcuts: AppShortcutsProvider {
             phrases: [
                 "Open my watchlist in \(.applicationName)",
                 "Open my Want to Watch in \(.applicationName)",
+                "Open my list in \(.applicationName)",
+                "Open my lists in \(.applicationName)",
+                "Show my watch later list in \(.applicationName)",
             ],
             shortTitle: "Open Want to Watch",
             systemImageName: "bookmark.fill"
