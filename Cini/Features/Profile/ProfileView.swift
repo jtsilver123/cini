@@ -856,7 +856,7 @@ struct ActivityMovieRow: View {
             } label: {
                 Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                     .font(.title3)
-                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.gold : Theme.ink)
+                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
             }
             .buttonStyle(.plain)
         }

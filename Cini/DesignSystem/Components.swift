@@ -268,6 +268,38 @@ struct ArtworkQuickActions: View {
     }
 }
 
+// MARK: - Category chips (Movies · TV Shows — the only two)
+
+/// The one category selector: identical capsule chips wherever a
+/// category gets picked (save popup, Lists category sheet).
+struct CategoryChips: View {
+    @Binding var selection: MediaCategory
+    var onPick: (MediaCategory) -> Void = { _ in }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(MediaCategory.allCases) { option in
+                Button {
+                    selection = option
+                    onPick(option)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: option.icon)
+                        Text(option.title)
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .foregroundStyle(selection == option ? Theme.background : Theme.ink)
+                    .background(Capsule().fill(selection == option ? Theme.marquee : Theme.fill))
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+    }
+}
+
 /// One bookmark rule everywhere: already saved → instant remove;
 /// otherwise the save happens IMMEDIATELY (Want to Watch) and the quick
 /// refinement popup follows — category (Movie/TV) and lists. Swiping it
@@ -329,31 +361,19 @@ struct SaveToListSheet: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)
 
-                HStack(spacing: 8) {
-                    ForEach(MediaCategory.allCases) { option in
-                        Button {
-                            interacted = true
-                            guard category != option else { return }
-                            category = option
-                            // Applied immediately — swiping away must
-                            // keep whatever the chips say.
-                            let adjusted = effectiveMovie
-                            store.overrideMediaKind(adjusted.tmdbID, kind: adjusted.mediaKind)
-                            Task { try? await SupabaseService.shared.cacheMovie(adjusted) }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: option.icon)
-                                Text(option.title)
-                            }
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .foregroundStyle(category == option ? Theme.background : Theme.ink)
-                            .background(Capsule().fill(category == option ? Theme.marquee : Theme.fill))
-                        }
-                        .buttonStyle(.plain)
+                // Applied immediately — swiping away must keep
+                // whatever the chips say.
+                CategoryChips(selection: $category) { _ in
+                    interacted = true
+                    let adjusted = effectiveMovie
+                    store.overrideMediaKind(adjusted.tmdbID, kind: adjusted.mediaKind)
+                    Task {
+                        // The instant Want-to-Watch save may still be in
+                        // flight carrying the original kind; let it
+                        // settle so this write wins.
+                        try? await Task.sleep(for: .milliseconds(800))
+                        try? await SupabaseService.shared.cacheMovie(adjusted)
                     }
-                    Spacer()
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)

@@ -89,6 +89,7 @@ struct YourListsView: View {
             .sheet(isPresented: $showCategorySheet) {
                 CategorySheet(selection: $category)
                     .presentationDetents([.height(150)])
+                    .presentationDragIndicator(.visible)
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
@@ -957,8 +958,6 @@ struct CategorySheet: View {
     @Binding var selection: MediaCategory
     @Environment(\.dismiss) private var dismiss
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
-
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
@@ -966,31 +965,13 @@ struct CategorySheet: View {
                 Spacer()
                 Button { dismiss() } label: {
                     Image(systemName: "xmark").foregroundStyle(Theme.ink)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
             }
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                ForEach(MediaCategory.allCases) { category in
-                    Button {
-                        selection = category
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: category.icon)
-                            Text(category.title).font(.subheadline.weight(.semibold))
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .foregroundStyle(selection == category ? Theme.background : Theme.ink)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(selection == category ? Theme.marquee : .clear)
-                                .overlay(RoundedRectangle(cornerRadius: 12)
-                                    .strokeBorder(selection == category ? .clear : Theme.hairline))
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+            CategoryChips(selection: $selection) { _ in dismiss() }
             Spacer()
         }
         .padding(20)

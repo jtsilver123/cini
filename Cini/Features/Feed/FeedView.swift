@@ -874,6 +874,7 @@ struct NotificationsView: View {
                 } label: {
                     Image(systemName: "gearshape")
                 }
+                .accessibilityLabel("Notification settings")
             }
         }
         .task {

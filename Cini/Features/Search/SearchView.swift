@@ -169,6 +169,7 @@ struct SearchView: View {
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close search")
         }
     }
 
@@ -720,20 +721,30 @@ struct MovieSuggestionRow: View {
                 Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
             }
             Spacer()
-            HStack(spacing: 14) {
+            HStack(spacing: 2) {
                 Button(action: onRank) {
                     Image(systemName: "plus.circle")
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Rank \(movie.title)")
                 Button {
                     bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
                 } label: {
                     Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                         .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
+                    ? "Remove from Want to Watch" : "Save to Want to Watch")
                 if let onDismiss {
                     Button(action: onDismiss) {
                         Image(systemName: "xmark").foregroundStyle(Theme.gray)
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Dismiss")
                 }
             }
             .font(.title3)
