@@ -5,16 +5,27 @@ import SwiftUI
 // pipeline, so they land in the requester's Friend Recs with the note.
 
 /// Requester side: multi-select friends, optionally narrow the ask.
+/// With a pinned recipient (a friend's profile button) the picker is
+/// skipped — the ask goes to them.
 struct RequestRecsSheet: View {
+    var recipientID: UUID?
+    var recipientUsername: String?
+
     @Environment(\.dismiss) private var dismiss
     @Environment(TabRouter.self) private var tabRouter
 
     @State private var friendsCache = FriendsCache.shared
-    @State private var selected: Set<UUID> = []
+    @State private var selected: Set<UUID>
     @State private var mediaKind: String?     // nil = any, "movie", "tv"
     @State private var genre: String?         // nil = any
     @State private var note = ""
     @State private var sending = false
+
+    init(recipientID: UUID? = nil, recipientUsername: String? = nil) {
+        self.recipientID = recipientID
+        self.recipientUsername = recipientUsername
+        _selected = State(initialValue: recipientID.map { Set([$0]) } ?? [])
+    }
 
     private static let genres = [
         "Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary",
@@ -27,7 +38,7 @@ struct RequestRecsSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                if friends.isEmpty {
+                if friends.isEmpty && recipientID == nil {
                     VStack(spacing: 10) {
                         Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)
                         Text("Follow some friends first — recs come from people you follow.")
@@ -64,11 +75,17 @@ struct RequestRecsSheet: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    section("WHO TO ASK")
-                    VStack(spacing: 0) {
-                        ForEach(friends) { friend in
-                            friendRow(friend)
-                            Divider()
+                    if let recipientUsername, recipientID != nil {
+                        (Text("Asking ") + Text("@\(recipientUsername)").bold()
+                            + Text(" for a rec"))
+                            .font(.subheadline)
+                    } else {
+                        section("WHO TO ASK")
+                        VStack(spacing: 0) {
+                            ForEach(friends) { friend in
+                                friendRow(friend)
+                                Divider()
+                            }
                         }
                     }
 
@@ -154,13 +171,18 @@ struct RequestRecsSheet: View {
         .buttonStyle(.plain)
     }
 
+    private var sendButtonTitle: String {
+        if sending { return "Sending…" }
+        if let recipientUsername, recipientID != nil { return "Ask @\(recipientUsername)" }
+        if selected.isEmpty { return "Ask friends" }
+        return "Ask \(selected.count) friend\(selected.count == 1 ? "" : "s")"
+    }
+
     private var sendBar: some View {
         VStack(spacing: 0) {
             Divider()
             PillButton(
-                title: sending
-                    ? "Sending…"
-                    : "Ask \(selected.isEmpty ? "friends" : "\(selected.count) friend\(selected.count == 1 ? "" : "s")")",
+                title: sendButtonTitle,
                 systemImage: "paperplane"
             ) {
                 guard !selected.isEmpty, !sending else { return }

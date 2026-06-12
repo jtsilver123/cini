@@ -23,6 +23,7 @@ struct ProfileScreen: View {
     @State private var blocked = false
     @State private var reported = false
     @State private var showBlockConfirm = false
+    @State private var showAskRec = false
     @State private var matchPct: Double?
     @State private var globalRank: Int?
     @State private var watchlistCount = 0
@@ -69,6 +70,10 @@ struct ProfileScreen: View {
             .refreshable { await load() }
         }
         .background(Theme.background)
+        .sheet(isPresented: $showAskRec) {
+            RequestRecsSheet(recipientID: resolvedID,
+                             recipientUsername: profile?.username ?? username)
+        }
         .sheet(isPresented: $showImport) {
             LetterboxdImportView()
         }
@@ -359,6 +364,14 @@ struct ProfileScreen: View {
                         } catch {
                             following = wasFollowing
                         }
+                    }
+                }
+                // Their taste, on demand — asks need a follow (the RPC
+                // enforces it), so the button appears once they're a friend.
+                if following && !blocked {
+                    PillButton(title: "Ask for a rec", systemImage: "hand.wave",
+                               style: .outlined) {
+                        showAskRec = true
                     }
                 }
                 // Moderation: report or block from any member profile.
