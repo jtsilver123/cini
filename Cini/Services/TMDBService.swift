@@ -61,11 +61,22 @@ final class TMDBService {
         return page.results.compactMap(\.asMovie)
     }
 
+    /// Popular movies AND shows, merged by popularity — TV is first-class.
     func popular(year: Int? = nil) async throws -> [Movie] {
-        var items: [URLQueryItem] = [URLQueryItem(name: "sort_by", value: "popularity.desc")]
-        if let year { items.append(URLQueryItem(name: "primary_release_year", value: String(year))) }
-        let page: SearchPage = try await get("/discover/movie", query: items)
-        return page.results.map(\.asMovie)
+        var movieItems: [URLQueryItem] = [URLQueryItem(name: "sort_by", value: "popularity.desc")]
+        var tvItems: [URLQueryItem] = [URLQueryItem(name: "sort_by", value: "popularity.desc")]
+        if let year {
+            movieItems.append(URLQueryItem(name: "primary_release_year", value: String(year)))
+            tvItems.append(URLQueryItem(name: "first_air_date_year", value: String(year)))
+        }
+        async let moviePage: SearchPage = get("/discover/movie", query: movieItems)
+        async let tvPage: TVListPage = get("/discover/tv", query: tvItems)
+        let movies = (try await moviePage).results.map(\.asMovie)
+        // A TV hiccup shouldn't blank the whole Popular tab.
+        let shows = ((try? await tvPage)?.results ?? []).map(\.asMovie)
+        var merged = movies + shows
+        merged.sort { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+        return merged
     }
 
     /// Human-readable theme keywords ("space opera", "heist") — the tag
@@ -93,7 +104,12 @@ final class TMDBService {
         return page.results.map(\.asMovie)
     }
 
+    /// Similar titles for movies AND shows (negative ids → /tv/).
     func similar(to movieID: Int) async throws -> [Movie] {
+        if movieID < 0 {
+            let page: TVListPage = try await get("/tv/\(-movieID)/similar")
+            return page.results.map(\.asMovie)
+        }
         let page: SearchPage = try await get("/movie/\(movieID)/similar")
         return page.results.map(\.asMovie)
     }
@@ -176,8 +192,8 @@ final class TMDBService {
         return page.results.map(\.asMovie)
     }
 
-    /// Movies directed by the person best matching the query, most
-    /// popular first. Empty when the query isn't a director.
+    /// Movies AND shows directed by the person best matching the query,
+    /// most popular first. Empty when the query isn't a director.
     func directedMovies(matching query: String) async throws -> [Movie] {
         struct PersonPage: Codable {
             struct Person: Codable {
@@ -198,38 +214,50 @@ final class TMDBService {
              || Fuzzy.similarity(query: query, candidate: $0.name) >= 0.75)
         }) else { return [] }
 
+        // combined_credits covers shows too — a director query must
+        // surface their TV work, not just films.
         struct CreditsPage: Codable {
             struct CrewCredit: Codable {
                 let id: Int
+                let mediaType: String?
                 let title: String?
+                let name: String?
                 let job: String?
                 let posterPath: String?
                 let backdropPath: String?
                 let genreIds: [Int]?
                 let releaseDate: String?
+                let firstAirDate: String?
                 let overview: String?
                 let originalLanguage: String?
                 let popularity: Double?
             }
             let crew: [CrewCredit]
         }
-        let credits: CreditsPage = try await get("/person/\(person.id)/movie_credits")
-        var seen = Set<Int>()
-        return credits.crew
-            .filter { $0.job == "Director" && $0.title != nil }
+        let credits: CreditsPage = try await get("/person/\(person.id)/combined_credits")
+        let directed = credits.crew
+            .filter { $0.job == "Director" }
             .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
-            .compactMap { credit in
-                guard seen.insert(credit.id).inserted, let title = credit.title else { return nil }
-                return Movie(
-                    tmdbID: credit.id, mediaKind: "movie", title: title,
-                    releaseYear: credit.releaseDate.flatMap { Int($0.prefix(4)) },
-                    posterPath: credit.posterPath, backdropPath: credit.backdropPath,
-                    genres: (credit.genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
-                    certification: nil, runtimeMinutes: nil, director: person.name,
-                    overview: credit.overview, originalLanguage: credit.originalLanguage,
-                    popularity: credit.popularity, releaseDateFull: credit.releaseDate
-                )
-            }
+        var seen = Set<Int>()
+        var results: [Movie] = []
+        for credit in directed {
+            let isTV = credit.mediaType == "tv"
+            guard credit.mediaType == "movie" || isTV else { continue }
+            guard let title = isTV ? credit.name : credit.title else { continue }
+            let id = isTV ? -credit.id : credit.id
+            guard seen.insert(id).inserted else { continue }
+            let date = isTV ? credit.firstAirDate : credit.releaseDate
+            results.append(Movie(
+                tmdbID: id, mediaKind: isTV ? "tv" : "movie", title: title,
+                releaseYear: date.flatMap { Int($0.prefix(4)) },
+                posterPath: credit.posterPath, backdropPath: credit.backdropPath,
+                genres: (credit.genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                certification: nil, runtimeMinutes: nil, director: person.name,
+                overview: credit.overview, originalLanguage: credit.originalLanguage,
+                popularity: credit.popularity, releaseDateFull: date
+            ))
+        }
+        return results
     }
 
     // MARK: - People
@@ -386,6 +414,34 @@ struct WatchProviders: Codable, Hashable {
 
 private struct SearchPage: Codable {
     let results: [MovieDTO]
+}
+
+/// TV list rows (/discover/tv, /tv/{id}/similar): same shape as movie
+/// rows but name/first_air_date, and no media_type to tell them apart —
+/// so they get their own page type and negate ids on the way out.
+private struct TVListPage: Codable {
+    struct Item: Codable {
+        let id: Int
+        let name: String
+        let firstAirDate: String?
+        let posterPath: String?
+        let backdropPath: String?
+        let genreIds: [Int]?
+        let overview: String?
+        let originalLanguage: String?
+        let popularity: Double?
+
+        var asMovie: Movie {
+            Movie(tmdbID: -id, mediaKind: "tv", title: name,
+                  releaseYear: firstAirDate.flatMap { Int($0.prefix(4)) },
+                  posterPath: posterPath, backdropPath: backdropPath,
+                  genres: (genreIds ?? []).compactMap { MovieDTO.genreNames[$0] },
+                  certification: nil, runtimeMinutes: nil, director: nil,
+                  overview: overview, originalLanguage: originalLanguage,
+                  popularity: popularity, releaseDateFull: firstAirDate)
+        }
+    }
+    let results: [Item]
 }
 
 /// /search/multi rows: movies, TV shows, and people (people are dropped).

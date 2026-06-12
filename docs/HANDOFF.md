@@ -162,6 +162,14 @@ and shipped on request only — Apple caps uploads per app per day
   New iOS 27 APIs (multimodal prompts, `LanguageModel` protocol, Dynamic
   Profiles) need the Xcode 27 SDK, which App Store builds can't use
   until it ships GM (~Sept 2026) — revisit then.
+- Content types (user directive, 2026-06-12): Movies and TV Shows are
+  the ONLY two categories — Documentaries/Anime were removed from
+  MediaCategory (they're genres: searchable and filterable, never
+  categories). TMDB parity: similar() routes negative ids to /tv,
+  popular() merges /discover/movie + /discover/tv by popularity,
+  directedMovies() uses combined_credits so director queries surface TV.
+  upcoming() stays movie-only DELIBERATELY — it's the theatrical
+  release calendar.
 - Rec requests (Beli-style "ask friends for a rec"): feed row under
   YOUR FEED → RequestRecsSheet (multi-select friends, optional
   Movies/TV + genre + note) → `request_recs` RPC (0036; follow +

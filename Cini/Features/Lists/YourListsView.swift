@@ -88,7 +88,7 @@ struct YourListsView: View {
             .background(Theme.background)
             .sheet(isPresented: $showCategorySheet) {
                 CategorySheet(selection: $category)
-                    .presentationDetents([.height(260)])
+                    .presentationDetents([.height(150)])
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)

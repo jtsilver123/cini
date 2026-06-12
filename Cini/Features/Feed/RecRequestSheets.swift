@@ -208,10 +208,14 @@ struct RespondRecSheet: View {
                     List {
                         ForEach(requests) { request in
                             NavigationLink {
-                                RespondPickerView(request: request) { fulfilled in
-                                    requests.removeAll { $0.id == fulfilled }
-                                    if requests.isEmpty { dismiss() }
-                                }
+                                RespondPickerView(
+                                    request: request,
+                                    onFulfilled: { fulfilled in
+                                        requests.removeAll { $0.id == fulfilled }
+                                        if requests.isEmpty { dismiss() }
+                                    },
+                                    closeSheet: { dismiss() }
+                                )
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("**@\(request.profiles?.username ?? "someone")** wants \(request.criteriaText)")
@@ -254,8 +258,11 @@ struct RespondRecSheet: View {
 struct RespondPickerView: View {
     let request: RecRequestRow
     var onFulfilled: (UUID) -> Void
+    /// Closes the whole sheet (dismiss() here only pops the push).
+    var closeSheet: () -> Void = {}
 
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
     @Environment(\.dismiss) private var dismiss
 
     @State private var picked: Set<Int> = []
@@ -314,11 +321,15 @@ struct RespondPickerView: View {
             .padding(16)
 
             if candidates.isEmpty {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "film").font(.title).foregroundStyle(Theme.gray)
                     Text("Rank a few titles first — recs come from what you've watched.")
                         .font(.subheadline).foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
+                    PillButton(title: "Rank something", systemImage: "plus") {
+                        closeSheet()
+                        tabRouter.selection = .search
+                    }
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -389,9 +400,13 @@ struct RespondPickerView: View {
                         }
                     }
                     if sent > 0 {
-                        await SupabaseService.shared.completeRecRequest(id: request.id)
+                        // The recs are sent either way; completion is
+                        // bookkeeping — if it fails, leave the ask
+                        // visible so it can be cleared later.
+                        let completed = await SupabaseService.shared.completeRecRequest(id: request.id)
                         ToastCenter.shared.show("Sent \(sent) rec\(sent == 1 ? "" : "s") to @\(request.profiles?.username ?? "them") 🎬")
-                        onFulfilled(request.id)
+                        sending = false
+                        if completed { onFulfilled(request.id) }
                         dismiss()
                     } else {
                         sending = false

@@ -3,8 +3,11 @@ import RankingEngine
 
 // MARK: - Category (Beli's Restaurants/Bars/Bakeries → media kinds)
 
+/// Movies and TV shows are the ONLY two content types. Documentaries,
+/// anime, and friends are genres — searchable and filterable, never
+/// categories of their own.
 enum MediaCategory: String, CaseIterable, Codable, Identifiable {
-    case movies, tvShows, documentaries, anime
+    case movies, tvShows
 
     var id: String { rawValue }
 
@@ -12,8 +15,6 @@ enum MediaCategory: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .movies: return "Movies"
         case .tvShows: return "TV Shows"
-        case .documentaries: return "Documentaries"
-        case .anime: return "Anime"
         }
     }
 
@@ -21,8 +22,6 @@ enum MediaCategory: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .movies: return "film"
         case .tvShows: return "tv"
-        case .documentaries: return "video"
-        case .anime: return "sparkles.tv"
         }
     }
 
@@ -30,26 +29,13 @@ enum MediaCategory: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .movies: return "movie"
         case .tvShows: return "tv"
-        case .documentaries: return "documentary"
-        case .anime: return "anime"
         }
     }
 
-    /// Stored kinds are only "movie"/"tv" — Documentaries and Anime are
-    /// genre slices ACROSS both kinds, not kinds of their own. (Matching
-    /// on the fake kinds above made those two categories permanently
-    /// empty.)
     func matches(_ movie: Movie) -> Bool {
         switch self {
-        case .movies:
-            return movie.mediaKind != "tv"
-        case .tvShows:
-            return movie.mediaKind == "tv"
-        case .documentaries:
-            return movie.genres.contains { $0.localizedCaseInsensitiveContains("documentary") }
-        case .anime:
-            let animated = movie.genres.contains { $0.localizedCaseInsensitiveContains("animation") }
-            return animated && movie.originalLanguage == "ja"
+        case .movies: return movie.mediaKind != "tv"
+        case .tvShows: return movie.mediaKind == "tv"
         }
     }
 }

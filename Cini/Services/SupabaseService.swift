@@ -413,13 +413,19 @@ final class SupabaseService {
         return rows.filter { $0.fulfilledAt == nil }
     }
 
-    func completeRecRequest(id: UUID) async {
+    /// False means the ask is still pending server-side (the recs
+    /// themselves already sent) — callers keep it visible so the
+    /// responder can clear it later.
+    @discardableResult
+    func completeRecRequest(id: UUID) async -> Bool {
         struct Params: Encodable { let p_request_id: UUID }
         do {
             _ = try await client.rpc("complete_rec_request",
                                      params: Params(p_request_id: id)).execute()
+            return true
         } catch {
             Self.logSwallowed("complete_rec_request", error)
+            return false
         }
     }
 
@@ -1194,13 +1200,19 @@ struct RecRequestRow: Decodable, Identifiable, Hashable {
         case fulfilledAt = "fulfilled_at"
     }
 
-    /// "a comedy movie", "a TV show", "something good" — the ask, spoken.
+    /// "a comedy movie", "an action TV show", "something good" — the
+    /// ask, spoken.
     var criteriaText: String {
         let kind = mediaKind == "tv" ? "TV show" : (mediaKind == "movie" ? "movie" : nil)
+        func article(_ word: String) -> String {
+            "aeiou".contains(word.lowercased().first ?? "x") ? "an" : "a"
+        }
         switch (genre, kind) {
-        case let (genre?, kind?): return "a \(genre.lowercased()) \(kind)"
+        case let (genre?, kind?):
+            let phrase = "\(genre.lowercased()) \(kind)"
+            return "\(article(phrase)) \(phrase)"
         case let (genre?, nil): return "something \(genre.lowercased())"
-        case let (nil, kind?): return "a \(kind)"
+        case let (nil, kind?): return "\(article(kind)) \(kind)"
         case (nil, nil): return "something good"
         }
     }
