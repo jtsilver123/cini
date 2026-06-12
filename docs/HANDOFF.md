@@ -162,6 +162,13 @@ and shipped on request only — Apple caps uploads per app per day
   New iOS 27 APIs (multimodal prompts, `LanguageModel` protocol, Dynamic
   Profiles) need the Xcode 27 SDK, which App Store builds can't use
   until it ships GM (~Sept 2026) — revisit then.
+- Siri actions (`Cini/App/SiriIntents.swift`): App Intents + App
+  Shortcuts — add/remove Want to Watch, read the watchlist aloud, open
+  a title's page, open the watchlist. The new Siri (iOS 27) drives these
+  from natural speech; iOS 17–26 classic Siri uses the registered
+  phrases ("Add a movie in Cini") and asks a follow-up for the title.
+  Intents hit Supabase/TMDB directly (signed-out → spoken sign-in
+  prompt); open-style intents reuse TabRouter's push deep-link plumbing.
 - CI (`ci.yml`): engine tests (39) + app build/tests on simulator + the
   live Supabase contract check — green through 46e2e6d-era commits
 - Live prototype: https://jtsilver123.github.io/cini/prototype/ — deploys
