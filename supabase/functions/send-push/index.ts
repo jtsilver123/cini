@@ -87,6 +87,10 @@ function headline(kind: string, actor: string, movie: string | null): string {
       return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
     case "rec_request":
       return `@${actor} wants a rec from you — send one 🎬`;
+    case "streaming_now":
+      return `${movie ?? "A title you saved"} is streaming now 🍿`;
+    case "season_premiere":
+      return `New season incoming — ${movie ?? "a show you ranked"} returns this week 🎬`;
     default: return `@${actor} did something new on Cini`;
   }
 }

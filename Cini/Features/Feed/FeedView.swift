@@ -898,6 +898,8 @@ struct NotificationsView: View {
         case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
+        case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
+        case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)

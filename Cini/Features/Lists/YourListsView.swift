@@ -737,7 +737,8 @@ struct YourListsView: View {
                     // Prefetched at launch — badges render instantly.
                     WatchlistRowView(movie: movie,
                                      predicted: predicted[item.movieID]
-                                         ?? store.predictedScores[item.movieID]) {
+                                         ?? store.predictedScores[item.movieID],
+                                     note: item.note) {
                         logMovie = movie
                     }
                     .contentShape(Rectangle())
@@ -945,6 +946,8 @@ struct WatchlistRowView: View {
     let movie: Movie
     /// Rec Score — how much we think the user will like it.
     var predicted: Double?
+    /// The "why I saved this" note from the save popup.
+    var note: String?
     var onQuickRank: () -> Void = {}
 
     @Environment(RankingStore.self) private var store
@@ -961,6 +964,13 @@ struct WatchlistRowView: View {
                 Text(movie.bylineText)
                     .font(.subheadline)
                     .foregroundStyle(Theme.ink.opacity(0.8))
+                if let note {
+                    Text("“\(note)”")
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(2)
+                }
             }
             Spacer()
             // Score top-right, (+)/bookmark bottom-right — the same

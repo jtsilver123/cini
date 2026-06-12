@@ -327,10 +327,18 @@ struct SaveToListSheet: View {
     @State private var newName = ""
     @State private var category: MediaCategory
     @State private var interacted = false
+    @State private var notifyStreaming = false
+    @State private var noteText = ""
+    @State private var hiddenFromFeed = false
 
     init(movie: Movie) {
         self.movie = movie
         _category = State(initialValue: movie.mediaKind == "tv" ? .tvShows : .movies)
+    }
+
+    /// Already streamable → an availability alert would be noise.
+    private var alreadyStreaming: Bool {
+        !(store.movie(movie.tmdbID)?.streamingOn ?? movie.streamingOn).isEmpty
     }
 
     /// Every action carries the chosen category.
@@ -378,25 +386,63 @@ struct SaveToListSheet: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)
 
-                ForEach(store.customLists) { list in
-                    Button {
-                        Haptics.tap()
+                if !alreadyStreaming {
+                    Toggle(isOn: $notifyStreaming) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "bell")
+                                .foregroundStyle(Theme.marquee)
+                            Text("Tell me when it's streaming")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
+                    .tint(Theme.marquee)
+                    .onChange(of: notifyStreaming) { _, enabled in
+                        interacted = true
                         let saved = effectiveMovie
                         Task {
                             try? await SupabaseService.shared.cacheMovie(saved)
-                            do {
-                                try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
-                                ToastCenter.shared.show("Added to \(list.name)")
-                            } catch {
-                                ToastCenter.shared.saveFailed()
+                            await SupabaseService.shared.setStreamingAlert(
+                                movieID: saved.tmdbID, enabled: enabled)
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+                }
+
+                // Your lists as one compact chip row — Beli-style.
+                if !store.customLists.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(store.customLists) { list in
+                                Button {
+                                    Haptics.tap()
+                                    let saved = effectiveMovie
+                                    Task {
+                                        try? await SupabaseService.shared.cacheMovie(saved)
+                                        do {
+                                            try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                            ToastCenter.shared.show("Added to \(list.name)")
+                                        } catch {
+                                            ToastCenter.shared.saveFailed()
+                                        }
+                                    }
+                                    dismiss()
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "list.star")
+                                        Text(list.name)
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .background(Capsule().strokeBorder(Theme.hairline))
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
-                        dismiss()
-                    } label: {
-                        saveRow(icon: "list.star", tint: Theme.ink,
-                                title: "Also add to \(list.name)",
-                                subtitle: "\(list.count) title\(list.count == 1 ? "" : "s")")
                     }
+                    .listRowSeparator(.hidden)
                     .listRowBackground(Theme.background)
                 }
 
@@ -422,7 +468,48 @@ struct SaveToListSheet: View {
                     }
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+                .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)
+
+                TextField("Add a note — why you saved it", text: $noteText, axis: .vertical)
+                    .lineLimit(1...3)
+                    .onChange(of: noteText) { _, _ in interacted = true }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+
+                Button {
+                    interacted = true
+                    guard !hiddenFromFeed else { return }
+                    hiddenFromFeed = true
+                    Task { await SupabaseService.shared.hideWatchlistEvent(movieID: movie.tmdbID) }
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: hiddenFromFeed ? "eye.slash.fill" : "eye.slash")
+                            .foregroundStyle(hiddenFromFeed ? Theme.gray : Theme.marquee)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(hiddenFromFeed ? "Hidden from feed" : "Hide from feed")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(hiddenFromFeed ? Theme.gray : Theme.ink)
+                            Text("Friends won't see this save")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
+                        }
+                        Spacer()
+                        if hiddenFromFeed {
+                            Image(systemName: "checkmark").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(hiddenFromFeed)
+                .listRowBackground(Theme.background)
+            }
+            .onDisappear {
+                let note = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !note.isEmpty {
+                    Task { await store.setWatchlistNote(movieID: movie.tmdbID, note: note) }
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)

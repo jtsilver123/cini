@@ -66,6 +66,7 @@ READS = [
     ("my_rank_details", "rankings", "watch_date, watched_with, watched_where, ranking_labels(labels(name))"),
     ("direct_recs", "direct_recs", "id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies!direct_recs_movie_id_fkey(*)"),
     ("rec_requests", "rec_requests", "id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)"),
+    ("streaming_alerts", "streaming_alerts", "user_id, movie_id, notified_at"),
     ("pending_imports", "pending_imports", "status, path"),
     ("blocked_ids", "blocks", "blocked_id"),
     ("custom_lists", "custom_lists", "id, user_id, name, is_private, created_at, custom_list_items(count)"),
@@ -104,6 +105,8 @@ RPCS = [
     ("request_recs", {"p_recipients": [], "p_media_kind": None,
                       "p_genre": None, "p_note": None}),
     ("complete_rec_request", {"p_request_id": "00000000-0000-0000-0000-000000000000"}),
+    # Demo user has no watchlist row for id 2 — a no-op update.
+    ("set_watchlist_note", {"p_movie_id": 2, "p_note": None}),
     # delete_account deliberately excluded.
 ]
 

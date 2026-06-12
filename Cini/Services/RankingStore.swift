@@ -56,7 +56,8 @@ final class RankingStore {
             list = RankingList(items: items)
             listChanged()
             watchlist = watching.map {
-                WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId, createdAt: $0.createdAt)
+                WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId,
+                              createdAt: $0.createdAt, note: $0.note)
             }
 
             let allIDs = Set(rankings.map(\.movieId) + watching.map(\.movieId))
@@ -253,6 +254,15 @@ final class RankingStore {
             return
         }
         movies[movie.tmdbID] = movie
+    }
+
+    /// "Why I saved this" — local state plus the server row.
+    func setWatchlistNote(movieID: Int, note: String) async {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let index = watchlist.firstIndex(where: { $0.movieID == movieID }) {
+            watchlist[index].note = trimmed.isEmpty ? nil : trimmed
+        }
+        await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
     }
 
     /// The save popup lets users fix a mislabeled kind (TV movie,

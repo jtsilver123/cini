@@ -164,5 +164,7 @@ struct WatchlistItem: Identifiable, Codable, Hashable {
     let userID: UUID
     let movieID: Int
     let createdAt: Date
+    /// The "why I saved this" note from the save popup.
+    var note: String?
 }
 

@@ -224,6 +224,50 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// The "why I saved this" note on a Want to Watch entry.
+    func setWatchlistNote(movieID: Int, note: String) async {
+        struct Params: Encodable { let p_movie_id: Int; let p_note: String? }
+        do {
+            _ = try await client.rpc("set_watchlist_note",
+                                     params: Params(p_movie_id: movieID, p_note: note)).execute()
+        } catch {
+            Self.logSwallowed("set_watchlist_note", error)
+        }
+    }
+
+    /// "Tell me when it's streaming" — client owns its rows; the daily
+    /// availability cron does the watching.
+    func setStreamingAlert(movieID: Int, enabled: Bool) async {
+        guard let me = currentUserID else { return }
+        struct Row: Encodable { let user_id: UUID; let movie_id: Int }
+        do {
+            if enabled {
+                try await client.from("streaming_alerts")
+                    .upsert(Row(user_id: me, movie_id: movieID),
+                            onConflict: "user_id,movie_id")
+                    .execute()
+            } else {
+                try await client.from("streaming_alerts").delete()
+                    .eq("user_id", value: me).eq("movie_id", value: movieID)
+                    .execute()
+            }
+        } catch {
+            Self.logSwallowed("streaming_alerts", error)
+        }
+    }
+
+    /// Stealth save: pull the 'watchlisted' event for this movie off the
+    /// feed (mirror of hideRankEvent).
+    func hideWatchlistEvent(movieID: Int) async {
+        guard let me = currentUserID else { return }
+        _ = try? await client.from("feed_events")
+            .delete()
+            .eq("user_id", value: me)
+            .eq("movie_id", value: movieID)
+            .eq("event_type", value: "watchlisted")
+            .execute()
+    }
+
     // MARK: - Growth: suggestions, contacts, invites
 
     func suggestedMembers() async throws -> [SuggestedMember] {
@@ -1369,9 +1413,10 @@ struct WatchlistRow: Codable, Identifiable, Hashable {
     let userId: UUID
     let movieId: Int
     let createdAt: Date
+    var note: String?
 
     enum CodingKeys: String, CodingKey {
-        case id
+        case id, note
         case userId = "user_id"
         case movieId = "movie_id"
         case createdAt = "created_at"
