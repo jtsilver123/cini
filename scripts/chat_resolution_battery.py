@@ -69,3 +69,42 @@ for phrase in ["friends", "the tv show friends", "the new dune movie", "dune 202
                "her", "interstellar", "the office", "lotr", "white lotus",
                "everything everywhere", "the new spiderman"]:
     print(f"{phrase!r:36} -> {resolve(phrase)}")
+
+# --- List-name matcher battery: mirrors ChatAgentBridge.listMatchScore ---
+import difflib
+
+LIST_STOP = {"my","the","a","of","list","lists","movie","movies","film","films",
+             "that","this","with","one","ones","for","me"}
+
+def norm(w):
+    return w[:-1] if len(w) > 3 and w.endswith("s") else w
+
+def sig_words(text):
+    return {norm(w) for w in text.lower().split() if w not in LIST_STOP}
+
+def list_score(needle, candidate):
+    score = difflib.SequenceMatcher(None, needle.lower(), candidate.lower()).ratio()
+    if needle.lower() in candidate.lower() or candidate.lower() in needle.lower():
+        score = max(score, 0.85)
+    overlap = sig_words(needle) & sig_words(candidate)
+    if overlap:
+        score = max(score, 0.65 + 0.15 * len(overlap))
+    return score
+
+LISTS = ["Best Heist Movies", "Date Night", "Cozy Fall Watches", "A24 Bangers",
+         "Movies That Made Me Cry", "Oscar Bait 2026", "Comfort Shows"]
+
+def resolve_list(name):
+    best, best_score = None, 0.0
+    for cand in LISTS:
+        s = list_score(name, cand)
+        if s > best_score:
+            best, best_score = cand, s
+    return f"{best} ({best_score:.2f})" if best_score >= 0.6 else None
+
+print()
+# Last phrase is a deliberate no-match: no horror list exists, so None is right.
+for phrase in ["my heist list", "that list with the heists", "heist movies",
+               "date night list", "the cozy one", "a24 list", "the made me cry one",
+               "oscar bait", "comfort show list", "my horror list"]:
+    print(f"{phrase!r:36} -> {resolve_list(phrase)}")

@@ -157,11 +157,24 @@ final class ChatAgentBridge {
 
     private static let listStopWords: Set<String> = [
         "my", "the", "a", "of", "list", "lists", "movie", "movies", "film", "films",
+        "that", "this", "with", "one", "ones", "for", "me",
     ]
 
+    /// Singularized so "heists" overlaps "heist" — stop words are stored
+    /// in both forms, so they stay filtered either way.
+    private static func normalized(_ word: String) -> String {
+        if word.count > 3, word.hasSuffix("s") { return String(word.dropLast()) }
+        return word
+    }
+
     private static func significantWords(in text: String) -> Set<String> {
-        let words = text.lowercased().split(separator: " ").map(String.init)
-        return Set(words).subtracting(listStopWords)
+        var result: Set<String> = []
+        for piece in text.lowercased().split(separator: " ") {
+            let word = String(piece)
+            if listStopWords.contains(word) { continue }
+            result.insert(normalized(word))
+        }
+        return result
     }
 
     /// How well a spoken name matches a list name (0–1). Small named
@@ -208,11 +221,11 @@ final class ChatAgentBridge {
 @available(iOS 26.0, *)
 struct SaveToWatchlistTool: Tool {
     let name = "saveToWantToWatch"
-    let description = "Save a movie or show to the user's Want to Watch list."
+    let description = "Save a movie or show to Want to Watch."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The movie or show title (add the year if ambiguous)")
+        @Guide(description: "The title (year helps)")
         var title: String
     }
 
@@ -236,11 +249,11 @@ struct SaveToWatchlistTool: Tool {
 @available(iOS 26.0, *)
 struct RemoveFromWatchlistTool: Tool {
     let name = "removeFromWantToWatch"
-    let description = "Remove a movie or show from the user's Want to Watch list."
+    let description = "Remove a title from Want to Watch."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The title to remove")
+        @Guide(description: "The title")
         var title: String
     }
 
@@ -261,11 +274,11 @@ struct RemoveFromWatchlistTool: Tool {
 @available(iOS 26.0, *)
 struct CreateListTool: Tool {
     let name = "createList"
-    let description = "Create a new custom movie list for the user."
+    let description = "Create a custom list."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The list's name, e.g. Best heist movies")
+        @Guide(description: "List name")
         var name: String
     }
 
@@ -287,13 +300,13 @@ struct CreateListTool: Tool {
 @available(iOS 26.0, *)
 struct AddToListTool: Tool {
     let name = "addMovieToList"
-    let description = "Add a movie to one of the user's custom lists (creates the list if it doesn't exist)."
+    let description = "Add a title to a custom list (created if missing)."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The movie or show title")
+        @Guide(description: "The title")
         var title: String
-        @Guide(description: "The custom list's name")
+        @Guide(description: "List name")
         var listName: String
     }
 
@@ -325,13 +338,13 @@ struct AddToListTool: Tool {
 @available(iOS 26.0, *)
 struct RemoveFromListTool: Tool {
     let name = "removeMovieFromList"
-    let description = "Remove a movie from one of the user's custom lists."
+    let description = "Remove a title from a custom list."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The movie or show title")
+        @Guide(description: "The title")
         var title: String
-        @Guide(description: "The custom list's name")
+        @Guide(description: "List name")
         var listName: String
     }
 
@@ -352,11 +365,11 @@ struct RemoveFromListTool: Tool {
 @available(iOS 26.0, *)
 struct DeleteListTool: Tool {
     let name = "deleteList"
-    let description = "Permanently delete one of the user's custom lists. Only call after the user explicitly confirms."
+    let description = "Permanently delete a custom list. Only after explicit confirmation."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The custom list's name")
+        @Guide(description: "List name")
         var listName: String
     }
 
@@ -378,11 +391,11 @@ struct DeleteListTool: Tool {
 @available(iOS 26.0, *)
 struct SearchMembersTool: Tool {
     let name = "searchMembers"
-    let description = "Find Cini members by username or name."
+    let description = "Find members by name or username."
 
     @Generable
     struct Arguments {
-        @Guide(description: "Username or name to search for")
+        @Guide(description: "Name or username")
         var query: String
     }
 
@@ -398,11 +411,11 @@ struct SearchMembersTool: Tool {
 @available(iOS 26.0, *)
 struct FollowMemberTool: Tool {
     let name = "followMember"
-    let description = "Follow a Cini member by username."
+    let description = "Follow a member."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The member's username")
+        @Guide(description: "Username")
         var username: String
     }
 
@@ -424,11 +437,11 @@ struct FollowMemberTool: Tool {
 @available(iOS 26.0, *)
 struct UnfollowMemberTool: Tool {
     let name = "unfollowMember"
-    let description = "Unfollow a Cini member by username."
+    let description = "Unfollow a member."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The member's username")
+        @Guide(description: "Username")
         var username: String
     }
 
@@ -446,15 +459,15 @@ struct UnfollowMemberTool: Tool {
 @available(iOS 26.0, *)
 struct SendRecTool: Tool {
     let name = "sendRecommendation"
-    let description = "Send a movie recommendation TO ANOTHER CINI MEMBER (a person, by @username). Never use this to find where to watch something — that's lookupMovie."
+    let description = "Send a title to a member they NAME. Never for where-to-watch (use lookupMovie)."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The recipient's username")
+        @Guide(description: "Username")
         var username: String
-        @Guide(description: "The movie or show title")
+        @Guide(description: "The title")
         var title: String
-        @Guide(description: "A short personal note, or empty")
+        @Guide(description: "Short note, or empty")
         var note: String
     }
 
@@ -479,11 +492,11 @@ struct SendRecTool: Tool {
 @available(iOS 26.0, *)
 struct StartRankingTool: Tool {
     let name = "startRanking"
-    let description = "Open the ranking flow for a movie the user has watched, so they can rank it with comparisons."
+    let description = "Open the ranking flow for a title they've watched."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The movie or show title to rank")
+        @Guide(description: "The title")
         var title: String
     }
 
@@ -503,11 +516,11 @@ struct StartRankingTool: Tool {
 @available(iOS 26.0, *)
 struct DeleteRatingTool: Tool {
     let name = "deleteRating"
-    let description = "Delete the user's rating for a movie, removing it from their ranked list. Only call after the user explicitly confirms."
+    let description = "Delete the user's rating for a title. Only after explicit confirmation."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The ranked movie's title")
+        @Guide(description: "The title")
         var title: String
     }
 
@@ -530,7 +543,7 @@ struct DeleteRatingTool: Tool {
 @available(iOS 26.0, *)
 struct MyListsTool: Tool {
     let name = "getMyLists"
-    let description = "List the user's custom lists with how many titles each holds."
+    let description = "The user's custom lists with counts."
 
     @Generable
     struct Arguments {}
@@ -546,11 +559,11 @@ struct MyListsTool: Tool {
 @available(iOS 26.0, *)
 struct FriendWatchedTool: Tool {
     let name = "getFriendRankings"
-    let description = "What a member has watched and ranked, best first, with their scores."
+    let description = "A member's ranked titles with scores, best first."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The member's username")
+        @Guide(description: "Username")
         var username: String
     }
 
@@ -577,11 +590,11 @@ struct FriendWatchedTool: Tool {
 @available(iOS 26.0, *)
 struct FriendWantToWatchTool: Tool {
     let name = "getFriendWantToWatch"
-    let description = "What's on a member's Want to Watch list."
+    let description = "A member's Want to Watch list."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The member's username")
+        @Guide(description: "Username")
         var username: String
     }
 
@@ -603,11 +616,11 @@ struct FriendWantToWatchTool: Tool {
 @available(iOS 26.0, *)
 struct FriendOverlapTool: Tool {
     let name = "getOverlapWithFriend"
-    let description = "Movies the user and a member share: both watched (with both scores) and both want to watch — perfect for movie-night picks."
+    let description = "Titles both watched (both scores) and both want to watch."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The member's username")
+        @Guide(description: "Username")
         var username: String
     }
 
