@@ -605,7 +605,7 @@ function renderFeed(){
     <h2 class="section">YOUR FEED</h2>
     <div class="pad" style="display:flex; gap:12px; align-items:center;">
       <div class="avatar" style="width:44px;height:44px;" onclick="go('profile')">J</div>
-      <div style="flex:1; background:rgba(255,255,255,.07); border-radius:999px; padding:13px 17px; color:var(--gray); font-size:14px; cursor:pointer;" onclick="toast('Rec requests post to friends’ feeds — in the app')">Ask your friends for recs</div>
+      <div style="flex:1; background:rgba(255,255,255,.07); border-radius:999px; padding:13px 17px; color:var(--gray); font-size:14px; cursor:pointer;" onclick="openAskRecs()">Ask your friends for recs</div>
     </div>
     <div style="margin-top:14px;">${cards}</div>`;
 }
@@ -802,6 +802,39 @@ function openSendRec(k){
         style="width:100%; margin-top:12px; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font-size:14px; outline:none;">
       <button class="pill" style="width:100%; justify-content:center; margin-top:12px;"
         onclick="if(!_recPick){toast('Pick a friend first')}else{toast('Sent! @'+_recPick+' just got your rec 🎬'); closeOverlay();}">Send</button>
+    </div>`);
+}
+
+/* Ask friends for a rec: multi-select friends + optional type/genre/note. */
+let _askPicks=new Set(), _askType=null;
+function toggleAskPick(u, el){
+  if(_askPicks.has(u)){ _askPicks.delete(u); el.style.background=''; }
+  else { _askPicks.add(u); el.style.background='var(--marquee-soft)'; }
+}
+function setAskType(t, el){
+  _askType=t;
+  document.querySelectorAll('[id^=asktype-]').forEach(e=>{e.style.background='rgba(255,255,255,.07)'; e.style.color='var(--ink)';});
+  el.style.background='var(--marquee)'; el.style.color='#10100e';
+}
+function openAskRecs(){
+  _askPicks=new Set(); _askType=null;
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Ask for Recs</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="margin-bottom:6px;">WHO TO ASK</div>
+      ${MEMBERS.map(p=>`<div class="erow" onclick="toggleAskPick('${p.u}', this)">
+        <div class="avatar ${p.av}" style="width:36px;height:36px;font-size:14px;">${p.n[0]}</div>
+        <span style="flex:1; font-weight:600;">${p.n} <span class="sub">@${p.u}</span></span>
+      </div>`).join("")}
+      <div class="sub" style="margin:12px 0 6px;">WHAT KIND OF THING? (OPTIONAL)</div>
+      <div style="display:flex; gap:8px;">
+        ${["Anything","Movies","TV shows"].map((t,i)=>`<button id="asktype-${i}" class="pill ghost" onclick="setAskType('${t}', this)">${t}</button>`).join("")}
+      </div>
+      <input id="askNote" placeholder="Add a note (optional) — e.g. movie night with my sister"
+        style="width:100%; margin-top:12px; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font-size:14px; outline:none;">
+      <button class="pill" style="width:100%; justify-content:center; margin-top:12px;"
+        onclick="if(_askPicks.size===0){toast('Pick at least one friend')}else{toast('Asked '+_askPicks.size+' friend'+(_askPicks.size===1?'':'s')+' for a rec 🎬 Their picks land in Friend Recs'); closeOverlay();}">Ask for recs</button>
     </div>`);
 }
 

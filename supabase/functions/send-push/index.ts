@@ -85,6 +85,8 @@ function headline(kind: string, actor: string, movie: string | null): string {
       return `@${actor} recommended ${movie ?? "a movie"} to you 🎬`;
     case "invite_joined":
       return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
+    case "rec_request":
+      return `@${actor} wants a rec from you — send one 🎬`;
     default: return `@${actor} did something new on Cini`;
   }
 }

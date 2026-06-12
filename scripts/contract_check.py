@@ -65,6 +65,7 @@ READS = [
     ("my_performances", "favorite_performances", "tmdb_person_id, person_name, profile_path"),
     ("my_rank_details", "rankings", "watch_date, watched_with, watched_where, ranking_labels(labels(name))"),
     ("direct_recs", "direct_recs", "id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies!direct_recs_movie_id_fkey(*)"),
+    ("rec_requests", "rec_requests", "id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)"),
     ("pending_imports", "pending_imports", "status, path"),
     ("blocked_ids", "blocks", "blocked_id"),
     ("custom_lists", "custom_lists", "id, user_id, name, is_private, created_at, custom_list_items(count)"),
@@ -99,6 +100,10 @@ RPCS = [
     ("movie_score_histogram", {"p_movie_id": 27205}),
     ("leaderboard", {"p_metric": "watched", "p_school": None, "p_genre": None}),
     ("redeem_invite_from", {"p_username": "no_such_user_zz"}),
+    # Empty recipients / random id: exercises signatures without writing.
+    ("request_recs", {"p_recipients": [], "p_media_kind": None,
+                      "p_genre": None, "p_note": None}),
+    ("complete_rec_request", {"p_request_id": "00000000-0000-0000-0000-000000000000"}),
     # delete_account deliberately excluded.
 ]
 

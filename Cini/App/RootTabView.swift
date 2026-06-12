@@ -50,6 +50,9 @@ final class TabRouter {
     /// the actor's profile; anything else lands on the feed.
     func routePush(userInfo: [AnyHashable: Any]) {
         selection = .feed
+        // Rec requests land on the feed, where the "wants a rec" banner
+        // offers the respond flow — the actor's profile would be a detour.
+        if userInfo["kind"] as? String == "rec_request" { return }
         let movieID = (userInfo["movie_id"] as? Int)
             ?? (userInfo["movie_id"] as? NSNumber)?.intValue
             ?? (userInfo["movie_id"] as? String).flatMap(Int.init)

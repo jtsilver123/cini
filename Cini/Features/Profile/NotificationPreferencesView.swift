@@ -17,6 +17,8 @@ struct NotificationPreferencesView: View {
          "Someone joins Cini with your username"),
         ("direct_rec", "Recs from friends",
          "A friend recommends a movie directly to you"),
+        ("rec_request", "Rec requests",
+         "A friend asks you to recommend them something"),
     ]
 
     @State private var muted: Set<String> = []

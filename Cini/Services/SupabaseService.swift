@@ -376,6 +376,53 @@ final class SupabaseService {
         _ = try? await client.from("direct_recs").delete().eq("id", value: id).execute()
     }
 
+    // MARK: - Rec requests (ask friends for a rec)
+
+    /// Returns how many friends were actually asked (the RPC skips
+    /// non-followed and blocked members silently).
+    func requestRecs(to recipients: [UUID], mediaKind: String?,
+                     genre: String?, note: String?) async -> Int {
+        struct Params: Encodable {
+            let p_recipients: [UUID]
+            let p_media_kind: String?
+            let p_genre: String?
+            let p_note: String?
+        }
+        do {
+            return try await client.rpc(
+                "request_recs",
+                params: Params(p_recipients: recipients, p_media_kind: mediaKind,
+                               p_genre: genre, p_note: note)
+            ).execute().value
+        } catch {
+            Self.logSwallowed("request_recs", error)
+            return 0
+        }
+    }
+
+    /// Pending asks aimed at the current user (fulfilled ones filtered
+    /// out client-side — the row carries fulfilled_at).
+    func incomingRecRequests() async throws -> [RecRequestRow] {
+        guard let me = currentUserID else { return [] }
+        let rows: [RecRequestRow] = try await client.from("rec_requests")
+            .select("id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)")
+            .eq("recipient_id", value: me)
+            .order("created_at", ascending: false)
+            .limit(20)
+            .execute().value
+        return rows.filter { $0.fulfilledAt == nil }
+    }
+
+    func completeRecRequest(id: UUID) async {
+        struct Params: Encodable { let p_request_id: UUID }
+        do {
+            _ = try await client.rpc("complete_rec_request",
+                                     params: Params(p_request_id: id)).execute()
+        } catch {
+            Self.logSwallowed("complete_rec_request", error)
+        }
+    }
+
     // MARK: - Desktop import transfer
 
     /// Mint a short-lived transfer code; the user enters it at the web
@@ -1126,6 +1173,36 @@ struct DirectRecRow: Decodable, Identifiable, Hashable {
         case senderId = "sender_id"
         case movieId = "movie_id"
         case createdAt = "created_at"
+    }
+}
+
+struct RecRequestRow: Decodable, Identifiable, Hashable {
+    let id: UUID
+    let requesterId: UUID
+    let mediaKind: String?
+    let genre: String?
+    let note: String?
+    let createdAt: Date
+    let fulfilledAt: Date?
+    let profiles: FeedEventRow.EmbeddedProfile?
+
+    enum CodingKeys: String, CodingKey {
+        case id, genre, note, profiles
+        case requesterId = "requester_id"
+        case mediaKind = "media_kind"
+        case createdAt = "created_at"
+        case fulfilledAt = "fulfilled_at"
+    }
+
+    /// "a comedy movie", "a TV show", "something good" — the ask, spoken.
+    var criteriaText: String {
+        let kind = mediaKind == "tv" ? "TV show" : (mediaKind == "movie" ? "movie" : nil)
+        switch (genre, kind) {
+        case let (genre?, kind?): return "a \(genre.lowercased()) \(kind)"
+        case let (genre?, nil): return "something \(genre.lowercased())"
+        case let (nil, kind?): return "a \(kind)"
+        case (nil, nil): return "something good"
+        }
     }
 }
 

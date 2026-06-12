@@ -162,6 +162,14 @@ and shipped on request only — Apple caps uploads per app per day
   New iOS 27 APIs (multimodal prompts, `LanguageModel` protocol, Dynamic
   Profiles) need the Xcode 27 SDK, which App Store builds can't use
   until it ships GM (~Sept 2026) — revisit then.
+- Rec requests (Beli-style "ask friends for a rec"): feed row under
+  YOUR FEED → RequestRecsSheet (multi-select friends, optional
+  Movies/TV + genre + note) → `request_recs` RPC (0036; follow +
+  not-blocked enforced, pending asks dedupe per pair, 'rec_request'
+  notification + push via send-push v8). Recipient: feed banner +
+  notification row → RespondRecSheet → multi-select own ranked titles
+  (filtered to the ask, falls back to all) → direct recs +
+  `complete_rec_request`. Answers land in the requester's Friend Recs.
 - Siri actions (`Cini/App/SiriIntents.swift`): App Intents + App
   Shortcuts — add/remove Want to Watch, read the watchlist aloud, open
   a title's page, open the watchlist. The new Siri (iOS 27) drives these

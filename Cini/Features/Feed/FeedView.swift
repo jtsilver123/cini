@@ -19,6 +19,9 @@ struct FeedView: View {
     @State private var showSettings = false
     @State private var showInviteSheet = false
     @State private var showLogoutConfirm = false
+    @State private var showAskRecs = false
+    @State private var showRespondRecs = false
+    @State private var pendingAsks: [RecRequestRow] = []
 
     var body: some View {
         NavigationStack {
@@ -64,6 +67,14 @@ struct FeedView: View {
             .sheet(isPresented: $showInviteSheet) {
                 InviteSheet()
                     .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showAskRecs) {
+                RequestRecsSheet()
+            }
+            .sheet(isPresented: $showRespondRecs, onDismiss: {
+                Task { pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? [] }
+            }) {
+                RespondRecSheet()
             }
         }
     }
@@ -155,6 +166,67 @@ struct FeedView: View {
         }
     }
 
+    /// "What should I watch?" aimed at your actual friends: pick people,
+    /// optionally narrow by type/genre, and their answers land in
+    /// Friend Recs.
+    private var askForRecsRow: some View {
+        Button {
+            showAskRecs = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "hand.wave")
+                    .foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Ask friends for a rec")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                    Text("Pick friends, set the mood, get picks back")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Someone's waiting on your taste — surface it without a push.
+    private var pendingAsksBanner: some View {
+        Button {
+            showRespondRecs = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "envelope.badge")
+                    .foregroundStyle(Theme.marquee)
+                Text(pendingAsksHeadline)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.leading)
+                Spacer()
+                Text("Send one")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.marquee)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.marqueeSoft))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pendingAsksHeadline: String {
+        guard let first = pendingAsks.first else { return "" }
+        let who = "@\(first.profiles?.username ?? "A friend")"
+        if pendingAsks.count == 1 {
+            return "\(who) wants \(first.criteriaText) from you"
+        }
+        return "\(who) + \(pendingAsks.count - 1) more want recs from you"
+    }
+
     /// Not a field — every search entry point opens the one Search screen.
     private var searchBar: some View {
         Button {
@@ -180,6 +252,12 @@ struct FeedView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.gray)
                 .padding(.top, 6)
+
+            askForRecsRow
+
+            if !pendingAsks.isEmpty {
+                pendingAsksBanner
+            }
 
             if let profile = session.profile, profile.streakAtRisk {
                 streakBanner(profile.streakWeeks)
@@ -307,6 +385,7 @@ struct FeedView: View {
         }
         likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
+        pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? []
         feedLoaded = true
     }
 }
@@ -714,6 +793,7 @@ struct NotificationsView: View {
     @State private var memberTarget: MemberRef?
     @State private var showImport = false
     @State private var showRankSheet = false
+    @State private var showRespondRecs = false
 
     var body: some View {
         List {
@@ -721,7 +801,7 @@ struct NotificationsView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "bell").font(.title).foregroundStyle(Theme.gray)
                     Text("Nothing yet").font(.subheadline.weight(.semibold))
-                    Text("Likes, comments, new followers, and friends ranking your watchlist movies land here.")
+                    Text("Likes, comments, new followers, rec requests, and friends ranking your Want to Watch titles land here.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
@@ -758,7 +838,9 @@ struct NotificationsView: View {
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if let movieId = row.movieId, let stub = row.movies {
+                    if row.kind == "rec_request" {
+                        showRespondRecs = true
+                    } else if let movieId = row.movieId, let stub = row.movies {
                         detailMovie = Movie(tmdbID: movieId,
                                             mediaKind: movieId < 0 ? "tv" : "movie",
                                             title: stub.title,
@@ -779,6 +861,9 @@ struct NotificationsView: View {
         }
         .navigationDestination(item: $memberTarget) { member in
             MemberProfileView(userID: member.id, username: member.username)
+        }
+        .sheet(isPresented: $showRespondRecs) {
+            RespondRecSheet()
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -811,6 +896,7 @@ struct NotificationsView: View {
         case "watchlist_showing": text = "**\(movie)** from your watchlist is playing near you 🎬"
         case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
+        case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)
