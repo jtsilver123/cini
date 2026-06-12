@@ -51,23 +51,33 @@ final class ChatAgentBridge {
     }
 
     /// Best TMDB match for a spoken title — forgiving, like a friend who
-    /// knows what you mean: "the new dune movie" still finds Dune.
+    /// knows what you mean: "the new dune movie" still finds Dune, "up"
+    /// finds Pixar's Up, "dune 2021" uses the year as a filter. Algorithm
+    /// validated against live TMDB with a 20-phrase battery.
     static func resolveMovie(_ title: String) async -> Movie? {
         var query = title.trimmingCharacters(in: .whitespaces)
-        for filler in ["the movie ", "the film "] where query.lowercased().hasPrefix(filler) {
-            query = String(query.dropFirst(filler.count))
+        query = strippedFiller(query)
+
+        // A trailing year is a filter, not part of the title — search
+        // ordering for "dune 2021" is unstable otherwise.
+        var year: Int?
+        let words = query.split(separator: " ").map(String.init)
+        if let last = words.last, last.count == 4, let parsed = Int(last),
+           (1900...2099).contains(parsed), words.count > 1 {
+            year = parsed
+            query = words.dropLast().joined(separator: " ")
         }
-        for suffix in [" movie", " film", " the movie", " the film"]
-        where query.lowercased().hasSuffix(suffix) {
-            query = String(query.dropLast(suffix.count))
+
+        if let hit = await bestHit(query, year: year) { return await remember(hit) }
+
+        // TMDB has no fuzzy matching — shave a trailing typo character.
+        if query.count > 5 {
+            if let hit = await bestHit(String(query.dropLast()), year: year) { return await remember(hit) }
+            if let hit = await bestHit(String(query.dropLast(2)), year: year) { return await remember(hit) }
         }
-        if let hit = (try? await TMDBService.shared.search(query: query))?.first {
-            await MainActor.run { ChatAgentBridge.shared.lastDiscussedMovie = hit }
-            return hit
-        }
-        // Still nothing: try the most distinctive word ("that anatomy
-        // courtroom one" → "anatomy"). Built with plain loops — the
-        // chained version timed out the type checker.
+
+        // Last resort: the most distinctive word ("that anatomy courtroom
+        // one" → a real search term).
         let stop: Set<String> = ["that", "this", "with", "from", "about", "movie",
                                  "film", "show", "new", "old", "one", "the"]
         let lowered = query.lowercased()
@@ -79,13 +89,48 @@ final class ChatAgentBridge {
             }
         }
         if !longest.isEmpty, longest != lowered {
-            let retry = try? await TMDBService.shared.search(query: longest)
-            if let hit = retry?.first {
-                await MainActor.run { ChatAgentBridge.shared.lastDiscussedMovie = hit }
-                return hit
-            }
+            if let hit = await bestHit(longest, year: year) { return await remember(hit) }
         }
         return nil
+    }
+
+    /// Leading/trailing chatter that poisons search ("the new …", "… movie").
+    private static func strippedFiller(_ text: String) -> String {
+        var query = text
+        var changed = true
+        while changed {
+            changed = false
+            for prefix in ["the movie ", "the film ", "the tv show ", "the show ",
+                           "the new ", "that new ", "new "] {
+                if query.lowercased().hasPrefix(prefix), query.count > prefix.count {
+                    query = String(query.dropFirst(prefix.count))
+                    changed = true
+                }
+            }
+        }
+        for suffix in [" the movie", " the film", " movie", " film", " tv show", " show"] {
+            if query.lowercased().hasSuffix(suffix) {
+                query = String(query.dropLast(suffix.count))
+            }
+        }
+        return query
+    }
+
+    /// First result whose title EXACTLY matches the query (so "up" finds
+    /// Up, not this week's noisiest new release) — else the top result.
+    private static func bestHit(_ query: String, year: Int?) async -> Movie? {
+        let results = (try? await TMDBService.shared.search(query: query, year: year)) ?? []
+        guard !results.isEmpty else { return nil }
+        let needle = query.lowercased()
+        for movie in results.prefix(10) {
+            if movie.title.lowercased() == needle { return movie }
+        }
+        return results.first
+    }
+
+    private static func remember(_ movie: Movie) async -> Movie {
+        await MainActor.run { ChatAgentBridge.shared.lastDiscussedMovie = movie }
+        return movie
     }
 
     /// Exact-username member lookup via the fuzzy search RPC.
