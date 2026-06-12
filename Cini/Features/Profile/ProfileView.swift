@@ -547,12 +547,24 @@ struct ProfileScreen: View {
                 .buttonStyle(.plain)
             }
             Divider()
-            NavigationLink {
-                CustomListsScreen(userID: resolvedID, isSelf: isSelf)
-            } label: {
-                listRow(icon: "list.star", title: "Lists", count: nil)
+            if isSelf {
+                // Your lists live in the Lists tab — go there, chips and all.
+                Button {
+                    tabRouter.pendingListsTab = nil
+                    tabRouter.pendingCustomListID = nil
+                    tabRouter.selection = .lists
+                } label: {
+                    listRow(icon: "list.star", title: "Lists", count: nil)
+                }
+                .buttonStyle(.plain)
+            } else {
+                NavigationLink {
+                    CustomListsScreen(userID: resolvedID, isSelf: isSelf)
+                } label: {
+                    listRow(icon: "list.star", title: "Lists", count: nil)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             Divider()
             NavigationLink {
                 DiaryScreen(userID: resolvedID, isSelf: isSelf)

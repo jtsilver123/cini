@@ -125,6 +125,8 @@ struct CiniChatAvailableView: View {
             chat
         case .unavailable(let reason):
             ChatUnavailableView(message: unavailableMessage(reason))
+        @unknown default:
+            ChatUnavailableView(message: "Ask Cini isn't available on this device right now.")
         }
     }
 
@@ -426,6 +428,9 @@ struct CiniChatAvailableView: View {
 
     private func configureSession() {
         guard session == nil else { return }
+        // Never construct a session against an unavailable model — the
+        // unavailable screen is showing; a session here can only hurt.
+        guard case .available = SystemLanguageModel.default.availability else { return }
         let tasteContext = Self.tasteSummary(store: store)
         let name = firstName ?? "the user"
         let streak = profile.map { $0.streakWeeks } ?? 0

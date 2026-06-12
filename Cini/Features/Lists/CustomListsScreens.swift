@@ -6,6 +6,7 @@ struct CustomListsScreen: View {
     let userID: UUID?
     let isSelf: Bool
 
+    @Environment(TabRouter.self) private var tabRouter
     @State private var lists: [CustomList] = []
     @State private var loaded = false
     @State private var newName = ""
@@ -44,22 +45,24 @@ struct CustomListsScreen: View {
             }
 
             ForEach(lists) { list in
-                NavigationLink {
-                    CustomListScreen(list: list, isSelf: isSelf)
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "list.star")
-                            .font(.title3)
-                            .foregroundStyle(Theme.marquee)
-                            .frame(width: 30)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(list.name).font(.headline).foregroundStyle(Theme.ink)
-                            Text("\(list.count) title\(list.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(Theme.gray)
+                Group {
+                    if isSelf {
+                        // Your own list opens in the Lists tab, selected —
+                        // one home for your lists, never an in-profile copy.
+                        Button {
+                            tabRouter.pendingCustomListID = list.id
+                            tabRouter.selection = .lists
+                        } label: {
+                            listLabel(list)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        NavigationLink {
+                            CustomListScreen(list: list, isSelf: isSelf)
+                        } label: {
+                            listLabel(list)
                         }
                     }
-                    .padding(.vertical, 4)
                 }
                 .listRowBackground(Theme.background)
             }
@@ -101,6 +104,26 @@ struct CustomListsScreen: View {
         }
     }
 
+    private func listLabel(_ list: CustomList) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "list.star")
+                .font(.title3)
+                .foregroundStyle(Theme.marquee)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(list.name).font(.headline).foregroundStyle(Theme.ink)
+                Text("\(list.count) title\(list.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
 }
 
 // MARK: - One list's movies
