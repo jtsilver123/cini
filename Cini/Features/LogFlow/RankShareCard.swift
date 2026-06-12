@@ -28,6 +28,13 @@ struct RankShareCard: View {
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
+            // TV badge rides bylineText — shows and movies share the ticket.
+            if !movie.bylineText.isEmpty {
+                Text(movie.bylineText)
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .lineLimit(1)
+            }
             HStack(spacing: 16) {
                 (Text("Ranked ") + Text("#\(scored.rank)").foregroundStyle(Theme.gold))
                     .font(.title3.weight(.bold))

@@ -20,9 +20,9 @@ struct NotificationPreferencesView: View {
         ("rec_request", "Rec requests",
          "A friend asks you to recommend them something"),
         ("streaming_now", "Streaming alerts",
-         "A saved title you flagged becomes streamable"),
+         "A saved title you asked about starts streaming"),
         ("season_premiere", "New seasons",
-         "A show you ranked gets a season premiere"),
+         "A show you ranked returns with a new season"),
     ]
 
     @State private var muted: Set<String> = []

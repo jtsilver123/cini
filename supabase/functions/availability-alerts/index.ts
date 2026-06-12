@@ -79,10 +79,13 @@ Deno.serve(async (_req: Request) => {
       if (!res.ok) continue;
       const show = await res.json();
       const next = show?.next_episode_to_air;
-      // Only season PREMIERES — episode drops would be noise.
+      // Only season PREMIERES — episode drops would be noise. The date
+      // must sit between yesterday (TMDB lags a little) and next week:
+      // "returns this week" about a month-old premiere reads as broken.
       if (!next || next.episode_number !== 1 || !next.air_date) continue;
       const airDate = new Date(next.air_date);
-      if (airDate > soon) continue;
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      if (airDate < yesterday || airDate > soon) continue;
       for (const userID of users) {
         // Record first so a crash can't double-notify.
         const { error } = await supabase.from("season_notices").insert({

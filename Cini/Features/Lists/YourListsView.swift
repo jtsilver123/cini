@@ -148,13 +148,17 @@ struct YourListsView: View {
                     // Land where the content is: the profile count spans
                     // both categories, so "Watched (1)" must never open
                     // onto an empty Movies view when the 1 is a show.
-                    if pending == .watched, watchedCount(in: category) == 0,
-                       watchedCount(in: otherCategory) > 0 {
-                        category = otherCategory
-                    }
-                    if pending == .watchlist, watchlistCount(in: category) == 0,
-                       watchlistCount(in: otherCategory) > 0 {
-                        category = otherCategory
+                    // (Only once the store is real — a half-loaded store
+                    // must not steer the category.)
+                    if store.isLoaded {
+                        if pending == .watched, watchedCount(in: category) == 0,
+                           watchedCount(in: otherCategory) > 0 {
+                            category = otherCategory
+                        }
+                        if pending == .watchlist, watchlistCount(in: category) == 0,
+                           watchlistCount(in: otherCategory) > 0 {
+                            category = otherCategory
+                        }
                     }
                 }
                 if tabRouter.pendingReorder {
@@ -687,7 +691,8 @@ struct YourListsView: View {
                 // The count on the profile spans both categories — never
                 // open onto a blank list without saying where they are.
                 emptyList(categoryHiddenMessage(count: watchedCount(in: otherCategory)),
-                          actionTitle: "Show \(otherCategory.title)") {
+                          actionTitle: "Show \(otherCategory.title)",
+                          actionIcon: otherCategory.icon) {
                     withAnimation(.snappy) { category = otherCategory }
                 }
             }
@@ -760,7 +765,8 @@ struct YourListsView: View {
                 }
             } else if filteredWatchlist.isEmpty, watchlistCount(in: otherCategory) > 0 {
                 emptyList(categoryHiddenMessage(count: watchlistCount(in: otherCategory)),
-                          actionTitle: "Show \(otherCategory.title)") {
+                          actionTitle: "Show \(otherCategory.title)",
+                          actionIcon: otherCategory.icon) {
                     withAnimation(.snappy) { category = otherCategory }
                 }
             }
@@ -890,6 +896,7 @@ struct YourListsView: View {
 
     private func emptyList(_ message: String,
                            actionTitle: String? = nil,
+                           actionIcon: String = "magnifyingglass",
                            action: @escaping () -> Void = {}) -> some View {
         VStack(spacing: 10) {
             Image(systemName: "film.stack").font(.largeTitle).foregroundStyle(Theme.gray)
@@ -898,7 +905,7 @@ struct YourListsView: View {
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
             if let actionTitle {
-                PillButton(title: actionTitle, systemImage: "magnifyingglass",
+                PillButton(title: actionTitle, systemImage: actionIcon,
                            style: .outlined, action: action)
             }
         }

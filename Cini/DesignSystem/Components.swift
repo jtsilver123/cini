@@ -328,6 +328,7 @@ struct SaveToListSheet: View {
     @State private var category: MediaCategory
     @State private var interacted = false
     @State private var notifyStreaming = false
+    @State private var revertingToggle = false
     @State private var noteText = ""
     @State private var hiddenFromFeed = false
 
@@ -397,12 +398,21 @@ struct SaveToListSheet: View {
                     }
                     .tint(Theme.marquee)
                     .onChange(of: notifyStreaming) { _, enabled in
+                        if revertingToggle { revertingToggle = false; return }
                         interacted = true
                         let saved = effectiveMovie
                         Task {
+                            // streaming_alerts FKs onto movies — cache first.
                             try? await SupabaseService.shared.cacheMovie(saved)
-                            await SupabaseService.shared.setStreamingAlert(
+                            let ok = await SupabaseService.shared.setStreamingAlert(
                                 movieID: saved.tmdbID, enabled: enabled)
+                            if !ok {
+                                // Revert — a toggle that LOOKS on but isn't
+                                // is worse than no toggle.
+                                ToastCenter.shared.saveFailed()
+                                revertingToggle = true
+                                notifyStreaming = !enabled
+                            }
                         }
                     }
                     .listRowSeparator(.hidden)

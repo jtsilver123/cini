@@ -236,9 +236,11 @@ final class SupabaseService {
     }
 
     /// "Tell me when it's streaming" — client owns its rows; the daily
-    /// availability cron does the watching.
-    func setStreamingAlert(movieID: Int, enabled: Bool) async {
-        guard let me = currentUserID else { return }
+    /// availability cron does the watching. False = the toggle should
+    /// revert (a silently-failed alert is worse than no alert).
+    @discardableResult
+    func setStreamingAlert(movieID: Int, enabled: Bool) async -> Bool {
+        guard let me = currentUserID else { return false }
         struct Row: Encodable { let user_id: UUID; let movie_id: Int }
         do {
             if enabled {
@@ -251,8 +253,10 @@ final class SupabaseService {
                     .eq("user_id", value: me).eq("movie_id", value: movieID)
                     .execute()
             }
+            return true
         } catch {
             Self.logSwallowed("streaming_alerts", error)
+            return false
         }
     }
 

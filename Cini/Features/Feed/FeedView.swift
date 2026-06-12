@@ -201,6 +201,7 @@ struct FeedView: View {
     @AppStorage("feed.nudgeDismissed") private var nudgeDismissedRaw = ""
 
     private var nudgeCandidate: Movie? {
+        guard store.isLoaded else { return nil }
         let dismissed = Set(nudgeDismissedRaw.split(separator: ",").map(String.init))
         let cutoff = Date().addingTimeInterval(-14 * 86400)
         for item in store.watchlist.reversed() where item.createdAt < cutoff {
@@ -229,7 +230,7 @@ struct FeedView: View {
                 Image(systemName: "xmark")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 40, height: 40)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

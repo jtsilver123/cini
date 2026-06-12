@@ -159,7 +159,11 @@ struct LogFlowView: View {
                 Image(systemName: "xmark")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Theme.ink)
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -533,20 +537,38 @@ struct LogFlowView: View {
                 .frame(height: 1)
             HStack(spacing: 10) {
                 if let shareImage {
-                    ShareLink(
-                        item: shareImage,
-                        preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
-                                              image: shareImage)
-                    ) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Share").font(.subheadline.weight(.semibold))
+                    // Styled to match PillButton's outlined look on both
+                    // OS generations — paired buttons must read as a pair.
+                    if #available(iOS 26.0, *) {
+                        ShareLink(
+                            item: shareImage,
+                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                                  image: shareImage)
+                        ) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Share").font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.marquee)
                         }
-                        .foregroundStyle(Theme.marquee)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 9)
-                        .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                        .buttonStyle(.glass)
+                    } else {
+                        ShareLink(
+                            item: shareImage,
+                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                                  image: shareImage)
+                        ) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.subheadline.weight(.semibold))
+                                Text("Share").font(.subheadline.weight(.semibold))
+                            }
+                            .foregroundStyle(Theme.marquee)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 9)
+                            .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                        }
                     }
                 }
                 PillButton(title: "Done") { dismiss() }
