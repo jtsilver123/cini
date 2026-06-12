@@ -145,6 +145,17 @@ struct YourListsView: View {
                         hidden.remove(pending.rawValue)
                         hiddenTabsRaw = hidden.sorted().joined(separator: ",")
                     }
+                    // Land where the content is: the profile count spans
+                    // both categories, so "Watched (1)" must never open
+                    // onto an empty Movies view when the 1 is a show.
+                    if pending == .watched, watchedCount(in: category) == 0,
+                       watchedCount(in: otherCategory) > 0 {
+                        category = otherCategory
+                    }
+                    if pending == .watchlist, watchlistCount(in: category) == 0,
+                       watchlistCount(in: otherCategory) > 0 {
+                        category = otherCategory
+                    }
                 }
                 if tabRouter.pendingReorder {
                     tabRouter.pendingReorder = false
@@ -667,12 +678,44 @@ struct YourListsView: View {
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
         .overlay {
             if store.watchedItems.isEmpty && pendingEntries.isEmpty {
-                emptyList("Rank your first movie and your list starts here.",
-                          actionTitle: "Find a movie") {
+                emptyList("Rank your first movie or show and your list starts here.",
+                          actionTitle: "Find something") {
                     tabRouter.selection = .search
+                }
+            } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
+                      watchedCount(in: otherCategory) > 0 {
+                // The count on the profile spans both categories — never
+                // open onto a blank list without saying where they are.
+                emptyList(categoryHiddenMessage(count: watchedCount(in: otherCategory)),
+                          actionTitle: "Show \(otherCategory.title)") {
+                    withAnimation(.snappy) { category = otherCategory }
                 }
             }
         }
+    }
+
+    private var otherCategory: MediaCategory {
+        category == .movies ? .tvShows : .movies
+    }
+
+    private func categoryHiddenMessage(count: Int) -> String {
+        "Nothing under \(category.title) — \(count == 1 ? "your 1 title is" : "your \(count) titles are") filed under \(otherCategory.title)."
+    }
+
+    private func watchedCount(in target: MediaCategory) -> Int {
+        var count = 0
+        for item in store.watchedItems {
+            if let movie = store.movie(item.id), target.matches(movie) { count += 1 }
+        }
+        return count
+    }
+
+    private func watchlistCount(in target: MediaCategory) -> Int {
+        var count = 0
+        for item in store.watchlist {
+            if let movie = store.movie(item.movieID), target.matches(movie) { count += 1 }
+        }
+        return count
     }
 
     /// Want to Watch respects the same sort toggle (date added), search
@@ -709,10 +752,15 @@ struct YourListsView: View {
         }
         .overlay {
             if store.watchlist.isEmpty {
-                emptyList("Tap the bookmark on any movie to save it for later.",
-                          actionTitle: "Browse movies") {
+                emptyList("Tap the bookmark on any title to save it for later.",
+                          actionTitle: "Browse popular") {
                     tabRouter.pendingSearchBrowse = .popular
                     tabRouter.selection = .search
+                }
+            } else if filteredWatchlist.isEmpty, watchlistCount(in: otherCategory) > 0 {
+                emptyList(categoryHiddenMessage(count: watchlistCount(in: otherCategory)),
+                          actionTitle: "Show \(otherCategory.title)") {
+                    withAnimation(.snappy) { category = otherCategory }
                 }
             }
         }
