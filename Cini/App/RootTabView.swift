@@ -19,6 +19,7 @@ final class TabRouter {
     var selection: RootTabView.Tab = .feed {
         didSet {
             if oldValue != selection && oldValue != .search { lastNonSearch = oldValue }
+            if oldValue != selection { visibleMovie = nil }
         }
     }
     /// The page under search — where its X returns to.
@@ -27,7 +28,9 @@ final class TabRouter {
     /// Set before jumping to search to land on the Members tab.
     var openMembersSearch = false
     /// The movie page currently on screen — Ask Cini opens with it
-    /// pinned, so "is this good?" needs zero typing.
+    /// pinned, so "is this good?" needs zero typing. Cleared on tab
+    /// switches so a page left behind in another tab's stack can't
+    /// haunt the chat.
     var visibleMovie: Movie?
 
     /// Set before jumping to lists to land on a specific subtab.

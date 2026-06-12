@@ -139,6 +139,15 @@ struct YourListsView: View {
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
             }
+            // Category switch with a list of the OTHER kind selected: its
+            // tab just vanished — deselect rather than render a ghost.
+            .onChange(of: category) { _, newCategory in
+                if let selectedListID,
+                   let list = customLists.first(where: { $0.id == selectedListID }),
+                   list.kind != newCategory.mediaKind {
+                    self.selectedListID = nil
+                }
+            }
             .onAppear {
                 consumePendingCustomList()
                 if let pending = tabRouter.pendingListsTab {

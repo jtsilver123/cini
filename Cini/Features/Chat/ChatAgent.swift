@@ -371,7 +371,11 @@ struct CurateListTool: Tool {
         await ChatAgentBridge.shared.note("list.star",
                                           "“\(list.name)” — \(added.count) titles",
                                           destination: .customList(list.id))
-        return "Done — “\(list.name)” has \(added.joined(separator: ", "))."
+        let dropped = pool.count - added.count
+        let droppedNote = dropped > 0
+            ? " (\(dropped) skipped — wrong type for this \(list.kind == "tv" ? "TV" : "movie") list; tell them)"
+            : ""
+        return "Done — “\(list.name)” has \(added.joined(separator: ", ")).\(droppedNote)"
     }
 }
 
