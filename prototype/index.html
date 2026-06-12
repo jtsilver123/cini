@@ -513,14 +513,19 @@ function saveToWatchlist(k){
   toast(`Saved ${MOVIES[k].t} to Want to Watch`);
 }
 /* Bookmark with multiple homes: Want to Watch leads, your lists follow. */
-let _saveCat="Movies";
+let _saveCat="Movies", _saveTimer=null;
 function openSaveTo(k){
   const m=MOVIES[k];
   _saveCat="Movies";
+  /* Beli-style: the save happens immediately; the sheet is optional
+     refinement — swipe it away or let it slip off on its own. */
+  if(!S.watchlist.includes(k)) saveToWatchlist(k);
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(()=>closeOverlay(), 4000);
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Save to…</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Saved ✓</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
-    <div class="sheet-body">
+    <div class="sheet-body" onclick="clearTimeout(_saveTimer)">
       <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
         <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(m.p)}');"></div>
         <b style="font-size:14.5px;">${m.t}</b>
@@ -529,7 +534,7 @@ function openSaveTo(k){
         <button class="pill" id="savecat-movie" onclick="_saveCat='Movies'; this.classList.remove('ghost'); document.getElementById('savecat-tv').classList.add('ghost');">${I("film",14)} Movies</button>
         <button class="pill ghost" id="savecat-tv" onclick="_saveCat='TV'; this.classList.remove('ghost'); document.getElementById('savecat-movie').classList.add('ghost');">${I("tv",14)} TV Shows</button>
       </div>
-      <div class="erow" onclick="closeOverlay(); saveToWatchlist('${k}')"><span class="ic" style="color:var(--marquee);">${IF("bookmark",18)}</span><span style="flex:1; font-weight:600;">Want to Watch<div class="sub">Default</div></span></div>
+      <div class="erow"><span class="ic" style="color:var(--marquee);">${IF("bookmark",18)}</span><span style="flex:1; font-weight:600;">Want to Watch<div class="sub">Saved — pick a category or also add to a list</div></span><span style="color:var(--scoregreen, #4ade80);">${I("check",16)}</span></div>
       ${["Date night","2023 catch-up"].map(n=>`<div class="erow" onclick="closeOverlay(); toast('Added to ${n}')"><span class="ic" style="color:var(--marquee);">${I("star",18)}</span><span style="flex:1; font-weight:600;">${n}</span></div>`).join("")}
       <div class="erow" style="border-bottom:none;" onclick="toast('New list — name it and it appears here')"><span class="ic">${I("plus",18)}</span><span style="flex:1;">New List…</span></div>
     </div>`);

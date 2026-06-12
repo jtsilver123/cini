@@ -269,22 +269,24 @@ struct ArtworkQuickActions: View {
 }
 
 /// One bookmark rule everywhere: already saved → instant remove;
-/// otherwise the quick save popup asks the category (Movie/TV) and
-/// destination — Want to Watch by default, any of your lists.
+/// otherwise the save happens IMMEDIATELY (Want to Watch) and the quick
+/// refinement popup follows — category (Movie/TV) and lists. Swiping it
+/// away keeps the save; left alone, it dismisses itself.
 @MainActor
 func bookmarkTapped(movie: Movie, store: RankingStore, askDestination: () -> Void) {
     if store.isOnWatchlist(movie.tmdbID) {
         Task { await store.toggleWatchlist(movie: movie) }
     } else {
         Haptics.tap()
+        Task { await store.toggleWatchlist(movie: movie) }
         askDestination()
     }
 }
 
-/// Where should this go? Category up top (preselected from TMDB, fixable
-/// when TMDB mislabels — lists file by category), Want to Watch leads;
-/// your own lists (or a new one) sit right under it. One tap saves and
-/// closes.
+/// The post-save refinement popup: the title is already on Want to
+/// Watch. Category chips fix a mislabeled kind on the spot (lists file
+/// by category); list rows additionally file it into your lists. Any
+/// interaction keeps it open; untouched, it slips away on its own.
 struct SaveToListSheet: View {
     let movie: Movie
 
@@ -292,13 +294,14 @@ struct SaveToListSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var newName = ""
     @State private var category: MediaCategory
+    @State private var interacted = false
 
     init(movie: Movie) {
         self.movie = movie
         _category = State(initialValue: movie.mediaKind == "tv" ? .tvShows : .movies)
     }
 
-    /// Every save carries the chosen category.
+    /// Every action carries the chosen category.
     private var effectiveMovie: Movie {
         var adjusted = movie
         adjusted.mediaKind = category.mediaKind
@@ -310,9 +313,17 @@ struct SaveToListSheet: View {
             List {
                 HStack(spacing: 12) {
                     PosterView(url: movie.posterURL, width: 36)
-                    Text(movie.title)
-                        .font(.subheadline.weight(.bold))
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(movie.title)
+                            .font(.subheadline.weight(.bold))
+                            .lineLimit(1)
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Saved to Want to Watch")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(Theme.scoreGreen)
+                    }
                     Spacer()
                 }
                 .listRowSeparator(.hidden)
@@ -321,7 +332,14 @@ struct SaveToListSheet: View {
                 HStack(spacing: 8) {
                     ForEach(MediaCategory.allCases) { option in
                         Button {
+                            interacted = true
+                            guard category != option else { return }
                             category = option
+                            // Applied immediately — swiping away must
+                            // keep whatever the chips say.
+                            let adjusted = effectiveMovie
+                            store.overrideMediaKind(adjusted.tmdbID, kind: adjusted.mediaKind)
+                            Task { try? await SupabaseService.shared.cacheMovie(adjusted) }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: option.icon)
@@ -340,27 +358,15 @@ struct SaveToListSheet: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)
 
-                Button {
-                    let saved = effectiveMovie
-                    store.overrideMediaKind(saved.tmdbID, kind: saved.mediaKind)
-                    Task { await store.toggleWatchlist(movie: saved) }
-                    dismiss()
-                } label: {
-                    saveRow(icon: "bookmark.fill", tint: Theme.marquee,
-                            title: "Want to Watch", subtitle: "Default")
-                }
-                .listRowBackground(Theme.background)
-
                 ForEach(store.customLists) { list in
                     Button {
                         Haptics.tap()
                         let saved = effectiveMovie
-                        store.overrideMediaKind(saved.tmdbID, kind: saved.mediaKind)
                         Task {
                             try? await SupabaseService.shared.cacheMovie(saved)
                             do {
                                 try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
-                                ToastCenter.shared.show("Saved to \(list.name)")
+                                ToastCenter.shared.show("Added to \(list.name)")
                             } catch {
                                 ToastCenter.shared.saveFailed()
                             }
@@ -368,7 +374,7 @@ struct SaveToListSheet: View {
                         dismiss()
                     } label: {
                         saveRow(icon: "list.star", tint: Theme.ink,
-                                title: list.name,
+                                title: "Also add to \(list.name)",
                                 subtitle: "\(list.count) title\(list.count == 1 ? "" : "s")")
                     }
                     .listRowBackground(Theme.background)
@@ -376,18 +382,18 @@ struct SaveToListSheet: View {
 
                 HStack {
                     TextField("New list", text: $newName)
-                    Button("Create & save") {
+                        .onChange(of: newName) { _, _ in interacted = true }
+                    Button("Create & add") {
                         let name = newName.trimmingCharacters(in: .whitespaces)
                         newName = ""
                         guard !name.isEmpty else { return }
                         let saved = effectiveMovie
-                        store.overrideMediaKind(saved.tmdbID, kind: saved.mediaKind)
                         Task {
                             if let list = try? await SupabaseService.shared.createList(name: name) {
                                 try? await SupabaseService.shared.cacheMovie(saved)
                                 try? await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
                                 await store.refreshCustomLists()
-                                ToastCenter.shared.show("Saved to \(list.name)")
+                                ToastCenter.shared.show("Added to \(list.name)")
                             } else {
                                 ToastCenter.shared.saveFailed()
                             }
@@ -400,13 +406,22 @@ struct SaveToListSheet: View {
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
+            // Browsing the lists counts as interaction too.
+            .simultaneousGesture(DragGesture(minimumDistance: 5)
+                .onChanged { _ in interacted = true })
             .background(Theme.background)
-            .navigationTitle("Save to…")
+            .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
+            }
+            .task {
+                // Quick-glance popup: if they don't touch it, it leaves
+                // on its own (the save already happened).
+                try? await Task.sleep(for: .seconds(4))
+                if !interacted { dismiss() }
             }
         }
     }
