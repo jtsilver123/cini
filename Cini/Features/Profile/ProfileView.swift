@@ -492,20 +492,40 @@ struct ProfileScreen: View {
 
     private var listRows: some View {
         VStack(spacing: 0) {
-            NavigationLink {
-                RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
-                                 isSelf: isSelf, emptyHint: lockedHint)
-            } label: {
-                listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
+            // Your own Watched / Want to Watch live in the Lists tab —
+            // jump there instead of pushing a second copy of the list.
+            if isSelf {
+                Button {
+                    tabRouter.pendingListsTab = .watched
+                    tabRouter.selection = .lists
+                } label: {
+                    listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
+                }
+                .buttonStyle(.plain)
+                Divider()
+                Button {
+                    tabRouter.pendingListsTab = .watchlist
+                    tabRouter.selection = .lists
+                } label: {
+                    listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
+                }
+                .buttonStyle(.plain)
+            } else {
+                NavigationLink {
+                    RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
+                                     isSelf: isSelf, emptyHint: lockedHint)
+                } label: {
+                    listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
+                }
+                .buttonStyle(.plain)
+                Divider()
+                NavigationLink {
+                    WatchlistScreen(userID: resolvedID, isSelf: isSelf)
+                } label: {
+                    listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
-            Divider()
-            NavigationLink {
-                WatchlistScreen(userID: resolvedID, isSelf: isSelf)
-            } label: {
-                listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
-            }
-            .buttonStyle(.plain)
             Divider()
             NavigationLink {
                 CustomListsScreen(userID: resolvedID, isSelf: isSelf)
