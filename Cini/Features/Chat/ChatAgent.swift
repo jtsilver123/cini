@@ -297,6 +297,53 @@ struct CreateListTool: Tool {
     }
 }
 
+/// "Make me a list of the best A24 movies" — one call instead of nine.
+/// The model supplies titles from its own film knowledge; each is
+/// verified against TMDB before it lands, so hallucinations fall out.
+@available(iOS 26.0, *)
+struct CurateListTool: Tool {
+    let name = "curateList"
+    let description = "Create a list AND fill it: themed asks (genre, director, studio, mood, era). Pass 5-8 real titles you know fit."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "List name, e.g. Best A24 Movies")
+        var name: String
+        @Guide(description: "5-8 movie or show titles that fit the theme")
+        var titles: [String]
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return "The list needs a name." }
+        guard !arguments.titles.isEmpty else {
+            return "Pass the titles that belong on it — pick them yourself."
+        }
+        var list = await ChatAgentBridge.resolveList(named: trimmed)
+        if list == nil {
+            list = try? await SupabaseService.shared.createList(name: trimmed)
+        }
+        guard let list else { return "Couldn't create the list — connection trouble." }
+
+        var added: [String] = []
+        for title in arguments.titles.prefix(10) {
+            guard let movie = await ChatAgentBridge.resolveMovie(title) else { continue }
+            try? await SupabaseService.shared.cacheMovie(movie)
+            if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {
+                added.append(movie.title)
+            }
+        }
+        await ChatAgentBridge.shared.store?.refreshCustomLists()
+        guard !added.isEmpty else {
+            return "“\(list.name)” exists but none of those titles matched — try different ones."
+        }
+        await ChatAgentBridge.shared.note("list.star",
+                                          "“\(list.name)” — \(added.count) titles",
+                                          destination: .customList(list.id))
+        return "Done — “\(list.name)” has \(added.joined(separator: ", "))."
+    }
+}
+
 @available(iOS 26.0, *)
 struct AddToListTool: Tool {
     let name = "addMovieToList"
