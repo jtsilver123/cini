@@ -113,6 +113,11 @@ struct RootTabView: View {
             NavigationStack {
                 CiniChatView()
             }
+            // The sheet is attached OUTSIDE the .environment(router)
+            // injection above, so it inherits nothing from it — without
+            // this line, the chat's @Environment(TabRouter.self) traps
+            // the instant the sheet opens (the .44 tap-to-crash).
+            .environment(router)
             .presentationDragIndicator(.visible)
         }
     }
