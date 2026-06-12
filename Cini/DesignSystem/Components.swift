@@ -421,6 +421,11 @@ struct SaveToListSheet: View {
         !(store.movie(movie.tmdbID)?.streamingOn ?? movie.streamingOn).isEmpty
     }
 
+    /// Lists hold one media type — offer only the ones this save fits.
+    private var applicableLists: [CustomList] {
+        store.customLists.filter { $0.kind == category.mediaKind }
+    }
+
     /// Every action carries the chosen category.
     private var effectiveMovie: Movie {
         var adjusted = movie
@@ -498,11 +503,13 @@ struct SaveToListSheet: View {
                     .listRowBackground(Theme.background)
                 }
 
-                // Your lists as one compact chip row — Beli-style.
-                if !store.customLists.isEmpty {
+                // Your lists as one compact chip row — Beli-style. Lists
+                // are single-media-type, so only the ones matching the
+                // category chips above apply.
+                if !applicableLists.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(store.customLists) { list in
+                            ForEach(applicableLists) { list in
                                 Button {
                                     Haptics.tap()
                                     let saved = effectiveMovie
@@ -544,7 +551,8 @@ struct SaveToListSheet: View {
                         guard !name.isEmpty else { return }
                         let saved = effectiveMovie
                         Task {
-                            if let list = try? await SupabaseService.shared.createList(name: name) {
+                            if let list = try? await SupabaseService.shared.createList(
+                                name: name, mediaKind: saved.mediaKind) {
                                 try? await SupabaseService.shared.cacheMovie(saved)
                                 try? await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
                                 await store.refreshCustomLists()
@@ -785,6 +793,17 @@ struct MovieFilterBar: View {
     }
 
     var body: some View {
+        // Loose glass capsules in a scroll row render with artifacts
+        // (worst in light mode) — Liquid Glass wants its elements grouped
+        // in one container.
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer { bar }
+        } else {
+            bar
+        }
+    }
+
+    private var bar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 if filters.isActive {

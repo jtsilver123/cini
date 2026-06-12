@@ -26,6 +26,9 @@ final class TabRouter {
 
     /// Set before jumping to search to land on the Members tab.
     var openMembersSearch = false
+    /// The movie page currently on screen — Ask Cini opens with it
+    /// pinned, so "is this good?" needs zero typing.
+    var visibleMovie: Movie?
 
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?

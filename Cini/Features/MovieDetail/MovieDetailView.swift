@@ -75,6 +75,14 @@ struct MovieDetailView: View {
                 performancesSection
                 peopleSection
             }
+            // Ask Cini opens context-aware: the page you're on is the
+            // movie you're asking about.
+            .onAppear { tabRouter.visibleMovie = movie }
+            .onDisappear {
+                if tabRouter.visibleMovie?.tmdbID == movie.tmdbID {
+                    tabRouter.visibleMovie = nil
+                }
+            }
             .padding(.bottom, 32)
         }
         .background(Theme.background)

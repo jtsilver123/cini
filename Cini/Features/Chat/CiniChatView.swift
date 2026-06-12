@@ -190,6 +190,12 @@ struct CiniChatAvailableView: View {
             // The agent's tools act through this bridge.
             ChatAgentBridge.shared.store = store
             ChatAgentBridge.shared.openLogFlow = { logMovie = $0 }
+            // Context-aware: opened from a movie page, that title arrives
+            // already pinned to the conversation.
+            if attachedMovie == nil, messages.isEmpty,
+               let visible = tabRouter.visibleMovie {
+                attachedMovie = visible
+            }
             configureSession()
             // Open ready to type, like a real concierge desk.
             Task { @MainActor in

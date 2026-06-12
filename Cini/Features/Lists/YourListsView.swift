@@ -74,9 +74,12 @@ struct YourListsView: View {
                 header
                 categoryRow
                 subTabs
-                if subTab != .friendRecs && selectedListID == nil {
-                    // Filters are first-class on every personal list —
-                    // always visible, never acting from hiding.
+                // Filters are first-class on EVERY personal list — the
+                // defaults and your own lists alike.
+                if selectedListID != nil {
+                    if !reorderMode { filterRow }
+                    if showListSearch { listSearchField }
+                } else if subTab != .friendRecs {
                     if !reorderMode { filterRow }
                     if showListSearch { listSearchField }
                     // Recs are relevance-ordered; a date/score sort there
@@ -120,7 +123,10 @@ struct YourListsView: View {
                     newListName = ""
                     guard !name.isEmpty else { return }
                     Task {
-                        if let list = try? await SupabaseService.shared.createList(name: name) {
+                        // Born under the active category: a list holds one
+                        // media type and lives on that filter only.
+                        if let list = try? await SupabaseService.shared.createList(
+                            name: name, mediaKind: category.mediaKind) {
                             customLists.insert(list, at: 0)
                             withAnimation(.snappy) { selectedListID = list.id }
                         }
@@ -182,16 +188,23 @@ struct YourListsView: View {
     private func consumePendingCustomList() {
         guard let pending = tabRouter.pendingCustomListID else { return }
         tabRouter.pendingCustomListID = nil
-        if customLists.contains(where: { $0.id == pending }) {
-            withAnimation(.snappy) { selectedListID = pending }
+        if let list = customLists.first(where: { $0.id == pending }) {
+            withAnimation(.snappy) { select(list) }
         } else {
             Task {
                 customLists = (try? await SupabaseService.shared.myLists()) ?? customLists
-                if customLists.contains(where: { $0.id == pending }) {
-                    withAnimation(.snappy) { selectedListID = pending }
+                if let list = customLists.first(where: { $0.id == pending }) {
+                    withAnimation(.snappy) { select(list) }
                 }
             }
         }
+    }
+
+    /// Selecting a list also lands on its category — a TV list's tab
+    /// only exists under TV Shows.
+    private func select(_ list: CustomList) {
+        category = list.kind == "tv" ? .tvShows : .movies
+        selectedListID = list.id
     }
 
     private var headerShareText: String {
@@ -323,8 +336,10 @@ struct YourListsView: View {
                     .buttonStyle(.plain)
                 }
 
-                // Your own lists ride the same row.
-                ForEach(customLists) { list in
+                // Your own lists ride the same row — only the ones that
+                // belong to the active category (a list is movies OR
+                // shows, never both).
+                ForEach(customLists.filter { $0.kind == category.mediaKind }) { list in
                     let isOn = selectedListID == list.id
                     Button {
                         withAnimation(.snappy) { selectedListID = list.id }
@@ -524,11 +539,29 @@ struct YourListsView: View {
         }
     }
 
+    /// Custom lists respect the same filter pills and search as every
+    /// other personal list.
+    private var filteredCustomList: [Movie] {
+        let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        return customListMovies.filter { movie in
+            guard passesFilters(movie) else { return false }
+            return query.isEmpty || movie.title.lowercased().contains(query)
+        }
+    }
+
     /// One of the user's own lists, inline — same rows, swipe to remove.
     private var customListContent: some View {
         List {
             if customListMovies.isEmpty {
-                Text("Empty so far — add movies with \"Add to List\" on any movie page.")
+                Text("Empty so far — add titles with \"Add to List\" on any title's page.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                    .listRowBackground(Theme.background)
+                    .listRowSeparator(.hidden)
+            } else if filteredCustomList.isEmpty {
+                Text("Nothing matches these filters — loosen one.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .frame(maxWidth: .infinity)
@@ -536,7 +569,7 @@ struct YourListsView: View {
                     .listRowBackground(Theme.background)
                     .listRowSeparator(.hidden)
             }
-            ForEach(customListMovies) { movie in
+            ForEach(filteredCustomList) { movie in
                 WatchlistRowView(movie: movie,
                                  predicted: store.predictedScores[movie.tmdbID]) {
                     logMovie = movie
@@ -547,8 +580,12 @@ struct YourListsView: View {
             }
             .onDelete { offsets in
                 guard let listID = selectedListID else { return }
-                let doomed = offsets.map { customListMovies[$0] }
-                customListMovies.remove(atOffsets: offsets)
+                // Offsets index the FILTERED view — map to titles, then
+                // remove by id from the source array.
+                let filtered = filteredCustomList
+                let doomed = offsets.compactMap { filtered.indices.contains($0) ? filtered[$0] : nil }
+                let doomedIDs = Set(doomed.map(\.tmdbID))
+                customListMovies.removeAll { doomedIDs.contains($0.tmdbID) }
                 Task {
                     for movie in doomed {
                         try? await SupabaseService.shared.removeFromList(listID, movieID: movie.tmdbID)

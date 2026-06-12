@@ -336,26 +336,29 @@ struct CurateListTool: Tool {
                 return "Couldn't find anyone called \"\(person)\" with credits — check the name."
             }
         }
-        let titles = arguments.titles ?? []
-        guard !pool.isEmpty || !titles.isEmpty else {
+        // Resolve everything FIRST: the list's media type is inferred
+        // from what's actually going on it (lists hold one type).
+        if pool.isEmpty {
+            for title in (arguments.titles ?? []).prefix(10) {
+                guard let movie = await ChatAgentBridge.resolveMovie(title) else { continue }
+                pool.append(movie)
+            }
+        }
+        guard !pool.isEmpty else {
             return "Pass the titles that belong on it — pick them yourself."
         }
+        var tvCount = 0
+        for movie in pool where movie.mediaKind == "tv" { tvCount += 1 }
+        let listKind = tvCount > pool.count - tvCount ? "tv" : "movie"
 
         var list = await ChatAgentBridge.resolveList(named: trimmed)
         if list == nil {
-            list = try? await SupabaseService.shared.createList(name: trimmed)
+            list = try? await SupabaseService.shared.createList(name: trimmed, mediaKind: listKind)
         }
         guard let list else { return "Couldn't create the list — connection trouble." }
 
         var added: [String] = []
-        for movie in pool {
-            try? await SupabaseService.shared.cacheMovie(movie)
-            if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {
-                added.append(movie.title)
-            }
-        }
-        for title in titles.prefix(10) where pool.isEmpty {
-            guard let movie = await ChatAgentBridge.resolveMovie(title) else { continue }
+        for movie in pool where movie.mediaKind == list.kind {
             try? await SupabaseService.shared.cacheMovie(movie)
             if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {
                 added.append(movie.title)
@@ -391,13 +394,20 @@ struct AddToListTool: Tool {
         }
         var list = await ChatAgentBridge.resolveList(named: arguments.listName)
         if list == nil {
+            // A new list inherits the title's kind — lists hold one type.
             list = try? await SupabaseService.shared.createList(
-                name: arguments.listName.trimmingCharacters(in: .whitespaces))
+                name: arguments.listName.trimmingCharacters(in: .whitespaces),
+                mediaKind: movie.mediaKind)
             if list != nil {
                 await ChatAgentBridge.shared.note("list.star", "Created “\(arguments.listName)”")
             }
         }
         guard let list else { return "Couldn't find or create that list." }
+        if list.kind != movie.mediaKind {
+            let listType = list.kind == "tv" ? "a TV show list" : "a movie list"
+            let titleType = movie.mediaKind == "tv" ? "a show" : "a movie"
+            return "“\(list.name)” is \(listType) and \(movie.title) is \(titleType) — lists hold one type. Offer to make a new list for it."
+        }
         try? await SupabaseService.shared.cacheMovie(movie)
         do {
             try await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)

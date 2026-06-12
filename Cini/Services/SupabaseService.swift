@@ -612,18 +612,19 @@ final class SupabaseService {
 
     func lists(of userID: UUID) async throws -> [CustomList] {
         try await client.from("custom_lists")
-            .select("id, user_id, name, is_private, created_at, custom_list_items(count)")
+            .select("id, user_id, name, is_private, created_at, media_kind, custom_list_items(count)")
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .execute().value
     }
 
-    func createList(name: String) async throws -> CustomList {
+    func createList(name: String, mediaKind: String = "movie") async throws -> CustomList {
         guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
-        struct Row: Encodable { let user_id: UUID; let name: String }
+        struct Row: Encodable { let user_id: UUID; let name: String; let media_kind: String }
         return try await client.from("custom_lists")
-            .insert(Row(user_id: me, name: name))
-            .select("id, user_id, name, is_private, created_at, custom_list_items(count)")
+            .insert(Row(user_id: me, name: name,
+                        media_kind: mediaKind == "tv" ? "tv" : "movie"))
+            .select("id, user_id, name, is_private, created_at, media_kind, custom_list_items(count)")
             .single()
             .execute().value
     }
@@ -1535,15 +1536,20 @@ struct CustomList: Codable, Identifiable, Hashable {
     var name: String
     let isPrivate: Bool
     let createdAt: Date
+    /// "movie" or "tv" — a list holds ONE media type (nil on old rows
+    /// decodes as movie).
+    var mediaKind: String?
     let items: [CountRow]?
 
     var count: Int { items?.first?.count ?? 0 }
+    var kind: String { mediaKind ?? "movie" }
 
     struct CountRow: Codable, Hashable { let count: Int }
 
     enum CodingKeys: String, CodingKey {
         case id, name
         case userId = "user_id"
+        case mediaKind = "media_kind"
         case isPrivate = "is_private"
         case createdAt = "created_at"
         case items = "custom_list_items"
