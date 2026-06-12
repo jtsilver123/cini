@@ -329,8 +329,9 @@ final class SupabaseService {
             details.labels = (rank.ranking_labels ?? []).compactMap { $0.labels?.name }
             if let with = rank.watched_with, !with.isEmpty {
                 details.watchedWithIDs = with
-                let rows: [ProfileRow]? = try? await client.from("profiles")
-                    .select().in("id", values: with).execute().value
+                struct NameRow: Decodable { let username: String }
+                let rows: [NameRow]? = try? await client.from("profiles")
+                    .select("username").in("id", values: with).execute().value
                 details.watchedWith = (rows ?? []).map(\.username)
             }
         }
@@ -639,22 +640,12 @@ final class SupabaseService {
         try await client.from("favorite_performances").delete()
             .eq("user_id", value: me).eq("movie_id", value: movieID)
             .execute()
-        for member in cast {
-            try? await addPerformance(movieID: movieID, cast: member)
-        }
+        try await addPerformances(movieID: movieID, cast: cast)
     }
 
-    /// Editing can clear a note entirely.
-    func deleteNote(movieID: Int, isPrivate: Bool) async throws {
-        guard let me = currentUserID else { return }
-        try await client.from("notes").delete()
-            .eq("user_id", value: me).eq("movie_id", value: movieID)
-            .eq("is_private", value: isPrivate)
-            .execute()
-    }
-
-    func addPerformance(movieID: Int, cast: CastMember) async throws {
-        guard let userID = currentUserID else { return }
+    /// One batched upsert — a row per network call added up fast.
+    func addPerformances(movieID: Int, cast: [CastMember]) async throws {
+        guard let me = currentUserID, !cast.isEmpty else { return }
         struct Row: Encodable {
             let user_id: UUID
             let movie_id: Int
@@ -663,11 +654,22 @@ final class SupabaseService {
             let profile_path: String?
             let character_name: String?
         }
+        let rows = cast.map {
+            Row(user_id: me, movie_id: movieID, tmdb_person_id: $0.id,
+                person_name: $0.name, profile_path: $0.profilePath,
+                character_name: $0.character)
+        }
         try await client.from("favorite_performances")
-            .upsert(Row(user_id: userID, movie_id: movieID, tmdb_person_id: cast.id,
-                        person_name: cast.name, profile_path: cast.profilePath,
-                        character_name: cast.character),
-                    onConflict: "user_id,movie_id,tmdb_person_id")
+            .upsert(rows, onConflict: "user_id,movie_id,tmdb_person_id")
+            .execute()
+    }
+
+    /// Editing can clear a note entirely.
+    func deleteNote(movieID: Int, isPrivate: Bool) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("notes").delete()
+            .eq("user_id", value: me).eq("movie_id", value: movieID)
+            .eq("is_private", value: isPrivate)
             .execute()
     }
 

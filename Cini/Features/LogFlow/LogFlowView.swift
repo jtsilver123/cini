@@ -468,9 +468,10 @@ struct LogFlowView: View {
                 try await supabase.addToList(list.id, movieID: movie.tmdbID)
             } catch { anySaveFailed = true }
         }
-        for member in draft.cast {
+        if !draft.cast.isEmpty {
             do {
-                try await supabase.addPerformance(movieID: movie.tmdbID, cast: member)
+                try await supabase.addPerformances(movieID: movie.tmdbID,
+                                                   cast: Array(draft.cast))
             } catch { anySaveFailed = true }
         }
         if !draft.watchedWith.isEmpty || draft.watchDate != nil || draft.watchedWhere != nil {

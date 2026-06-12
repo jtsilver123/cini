@@ -9,6 +9,10 @@ import RankingEngine
 @MainActor
 final class RankingStore {
     private(set) var list = RankingList<Int>()
+    /// Scored snapshot of `list`, recomputed only when the list mutates —
+    /// reading rankings is hot (every list render, chat context), scoring
+    /// a few hundred items on each read is not free.
+    private(set) var watchedItems: [ScoredItem<Int>] = []
     private(set) var movies: [Int: Movie] = [:]          // metadata cache
     private(set) var watchlist: [WatchlistItem] = []
     /// Rec Scores for the watchlist, prefetched in the background at
@@ -31,6 +35,15 @@ final class RankingStore {
 
     func load() async {
         guard let userID = supabase.currentUserID else { return }
+        // Cold start: the last-synced snapshot renders lists instantly
+        // while the fresh data loads (same idea as FeedDiskCache).
+        if !isLoaded, let snapshot = RankingDiskCache.load(for: userID) {
+            list = snapshot.list
+            watchlist = snapshot.watchlist
+            movies = snapshot.movies
+            listChanged()
+            isLoaded = true
+        }
         do {
             async let rankingRows = supabase.rankings(userID: userID)
             async let watchlistRows = supabase.watchlist(userID: userID)
@@ -41,6 +54,7 @@ final class RankingStore {
                 return RankedItem(id: row.movieId, sentiment: sentiment)
             }
             list = RankingList(items: items)
+            listChanged()
             watchlist = watching.map {
                 WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId, createdAt: $0.createdAt)
             }
@@ -49,6 +63,8 @@ final class RankingStore {
             let rows = try await supabase.movies(ids: Array(allIDs))
             for row in rows { movies[row.tmdbId] = row.asMovie }
             isLoaded = true
+            RankingDiskCache.save(.init(userID: userID, list: list,
+                                        watchlist: watchlist, movies: movies))
             // Fire-and-forget: warm the Want to Watch Rec Scores so the
             // Lists tab opens with badges already in place.
             Task { await refreshPredictedScores() }
@@ -69,21 +85,30 @@ final class RankingStore {
 
     // MARK: - Reading
 
-    var watchedItems: [ScoredItem<Int>] { list.scoredItems }
     var watchedCount: Int { list.count }
     var watchlistCount: Int { watchlist.count }
 
     func movie(_ id: Int) -> Movie? { movies[id] }
     func isWatched(_ movieID: Int) -> Bool { list.contains(movieID) }
     func isOnWatchlist(_ movieID: Int) -> Bool { watchlist.contains { $0.movieID == movieID } }
-    func scoredItem(for movieID: Int) -> ScoredItem<Int>? { list.scoredItem(for: movieID) }
+    func scoredItem(for movieID: Int) -> ScoredItem<Int>? {
+        watchedItems.first { $0.id == movieID }
+    }
+
+    /// Every list mutation funnels through here so the scored snapshot
+    /// stays in lockstep.
+    private func listChanged() {
+        watchedItems = list.scoredItems
+    }
 
     // MARK: - Log flow
 
     func beginSession(movie: Movie, sentiment: Sentiment) -> InsertionSession<Int> {
         cache(movie)
         if list.contains(movie.tmdbID) {
-            return list.beginReranking(of: movie.tmdbID, sentiment: sentiment)
+            let session = list.beginReranking(of: movie.tmdbID, sentiment: sentiment)
+            listChanged()
+            return session
         }
         return list.beginInsertion(of: movie.tmdbID, sentiment: sentiment)
     }
@@ -98,6 +123,7 @@ final class RankingStore {
             return nil
         }
         let scored = list.commit(session)
+        listChanged()
         watchlist.removeAll { $0.movieID == session.newItemID }
         ImportQueue.shared.markRanked(session.newItemID)
         do {
@@ -135,7 +161,7 @@ final class RankingStore {
     /// block makes it loved), then the standard rank_insert RPC persists
     /// the move and rescores server-side.
     func moveRanked(fromOffsets: IndexSet, toOffset: Int) async {
-        let current = list.scoredItems
+        let current = watchedItems
         guard let from = fromOffsets.first, current.indices.contains(from) else { return }
         var ids = current.map(\.id)
         let sentimentOf = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0.sentiment) })
@@ -155,6 +181,7 @@ final class RankingStore {
             RankedItem(id: $0, sentiment: $0 == moving ? newSentiment : (sentimentOf[$0] ?? .fine))
         }
         list = RankingList(items: items)
+        listChanged()
 
         let bucketPosition = ids[0..<to].filter {
             ($0 == moving ? newSentiment : sentimentOf[$0]) == newSentiment
@@ -170,6 +197,7 @@ final class RankingStore {
         do {
             try await supabase.rankRemove(movieID: movieID)
             list.remove(movieID)
+            listChanged()
             // The 'ranked' feed event points at a rating that no longer
             // exists — pull it too.
             try? await supabase.hideRankEvent(movieID: movieID)
@@ -227,15 +255,57 @@ final class RankingStore {
         movies[movie.tmdbID] = movie
     }
 
+    /// IDs with an enrich in flight, so concurrent rows asking for the
+    /// same movie don't each hit TMDB.
+    @ObservationIgnored private var enriching: Set<Int> = []
+
     /// Fill in detail fields (runtime, certification, director, providers)
     /// for a movie we only know from search results.
     func enrich(_ movieID: Int) async {
-        guard movies[movieID]?.runtimeMinutes == nil else { return }
-        guard var detailed = try? await tmdb.details(for: movieID) else { return }
-        if let providers = try? await tmdb.watchProviders(for: movieID) {
+        guard movies[movieID]?.runtimeMinutes == nil, !enriching.contains(movieID) else { return }
+        enriching.insert(movieID)
+        defer { enriching.remove(movieID) }
+        async let detailsTask = tmdb.details(for: movieID)
+        async let providersTask = tmdb.watchProviders(for: movieID)
+        guard var detailed = try? await detailsTask else { return }
+        if let providers = try? await providersTask {
             detailed.streamingOn = providers.streamingNames
         }
         movies[movieID] = detailed
         try? await supabase.cacheMovie(detailed)
+    }
+}
+
+/// Last-synced rankings + watchlist + metadata, persisted so a cold
+/// launch renders Lists and the taste profile instantly instead of
+/// blank-until-network. Refreshed after every successful load, cleared
+/// at sign-out alongside FeedDiskCache.
+enum RankingDiskCache {
+    struct Snapshot: Codable {
+        let userID: UUID
+        let list: RankingList<Int>
+        let watchlist: [WatchlistItem]
+        let movies: [Int: Movie]
+    }
+
+    private static var url: URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("rankings-cache.json")
+    }
+
+    static func load(for userID: UUID) -> Snapshot? {
+        guard let data = try? Data(contentsOf: url),
+              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
+              snapshot.userID == userID else { return nil }
+        return snapshot
+    }
+
+    static func save(_ snapshot: Snapshot) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        try? data.write(to: url, options: .atomic)
+    }
+
+    static func clear() {
+        try? FileManager.default.removeItem(at: url)
     }
 }

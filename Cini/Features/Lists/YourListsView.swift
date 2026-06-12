@@ -747,55 +747,78 @@ struct YourListsView: View {
 
     private func loadRecs() async {
         guard recCandidates.isEmpty else { return }
-        var result: [RecCandidate] = []
+        // All three sources fetch concurrently; the order of the tab
+        // stays friends → similar → trending.
+        let topID = store.watchedItems.first?.id
+        async let friendRecsTask = SupabaseService.shared.recsForUser()
+        async let similarTask = similarToTop(topID)
+        async let trendingTask = TMDBService.shared.trending()
+
+        var pending: [(id: Int, reason: String)] = []
         var seen = Set<Int>()
 
         // 1. Friend-powered (taste-match weighted) from the database.
-        if let friendRecs = try? await SupabaseService.shared.recsForUser() {
+        if let friendRecs = try? await friendRecsTask {
             let rows = (try? await SupabaseService.shared.movies(ids: friendRecs.map(\.movieId))) ?? []
             for row in rows { store.cache(row.asMovie) }
             for rec in friendRecs where seen.insert(rec.movieId).inserted {
-                await store.enrich(rec.movieId)
-                if let movie = store.movie(rec.movieId) {
-                    let who = rec.topFriendUsername.map { "@\($0)" } ?? "friends"
-                    result.append(RecCandidate(
-                        movie: movie,
-                        reason: rec.friendCount > 1
-                            ? "Loved by \(who) + \(rec.friendCount - 1) more"
-                            : "Loved by \(who)"
-                    ))
-                }
+                let who = rec.topFriendUsername.map { "@\($0)" } ?? "friends"
+                pending.append((rec.movieId, rec.friendCount > 1
+                    ? "Loved by \(who) + \(rec.friendCount - 1) more"
+                    : "Loved by \(who)"))
             }
         }
 
         // 2. Similar to the user's current #1.
-        if let top = store.watchedItems.first,
-           let similar = try? await TMDBService.shared.similar(to: top.id) {
-            let topTitle = store.movie(top.id)?.title ?? "your #1"
+        if let similar = await similarTask {
+            let topTitle = topID.flatMap { store.movie($0)?.title } ?? "your #1"
             for movie in similar.prefix(10)
             where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
                 store.cache(movie)
-                await store.enrich(movie.tmdbID)
-                if let enriched = store.movie(movie.tmdbID) {
-                    result.append(RecCandidate(movie: enriched, reason: "Because you loved \(topTitle)"))
-                }
+                pending.append((movie.tmdbID, "Because you loved \(topTitle)"))
             }
         }
 
         // 3. Trending keeps the tab alive while the social graph is small.
-        if result.count < 10, let trending = try? await TMDBService.shared.trending() {
+        if pending.count < 10, let trending = try? await trendingTask {
             for movie in trending.prefix(10)
             where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
                 store.cache(movie)
-                await store.enrich(movie.tmdbID)
-                if let enriched = store.movie(movie.tmdbID) {
-                    result.append(RecCandidate(movie: enriched, reason: "Trending this week"))
-                }
+                pending.append((movie.tmdbID, "Trending this week"))
             }
         }
 
-        recCandidates = result
+        // Enrich a few at a time instead of one by one — serially this
+        // was dozens of back-to-back round-trips before recs appeared.
+        await enrichConcurrently(pending.map(\.id))
+
+        recCandidates = pending.compactMap { candidate in
+            store.movie(candidate.id).map { RecCandidate(movie: $0, reason: candidate.reason) }
+        }
         recsLoaded = true
+    }
+
+    private func similarToTop(_ topID: Int?) async -> [Movie]? {
+        guard let topID else { return nil }
+        return try? await TMDBService.shared.similar(to: topID)
+    }
+
+    /// At most six enriches in flight — parallel enough to be fast,
+    /// polite enough for TMDB.
+    private func enrichConcurrently(_ ids: [Int]) async {
+        let store = self.store
+        await withTaskGroup(of: Void.self) { group in
+            var remaining = ids[...]
+            for _ in 0..<min(6, remaining.count) {
+                let id = remaining.removeFirst()
+                group.addTask { await store.enrich(id) }
+            }
+            while await group.next() != nil {
+                if let id = remaining.popFirst() {
+                    group.addTask { await store.enrich(id) }
+                }
+            }
+        }
     }
 
     private func emptyList(_ message: String,

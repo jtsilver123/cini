@@ -80,6 +80,7 @@ final class AppSession {
                 isAuthenticated = false
                 profile = nil
                 FeedDiskCache.clear()
+                RankingDiskCache.clear()
             default:
                 break
             }

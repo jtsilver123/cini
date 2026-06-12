@@ -24,9 +24,16 @@ final class FriendsCache {
         }
     }
 
-    /// Fire-and-forget background refresh.
+    @ObservationIgnored private var warmTask: Task<Void, Never>?
+
+    /// Fire-and-forget background refresh. Concurrent calls coalesce —
+    /// sign-in and the first log both warm within seconds of each other.
     func warm() {
-        Task { await refresh() }
+        guard warmTask == nil else { return }
+        warmTask = Task {
+            await refresh()
+            warmTask = nil
+        }
     }
 
     /// Refresh only when the cache is older than 5 minutes — views call

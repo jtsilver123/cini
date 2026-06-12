@@ -115,21 +115,25 @@ struct ProfileScreen: View {
         async let followingTask = supabase.followCount(of: id, direction: "follower_id")
         async let rankTask = supabase.globalRank(userID: id)
 
-        profile = try? await profileTask.asProfile
-        rankings = (try? await rankingsTask) ?? []
-
         if isSelf {
+            profile = try? await profileTask.asProfile
+            rankings = (try? await rankingsTask) ?? []
             movies = store.movies
             watchlistCount = store.watchlistCount
         } else {
+            // None of these depend on the first batch — starting them
+            // before awaiting it saves a full round-trip of latency.
             async let followingState = supabase.isFollowing(id)
             async let match = supabase.tasteMatch(with: id)
             async let memberWatchlistTask = supabase.watchlist(userID: id)
+            async let blockedTask = supabase.blockedIDs()
+            profile = try? await profileTask.asProfile
+            rankings = (try? await rankingsTask) ?? []
             let rows = (try? await supabase.movies(ids: rankings.map(\.movieId))) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }
             following = await followingState
             matchPct = await match
-            blocked = await supabase.blockedIDs().contains(id)
+            blocked = await blockedTask.contains(id)
             let memberWatchlist = (try? await memberWatchlistTask) ?? []
             watchlistCount = memberWatchlist.count
             bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
