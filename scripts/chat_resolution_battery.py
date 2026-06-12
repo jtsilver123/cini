@@ -20,8 +20,10 @@ def rows(q):
                 out.append((name, year, row["media_type"]))
         return out
 
-def best_hit(q):
+def best_hit(q, want_year=None):
     results = rows(q)
+    if want_year:
+        results = [r for r in results if not r[1] or r[1] == str(want_year)]
     if not results: return None
     needle = q.lower()
     for name, year, kind in results[:10]:
@@ -34,6 +36,8 @@ STOP = {"that","this","with","from","about","movie","film","show","new","old","o
 
 def resolve(title):
     q = title.strip()
+    # mirrors Swift: trailing year becomes a filter, not a search term
+    year = None
     changed = True
     while changed:
         changed = False
@@ -42,11 +46,14 @@ def resolve(title):
                 q = q[len(p):]; changed = True
     for s in [" the movie", " the film", " movie", " film", " tv show", " show"]:
         if q.lower().endswith(s): q = q[: -len(s)]
-    hit = best_hit(q)
+    parts = q.split()
+    if len(parts) > 1 and len(parts[-1]) == 4 and parts[-1].isdigit():
+        year = int(parts[-1]); q = " ".join(parts[:-1])
+    hit = best_hit(q, year)
     if hit: return hit
     if len(q) > 5:
         for drop in (1, 2):
-            hit = best_hit(q[:-drop])
+            hit = best_hit(q[:-drop], year)
             if hit: return hit
     lowered = q.lower()
     longest = ""
@@ -54,7 +61,7 @@ def resolve(title):
         if len(w) > 3 and w not in STOP and len(w) > len(longest):
             longest = w
     if longest and longest != lowered:
-        return best_hit(longest)
+        return best_hit(longest, year)
     return None
 
 for phrase in ["friends", "the tv show friends", "the new dune movie", "dune 2021",

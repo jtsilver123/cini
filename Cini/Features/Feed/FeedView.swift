@@ -371,10 +371,6 @@ struct FeedCard: View {
             return Text("\(actorName) wants to watch ") + title
         case "noted":
             return Text("\(actorName) wrote about ") + title
-        case "streak_milestone":
-            return Text("\(actorName) hit a streak milestone 🔥")
-        case "challenge_milestone":
-            return Text("\(actorName) hit a challenge milestone 🏆")
         default:
             return Text("\(actorName) shared an update")
         }
