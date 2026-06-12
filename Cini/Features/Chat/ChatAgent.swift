@@ -221,7 +221,7 @@ final class ChatAgentBridge {
 @available(iOS 26.0, *)
 struct SaveToWatchlistTool: Tool {
     let name = "saveToWantToWatch"
-    let description = "Save a movie or show to Want to Watch."
+    let description = "Save a movie or show to Want to Watch. Only when they explicitly ask — never for your own recs."
 
     @Generable
     struct Arguments {
@@ -300,7 +300,7 @@ struct CreateListTool: Tool {
 @available(iOS 26.0, *)
 struct AddToListTool: Tool {
     let name = "addMovieToList"
-    let description = "Add a title to a custom list (created if missing)."
+    let description = "Add a title to a custom list (created if missing). Only when they explicitly ask."
 
     @Generable
     struct Arguments {
