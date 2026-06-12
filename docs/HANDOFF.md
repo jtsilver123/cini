@@ -152,6 +152,16 @@ and shipped on request only — Apple caps uploads per app per day
   (DB triggers tested in prod), leaderboard (all metrics verified in prod),
   recs engine, shared watchlists, Letterboxd ZIP + Apple Notes import,
   Ask Cini (Apple Foundation Models, on-device), dark cinema brand
+- Ask Cini availability ladder (verified June 2026): iOS < 26 → no chat
+  entry points anywhere (button hidden, fallback view as defense);
+  iOS 26+ but never-eligible hardware (deviceNotEligible) → entry points
+  hidden too via `ChatEligibility.canEverBeAvailable`; fixable states
+  (Apple Intelligence off, model downloading) → button shows, screen
+  explains the fix. iOS 27's rebuilt on-device model arrives
+  automatically through `SystemLanguageModel` — no code change needed.
+  New iOS 27 APIs (multimodal prompts, `LanguageModel` protocol, Dynamic
+  Profiles) need the Xcode 27 SDK, which App Store builds can't use
+  until it ships GM (~Sept 2026) — revisit then.
 - CI (`ci.yml`): engine tests (39) + app build/tests on simulator + the
   live Supabase contract check — green through 46e2e6d-era commits
 - Live prototype: https://jtsilver123.github.io/cini/prototype/ — deploys

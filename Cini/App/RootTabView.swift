@@ -82,10 +82,11 @@ struct RootTabView: View {
         }
         .environment(router)
         // Ask Cini floats bottom-right on every page — but only where the
-        // on-device model can exist (iOS 26+). Older OSes shouldn't see a
-        // prominent button that leads to an unavailable screen.
+        // on-device model can exist (iOS 26+/27 on Apple Intelligence
+        // hardware). Older OSes and never-eligible devices shouldn't see
+        // a prominent button that leads to an unavailable screen.
         .overlay(alignment: .bottomTrailing) {
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.0, *), ChatEligibility.canEverBeAvailable {
                 Button {
                     showChat = true
                 } label: {

@@ -24,6 +24,25 @@ struct CiniChatView: View {
     }
 }
 
+/// Whether the on-device model could EVER run on this hardware — drives
+/// whether the app advertises Ask Cini at all. Fixable states (Apple
+/// Intelligence switched off, model still downloading) keep the entry
+/// points visible; a device that can never run it shouldn't see a
+/// prominent button that dead-ends in an explainer.
+enum ChatEligibility {
+    @available(iOS 26.0, *)
+    static var canEverBeAvailable: Bool {
+        #if canImport(FoundationModels)
+        if case .unavailable(.deviceNotEligible) = SystemLanguageModel.default.availability {
+            return false
+        }
+        return true
+        #else
+        return false
+        #endif
+    }
+}
+
 struct ChatUnavailableView: View {
     let message: String
 
