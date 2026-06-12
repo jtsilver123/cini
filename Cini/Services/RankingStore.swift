@@ -255,6 +255,15 @@ final class RankingStore {
         movies[movie.tmdbID] = movie
     }
 
+    /// The save popup lets users fix a mislabeled kind (TV movie,
+    /// miniseries) — applied directly so the richer-record rule in
+    /// cache() can't swallow it.
+    func overrideMediaKind(_ movieID: Int, kind: String) {
+        guard var existing = movies[movieID], existing.mediaKind != kind else { return }
+        existing.mediaKind = kind
+        movies[movieID] = existing
+    }
+
     /// IDs with an enrich in flight, so concurrent rows asking for the
     /// same movie don't each hit TMDB.
     @ObservationIgnored private var enriching: Set<Int> = []
@@ -268,6 +277,11 @@ final class RankingStore {
         async let detailsTask = tmdb.details(for: movieID)
         async let providersTask = tmdb.watchProviders(for: movieID)
         guard var detailed = try? await detailsTask else { return }
+        // A user's kind override (TV movie, miniseries) survives
+        // enrichment — TMDB's label must not quietly undo it.
+        if let kind = movies[movieID]?.mediaKind {
+            detailed.mediaKind = kind
+        }
         if let providers = try? await providersTask {
             detailed.streamingOn = providers.streamingNames
         }

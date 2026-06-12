@@ -789,6 +789,7 @@ struct ActivityMovieRow: View {
     var onLog: ((Movie) -> Void)?
 
     @Environment(RankingStore.self) private var store
+    @State private var showSaveSheet = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -851,13 +852,18 @@ struct ActivityMovieRow: View {
                 .buttonStyle(.plain)
             }
             Button {
-                Task { await store.toggleWatchlist(movie: movie) }
+                bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
             } label: {
                 Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                     .font(.title3)
                     .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.gold : Theme.ink)
             }
             .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveToListSheet(movie: movie)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
     }
 }

@@ -710,6 +710,7 @@ struct MovieSuggestionRow: View {
     var onDismiss: (() -> Void)?
 
     @Environment(RankingStore.self) private var store
+    @State private var showSaveSheet = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -724,7 +725,7 @@ struct MovieSuggestionRow: View {
                     Image(systemName: "plus.circle")
                 }
                 Button {
-                    Task { await store.toggleWatchlist(movie: movie) }
+                    bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
                 } label: {
                     Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                         .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
@@ -741,6 +742,11 @@ struct MovieSuggestionRow: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
+        .sheet(isPresented: $showSaveSheet) {
+            SaveToListSheet(movie: movie)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+        }
     }
 }
 

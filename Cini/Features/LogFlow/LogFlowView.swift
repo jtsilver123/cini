@@ -304,7 +304,12 @@ struct LogFlowView: View {
     private func startComparisons() {
         guard let sentiment, phase == .enrich else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        let newSession = store.beginSession(movie: movie, sentiment: sentiment)
+        // The category chip is a real override, not decoration — a fixed
+        // TMDB mislabel (TV movie, miniseries) files where the user said.
+        var effective = movie
+        effective.mediaKind = category.mediaKind
+        store.overrideMediaKind(effective.tmdbID, kind: effective.mediaKind)
+        let newSession = store.beginSession(movie: effective, sentiment: sentiment)
         session = newSession
         if newSession.isComplete {
             commit(newSession)      // first movie ever / first in bucket

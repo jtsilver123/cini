@@ -513,8 +513,10 @@ function saveToWatchlist(k){
   toast(`Saved ${MOVIES[k].t} to Want to Watch`);
 }
 /* Bookmark with multiple homes: Want to Watch leads, your lists follow. */
+let _saveCat="Movies";
 function openSaveTo(k){
   const m=MOVIES[k];
+  _saveCat="Movies";
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Save to…</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
@@ -522,6 +524,10 @@ function openSaveTo(k){
       <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
         <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(m.p)}');"></div>
         <b style="font-size:14.5px;">${m.t}</b>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <button class="pill" id="savecat-movie" onclick="_saveCat='Movies'; this.classList.remove('ghost'); document.getElementById('savecat-tv').classList.add('ghost');">${I("film",14)} Movies</button>
+        <button class="pill ghost" id="savecat-tv" onclick="_saveCat='TV'; this.classList.remove('ghost'); document.getElementById('savecat-movie').classList.add('ghost');">${I("tv",14)} TV Shows</button>
       </div>
       <div class="erow" onclick="closeOverlay(); saveToWatchlist('${k}')"><span class="ic" style="color:var(--marquee);">${IF("bookmark",18)}</span><span style="flex:1; font-weight:600;">Want to Watch<div class="sub">Default</div></span></div>
       ${["Date night","2023 catch-up"].map(n=>`<div class="erow" onclick="closeOverlay(); toast('Added to ${n}')"><span class="ic" style="color:var(--marquee);">${I("star",18)}</span><span style="flex:1; font-weight:600;">${n}</span></div>`).join("")}
