@@ -56,16 +56,23 @@ struct ProfileScreen: View {
                     .background(Theme.background)
             }
             ScrollView {
-                VStack(spacing: 18) {
-                    identity
-                    topThree
-                    statRow
-                    buttonRow
-                    listRows
-                    statCards
-                    profileTabs
+                // A member profile opens with nothing cached — show the
+                // shape of the page, never zeros and blanks.
+                if !loaded && profile == nil {
+                    ProfileSkeleton()
+                        .padding(16)
+                } else {
+                    VStack(spacing: 18) {
+                        identity
+                        topThree
+                        statRow
+                        buttonRow
+                        listRows
+                        statCards
+                        profileTabs
+                    }
+                    .padding(16)
                 }
-                .padding(16)
             }
             .refreshable { await load() }
         }

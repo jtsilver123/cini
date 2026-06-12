@@ -351,6 +351,11 @@ struct YourListsView: View {
     /// Direct recommendations friends sent you — all of them live here.
     private var friendRecsList: some View {
         List {
+            if !directRecsLoaded {
+                SearchSkeleton(kind: .titles, rows: 5)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+            }
             if directRecs.isEmpty && directRecsLoaded {
                 VStack(spacing: 10) {
                     Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
@@ -813,6 +818,10 @@ struct YourListsView: View {
         .overlay {
             if recsLoaded && filteredRecs.isEmpty {
                 emptyList("No recs match these filters — loosen one, or follow more friends.")
+            } else if !recsLoaded && recCandidates.isEmpty {
+                SearchSkeleton(kind: .titles, rows: 6)
+                    .padding(.horizontal, 16)
+                    .frame(maxHeight: .infinity, alignment: .top)
             }
         }
         .task { await loadRecs() }

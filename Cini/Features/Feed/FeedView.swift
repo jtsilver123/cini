@@ -318,9 +318,8 @@ struct FeedView: View {
                 if feedLoaded {
                     emptyState
                 } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 60)
+                    FeedSkeleton()
+                        .padding(.top, 4)
                 }
             }
 
@@ -848,6 +847,11 @@ struct NotificationsView: View {
 
     var body: some View {
         List {
+            if !loaded {
+                SearchSkeleton(kind: .members, rows: 6)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+            }
             if rows.isEmpty && loaded {
                 VStack(spacing: 8) {
                     Image(systemName: "bell").font(.title).foregroundStyle(Theme.gray)

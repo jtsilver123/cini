@@ -268,6 +268,85 @@ struct ArtworkQuickActions: View {
     }
 }
 
+// MARK: - Loading skeletons (the app-wide "loading" look)
+
+/// Gentle pulse for placeholder shapes. Nothing in the app shows a bare
+/// blank or zeroed screen while loading — it shows the shape of what's
+/// coming.
+struct SkeletonPulse: ViewModifier {
+    @State private var dim = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(dim ? 0.45 : 0.9)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+                    dim = true
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading")
+    }
+}
+
+/// Feed-card-shaped placeholders.
+struct FeedSkeleton: View {
+    var cards = 3
+
+    var body: some View {
+        VStack(spacing: 18) {
+            ForEach(0..<cards, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Circle().fill(Theme.fill).frame(width: 42, height: 42)
+                        VStack(alignment: .leading, spacing: 6) {
+                            RoundedRectangle(cornerRadius: 4).fill(Theme.fill)
+                                .frame(width: 180, height: 12)
+                            RoundedRectangle(cornerRadius: 4).fill(Theme.fill)
+                                .frame(width: 90, height: 9)
+                        }
+                        Spacer()
+                    }
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.fill)
+                        .frame(height: 150)
+                }
+            }
+        }
+        .modifier(SkeletonPulse())
+    }
+}
+
+/// A profile page before its data lands: identity, the two stat cards,
+/// the list rows.
+struct ProfileSkeleton: View {
+    var body: some View {
+        VStack(spacing: 18) {
+            HStack(spacing: 14) {
+                Circle().fill(Theme.fill).frame(width: 84, height: 84)
+                VStack(alignment: .leading, spacing: 8) {
+                    RoundedRectangle(cornerRadius: 4).fill(Theme.fill)
+                        .frame(width: 140, height: 16)
+                    RoundedRectangle(cornerRadius: 4).fill(Theme.fill)
+                        .frame(width: 90, height: 11)
+                }
+                Spacer()
+            }
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 14).fill(Theme.fill).frame(height: 92)
+                RoundedRectangle(cornerRadius: 14).fill(Theme.fill).frame(height: 92)
+            }
+            VStack(spacing: 12) {
+                ForEach(0..<4, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 10).fill(Theme.fill).frame(height: 44)
+                }
+            }
+        }
+        .modifier(SkeletonPulse())
+    }
+}
+
 // MARK: - Category chips (Movies · TV Shows — the only two)
 
 /// The one category selector: identical capsule chips wherever a
