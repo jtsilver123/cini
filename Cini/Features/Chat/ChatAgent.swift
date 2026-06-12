@@ -36,6 +36,9 @@ final class ChatAgentBridge {
     weak var store: RankingStore?
     var openLogFlow: ((Movie) -> Void)?
     private(set) var actions: [AgentAction] = []
+    /// The last title a tool resolved this turn — the chat offers one-tap
+    /// Save / Where-to-watch buttons for it under the reply.
+    var lastDiscussedMovie: Movie?
 
     func note(_ icon: String, _ label: String,
               destination: AgentDestination? = nil) {
@@ -59,6 +62,7 @@ final class ChatAgentBridge {
             query = String(query.dropLast(suffix.count))
         }
         if let hit = (try? await TMDBService.shared.search(query: query))?.first {
+            await MainActor.run { ChatAgentBridge.shared.lastDiscussedMovie = hit }
             return hit
         }
         // Still nothing: try the most distinctive word ("that anatomy
@@ -76,7 +80,10 @@ final class ChatAgentBridge {
         }
         if !longest.isEmpty, longest != lowered {
             let retry = try? await TMDBService.shared.search(query: longest)
-            return retry?.first
+            if let hit = retry?.first {
+                await MainActor.run { ChatAgentBridge.shared.lastDiscussedMovie = hit }
+                return hit
+            }
         }
         return nil
     }
@@ -394,7 +401,7 @@ struct UnfollowMemberTool: Tool {
 @available(iOS 26.0, *)
 struct SendRecTool: Tool {
     let name = "sendRecommendation"
-    let description = "Send a movie recommendation to a member the user follows, with an optional note."
+    let description = "Send a movie recommendation TO ANOTHER CINI MEMBER (a person, by @username). Never use this to find where to watch something — that's lookupMovie."
 
     @Generable
     struct Arguments {

@@ -71,6 +71,8 @@ struct CiniChatAvailableView: View {
     @State private var attachedMovie: Movie?
     @State private var logMovie: Movie?
     @State private var needsContextRefresh = false
+    @State private var watchSheetMovie: Movie?
+    @State private var watchSheetProviders: WatchProviders?
     @FocusState private var inputFocused: Bool
 
     struct ChatMessage: Identifiable, Equatable {
@@ -79,6 +81,9 @@ struct CiniChatAvailableView: View {
         var text: String
         /// What the agent actually did this turn — confirmation chips.
         var actions: [AgentAction] = []
+        /// A title the reply discussed — offered as one-tap Save /
+        /// Where-to-watch buttons.
+        var offerMovie: Movie?
     }
 
     /// Starter chips built from the user's own shelf, not generic prompts.
@@ -184,6 +189,10 @@ struct CiniChatAvailableView: View {
                 showAttachPicker = false
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $watchSheetMovie) { movie in
+            WhereToWatchSheet(movie: movie, providers: watchSheetProviders)
+                .presentationDetents([.medium, .large])
         }
         .fullScreenCover(item: $logMovie, onDismiss: {
             // They may have just ranked something — the next prompt
@@ -320,6 +329,10 @@ struct CiniChatAvailableView: View {
                 Text(styled(message.text))
                     .font(.subheadline)
                     .foregroundStyle(message.isUser ? Theme.background : Theme.ink)
+                // One-tap follow-through on whatever was just discussed.
+                if let offer = message.offerMovie, !message.isUser {
+                    offerRow(for: offer)
+                }
                 // Receipts for what the agent DID, not just said.
                 if !message.actions.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -429,6 +442,14 @@ struct CiniChatAvailableView: View {
             rating) ask once for confirmation and act on their yes. Never \
             claim an action you didn't perform with a tool — receipts for \
             real actions appear under your reply automatically.
+
+            Titles that sound like everyday words (Friends, It, Up, Her, \
+            Them) are almost always movies or shows — "how can I watch \
+            Friends" means streaming availability for the show: answer with \
+            lookupMovie, never sendRecommendation. If a tool comes back \
+            empty or wrong, don't repeat the same call — reread what they \
+            meant and pick a different tool or ask one short question. \
+            "tn" means tonight.
 
             Understand them like a friend would, not a database: resolve \
             "it", "that one", "the second one" from the conversation and \
@@ -546,6 +567,48 @@ struct CiniChatAvailableView: View {
         }
     }
 
+    /// "Want to Watch" + "Where to watch" buttons for the title the reply
+    /// discussed — acting on a pick should never require typing.
+    private func offerRow(for movie: Movie) -> some View {
+        HStack(spacing: 8) {
+            if store.isOnWatchlist(movie.tmdbID) {
+                offerChip(icon: "checkmark", title: "Saved", disabled: true) {}
+            } else if !store.isWatched(movie.tmdbID) {
+                offerChip(icon: "bookmark", title: "Want to Watch", disabled: false) {
+                    Task { await store.toggleWatchlist(movie: movie) }
+                }
+            }
+            offerChip(icon: "play.rectangle", title: "Where to watch", disabled: false) {
+                openWhereToWatch(movie)
+            }
+        }
+    }
+
+    private func offerChip(icon: String, title: String, disabled: Bool,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(.caption.weight(.bold))
+            .foregroundStyle(disabled ? Theme.gray : Theme.marquee)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(Theme.marqueeSoft.opacity(disabled ? 0.5 : 1)))
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    private func openWhereToWatch(_ movie: Movie) {
+        Haptics.tap()
+        Task {
+            watchSheetProviders = try? await TMDBService.shared.watchProviders(for: movie.tmdbID)
+            watchSheetMovie = movie
+        }
+    }
+
     /// A tapped receipt chip: close the chat and land on what the agent
     /// touched. Movie/member reuse the push deep-link plumbing.
     private func open(_ destination: AgentDestination) {
@@ -585,8 +648,13 @@ struct CiniChatAvailableView: View {
             try? await Task.sleep(for: .milliseconds(38))
         }
         messages[index].text = full
+        let discussed = ChatAgentBridge.shared.lastDiscussedMovie
+        ChatAgentBridge.shared.lastDiscussedMovie = nil
         withAnimation(.snappy) {
             messages[index].actions = ChatAgentBridge.shared.drain()
+            if let discussed, !store.isWatched(discussed.tmdbID) {
+                messages[index].offerMovie = discussed
+            }
         }
     }
 
@@ -609,18 +677,17 @@ struct CiniChatAvailableView: View {
 @available(iOS 26.0, *)
 struct MovieLookupTool: Tool {
     let name = "lookupMovie"
-    let description = "Look up a movie by title: returns year, genres, runtime, and where it's streaming in the US."
+    let description = "Look up a movie OR TV SHOW by title: returns year, genres, runtime, and where it's streaming in the US. Use this for any 'where/how can I watch X' question."
 
     @Generable
     struct Arguments {
-        @Guide(description: "The movie title to look up")
+        @Guide(description: "The movie or TV show title to look up")
         var title: String
     }
 
     func call(arguments: Arguments) async throws -> String {
-        let results = (try? await TMDBService.shared.search(query: arguments.title)) ?? []
-        guard let movie = results.first else {
-            return "No movie found called \"\(arguments.title)\"."
+        guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
+            return "No movie or show found called \"\(arguments.title)\"."
         }
         var summary = "\(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) — \(movie.genres.joined(separator: ", "))"
         if let detail = try? await TMDBService.shared.details(for: movie.tmdbID) {
