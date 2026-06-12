@@ -46,6 +46,7 @@ struct LogFlowView: View {
     @State private var pairID = 0
     @State private var enrichRow: EnrichmentCard.Row?
     @State private var movieCast: [CastMember] = []
+    @State private var shareImage: Image?
     // Filing destination next to the media chip: nil = Want to Watch.
     @State private var targetList: CustomList?
     @State private var myLists: [CustomList] = []
@@ -530,12 +531,49 @@ struct LogFlowView: View {
                 .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
                 .foregroundStyle(Theme.hairline)
                 .frame(height: 1)
-            PillButton(title: "Done") { dismiss() }
-                .frame(maxWidth: .infinity)
+            HStack(spacing: 10) {
+                if let shareImage {
+                    ShareLink(
+                        item: shareImage,
+                        preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                              image: shareImage)
+                    ) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                            Text("Share").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                    }
+                }
+                PillButton(title: "Done") { dismiss() }
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding(16)
         .frame(maxWidth: .infinity)
         .floatingCard()
+        .task { await prepareShareCard(scored) }
+    }
+
+    /// Render the share ticket once the result shows — poster fetched
+    /// up front because ImageRenderer won't wait for async images.
+    @MainActor
+    private func prepareShareCard(_ scored: ScoredItem<Int>) async {
+        guard shareImage == nil else { return }
+        var poster: UIImage?
+        if let url = movie.posterURL,
+           let (data, _) = try? await URLSession.shared.data(from: url) {
+            poster = UIImage(data: data)
+        }
+        let renderer = ImageRenderer(content: RankShareCard(movie: movie, scored: scored, poster: poster))
+        renderer.scale = 3
+        if let rendered = renderer.uiImage {
+            shareImage = Image(uiImage: rendered)
+        }
     }
 }
 

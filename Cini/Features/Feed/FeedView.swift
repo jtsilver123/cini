@@ -195,6 +195,55 @@ struct FeedView: View {
         .buttonStyle(.plain)
     }
 
+    /// Bookmarks shouldn't be where titles go to die: after two weeks,
+    /// the oldest unwatched save gets one gentle nudge. ✕ snoozes that
+    /// title forever; only one nudge shows at a time.
+    @AppStorage("feed.nudgeDismissed") private var nudgeDismissedRaw = ""
+
+    private var nudgeCandidate: Movie? {
+        let dismissed = Set(nudgeDismissedRaw.split(separator: ",").map(String.init))
+        let cutoff = Date().addingTimeInterval(-14 * 86400)
+        for item in store.watchlist.reversed() where item.createdAt < cutoff {
+            if dismissed.contains(String(item.movieID)) { continue }
+            if let movie = store.movie(item.movieID) { return movie }
+        }
+        return nil
+    }
+
+    private func followThroughBanner(_ movie: Movie) -> some View {
+        HStack(spacing: 10) {
+            PosterView(url: movie.posterURL, width: 30)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Still meaning to watch \(movie.title)?")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                Text("It's been on your list a while — tonight's the night?")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            Spacer()
+            Button {
+                nudgeDismissedRaw += nudgeDismissedRaw.isEmpty
+                    ? String(movie.tmdbID) : ",\(movie.tmdbID)"
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss")
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            store.cache(movie)
+            detailMovie = movie
+        }
+    }
+
     /// Someone's waiting on your taste — surface it without a push.
     private var pendingAsksBanner: some View {
         Button {
@@ -255,12 +304,13 @@ struct FeedView: View {
 
             askForRecsRow
 
+            // One contextual banner at a time — never a stack of them.
             if !pendingAsks.isEmpty {
                 pendingAsksBanner
-            }
-
-            if let profile = session.profile, profile.streakAtRisk {
+            } else if let profile = session.profile, profile.streakAtRisk {
                 streakBanner(profile.streakWeeks)
+            } else if let nudge = nudgeCandidate {
+                followThroughBanner(nudge)
             }
 
             if events.isEmpty {
