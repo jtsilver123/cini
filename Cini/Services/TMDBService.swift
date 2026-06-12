@@ -56,8 +56,9 @@ final class TMDBService {
     }
 
     func trending() async throws -> [Movie] {
-        let page: SearchPage = try await get("/trending/movie/week")
-        return page.results.map(\.asMovie)
+        // /trending/all: movies AND shows, like the conversation actually is.
+        let page: MultiSearchPage = try await get("/trending/all/week")
+        return page.results.compactMap(\.asMovie)
     }
 
     func popular(year: Int? = nil) async throws -> [Movie] {

@@ -532,9 +532,7 @@ struct YourListsView: View {
 
     /// Category check + the shared five-filter predicate.
     private func passesFilters(_ movie: Movie) -> Bool {
-        if movie.mediaKind != category.mediaKind && !(category == .movies && movie.mediaKind == "movie") {
-            return false
-        }
+        guard category.matches(movie) else { return false }
         return filtersBinding.wrappedValue.passes(movie)
     }
 
@@ -584,7 +582,9 @@ struct YourListsView: View {
             .listRowSeparator(.hidden)
         ForEach(pendingEntries.prefix(showAllPending ? 500 : 3)) { entry in
             let movie = store.movie(entry.movieID)
-                ?? Movie(tmdbID: entry.movieID, mediaKind: "movie", title: entry.title,
+                ?? Movie(tmdbID: entry.movieID,
+                         mediaKind: entry.movieID < 0 ? "tv" : "movie",
+                         title: entry.title,
                          releaseYear: entry.year, posterPath: nil, backdropPath: nil,
                          genres: [], certification: nil, runtimeMinutes: nil,
                          director: nil, overview: nil)

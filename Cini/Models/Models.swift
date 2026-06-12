@@ -34,6 +34,24 @@ enum MediaCategory: String, CaseIterable, Codable, Identifiable {
         case .anime: return "anime"
         }
     }
+
+    /// Stored kinds are only "movie"/"tv" — Documentaries and Anime are
+    /// genre slices ACROSS both kinds, not kinds of their own. (Matching
+    /// on the fake kinds above made those two categories permanently
+    /// empty.)
+    func matches(_ movie: Movie) -> Bool {
+        switch self {
+        case .movies:
+            return movie.mediaKind != "tv"
+        case .tvShows:
+            return movie.mediaKind == "tv"
+        case .documentaries:
+            return movie.genres.contains { $0.localizedCaseInsensitiveContains("documentary") }
+        case .anime:
+            let animated = movie.genres.contains { $0.localizedCaseInsensitiveContains("animation") }
+            return animated && movie.originalLanguage == "ja"
+        }
+    }
 }
 
 // MARK: - Movie (cached TMDB metadata; v1 ranks TV as whole seasons only)
@@ -67,9 +85,11 @@ struct Movie: Identifiable, Codable, Hashable {
 
     /// "PG-13 | Sci-Fi, Drama"
     var metadataLine: String {
-        let cert = certification ?? "NR"
+        var parts = [certification ?? "NR"]
+        if mediaKind == "tv" { parts.append("TV Series") }
         let genreText = genres.prefix(2).joined(separator: ", ")
-        return genreText.isEmpty ? cert : "\(cert) | \(genreText)"
+        if !genreText.isEmpty { parts.append(genreText) }
+        return parts.joined(separator: " | ")
     }
 
     /// "2024 · Dir. Denis Villeneuve" — or "TV · 2008 · By Vince Gilligan"

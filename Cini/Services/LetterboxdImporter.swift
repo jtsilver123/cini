@@ -325,10 +325,12 @@ enum LetterboxdImporter {
             guard fields.indices.contains(titleIndex) else { return nil }
             let title = fields[titleIndex].trimmingCharacters(in: .whitespaces)
             guard !title.isEmpty else { return nil }
-            // IMDb exports mix in TV; keep only movie-ish rows.
+            // IMDb exports carry a type column: keep movies and full
+            // series (Cini ranks shows), drop episodes/games/shorts.
             if let typeIndex, fields.indices.contains(typeIndex) {
                 let type = fields[typeIndex].lowercased()
-                guard type.isEmpty || type.contains("movie") else { return nil }
+                let keep = type.isEmpty || type.contains("movie") || type.contains("series")
+                guard keep, !type.contains("episode") else { return nil }
             }
             let year = yearIndex.flatMap { fields.indices.contains($0) ? Int(fields[$0].prefix(4)) : nil }
             var rating = ratingIndex.flatMap { fields.indices.contains($0) ? Double(fields[$0]) : nil }

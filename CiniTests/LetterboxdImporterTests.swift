@@ -141,9 +141,10 @@ final class LetterboxdImporterTests: XCTestCase {
         tt0903747,10,2024-03-02,Breaking Bad,url,TV Series,9.5,49,2008,Crime
         """
         let titles = LetterboxdImporter.parse(csv: csv)
-        XCTAssertEqual(titles.count, 1, "TV series rows must be filtered out")
+        XCTAssertEqual(titles.count, 2, "movies AND full series both import")
         XCTAssertEqual(titles[0].title, "Dune: Part Two")
         XCTAssertEqual(titles[0].rating, 4.5, "IMDb 9/10 normalizes to 4.5 stars")
+        XCTAssertEqual(titles[1].title, "Breaking Bad")
     }
 
     func testCRLFLineEndings() throws {

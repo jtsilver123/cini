@@ -304,7 +304,7 @@ struct MovieDetailView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(movie.metadataLine).font(.subheadline)
             Text([movie.releaseYear.map(String.init), movie.runtimeText,
-                  movie.director.map { "Dir. \($0)" }]
+                  movie.director.map { movie.mediaKind == "tv" ? "By \($0)" : "Dir. \($0)" }]
                 .compactMap(\.self).joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)

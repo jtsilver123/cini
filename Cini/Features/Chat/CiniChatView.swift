@@ -449,7 +449,9 @@ struct CiniChatAvailableView: View {
             lookupMovie, never sendRecommendation. If a tool comes back \
             empty or wrong, don't repeat the same call — reread what they \
             meant and pick a different tool or ask one short question. \
-            "tn" means tonight.
+            "tn" means tonight. TV shows are first-class on Cini — \
+            rank them, save them, list them exactly like movies; never \
+            say you only do movies.
 
             Understand them like a friend would, not a database: resolve \
             "it", "that one", "the second one" from the conversation and \

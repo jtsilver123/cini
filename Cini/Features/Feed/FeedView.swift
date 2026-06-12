@@ -763,7 +763,9 @@ struct NotificationsView: View {
                 .contentShape(Rectangle())
                 .onTapGesture {
                     if let movieId = row.movieId, let stub = row.movies {
-                        detailMovie = Movie(tmdbID: movieId, mediaKind: "movie", title: stub.title,
+                        detailMovie = Movie(tmdbID: movieId,
+                                            mediaKind: movieId < 0 ? "tv" : "movie",
+                                            title: stub.title,
                                             releaseYear: nil, posterPath: stub.posterPath,
                                             backdropPath: nil, genres: [], certification: nil,
                                             runtimeMinutes: nil, director: nil, overview: nil)
