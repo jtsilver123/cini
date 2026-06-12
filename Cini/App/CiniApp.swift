@@ -5,6 +5,7 @@ struct CiniApp: App {
     @UIApplicationDelegateAdaptor(PushManager.self) private var pushManager
     @State private var session = AppSession()
     @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
+    @State private var showOnboarding = false
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
 
@@ -21,10 +22,26 @@ struct CiniApp: App {
             Group {
                 if session.isAuthenticated {
                     RootTabView()
-                        .fullScreenCover(isPresented: needsOnboarding) {
+                        .fullScreenCover(isPresented: $showOnboarding) {
                             OnboardingView {
                                 hasOnboarded = true
+                                showOnboarding = false
                             }
+                        }
+                        // First run: authenticated, never onboarded on this
+                        // device, and the account has no rankings (an
+                        // existing user on a new phone skips). Presented
+                        // AFTER the Auth→Root transition settles: a cover
+                        // requested mid-swap is silently dropped and leaves
+                        // a dead, untouchable layer (seen with fast email
+                        // sign-ins, where the store loads during the swap).
+                        .task(id: session.rankingStore.isLoaded) {
+                            guard !hasOnboarded,
+                                  session.rankingStore.isLoaded,
+                                  session.rankingStore.watchedCount == 0 else { return }
+                            try? await Task.sleep(for: .milliseconds(600))
+                            guard !hasOnboarded, session.isAuthenticated else { return }
+                            showOnboarding = true
                         }
                 } else {
                     AuthView()
@@ -38,18 +55,6 @@ struct CiniApp: App {
         }
     }
 
-    /// First run: authenticated, never onboarded on this device, and the
-    /// account has no rankings yet (an existing user on a new phone skips).
-    private var needsOnboarding: Binding<Bool> {
-        Binding(
-            get: {
-                !hasOnboarded
-                    && session.rankingStore.isLoaded
-                    && session.rankingStore.watchedCount == 0
-            },
-            set: { if !$0 { hasOnboarded = true } }
-        )
-    }
 }
 
 /// Session-level state: auth, current profile, and the ranking store.
