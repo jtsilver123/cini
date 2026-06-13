@@ -637,7 +637,7 @@ struct ImportHandoffBadge: View {
                 .foregroundStyle(Theme.gray)
 
             Text("cini")
-                .font(Theme.serif(24))
+                .font(Theme.display(22))
                 .foregroundStyle(Theme.marquee)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)

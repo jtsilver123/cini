@@ -111,7 +111,7 @@ struct OnboardingView: View {
         VStack(spacing: 22) {
             Spacer()
             Text("cini")
-                .font(Theme.serif(56))
+                .font(Theme.display(48))
                 .foregroundStyle(Theme.ink)
             Text("EVERY FILM · RANKED")
                 .font(.system(size: 11, weight: .bold))

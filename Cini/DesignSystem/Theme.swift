@@ -74,16 +74,26 @@ enum Theme {
 
     // MARK: Type
 
-    /// Display face for the wordmark and page headers ("cini",
-    /// "Leaderboard", movie titles): DM Serif Display, a high-contrast
-    /// poster didone bundled with the app (OFL). Single weight, so the
-    /// weight parameter is kept only for call-site compatibility.
+    /// The BRAND face — Limelight, an Art Deco titling font drawn to
+    /// evoke a 1920s–30s movie-theater marquee (OFL, bundled). Used for
+    /// the wordmark and big section headers; all-caps by nature, so it
+    /// reads like a marquee sign.
+    static func display(_ size: CGFloat) -> Font {
+        .custom("Limelight", size: size)
+    }
+
+    /// Editorial face for content that stays readable in mixed case
+    /// (movie titles, greetings): DM Serif Display, a high-contrast
+    /// poster didone (OFL). The weight parameter is kept only for
+    /// call-site compatibility — the face is a single weight.
     static func serif(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
         .custom("DM Serif Display", size: size)
     }
 
-    static let wordmark = serif(34)
-    static let pageHeader = serif(40)
+    /// Marquee letters are wider than a didone, so the wordmark sits a
+    /// touch smaller than the old serif sizes for the same footprint.
+    static let wordmark = display(28)
+    static let pageHeader = display(32)
     static let detailTitle = serif(36)
 
     // MARK: Elevation

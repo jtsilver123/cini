@@ -44,7 +44,7 @@ struct AuthView: View {
             Spacer()
 
             Text("cini")
-                .font(Theme.serif(64))
+                .font(Theme.display(54))
                 .foregroundStyle(Theme.ink)
             Text("EVERY FILM · RANKED")
                 .font(.system(size: 11, weight: .bold))
