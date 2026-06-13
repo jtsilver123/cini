@@ -557,7 +557,6 @@ struct CiniChatAvailableView: View {
         isThinking = true
         do {
             let response = try await session.respond(to: prompt)
-            isThinking = false
             await reveal(response.content)
         } catch let error as LanguageModelSession.GenerationError {
             switch error {
@@ -565,7 +564,6 @@ struct CiniChatAvailableView: View {
                 // The on-device model refuses some legit movie topics
                 // (mental-health docs, true crime) — say what happened
                 // instead of a generic shrug.
-                isThinking = false
                 await reveal("Apple's on-device safety filter balked at that one — it can be touchy about heavy subject matter. Ask it a different way and I'll take another swing.")
             case .exceededContextWindowSize:
                 // The chat outgrew the model's window: fresh session
@@ -577,10 +575,8 @@ struct CiniChatAvailableView: View {
                 configureSession()
                 if let fresh = self.session,
                    let retried = try? await fresh.respond(to: prompt) {
-                    isThinking = false
                     await reveal(retried.content)
                 } else {
-                    isThinking = false
                     await reveal("Our chat got too long for the on-device model, so I started fresh — ask me that again.")
                 }
             default:
@@ -595,10 +591,8 @@ struct CiniChatAvailableView: View {
     /// only give up after one quiet retry.
     private func retryOnce(session: LanguageModelSession, prompt: String) async {
         if let retried = try? await session.respond(to: prompt) {
-            isThinking = false
             await reveal(retried.content)
         } else {
-            isThinking = false
             await reveal("I hit a snag answering that — try rephrasing, or ask something shorter.")
         }
     }
@@ -672,9 +666,15 @@ struct CiniChatAvailableView: View {
     /// The reply lands word by word, like someone typing back to you —
     /// then the receipts for any tool actions pop in underneath.
     private func reveal(_ full: String) async {
+        // If tools ran, let their checkmarks all land for a beat before
+        // the answer types in — the satisfying "done, here's your answer".
+        if !ChatAgentBridge.shared.steps.isEmpty {
+            ChatAgentBridge.shared.finishSteps()
+            try? await Task.sleep(for: .milliseconds(420))
+        }
+        isThinking = false
         isRevealing = true
         defer { isRevealing = false }
-        ChatAgentBridge.shared.finishSteps()
         messages.append(ChatMessage(isUser: false, text: ""))
         let index = messages.count - 1
         let words = full.split(separator: " ", omittingEmptySubsequences: false)

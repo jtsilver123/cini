@@ -288,7 +288,6 @@ struct SaveToWatchlistTool: Tool {
         guard await ChatAgentBridge.shared.promptAsksToSave else {
             return "STOP — they did not ask you to save anything. Recommend only; a Want to Watch button appears under your reply for them to tap."
         }
-        await ChatAgentBridge.shared.step("bookmark.fill", "Saving to Want to Watch")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -299,6 +298,8 @@ struct SaveToWatchlistTool: Tool {
         if await store.isOnWatchlist(movie.tmdbID) {
             return "\(movie.title) is already saved on the Want to Watch list."
         }
+        // Announce only now that the save will really happen.
+        await ChatAgentBridge.shared.step("bookmark.fill", "Saving \(movie.title)")
         await store.toggleWatchlist(movie: movie)
         await ChatAgentBridge.shared.note("bookmark.fill", "Saved \(movie.title)", destination: .wantToWatch)
         return "Saved! \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on the Want to Watch list now."
