@@ -779,9 +779,11 @@ struct CommentsSheet: View {
 // MARK: - Stubs reached from the header
 
 struct ReleaseCalendarView: View {
+    @Environment(RankingStore.self) private var store
     @State private var upcoming: [Movie] = []
     @State private var ticketsMovie: Movie?
     @State private var detailMovie: Movie?
+    @State private var saveMovie: Movie?
 
     private func releaseDate(_ movie: Movie) -> Date? {
         movie.releaseDateFull.flatMap { DateFormatter.posixDay.date(from: $0) }
@@ -807,8 +809,24 @@ struct ReleaseCalendarView: View {
                     }
                 }
                 Spacer()
-                PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                    ticketsMovie = movie
+                // Tickets up top, save bottom-right — same corner the
+                // bookmark lives in on every other card.
+                VStack(alignment: .trailing, spacing: 10) {
+                    PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
+                        ticketsMovie = movie
+                    }
+                    Button {
+                        bookmarkTapped(movie: movie, store: store) { saveMovie = movie }
+                    } label: {
+                        Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                            .font(.title3)
+                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
+                        ? "Remove from Want to Watch" : "Save to Want to Watch")
                 }
             }
             .contentShape(Rectangle())
@@ -822,6 +840,11 @@ struct ReleaseCalendarView: View {
         .sheet(item: $ticketsMovie) { movie in
             // Pre-aimed at release day so presale showtimes appear.
             ShowtimesSheet(movie: movie, initialDate: releaseDate(movie))
+        }
+        .sheet(item: $saveMovie) { movie in
+            SaveToListSheet(movie: movie)
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
