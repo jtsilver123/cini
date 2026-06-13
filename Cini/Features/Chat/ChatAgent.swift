@@ -82,6 +82,19 @@ final class ChatAgentBridge {
         return prompt.contains("my list") || prompt.contains("do it")
     }
 
+    /// Consent gate for adding a title to a custom list — broader verbs
+    /// than save ("put it on my heist list", "throw X on date night"),
+    /// plus a named list or an affirmation. Blocks the model from filing
+    /// its own recs onto a list the user didn't ask about.
+    var promptAsksToAdd: Bool {
+        let prompt = lastUserPrompt.lowercased()
+        let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let addWords = ["add", "put", "throw", "stick", "drop", "file", "save",
+                        "queue", "yes", "yeah", "sure", "okay", "ok", "yep"]
+        if addWords.contains(where: { words.contains($0) }) { return true }
+        return prompt.contains("list") || prompt.contains("do it")
+    }
+
     /// Fail-safe gate for DESTRUCTIVE tools — the user's words must
     /// command or confirm it, or the model is told to ask first.
     var promptConfirmsDestruction: Bool {
@@ -382,7 +395,6 @@ struct CurateListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        await ChatAgentBridge.shared.step("wand.and.stars", "Building your list")
         let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "The list needs a name." }
 
@@ -412,6 +424,7 @@ struct CurateListTool: Tool {
         }
         var tvCount = 0
         for movie in pool where movie.mediaKind == "tv" { tvCount += 1 }
+        await ChatAgentBridge.shared.step("wand.and.stars", "Building “\(trimmed)”")
         let listKind = tvCount > pool.count - tvCount ? "tv" : "movie"
 
         var list = await ChatAgentBridge.resolveList(named: trimmed)
@@ -456,7 +469,9 @@ struct AddToListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        await ChatAgentBridge.shared.step("plus.circle", "Adding to your list")
+        guard await ChatAgentBridge.shared.promptAsksToAdd else {
+            return "STOP — they didn't ask to add anything to a list. Recommend only; they tap to add."
+        }
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -475,6 +490,7 @@ struct AddToListTool: Tool {
             let titleType = movie.mediaKind == "tv" ? "a show" : "a movie"
             return "“\(list.name)” is \(listType) and \(movie.title) is \(titleType) — lists hold one type. Offer to make a new list for it."
         }
+        await ChatAgentBridge.shared.step("plus.circle", "Adding \(movie.title) to “\(list.name)”")
         try? await SupabaseService.shared.cacheMovie(movie)
         do {
             try await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)

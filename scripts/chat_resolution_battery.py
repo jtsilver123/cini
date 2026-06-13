@@ -147,3 +147,31 @@ for prompt, expected in CASES:
     if got != expected: bad += 1
     print(f"  [{mark}] gate={'save' if got else 'block'}  {prompt!r}")
 print("consent gate:", "all correct" if bad == 0 else f"{bad} WRONG")
+
+# --- Add-to-list gate: mirrors ChatAgentBridge.promptAsksToAdd ---
+def asks_to_add(prompt):
+    p = prompt.lower()
+    words = set(_re2.split(r"[^a-z]+", p))
+    add_words = {"add","put","throw","stick","drop","file","save","queue",
+                 "yes","yeah","sure","okay","ok","yep"}
+    if words & add_words: return True
+    return "list" in p or "do it" in p
+
+print()
+ADD_CASES = [
+    ("put dune on my heist list", True),
+    ("add the bear to date night", True),
+    ("throw severance on my list", True),
+    ("stick it on my a24 list", True),
+    ("recommend me a sci-fi movie", False),
+    ("what's a good thriller", False),
+    ("is dune good", False),
+    ("yes", True),
+    ("make me a list of a24 movies", True),   # has 'list'
+]
+abad=0
+for prompt,exp in ADD_CASES:
+    got=asks_to_add(prompt); m="ok " if got==exp else "FAIL"
+    if got!=exp: abad+=1
+    print(f"  [{m}] add={'add' if got else 'block'}  {prompt!r}")
+print("add gate:", "all correct" if abad==0 else f"{abad} WRONG")
