@@ -466,8 +466,10 @@ struct CiniChatAvailableView: View {
             they're on Cini (@username), the friend tools find what BOTH \
             like; otherwise just honor the constraint. "Is X good?" = \
             check lookupMovie and friend scores, then commit to a take. \
-            "tn" = tonight. When they mention having seen something, \
-            offer startRanking. Never invent scores or friends.
+            Slang: gf=girlfriend, bf=boyfriend, tn=tonight, rn=right now, \
+            rec=recommendation — never treat these as titles or names. \
+            When they mention having seen something, offer startRanking. \
+            Never invent scores or friends.
 
             Your tools do everything tapping can: save/remove Want to \
             Watch, manage lists, follow members, send recs, open ranking, \

@@ -108,3 +108,42 @@ for phrase in ["my heist list", "that list with the heists", "heist movies",
                "date night list", "the cozy one", "a24 list", "the made me cry one",
                "oscar bait", "comfort show list", "my horror list"]:
     print(f"{phrase!r:36} -> {resolve_list(phrase)}")
+
+# --- Consent-gate battery: mirrors ChatAgentBridge.promptAsksToSave ---
+import re as _re2
+
+def asks_to_save(prompt):
+    p = prompt.lower()
+    words = set(_re2.split(r"[^a-z]+", p))
+    save_words = {"save","add","bookmark","watchlist","queue","yes","yeah","sure","okay","ok","yep"}
+    if words & save_words: return True
+    return "my list" in p or "do it" in p
+
+print()
+CASES = [  # (prompt, should the save tool be allowed to fire?)
+    ("i want to watch a movie with my gf but it can't be scary. what are some options", False),
+    ("what should i watch tn", False),
+    ("recommend me something funny", False),
+    ("is dune good", False),
+    ("something like heat but i haven't seen", False),
+    ("what do my friends want to watch", False),
+    ("add dune to my watchlist", True),
+    ("save oppenheimer for later", True),
+    ("bookmark the bear", True),
+    ("put severance on my list", True),
+    ("yes", True),
+    ("sure, do it", True),
+    ("yeah save it", True),
+    ("queue up alien", True),
+    ("ok add it", True),
+    ("look up the godfather", False),     # 'look' must not match 'ok'
+    ("show me horror options", False),
+    ("who directed parasite", False),
+]
+bad = 0
+for prompt, expected in CASES:
+    got = asks_to_save(prompt)
+    mark = "ok " if got == expected else "FAIL"
+    if got != expected: bad += 1
+    print(f"  [{mark}] gate={'save' if got else 'block'}  {prompt!r}")
+print("consent gate:", "all correct" if bad == 0 else f"{bad} WRONG")
