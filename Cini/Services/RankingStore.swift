@@ -84,6 +84,23 @@ final class RankingStore {
         customLists = (try? await supabase.myLists()) ?? customLists
     }
 
+    /// Delete a list and reconcile the shared cache against the server,
+    /// so every surface (Lists tabs, the add-to-list picker) agrees. The
+    /// old per-screen optimistic deletes left phantom lists behind. False
+    /// means it didn't stick (the caller should re-sync from the store).
+    @discardableResult
+    func deleteList(_ id: UUID) async -> Bool {
+        do {
+            try await supabase.deleteList(id)
+            await refreshCustomLists()
+            return true
+        } catch {
+            await refreshCustomLists()   // pull the truth back
+            ToastCenter.shared.saveFailed()
+            return false
+        }
+    }
+
     // MARK: - Reading
 
     var watchedCount: Int { list.count }

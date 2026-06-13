@@ -7,6 +7,7 @@ struct CustomListsScreen: View {
     let isSelf: Bool
 
     @Environment(TabRouter.self) private var tabRouter
+    @Environment(RankingStore.self) private var store
     @State private var lists: [CustomList] = []
     @State private var loaded = false
     @State private var newName = ""
@@ -86,7 +87,12 @@ struct CustomListsScreen: View {
                 lists.removeAll { list in doomed.contains { $0.id == list.id } }
                 Task {
                     for list in doomed {
-                        try? await SupabaseService.shared.deleteList(list.id)
+                        await store.deleteList(list.id)
+                    }
+                    // The store is now authoritative — reconcile this
+                    // screen so a failed delete can't leave a phantom.
+                    if let userID, userID == SupabaseService.shared.currentUserID {
+                        lists = store.customLists
                     }
                 }
             }
@@ -263,6 +269,7 @@ struct EditListsSheet: View {
 
     @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
     @Environment(\.dismiss) private var dismiss
+    @Environment(RankingStore.self) private var store
     @State private var newName = ""
     @State private var doomedLists: [CustomList] = []
 
@@ -332,8 +339,9 @@ struct EditListsSheet: View {
                     lists.removeAll { list in doomed.contains { $0.id == list.id } }
                     Task {
                         for list in doomed {
-                            try? await SupabaseService.shared.deleteList(list.id)
+                            await store.deleteList(list.id)
                         }
+                        lists = store.customLists   // reconcile with the server truth
                     }
                 }
                 Button("Cancel", role: .cancel) {}
