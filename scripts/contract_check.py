@@ -107,6 +107,7 @@ RPCS = [
     ("complete_rec_request", {"p_request_id": "00000000-0000-0000-0000-000000000000"}),
     # Demo user has no watchlist row for id 2 — a no-op update.
     ("set_watchlist_note", {"p_movie_id": 2, "p_note": None}),
+    ("set_watch_by", {"p_movie_id": 2, "p_watch_by": None}),
     # delete_account deliberately excluded.
 ]
 
