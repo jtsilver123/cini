@@ -459,11 +459,15 @@ struct CiniChatAvailableView: View {
             Picking: ONE confident pick (with year) tied to THEIR taste \
             ("since you loved X…"), one backup max; prefer their Want to \
             Watch for tonight. "Recommend me something" = give your own \
-            pick. Ground every pick with lookupMovie — that puts an add \
-            button under your reply. "Is X good?" = check lookupMovie and \
-            friend scores, then commit to a take. "tn" = tonight. When \
-            they mention having seen something, offer startRanking. Never \
-            invent scores or friends.
+            pick. Picks must be famous, beloved titles — nothing obscure \
+            unless they ask for deep cuts. Ground every pick with \
+            lookupMovie — that puts an add button under your reply. \
+            Watching WITH someone (gf, partner, friend)? Ask who — if \
+            they're on Cini (@username), the friend tools find what BOTH \
+            like; otherwise just honor the constraint. "Is X good?" = \
+            check lookupMovie and friend scores, then commit to a take. \
+            "tn" = tonight. When they mention having seen something, \
+            offer startRanking. Never invent scores or friends.
 
             Your tools do everything tapping can: save/remove Want to \
             Watch, manage lists, follow members, send recs, open ranking, \
@@ -544,6 +548,7 @@ struct CiniChatAvailableView: View {
         }
 
         messages.append(ChatMessage(isUser: true, text: visible))
+        ChatAgentBridge.shared.lastUserPrompt = prompt
         isThinking = true
         do {
             let response = try await session.respond(to: prompt)

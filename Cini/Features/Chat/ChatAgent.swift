@@ -39,6 +39,20 @@ final class ChatAgentBridge {
     /// The last title a tool resolved this turn — the chat offers one-tap
     /// Save / Where-to-watch buttons for it under the reply.
     var lastDiscussedMovie: Movie?
+    /// The user's latest message — the consent gate for mutating tools.
+    var lastUserPrompt = ""
+
+    /// Deterministic consent check: prompt-rule discipline alone didn't
+    /// stop the model from saving its own recs, so the save tool refuses
+    /// unless the user's own words asked for it.
+    var promptAsksToSave: Bool {
+        let prompt = lastUserPrompt.lowercased()
+        let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let saveWords = ["save", "add", "bookmark", "watchlist", "queue",
+                         "yes", "yeah", "sure", "okay", "ok", "yep"]
+        if saveWords.contains(where: { words.contains($0) }) { return true }
+        return prompt.contains("my list") || prompt.contains("do it")
+    }
 
     func note(_ icon: String, _ label: String,
               destination: AgentDestination? = nil) {
@@ -230,6 +244,11 @@ struct SaveToWatchlistTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        // Hard consent gate — the .47-era screenshot showed the model
+        // saving its own rec, which also disabled the user's save button.
+        guard await ChatAgentBridge.shared.promptAsksToSave else {
+            return "STOP — they did not ask you to save anything. Recommend only; a Want to Watch button appears under your reply for them to tap."
+        }
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
