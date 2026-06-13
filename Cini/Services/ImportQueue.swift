@@ -66,6 +66,14 @@ final class ImportQueue {
         save()
     }
 
+    /// Wipe on sign-out — the next account on this device must never see
+    /// the previous user's import queue.
+    func clear() {
+        entries = []
+        rankedFromImport = 0
+        save()
+    }
+
     // MARK: Persistence
 
     private struct Snapshot: Codable {

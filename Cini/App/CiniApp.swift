@@ -86,6 +86,7 @@ final class AppSession {
                 profile = nil
                 FeedDiskCache.clear()
                 RankingDiskCache.clear()
+                ImportQueue.shared.clear()
             default:
                 break
             }

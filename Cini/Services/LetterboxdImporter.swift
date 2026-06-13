@@ -567,11 +567,16 @@ enum ZipReader {
         return output.prefix(written)
     }
 
+    // Bounds-safe: a malformed/truncated ZIP from the file picker must
+    // never crash the importer — out-of-range reads return 0, which fails
+    // the signature/offset guards cleanly.
     private static func u16(_ data: Data, _ offset: Int) -> UInt16 {
-        UInt16(data[data.startIndex + offset]) | (UInt16(data[data.startIndex + offset + 1]) << 8)
+        guard offset >= 0, offset + 1 < data.count else { return 0 }
+        return UInt16(data[data.startIndex + offset]) | (UInt16(data[data.startIndex + offset + 1]) << 8)
     }
 
     private static func u32(_ data: Data, _ offset: Int) -> UInt32 {
+        guard offset >= 0, offset + 3 < data.count else { return 0 }
         var value: UInt32 = 0
         for i in (0..<4).reversed() {
             value = (value << 8) | UInt32(data[data.startIndex + offset + i])

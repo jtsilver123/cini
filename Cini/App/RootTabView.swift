@@ -123,10 +123,12 @@ struct RootTabView: View {
                     Text("No internet connection")
                         .font(.subheadline.weight(.semibold))
                 }
-                .foregroundStyle(.white)
+                // background-on-ink keeps contrast in BOTH modes (white
+                // text vanished on dark mode's cream ink).
+                .foregroundStyle(Theme.background)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .background(Theme.ink.opacity(0.92))
+                .background(Theme.ink)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .ignoresSafeArea(edges: .top)
                 .accessibilityLabel("No internet connection")

@@ -49,8 +49,14 @@ struct AddToWatchlistIntent: AppIntent {
         if current.contains(where: { $0.movieId == movie.tmdbID }) {
             return .result(dialog: "\(name) is already on your Want to Watch.")
         }
-        try await SupabaseService.shared.cacheMovie(movie)
-        try await SupabaseService.shared.watchlistToggle(movieID: movie.tmdbID)
+        // Catch network/save failures so Siri never says "Saved" when
+        // nothing landed.
+        do {
+            try await SupabaseService.shared.cacheMovie(movie)
+            try await SupabaseService.shared.watchlistToggle(movieID: movie.tmdbID)
+        } catch {
+            return .result(dialog: "Couldn't save \(name) — check your connection and try again.")
+        }
         return .result(dialog: "Saved — \(name) is on your Want to Watch.")
     }
 }
@@ -88,7 +94,11 @@ struct RemoveFromWatchlistIntent: AppIntent {
         guard let match else {
             return .result(dialog: "“\(query)” isn't on your Want to Watch.")
         }
-        try await SupabaseService.shared.watchlistToggle(movieID: match.tmdbID)
+        do {
+            try await SupabaseService.shared.watchlistToggle(movieID: match.tmdbID)
+        } catch {
+            return .result(dialog: "Couldn't update that — check your connection and try again.")
+        }
         return .result(dialog: "Done — \(SiriTitleResolver.spokenName(match)) is off your Want to Watch.")
     }
 }
