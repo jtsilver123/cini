@@ -794,7 +794,7 @@ struct YourListsView: View {
                     WatchlistRowView(movie: movie,
                                      predicted: predicted[item.movieID]
                                          ?? store.predictedScores[item.movieID],
-                                     note: item.note) {
+                                     note: item.note, watchBy: item.watchBy) {
                         logMovie = movie
                     }
                     .contentShape(Rectangle())
@@ -1010,10 +1010,22 @@ struct WatchlistRowView: View {
     var predicted: Double?
     /// The "why I saved this" note from the save popup.
     var note: String?
+    /// "Watch by" goal as an ISO date string.
+    var watchBy: String?
     var onQuickRank: () -> Void = {}
 
     @Environment(RankingStore.self) private var store
     @State private var showSaveSheet = false
+
+    /// "Watch by Jun 20", red once the date has passed.
+    private var watchByLabel: (text: String, overdue: Bool)? {
+        guard let watchBy,
+              let date = RankingStore.watchByFormatter.date(from: watchBy) else { return nil }
+        let day = Calendar.current.startOfDay(for: date)
+        let today = Calendar.current.startOfDay(for: .now)
+        let text = date.formatted(.dateTime.month(.abbreviated).day())
+        return (day < today ? "Was due \(text)" : "Watch by \(text)", day < today)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -1032,6 +1044,14 @@ struct WatchlistRowView: View {
                         .italic()
                         .foregroundStyle(Theme.gray)
                         .lineLimit(2)
+                }
+                if let watchByLabel {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                        Text(watchByLabel.text)
+                    }
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(watchByLabel.overdue ? Theme.scoreRed : Theme.marquee)
                 }
             }
             Spacer()

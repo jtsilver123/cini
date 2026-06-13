@@ -410,6 +410,8 @@ struct SaveToListSheet: View {
     @State private var revertingToggle = false
     @State private var noteText = ""
     @State private var hiddenFromFeed = false
+    @State private var watchByOn = false
+    @State private var watchByDate = Calendar.current.date(byAdding: .day, value: 14, to: .now) ?? .now
 
     init(movie: Movie) {
         self.movie = movie
@@ -424,6 +426,12 @@ struct SaveToListSheet: View {
     /// Lists hold one media type — offer only the ones this save fits.
     private var applicableLists: [CustomList] {
         store.customLists.filter { $0.kind == category.mediaKind }
+    }
+
+    /// The title is already on Want to Watch (the bookmark saved on tap),
+    /// so the goal date just updates that row.
+    private func persistWatchBy(_ date: Date?) async {
+        await store.setWatchBy(movieID: movie.tmdbID, date: date)
     }
 
     /// Every action carries the chosen category.
@@ -573,6 +581,37 @@ struct SaveToListSheet: View {
                     .onChange(of: noteText) { _, _ in interacted = true }
                     .listRowSeparator(.hidden)
                     .listRowBackground(Theme.background)
+
+                // A "watch by" goal — a gentle deadline for the queue.
+                // Movies only: shows are open-ended, not a single sitting.
+                if category == .movies {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(isOn: $watchByOn) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "calendar")
+                                    .foregroundStyle(Theme.marquee)
+                                Text("Watch by a date")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                        }
+                        .tint(Theme.marquee)
+                        .onChange(of: watchByOn) { _, on in
+                            interacted = true
+                            Task { await persistWatchBy(on ? watchByDate : nil) }
+                        }
+                        if watchByOn {
+                            DatePicker("", selection: $watchByDate, in: Date()...,
+                                       displayedComponents: .date)
+                                .labelsHidden()
+                                .onChange(of: watchByDate) { _, newDate in
+                                    interacted = true
+                                    Task { await persistWatchBy(newDate) }
+                                }
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+                }
 
                 Button {
                     interacted = true

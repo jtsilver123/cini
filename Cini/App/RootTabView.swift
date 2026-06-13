@@ -75,6 +75,7 @@ final class TabRouter {
 
 struct RootTabView: View {
     @State private var router = TabRouter.shared
+    @State private var network = NetworkMonitor.shared
     @State private var showChat = false
 
     enum Tab: Hashable {
@@ -113,6 +114,25 @@ struct RootTabView: View {
                 .ignoresSafeArea(.keyboard)
             }
         }
+        // Offline banner, app-wide — the one always-visible "you're not
+        // connected" signal, above the tabs so nothing hides it.
+        .overlay(alignment: .top) {
+            if !network.isOnline {
+                HStack(spacing: 8) {
+                    Image(systemName: "wifi.slash")
+                    Text("No internet connection")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Theme.ink.opacity(0.92))
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .ignoresSafeArea(edges: .top)
+                .accessibilityLabel("No internet connection")
+            }
+        }
+        .animation(.snappy, value: network.isOnline)
         // Write failures and confirmations surface here, app-wide.
         .overlay { ToastOverlay() }
         .sheet(isPresented: $showChat) {

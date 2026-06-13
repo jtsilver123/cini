@@ -57,7 +57,7 @@ final class RankingStore {
             listChanged()
             watchlist = watching.map {
                 WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId,
-                              createdAt: $0.createdAt, note: $0.note)
+                              createdAt: $0.createdAt, note: $0.note, watchBy: $0.watchBy)
             }
 
             let allIDs = Set(rankings.map(\.movieId) + watching.map(\.movieId))
@@ -265,6 +265,23 @@ final class RankingStore {
         }
         await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
     }
+
+    /// "Watch by" goal — local state plus the server row (nil clears it).
+    func setWatchBy(movieID: Int, date: Date?) async {
+        let iso = date.map { RankingStore.watchByFormatter.string(from: $0) }
+        if let index = watchlist.firstIndex(where: { $0.movieID == movieID }) {
+            watchlist[index].watchBy = iso
+        }
+        await supabase.setWatchBy(movieID: movieID, date: iso)
+    }
+
+    static let watchByFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
 
     /// The save popup lets users fix a mislabeled kind (TV movie,
     /// miniseries) — applied directly so the richer-record rule in

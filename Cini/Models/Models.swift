@@ -166,5 +166,7 @@ struct WatchlistItem: Identifiable, Codable, Hashable {
     let createdAt: Date
     /// The "why I saved this" note from the save popup.
     var note: String?
+    /// Optional "watch by" goal date (ISO yyyy-MM-dd).
+    var watchBy: String?
 }
 

@@ -224,6 +224,17 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Optional "watch by" goal date (ISO yyyy-MM-dd, or nil to clear).
+    func setWatchBy(movieID: Int, date: String?) async {
+        struct Params: Encodable { let p_movie_id: Int; let p_watch_by: String? }
+        do {
+            _ = try await client.rpc("set_watch_by",
+                                     params: Params(p_movie_id: movieID, p_watch_by: date)).execute()
+        } catch {
+            Self.logSwallowed("set_watch_by", error)
+        }
+    }
+
     /// The "why I saved this" note on a Want to Watch entry.
     func setWatchlistNote(movieID: Int, note: String) async {
         struct Params: Encodable { let p_movie_id: Int; let p_note: String? }
@@ -1419,12 +1430,16 @@ struct WatchlistRow: Codable, Identifiable, Hashable {
     let movieId: Int
     let createdAt: Date
     var note: String?
+    /// "Watch by" goal as a bare ISO date string (the column is a SQL
+    /// `date`, so it won't decode as a timestamp Date).
+    var watchBy: String?
 
     enum CodingKeys: String, CodingKey {
         case id, note
         case userId = "user_id"
         case movieId = "movie_id"
         case createdAt = "created_at"
+        case watchBy = "watch_by"
     }
 }
 
