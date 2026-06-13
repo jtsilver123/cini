@@ -78,6 +78,8 @@ struct CiniChatAvailableView: View {
     var profile: Profile?
 
     @Environment(TabRouter.self) private var tabRouter
+    /// Drives the live "using tools" indicator.
+    @State private var bridge = ChatAgentBridge.shared
     @Environment(\.dismiss) private var dismissChat
 
     @State private var messages: [ChatMessage] = []
@@ -165,7 +167,7 @@ struct CiniChatAvailableView: View {
                                 bubble(message)
                             }
                             if isThinking {
-                                ThinkingTicker()
+                                ThinkingTicker(steps: bridge.steps)
                                     .padding(.horizontal, 16)
                                     .id("thinking")
                             }
@@ -551,6 +553,7 @@ struct CiniChatAvailableView: View {
 
         messages.append(ChatMessage(isUser: true, text: visible))
         ChatAgentBridge.shared.lastUserPrompt = prompt
+        ChatAgentBridge.shared.startTurn()
         isThinking = true
         do {
             let response = try await session.respond(to: prompt)
@@ -568,6 +571,9 @@ struct CiniChatAvailableView: View {
                 // The chat outgrew the model's window: fresh session
                 // (taste context intact), then retry this prompt once.
                 self.session = nil
+                // The failed attempt may have left a stale movie pinned —
+                // the retry will set its own if it discusses one.
+                ChatAgentBridge.shared.startTurn()
                 configureSession()
                 if let fresh = self.session,
                    let retried = try? await fresh.respond(to: prompt) {
@@ -668,6 +674,7 @@ struct CiniChatAvailableView: View {
     private func reveal(_ full: String) async {
         isRevealing = true
         defer { isRevealing = false }
+        ChatAgentBridge.shared.finishSteps()
         messages.append(ChatMessage(isUser: false, text: ""))
         let index = messages.count - 1
         let words = full.split(separator: " ", omittingEmptySubsequences: false)
@@ -716,6 +723,7 @@ struct MovieLookupTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("magnifyingglass", "Looking up \(arguments.title)")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No movie or show found called \"\(arguments.title)\"."
         }
@@ -738,6 +746,9 @@ struct MovieLookupTool: Tool {
 /// The "thinking" state as a little show: pulsing sparkles + rotating
 /// film-buff phrases instead of a plain spinner.
 struct ThinkingTicker: View {
+    /// Live tool steps for this turn (empty until a tool runs).
+    var steps: [ChatAgentBridge.ToolStep] = []
+
     @State private var phraseIndex = 0
 
     private let phrases = [
@@ -749,22 +760,55 @@ struct ThinkingTicker: View {
     ]
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "sparkles")
-                .foregroundStyle(Theme.marquee)
-                .symbolEffect(.variableColor.iterative, options: .repeating)
-            Text(phrases[phraseIndex])
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-                .contentTransition(.opacity)
-        }
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1.6))
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    phraseIndex = (phraseIndex + 1) % phrases.count
+        if steps.isEmpty {
+            // No tool yet — the playful "thinking" shimmer.
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(Theme.marquee)
+                    .symbolEffect(.variableColor.iterative, options: .repeating)
+                Text(phrases[phraseIndex])
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .contentTransition(.opacity)
+            }
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(1.6))
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        phraseIndex = (phraseIndex + 1) % phrases.count
+                    }
                 }
             }
+        } else {
+            // Claude-style: a tidy checklist of what the tools are doing,
+            // ticking off live as each step completes.
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(steps) { step in
+                    HStack(spacing: 9) {
+                        ZStack {
+                            if step.done {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Theme.scoreGreen)
+                                    .transition(.scale.combined(with: .opacity))
+                            } else {
+                                Image(systemName: step.icon)
+                                    .foregroundStyle(Theme.marquee)
+                                    .symbolEffect(.pulse, options: .repeating)
+                            }
+                        }
+                        .font(.caption)
+                        .frame(width: 16)
+                        Text(step.label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(step.done ? Theme.gray : Theme.ink)
+                    }
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+                }
+            }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface2))
+            .animation(.snappy(duration: 0.25), value: steps)
         }
     }
 }

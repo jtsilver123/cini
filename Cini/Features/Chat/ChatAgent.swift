@@ -42,6 +42,34 @@ final class ChatAgentBridge {
     /// The user's latest message — the consent gate for mutating tools.
     var lastUserPrompt = ""
 
+    /// Live "using tools" feed, Claude-style: each tool announces what
+    /// it's doing the moment it starts, and the thinking bubble renders
+    /// the steps as they happen.
+    private(set) var steps: [ToolStep] = []
+
+    struct ToolStep: Identifiable, Equatable {
+        let id = UUID()
+        let icon: String
+        let label: String
+        var done = false
+    }
+
+    /// Call at the top of a tool's work — marks any prior step done and
+    /// shows this one as active.
+    func step(_ icon: String, _ label: String) {
+        for index in steps.indices { steps[index].done = true }
+        steps.append(ToolStep(icon: icon, label: label))
+    }
+
+    func startTurn() {
+        steps = []
+        lastDiscussedMovie = nil
+    }
+
+    func finishSteps() {
+        for index in steps.indices { steps[index].done = true }
+    }
+
     /// Deterministic consent check: prompt-rule discipline alone didn't
     /// stop the model from saving its own recs, so the save tool refuses
     /// unless the user's own words asked for it.
@@ -52,6 +80,17 @@ final class ChatAgentBridge {
                          "yes", "yeah", "sure", "okay", "ok", "yep"]
         if saveWords.contains(where: { words.contains($0) }) { return true }
         return prompt.contains("my list") || prompt.contains("do it")
+    }
+
+    /// Fail-safe gate for DESTRUCTIVE tools — the user's words must
+    /// command or confirm it, or the model is told to ask first.
+    var promptConfirmsDestruction: Bool {
+        let prompt = lastUserPrompt.lowercased()
+        let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
+        let confirmWords = ["delete", "remove", "yes", "yeah", "sure",
+                            "okay", "ok", "yep", "confirm", "wipe", "clear"]
+        if confirmWords.contains(where: { words.contains($0) }) { return true }
+        return prompt.contains("do it") || prompt.contains("go ahead")
     }
 
     func note(_ icon: String, _ label: String,
@@ -249,6 +288,7 @@ struct SaveToWatchlistTool: Tool {
         guard await ChatAgentBridge.shared.promptAsksToSave else {
             return "STOP — they did not ask you to save anything. Recommend only; a Want to Watch button appears under your reply for them to tap."
         }
+        await ChatAgentBridge.shared.step("bookmark.fill", "Saving to Want to Watch")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -277,6 +317,7 @@ struct RemoveFromWatchlistTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("bookmark.slash", "Updating Want to Watch")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -302,6 +343,7 @@ struct CreateListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("list.star", "Creating the list")
         let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "The list needs a name." }
         if await ChatAgentBridge.resolveList(named: trimmed) != nil {
@@ -339,6 +381,7 @@ struct CurateListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("wand.and.stars", "Building your list")
         let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "The list needs a name." }
 
@@ -412,18 +455,18 @@ struct AddToListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("plus.circle", "Adding to your list")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
         var list = await ChatAgentBridge.resolveList(named: arguments.listName)
         if list == nil {
             // A new list inherits the title's kind — lists hold one type.
+            // No receipt yet: only confirm once the title actually lands,
+            // so a failed add can't leave a misleading "Created" chip.
             list = try? await SupabaseService.shared.createList(
                 name: arguments.listName.trimmingCharacters(in: .whitespaces),
                 mediaKind: movie.mediaKind)
-            if list != nil {
-                await ChatAgentBridge.shared.note("list.star", "Created “\(arguments.listName)”")
-            }
         }
         guard let list else { return "Couldn't find or create that list." }
         if list.kind != movie.mediaKind {
@@ -457,6 +500,7 @@ struct RemoveFromListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("minus.circle", "Updating the list")
         guard let list = await ChatAgentBridge.resolveList(named: arguments.listName) else {
             return "They don't have a list called \(arguments.listName)."
         }
@@ -482,9 +526,13 @@ struct DeleteListTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        guard await ChatAgentBridge.shared.promptConfirmsDestruction else {
+            return "STOP — they didn't confirm a deletion. Ask 'Delete “\(arguments.listName)”? This can't be undone.' and wait for a yes."
+        }
         guard let list = await ChatAgentBridge.resolveList(named: arguments.listName) else {
             return "They don't have a list called \(arguments.listName)."
         }
+        await ChatAgentBridge.shared.step("trash", "Deleting “\(list.name)”")
         do {
             try await SupabaseService.shared.deleteList(list.id)
         } catch {
@@ -508,6 +556,7 @@ struct SearchMembersTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("magnifyingglass", "Searching members")
         let found = (try? await SupabaseService.shared.searchMembers(query: arguments.query)) ?? []
         guard !found.isEmpty else { return "No members match \"\(arguments.query)\"." }
         return found.prefix(5).map {
@@ -528,6 +577,7 @@ struct FollowMemberTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("person.badge.plus", "Following")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -554,6 +604,7 @@ struct UnfollowMemberTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("person.badge.minus", "Updating follows")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -580,6 +631,7 @@ struct SendRecTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("paperplane", "Sending the rec")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -609,6 +661,7 @@ struct StartRankingTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("arrow.up.arrow.down", "Opening the ranker")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -633,6 +686,9 @@ struct DeleteRatingTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        guard await ChatAgentBridge.shared.promptConfirmsDestruction else {
+            return "STOP — they didn't confirm. Ask 'Delete your \(arguments.title) rating?' and wait for a yes."
+        }
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -640,6 +696,7 @@ struct DeleteRatingTool: Tool {
         guard await store.isWatched(movie.tmdbID) else {
             return "\(movie.title) isn't on their ranked list."
         }
+        await ChatAgentBridge.shared.step("trash", "Deleting your \(movie.title) rating")
         guard await store.removeRanking(movieID: movie.tmdbID) else {
             return "Couldn't delete the rating — connection trouble."
         }
@@ -657,6 +714,7 @@ struct MyListsTool: Tool {
     struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("list.bullet", "Checking your lists")
         let lists = (try? await SupabaseService.shared.myLists()) ?? []
         guard !lists.isEmpty else { return "They have no custom lists yet — just the built-in Want to Watch." }
         return lists.map { "\($0.name) (\($0.count) titles)" }.joined(separator: "; ")
@@ -676,6 +734,7 @@ struct FriendWatchedTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("star", "Reading their rankings")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -707,6 +766,7 @@ struct FriendWantToWatchTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("bookmark", "Reading their Want to Watch")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -733,6 +793,7 @@ struct FriendOverlapTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("person.2", "Finding your overlap")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -796,6 +857,7 @@ struct RequestRecsTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("hand.wave", "Asking your friend")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -823,6 +885,7 @@ struct IncomingRecsTool: Tool {
     struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("tray.and.arrow.down", "Checking your Friend Recs")
         let recs = (try? await SupabaseService.shared.directRecs()) ?? []
         guard !recs.isEmpty else {
             return "No one's sent them a rec yet — they can ask a friend with requestRecsFromFriend."
@@ -850,6 +913,7 @@ struct StreamingAlertTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("bell", "Setting the alert")
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
@@ -876,6 +940,7 @@ struct TasteMatchTool: Tool {
     }
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("heart.text.square", "Checking taste match")
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
@@ -895,6 +960,7 @@ struct MyStatsTool: Tool {
     struct Arguments {}
 
     func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("chart.bar", "Pulling your stats")
         guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
         let watched = await store.watchedCount
         let watchlist = await store.watchlistCount
