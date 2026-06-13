@@ -525,6 +525,8 @@ struct SaveToListSheet: View {
                                         try? await SupabaseService.shared.cacheMovie(saved)
                                         do {
                                             try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                            // Keep the shared cache's count in step.
+                                            await store.refreshCustomLists()
                                             ToastCenter.shared.show("Added to \(list.name)")
                                         } catch {
                                             ToastCenter.shared.saveFailed()

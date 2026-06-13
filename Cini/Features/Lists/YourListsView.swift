@@ -124,10 +124,11 @@ struct YourListsView: View {
                     guard !name.isEmpty else { return }
                     Task {
                         // Born under the active category: a list holds one
-                        // media type and lives on that filter only.
-                        if let list = try? await SupabaseService.shared.createList(
+                        // media type and lives on that filter only. Routed
+                        // through the store so every surface sees it.
+                        if let list = await store.createList(
                             name: name, mediaKind: category.mediaKind) {
-                            customLists.insert(list, at: 0)
+                            customLists = store.customLists
                             withAnimation(.snappy) { selectedListID = list.id }
                         }
                     }
@@ -596,8 +597,18 @@ struct YourListsView: View {
                 let doomedIDs = Set(doomed.map(\.tmdbID))
                 customListMovies.removeAll { doomedIDs.contains($0.tmdbID) }
                 Task {
+                    var failed = false
                     for movie in doomed {
-                        try? await SupabaseService.shared.removeFromList(listID, movieID: movie.tmdbID)
+                        do {
+                            try await SupabaseService.shared.removeFromList(listID, movieID: movie.tmdbID)
+                        } catch { failed = true }
+                    }
+                    // Reconcile from the server so a failed remove can't
+                    // leave a title that reappears on next open.
+                    if failed {
+                        let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
+                        customListMovies = ids.compactMap { store.movie($0) }
+                        ToastCenter.shared.saveFailed()
                     }
                 }
             }

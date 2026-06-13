@@ -22,10 +22,12 @@ struct CustomListsScreen: View {
                         Task {
                             let name = newName.trimmingCharacters(in: .whitespaces)
                             guard !name.isEmpty,
-                                  let list = try? await SupabaseService.shared.createList(name: name)
+                                  await store.createList(name: name, mediaKind: "movie") != nil
                             else { return }
                             newName = ""
-                            lists.insert(list, at: 0)
+                            // Reconcile from the shared cache so the
+                            // add-to-list picker sees it too.
+                            lists = store.customLists
                         }
                     }
                     .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -253,8 +255,17 @@ struct CustomListScreen: View {
         let doomed = offsets.map { movieIDs[$0] }
         movieIDs.remove(atOffsets: offsets)
         Task {
+            var failed = false
             for id in doomed {
-                try? await SupabaseService.shared.removeFromList(list.id, movieID: id)
+                do {
+                    try await SupabaseService.shared.removeFromList(list.id, movieID: id)
+                } catch { failed = true }
+            }
+            // A swallowed failure used to "resurrect" the title on the
+            // next fetch — pull the server truth back and say so.
+            if failed {
+                movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? movieIDs
+                ToastCenter.shared.saveFailed()
             }
         }
     }
@@ -360,8 +371,8 @@ struct EditListsSheet: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         newName = ""
-        if let list = try? await SupabaseService.shared.createList(name: name) {
-            lists.insert(list, at: 0)
+        if await store.createList(name: name, mediaKind: "movie") != nil {
+            lists = store.customLists   // keep every surface in sync
         }
     }
 }

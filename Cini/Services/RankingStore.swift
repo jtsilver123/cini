@@ -84,6 +84,18 @@ final class RankingStore {
         customLists = (try? await supabase.myLists()) ?? customLists
     }
 
+    /// Create a list through the shared cache so EVERY surface (Lists
+    /// tabs, the add-to-list picker) sees it immediately — not just the
+    /// screen that made it.
+    func createList(name: String, mediaKind: String) async -> CustomList? {
+        guard let list = try? await supabase.createList(name: name, mediaKind: mediaKind) else {
+            ToastCenter.shared.saveFailed()
+            return nil
+        }
+        customLists.insert(list, at: 0)
+        return list
+    }
+
     /// Delete a list and reconcile the shared cache against the server,
     /// so every surface (Lists tabs, the add-to-list picker) agrees. The
     /// old per-screen optimistic deletes left phantom lists behind. False

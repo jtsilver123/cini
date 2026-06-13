@@ -441,15 +441,7 @@ struct SearchView: View {
             ) {
                 PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
                            style: followedFromSearch.contains(member.id) ? .outlined : .filled) {
-                    Task {
-                        if followedFromSearch.contains(member.id) {
-                            followedFromSearch.remove(member.id)
-                            try? await SupabaseService.shared.unfollow(member.id)
-                        } else {
-                            followedFromSearch.insert(member.id)
-                            try? await SupabaseService.shared.follow(member.id)
-                        }
-                    }
+                    Task { await toggleFollow(member.id) }
                 }
             }
         }
@@ -476,15 +468,7 @@ struct SearchView: View {
                     ) {
                         PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
                                    style: .outlined) {
-                            Task {
-                                if followedFromSearch.contains(member.id) {
-                                    try? await SupabaseService.shared.unfollow(member.id)
-                                    followedFromSearch.remove(member.id)
-                                } else {
-                                    try? await SupabaseService.shared.follow(member.id)
-                                    followedFromSearch.insert(member.id)
-                                }
-                            }
+                            Task { await toggleFollow(member.id) }
                         }
                     }
                 }
@@ -700,6 +684,22 @@ struct SearchView: View {
         // Seeded from Letterboxd/IMDb import (onboarding) + popular titles.
         maybeSeen = (try? await TMDBService.shared.popular()) ?? []
         for movie in maybeSeen { store.cache(movie) }
+    }
+
+    /// Optimistic follow toggle that REVERTS on failure — a swallowed
+    /// error used to leave the button stuck on "Following".
+    private func toggleFollow(_ memberID: UUID) async {
+        let wasFollowing = followedFromSearch.contains(memberID)
+        if wasFollowing { followedFromSearch.remove(memberID) }
+        else { followedFromSearch.insert(memberID) }
+        do {
+            if wasFollowing { try await SupabaseService.shared.unfollow(memberID) }
+            else { try await SupabaseService.shared.follow(memberID) }
+        } catch {
+            if wasFollowing { followedFromSearch.insert(memberID) }
+            else { followedFromSearch.remove(memberID) }
+            ToastCenter.shared.saveFailed()
+        }
     }
 }
 

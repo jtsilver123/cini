@@ -226,8 +226,10 @@ struct LogFlowView: View {
                 newListName = ""
                 guard !name.isEmpty else { return }
                 Task {
-                    if let list = try? await SupabaseService.shared.createList(name: name) {
-                        myLists.insert(list, at: 0)
+                    // Through the store so the new list shows everywhere,
+                    // not just this filing chip.
+                    if let list = await store.createList(name: name, mediaKind: category.mediaKind) {
+                        myLists = store.customLists
                         targetList = list
                     }
                 }
