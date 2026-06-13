@@ -55,8 +55,11 @@ final class ChatAgentBridge {
     }
 
     /// Call at the top of a tool's work — marks any prior step done and
-    /// shows this one as active.
+    /// shows this one as active. Consecutive identical steps collapse to
+    /// one: if the model loops on a tool (e.g. retries "Building Comedy"),
+    /// the checklist shows it once, not a dozen times.
     func step(_ icon: String, _ label: String) {
+        if let last = steps.last, last.label == label { return }
         for index in steps.indices { steps[index].done = true }
         steps.append(ToolStep(icon: icon, label: label))
     }
@@ -380,7 +383,7 @@ struct CreateListTool: Tool {
 @available(iOS 26.0, *)
 struct CurateListTool: Tool {
     let name = "curateList"
-    let description = "Create a list and fill it: pass 5-8 titles for a theme, OR a person name for 'movies/shows with X'."
+    let description = "ONLY when they explicitly say make/build me a LIST. Pass 5-8 titles for a theme, OR a person name for 'movies/shows with X'. Never for 'what should I watch' — that's one pick, not a list."
 
     @Generable
     struct Arguments {
