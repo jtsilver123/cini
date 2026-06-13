@@ -324,7 +324,7 @@ struct CreateListTool: Tool {
 @available(iOS 26.0, *)
 struct CurateListTool: Tool {
     let name = "curateList"
-    let description = "Create a list AND fill it. Themed asks (genre, studio, mood, era, awards): pass 5-8 real titles you know. 'Movies/shows with [person]': pass person instead — their real filmography fills it."
+    let description = "Create a list and fill it: pass 5-8 titles for a theme, OR a person name for 'movies/shows with X'."
 
     @Generable
     struct Arguments {
