@@ -778,4 +778,133 @@ struct FriendOverlapTool: Tool {
     }
 }
 
+@available(iOS 26.0, *)
+struct RequestRecsTool: Tool {
+    let name = "requestRecsFromFriend"
+    let description = "Ask a friend (by username) for a rec, optionally narrowed by type/genre/note. They get a request to send you something."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "Username to ask")
+        var username: String
+        @Guide(description: "movie or tv, or empty for either")
+        var kind: String
+        @Guide(description: "Genre to ask for, or empty")
+        var genre: String
+        @Guide(description: "Short note like 'for movie night', or empty")
+        var note: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
+            return "No member matched @\(arguments.username)."
+        }
+        let kind = arguments.kind.lowercased()
+        let mediaKind = (kind == "movie" || kind == "tv") ? kind : nil
+        let genre = arguments.genre.trimmingCharacters(in: .whitespaces)
+        let note = arguments.note.trimmingCharacters(in: .whitespaces)
+        let sent = await SupabaseService.shared.requestRecs(
+            to: [member.id], mediaKind: mediaKind,
+            genre: genre.isEmpty ? nil : genre, note: note.isEmpty ? nil : note)
+        guard sent > 0 else {
+            return "Couldn't ask — you can only request from people you follow. Offer to follow @\(member.username) first."
+        }
+        await ChatAgentBridge.shared.note("hand.wave.fill", "Asked @\(member.username) for a rec", destination: .member(member.id, member.username))
+        return "Asked @\(member.username) for a rec — it'll land in your Friend Recs when they send one."
+    }
+}
+
+@available(iOS 26.0, *)
+struct IncomingRecsTool: Tool {
+    let name = "getRecsFriendsSentMe"
+    let description = "Recs friends have sent the user (their Friend Recs inbox), with who and any note."
+
+    @Generable
+    struct Arguments {}
+
+    func call(arguments: Arguments) async throws -> String {
+        let recs = (try? await SupabaseService.shared.directRecs()) ?? []
+        guard !recs.isEmpty else {
+            return "No one's sent them a rec yet — they can ask a friend with requestRecsFromFriend."
+        }
+        var lines: [String] = []
+        for rec in recs.prefix(10) {
+            let who = rec.profiles?.username ?? "a friend"
+            let title = rec.movies?.asMovie.title ?? "a title"
+            let note = rec.note.map { " — “\($0)”" } ?? ""
+            lines.append("@\(who): \(title)\(note)")
+        }
+        return "Friends recommended: " + lines.joined(separator: "; ")
+    }
+}
+
+@available(iOS 26.0, *)
+struct StreamingAlertTool: Tool {
+    let name = "alertWhenStreaming"
+    let description = "Turn on a notification for when a title becomes streamable. Only when they ask to be told/alerted."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The title")
+        var title: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
+            return "No title matched \"\(arguments.title)\"."
+        }
+        if !movie.streamingOn.isEmpty {
+            return "\(movie.title) is already streaming on \(movie.streamingOn.prefix(2).joined(separator: ", "))."
+        }
+        try? await SupabaseService.shared.cacheMovie(movie)
+        let ok = await SupabaseService.shared.setStreamingAlert(movieID: movie.tmdbID, enabled: true)
+        guard ok else { return "Couldn't set that alert — connection trouble." }
+        await ChatAgentBridge.shared.note("bell.fill", "Alert on for \(movie.title)", destination: .movie(movie.tmdbID))
+        return "Done — I'll notify them the moment \(movie.title) starts streaming."
+    }
+}
+
+@available(iOS 26.0, *)
+struct TasteMatchTool: Tool {
+    let name = "getTasteMatch"
+    let description = "How closely the user's taste matches a member's, as a percentage."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "Username")
+        var username: String
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
+            return "No member matched @\(arguments.username)."
+        }
+        guard let pct = await SupabaseService.shared.tasteMatch(with: member.id) else {
+            return "No taste match with @\(member.username) yet — needs more overlap in what you've both ranked."
+        }
+        return "Their taste match with @\(member.username) is \(Int(pct))%."
+    }
+}
+
+@available(iOS 26.0, *)
+struct MyStatsTool: Tool {
+    let name = "getMyStats"
+    let description = "The user's own standing: global rank on Cini, ranking streak, and counts."
+
+    @Generable
+    struct Arguments {}
+
+    func call(arguments: Arguments) async throws -> String {
+        guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
+        let watched = await store.watchedCount
+        let watchlist = await store.watchlistCount
+        var rankLine = ""
+        if let me = SupabaseService.shared.currentUserID,
+           let rank = try? await SupabaseService.shared.globalRank(userID: me) {
+            rankLine = "#\(rank) on Cini. "
+        }
+        return "\(rankLine)\(watched) ranked, \(watchlist) on Want to Watch."
+    }
+}
+
 #endif

@@ -445,8 +445,10 @@ struct CiniChatAvailableView: View {
             SaveToWatchlistTool(), RemoveFromWatchlistTool(),
             CreateListTool(), CurateListTool(), AddToListTool(), RemoveFromListTool(), DeleteListTool(),
             SearchMembersTool(), FollowMemberTool(), UnfollowMemberTool(),
-            SendRecTool(), StartRankingTool(), DeleteRatingTool(), MyListsTool(),
+            SendRecTool(), RequestRecsTool(), IncomingRecsTool(),
+            StartRankingTool(), DeleteRatingTool(), MyListsTool(),
             FriendWatchedTool(), FriendWantToWatchTool(), FriendOverlapTool(),
+            StreamingAlertTool(), TasteMatchTool(), MyStatsTool(),
         ]) {
             // Compressed hard: every fixed token here is one less for the
             // conversation in the on-device model's small window.
@@ -472,9 +474,12 @@ struct CiniChatAvailableView: View {
             Never invent scores or friends.
 
             Your tools do everything tapping can: save/remove Want to \
-            Watch, manage lists, follow members, send recs, open ranking, \
-            delete ratings, and read friends' rankings, Want to Watch, and \
-            overlap (the movie-night cheat code when they're picking with \
+            Watch, manage lists, follow members, send recs, REQUEST a rec \
+            from a friend (requestRecsFromFriend — "ask @sam for a scary \
+            movie"), read recs friends sent you, alert-when-streaming, \
+            open ranking, delete ratings, taste match, your own rank/ \
+            stats, and read friends' rankings, Want to Watch, and overlap \
+            (the movie-night cheat code when they're picking with \
             someone). "Make me a list of [genre/studio/mood/era/awards]" \
             = curateList with 5-8 titles from YOUR film knowledge; \
             "movies/shows with [person]" = curateList with person set \
