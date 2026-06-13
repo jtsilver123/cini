@@ -103,7 +103,63 @@ Deno.serve(async (_req: Request) => {
       }
     }
 
-    return new Response(JSON.stringify({ streamingNotified, seasonNotified }), {
+    // ---- 3. Rate nudges: "seen it yet? rank it" ----
+    // For each pushable user, take their OLDEST unranked Want-to-Watch
+    // title on the list 10+ days and not yet nudged; if it's streamable
+    // in the US, nudge once. Rate-limited to one per user per ~3 days,
+    // one TMDB call per user per run, one nudge per title ever.
+    let rateNudged = 0;
+    const { data: tokens2 } = await supabase.from("device_tokens").select("user_id");
+    const pushable = [...new Set((tokens2 ?? []).map((t: any) => t.user_id))];
+    const tenDaysAgo = new Date(Date.now() - 10 * 86400_000).toISOString();
+    const threeDaysAgo = new Date(Date.now() - 3 * 86400_000).toISOString();
+
+    for (const userID of pushable) {
+      const { count: recent } = await supabase
+        .from("rate_nudges")
+        .select("movie_id", { count: "exact", head: true })
+        .eq("user_id", userID)
+        .gte("created_at", threeDaysAgo);
+      if (recent && recent > 0) continue;   // already nudged lately
+
+      const { data: saved } = await supabase
+        .from("watchlist")
+        .select("movie_id, created_at, movies(title)")
+        .eq("user_id", userID)
+        .lt("created_at", tenDaysAgo)
+        .order("created_at", { ascending: true })
+        .limit(8);
+      if (!saved?.length) continue;
+
+      const { data: ranked } = await supabase
+        .from("rankings").select("movie_id").eq("user_id", userID);
+      const isRanked = new Set((ranked ?? []).map((r: any) => r.movie_id));
+      const { data: nudged } = await supabase
+        .from("rate_nudges").select("movie_id").eq("user_id", userID);
+      const wasNudged = new Set((nudged ?? []).map((n: any) => n.movie_id));
+
+      for (const row of saved) {
+        if (isRanked.has(row.movie_id) || wasNudged.has(row.movie_id)) continue;
+        if (!(row.movies as any)?.title) continue;
+        const res = await fetch(
+          `https://api.themoviedb.org/3${tmdbPath(row.movie_id, "/watch/providers")}?api_key=${key}`,
+        );
+        if (!res.ok) continue;
+        const providers = await res.json();
+        if (!(providers?.results?.US?.flatrate ?? []).length) continue;
+        // Record first so a crash can't double-notify.
+        const { error } = await supabase.from("rate_nudges")
+          .insert({ user_id: userID, movie_id: row.movie_id });
+        if (error) continue;
+        await supabase.from("notifications").insert({
+          recipient_id: userID, kind: "rate_nudge", movie_id: row.movie_id,
+        });
+        rateNudged++;
+        break;   // one per user per run
+      }
+    }
+
+    return new Response(JSON.stringify({ streamingNotified, seasonNotified, rateNudged }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {

@@ -23,6 +23,8 @@ struct NotificationPreferencesView: View {
          "A saved title you asked about starts streaming"),
         ("season_premiere", "New seasons",
          "A show you ranked returns with a new season"),
+        ("rate_nudge", "Rate reminders",
+         "A nudge to rank a saved title once it's out to watch"),
     ]
 
     @State private var muted: Set<String> = []

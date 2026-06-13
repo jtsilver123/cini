@@ -955,6 +955,7 @@ struct NotificationsView: View {
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
+        case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it ⭐️"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)
