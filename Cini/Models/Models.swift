@@ -94,6 +94,41 @@ struct Movie: Identifiable, Codable, Hashable {
         return "\(runtimeMinutes / 60)h \(runtimeMinutes % 60)m"
     }
 
+    /// You can only rank what's out. Precise when TMDB gave a full date;
+    /// otherwise only a future *year* blocks it (a release this year with no
+    /// exact date is allowed rather than wrongly blocked).
+    var isReleased: Bool {
+        if let releaseDateFull, releaseDateFull.count == 10 {
+            return releaseDateFull <= Movie.todayISO
+        }
+        if let releaseYear { return releaseYear <= Movie.currentYear }
+        return true
+    }
+
+    /// Short "releases …" line for the not-yet-out state.
+    var releaseWhenText: String {
+        if let releaseDateFull, releaseDateFull.count == 10 {
+            let f = DateFormatter()
+            f.calendar = Calendar(identifier: .gregorian)
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy-MM-dd"
+            if let date = f.date(from: releaseDateFull) {
+                return "Releases " + date.formatted(.dateTime.month(.abbreviated).day().year())
+            }
+        }
+        if let releaseYear { return "Releases \(releaseYear)" }
+        return "Not out yet"
+    }
+
+    private static let currentYear = Calendar(identifier: .gregorian).component(.year, from: .now)
+    private static var todayISO: String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: .now)
+    }
+
     var availabilityText: String? {
         streamingOn.isEmpty ? nil : "On " + streamingOn.prefix(2).joined(separator: ", ")
     }

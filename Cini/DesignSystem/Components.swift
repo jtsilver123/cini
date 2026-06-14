@@ -245,16 +245,20 @@ struct ArtworkQuickActions: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Button {
-                onLog(movie)
-            } label: {
-                Image(systemName: isRanked ? "checkmark.circle.fill" : "plus.circle")
-                    .foregroundStyle(isRanked ? Theme.scoreGreen : .white)
-                    .padding(8)
-                    .background(Circle().fill(.black.opacity(0.45)))
+            // You can only rank what's out — an unreleased title shows just
+            // the bookmark (save it for when it drops).
+            if movie.isReleased {
+                Button {
+                    onLog(movie)
+                } label: {
+                    Image(systemName: isRanked ? "checkmark.circle.fill" : "plus.circle")
+                        .foregroundStyle(isRanked ? Theme.scoreGreen : .white)
+                        .padding(8)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isRanked ? "Ranked — rank again" : "Rank this")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isRanked ? "Ranked — rank again" : "Rank this")
             if !isRanked {
                 Button {
                     bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }

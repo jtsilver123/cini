@@ -51,11 +51,6 @@ struct LogFlowView: View {
     // then the score springs in (score screen) — Beli's flow, our brand.
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
-    // Filing destination next to the media chip: nil = Want to Watch.
-    @State private var targetList: CustomList?
-    @State private var myLists: [CustomList] = []
-    @State private var showNewListAlert = false
-    @State private var newListName = ""
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -73,9 +68,15 @@ struct LogFlowView: View {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 8) {
-                        // The result is the whole screen — the earlier cards
-                        // fall away so the ticket lands in view, no scrolling.
-                        if phase == .result, let scored {
+                        // You can only rank what's out — anything else opens
+                        // straight to "not out yet" with a Want to Watch CTA.
+                        if !movie.isReleased {
+                            titleCard
+                            notReleasedCard
+                                .padding(.top, 24)
+                        } else if phase == .result, let scored {
+                            // The result is the whole screen — the earlier cards
+                            // fall away so the ticket lands in view, no scrolling.
                             resultCard(scored)
                                 .id("result")
                                 .padding(.top, 40)
@@ -134,7 +135,6 @@ struct LogFlowView: View {
         }
         .task {
             movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
-            myLists = (try? await SupabaseService.shared.myLists()) ?? []
         }
     }
 
@@ -178,12 +178,15 @@ struct LogFlowView: View {
         .floatingCard()
     }
 
-    // MARK: Card 2 — category + list destination
+    // MARK: Card 2 — media type
 
     private var categoryCard: some View {
-        // Just the two chips — media type and destination list — so both
-        // dropdowns render at full width.
-        HStack(spacing: 8) {
+        // Ranking, not bookmarking — the one choice here is the media type
+        // (Movies vs TV Shows), which decides where the rank files.
+        HStack(spacing: 10) {
+            Text("Add to my list of")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
             Menu {
                 ForEach(MediaCategory.allCases) { option in
                     Button {
@@ -195,61 +198,41 @@ struct LogFlowView: View {
             } label: {
                 chipLabel(icon: category.icon, title: category.title)
             }
-            // Where it files: Want to Watch by default, or any of your
-            // own lists (make one right here).
-            Menu {
-                Button {
-                    targetList = nil
-                } label: {
-                    Label("Want to Watch", systemImage: "bookmark")
-                }
-                ForEach(myLists) { list in
-                    Button {
-                        targetList = list
-                    } label: {
-                        Label(list.name, systemImage: "list.star")
-                    }
-                }
-                Divider()
-                Button {
-                    showNewListAlert = true
-                } label: {
-                    Label("New List…", systemImage: "plus")
-                }
-            } label: {
-                chipLabel(icon: targetList == nil ? "bookmark" : "list.star",
-                          title: targetList?.name ?? "Want to Watch")
-            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
-        // A list holds one media type — if the user flips the media chip
-        // after picking a list, drop it so a show can't file into a movie list.
-        .onChange(of: category) { _, newCategory in
-            if let target = targetList, target.kind != newCategory.mediaKind {
-                targetList = nil
+    }
+
+    // MARK: Not out yet — rank is blocked until release; offer Want to Watch.
+
+    private var notReleasedCard: some View {
+        let onWatchlist = store.isOnWatchlist(movie.tmdbID)
+        return VStack(spacing: 14) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.largeTitle)
+                .foregroundStyle(Theme.gold)
+            Text("Not out yet")
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Theme.ink)
+            Text("\(movie.releaseWhenText) — you can rank it once it's out.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+            PillButton(title: onWatchlist ? "On your Want to Watch ✓" : "Add to Want to Watch",
+                       systemImage: "bookmark") {
+                if !onWatchlist { Task { await store.toggleWatchlist(movie: movie) } }
+                dismiss()
             }
+            Button("Close") { dismiss() }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.gray)
         }
-        .alert("New List", isPresented: $showNewListAlert) {
-            TextField("Name (e.g. Best heist movies)", text: $newListName)
-            Button("Create") {
-                let name = newListName.trimmingCharacters(in: .whitespaces)
-                newListName = ""
-                guard !name.isEmpty else { return }
-                Task {
-                    // Through the store so the new list shows everywhere,
-                    // not just this filing chip.
-                    if let list = await store.createList(name: name, mediaKind: category.mediaKind) {
-                        myLists = store.customLists
-                        targetList = list
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) { newListName = "" }
-        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .floatingCard()
     }
 
     private func chipLabel(icon: String, title: String) -> some View {
@@ -492,14 +475,6 @@ struct LogFlowView: View {
                                         on: draft.watchDate ?? .now,
                                         where: draft.watchedWhere)
         } catch { anySaveFailed = true }
-        // Filing chip: a chosen custom list gets the title too. (The
-        // Want to Watch default is a no-op here — a rank means watched.)
-        if let list = targetList {
-            try? await supabase.cacheMovie(movie)
-            do {
-                try await supabase.addToList(list.id, movieID: movie.tmdbID)
-            } catch { anySaveFailed = true }
-        }
         if !draft.cast.isEmpty {
             do {
                 try await supabase.addPerformances(movieID: movie.tmdbID,

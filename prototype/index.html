@@ -1738,9 +1738,9 @@ function logCards(){
       </div>
       <button class="iconbtn" onclick="closeLog()">${I("x",20)}</button>
     </div>
-    <div class="fcard" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+    <div class="fcard" style="display:flex; align-items:center; gap:10px;">
+      <span class="sub" style="font-size:13.5px;">Add to my list of</span>
       <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="toast('Movies · TV Shows')">${I("film",15)} Movies ${I("chevD",12)}</button>
-      <button style="display:inline-flex; align-items:center; gap:6px; border:1.4px solid var(--hair); background:var(--surface-2); color:var(--ink); border-radius:13px; padding:8px 12px; font-weight:700; font-size:13.5px; cursor:pointer;" onclick="openLogListPicker()">${I(log.targetList?"star":"bookmark",15)} ${log.targetList||"Want to Watch"} ${I("chevD",12)}</button>
     </div>
     <div class="fcard">
       <div style="text-align:center; font-size:18px; font-weight:800;">How was it?</div>
