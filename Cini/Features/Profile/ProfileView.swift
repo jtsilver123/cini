@@ -221,9 +221,13 @@ struct ProfileScreen: View {
     /// The top three ranked films, always current, on every profile.
     @ViewBuilder
     private var topThree: some View {
-        let top = rankings.prefix(3).compactMap { row in
+        // Films only, ranked among films — movies and TV rank separately, so
+        // a cross-kind "#1/#2/#3" would be meaningless here.
+        let top = rankings.compactMap { row in
             movies[row.movieId].map { (row: row, movie: $0) }
         }
+        .filter { $0.movie.mediaKind != "tv" }
+        .prefix(3)
         if !top.isEmpty {
             HStack(spacing: 12) {
                 Spacer(minLength: 0)

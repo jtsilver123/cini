@@ -85,7 +85,7 @@ final class RankingStore {
         var byKind: [String: [RankedItem<Int>]] = ["movie": [], "tv": []]
         for row in rankings {
             guard let sentiment = Sentiment(rawValue: row.bucket) else { continue }
-            byKind[kindKey(movies[row.movieId]?.mediaKind), default: []]
+            byKind[kindKey(forMovie: row.movieId), default: []]
                 .append(RankedItem(id: row.movieId, sentiment: sentiment))
         }
         return ["movie": RankingList(items: byKind["movie"] ?? []),
@@ -94,7 +94,13 @@ final class RankingStore {
 
     /// "movie" or "tv" — the key into `lists`. Anything not TV files as movie.
     private func kindKey(_ mediaKind: String?) -> String { mediaKind == "tv" ? "tv" : "movie" }
-    private func kindKey(forMovie id: Int) -> String { kindKey(movies[id]?.mediaKind) }
+    /// Falls back to the id sign when metadata hasn't loaded — TV uses
+    /// negative tmdb ids (TMDBService convention), so a missing movie row
+    /// can't misfile a show into the movies list.
+    private func kindKey(forMovie id: Int) -> String {
+        if let kind = movies[id]?.mediaKind { return kindKey(kind) }
+        return id < 0 ? "tv" : "movie"
+    }
 
     func refreshPredictedScores() async {
         let scores = await supabase.predictedScores(movieIDs: watchlist.map(\.movieID))
@@ -207,9 +213,16 @@ final class RankingStore {
                     watchDate: watchDate
                 )
             } catch {
-                // Both attempts failed: the rank lives locally but not on
-                // the server, so the next refresh would drop it. Say so.
+                // Both attempts failed: undo the local commit so we don't
+                // celebrate a rank that only exists on-device (and would
+                // vanish on the next refresh). Returning nil tells the log
+                // flow to show an error instead of the result ticket.
+                var reverted = lists[key] ?? RankingList()
+                reverted.remove(session.newItemID)
+                lists[key] = reverted
+                listChanged()
                 ToastCenter.shared.saveFailed()
+                return nil
             }
         }
         return scored
@@ -237,6 +250,7 @@ final class RankingStore {
             newSentiment = next
         }
 
+        let prior = lists[key]
         let items = ids.map {
             RankedItem(id: $0, sentiment: $0 == moving ? newSentiment : (sentimentOf[$0] ?? .fine))
         }
@@ -246,8 +260,15 @@ final class RankingStore {
         let bucketPosition = ids[0..<to].filter {
             ($0 == moving ? newSentiment : sentimentOf[$0]) == newSentiment
         }.count
-        _ = try? await supabase.rankInsert(movieID: moving, bucket: newSentiment,
-                                           position: bucketPosition)
+        do {
+            _ = try await supabase.rankInsert(movieID: moving, bucket: newSentiment,
+                                              position: bucketPosition)
+        } catch {
+            // The move didn't persist — restore the prior order rather than
+            // let the next refresh silently undo it.
+            if let prior { lists[key] = prior; listChanged() }
+            ToastCenter.shared.saveFailed()
+        }
     }
 
     /// Server-first: a delete that failed remotely must not vanish locally

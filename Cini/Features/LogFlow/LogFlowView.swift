@@ -226,6 +226,13 @@ struct LogFlowView: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .floatingCard()
+        // A list holds one media type — if the user flips the media chip
+        // after picking a list, drop it so a show can't file into a movie list.
+        .onChange(of: category) { _, newCategory in
+            if let target = targetList, target.kind != newCategory.mediaKind {
+                targetList = nil
+            }
+        }
         .alert("New List", isPresented: $showNewListAlert) {
             TextField("Name (e.g. Best heist movies)", text: $newListName)
             Button("Create") {
@@ -451,7 +458,13 @@ struct LogFlowView: View {
 
     private func commit(_ finished: InsertionSession<Int>) {
         Task {
-            let result = await store.commit(finished, watchDate: draft.watchDate)
+            // nil = the rank didn't reach the server (store already reverted
+            // and toasted). Don't show the celebratory ticket for a save that
+            // failed — bail back out so the user can retry.
+            guard let result = await store.commit(finished, watchDate: draft.watchDate) else {
+                dismiss()
+                return
+            }
             await persistDraft()
             await appSession.loadProfile()    // streak may have just grown
             withAnimation(.snappy) {

@@ -48,11 +48,13 @@ Deno.serve(async (_req: Request) => {
     if (!gnKey) return new Response("no gracenote key", { status: 200 });
 
     // Users who can receive alerts: saved zip AND a registered device.
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, home_zip")
+    // ZIPs live in the private user_locations table (service role reads it).
+    const { data: locations } = await supabase
+      .from("user_locations")
+      .select("user_id, home_zip")
       .not("home_zip", "is", null);
-    if (!profiles?.length) return new Response("no users with zips", { status: 200 });
+    if (!locations?.length) return new Response("no users with zips", { status: 200 });
+    const profiles = locations.map((l: any) => ({ id: l.user_id, home_zip: l.home_zip }));
 
     const { data: tokens } = await supabase.from("device_tokens").select("user_id");
     const pushable = new Set((tokens ?? []).map((t: any) => t.user_id));

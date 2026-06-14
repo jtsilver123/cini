@@ -150,6 +150,13 @@ final class SupabaseService {
         try await client.from("profiles").update(update).eq("id", value: id).execute()
     }
 
+    /// Home ZIP for showtime alerts. Stored in a private, owner-only table
+    /// (not on the world-readable profiles row) via a SECURITY DEFINER RPC.
+    func setHomeZip(_ zip: String) async {
+        struct Params: Encodable { let p_zip: String }
+        _ = try? await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
+    }
+
     /// Trigram-fuzzy member search (typos in usernames/display names still
     /// match); falls back to plain substring search if the RPC is missing.
     func searchMembers(query: String) async throws -> [ProfileRow] {
@@ -1312,7 +1319,6 @@ struct ProfileUpdate: Encodable {
     var annual_goal: Int?
     var is_private: Bool?
     var bio: String?
-    var home_zip: String?
     var instagram_handle: String?
     var tiktok_handle: String?
     var x_handle: String?

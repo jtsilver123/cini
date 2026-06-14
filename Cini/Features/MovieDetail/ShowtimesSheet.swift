@@ -158,7 +158,7 @@ struct ShowtimesSheet: View {
             state = .loaded
             // Remember the zip — it powers "your watchlist movie is
             // playing near you" push alerts.
-            try? await SupabaseService.shared.updateProfile(ProfileUpdate(home_zip: zipcode))
+            await SupabaseService.shared.setHomeZip(zipcode)
         } catch ShowtimesError.notConfigured {
             state = .notConfigured
         } catch ShowtimesError.zipcodeNotFound {
