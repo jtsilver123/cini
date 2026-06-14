@@ -856,8 +856,12 @@ struct YourListsView: View {
                         Button(role: .destructive) {
                             Task {
                                 await store.toggleWatchlist(movie: movie)   // remove
-                                ToastCenter.shared.showUndo("Removed from Want to Watch") {
-                                    Task { await store.toggleWatchlist(movie: movie) }   // re-add
+                                // Only offer Undo if it actually came off — a
+                                // failed remove reverts and shows its own error.
+                                if !store.isOnWatchlist(movie.tmdbID) {
+                                    ToastCenter.shared.showUndo("Removed from Want to Watch") {
+                                        Task { await store.toggleWatchlist(movie: movie) }   // re-add
+                                    }
                                 }
                             }
                         } label: { Label("Remove", systemImage: "bookmark.slash") }
