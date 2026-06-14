@@ -30,10 +30,13 @@ jobs:
           # Marketing site at the root: landing + legal pages.
           cp index.html _site/index.html
           cp site.css _site/site.css
+          cp favicon.png _site/favicon.png
           cp privacy.html _site/privacy.html
           cp terms.html _site/terms.html
           mkdir -p _site/import
           cp import.html _site/import/index.html
+          # import.html is served from /import/, so it needs its own copy.
+          cp favicon.png _site/import/favicon.png
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
