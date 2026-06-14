@@ -60,9 +60,9 @@ struct AccountSettingsView: View {
             }
 
             Section {
-                if let homeZip {
+                if let savedZip = homeZip {
                     LabeledContent {
-                        Text(homeZip).foregroundStyle(Theme.gray)
+                        Text(savedZip).foregroundStyle(Theme.gray)
                     } label: {
                         Label("Theater alerts", systemImage: "popcorn")
                     }

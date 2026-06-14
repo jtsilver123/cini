@@ -5,7 +5,8 @@ import SwiftUI
 ///   1. Welcome — "Rank, don't rate" (the three circles, the one idea)
 ///   2. Claim your username (Apple sign-ins arrive as "user_a1b2c3d4")
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
-///   4. Rank your first movie — a poster grid of recognizable titles
+///   4. Stay in the loop — enable notifications + theater alerts
+///   5. Rank your first movie — a poster grid of recognizable titles
 ///
 /// Shown once (per device) when an authenticated user has zero rankings.
 struct OnboardingView: View {
@@ -27,6 +28,9 @@ struct OnboardingView: View {
     @State private var importStartsWithPaste = false
     @State private var starters: [Movie] = []
     @State private var logMovie: Movie?
+    @State private var notifsEnabled = false
+    @State private var theaterZip: String?
+    @State private var detectingZip = false
 
     private var usernameValid: Bool {
         username.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
@@ -58,7 +62,8 @@ struct OnboardingView: View {
                 welcomeStep.tag(0)
                 usernameStep.tag(1)
                 importStep.tag(2)
-                firstRankStep.tag(3)
+                permissionsStep.tag(3)
+                firstRankStep.tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -84,12 +89,15 @@ struct OnboardingView: View {
                 .filter { $0.posterPath != nil }
                 .prefix(12).map { $0 }
             for movie in starters { store.cache(movie) }
+            // Reflect any permissions already granted (re-entering onboarding).
+            notifsEnabled = await PushManager.isAuthorized()
+            theaterZip = await SupabaseService.shared.homeZip()
         }
     }
 
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<4, id: \.self) { index in
+            ForEach(0..<5, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -101,7 +109,7 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 3) }
+        withAnimation(.snappy) { step = min(step + 1, 4) }
     }
 
     // MARK: 1 — Welcome
@@ -348,7 +356,90 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 4 — Rank your first movie
+    // MARK: 4 — Stay in the loop (notifications + theater alerts)
+
+    private var permissionsStep: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "bell.and.waveform.fill")
+                .font(.system(size: 42))
+                .foregroundStyle(Theme.gold)
+            Text("Stay in the loop")
+                .font(Theme.serif(34))
+            Text("Two quick things so Cini can reach you.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+
+            VStack(spacing: 12) {
+                permissionRow(
+                    icon: "bell.badge.fill",
+                    title: "Notifications",
+                    subtitle: "Friends' ranks, recs sent your way, and replies.",
+                    done: notifsEnabled, busy: false
+                ) { Task { notifsEnabled = await PushManager.request() } }
+
+                permissionRow(
+                    icon: "popcorn.fill",
+                    title: "Theater alerts",
+                    subtitle: "When a Want to Watch movie is playing near you.",
+                    done: theaterZip != nil, busy: detectingZip
+                ) { Task { await enableTheaterAlerts() } }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 6)
+
+            Spacer()
+            PillButton(title: "Continue") { advance() }
+                .padding(.horizontal, 24)
+            Button("Not now") { advance() }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+                .padding(.bottom, 30)
+        }
+    }
+
+    private func permissionRow(icon: String, title: String, subtitle: String,
+                               done: Bool, busy: Bool,
+                               action: @escaping () -> Void) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(Theme.marquee)
+                .frame(width: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline).foregroundStyle(Theme.ink)
+                Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
+            }
+            Spacer(minLength: 8)
+            if busy {
+                ProgressView()
+            } else if done {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(Theme.scoreGreen)
+            } else {
+                Button("Enable", action: action)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(Theme.marquee)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+    }
+
+    private func enableTheaterAlerts() async {
+        detectingZip = true
+        defer { detectingZip = false }
+        if let zip = try? await LocationZip.shared.currentZip() {
+            await SupabaseService.shared.setHomeZip(zip)
+            theaterZip = zip
+        }
+    }
+
+    // MARK: 5 — Rank your first movie
 
     private var firstRankStep: some View {
         VStack(spacing: 14) {

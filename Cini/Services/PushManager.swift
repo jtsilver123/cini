@@ -17,15 +17,34 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    /// Request permission and register. Safe to call repeatedly — iOS
-    /// only prompts once, and re-registration refreshes a stale token.
-    static func enable() {
+    /// Prompt for permission (primed by the onboarding step) and register on
+    /// grant. Returns whether it was granted. iOS only shows the dialog once.
+    @discardableResult
+    static func request() async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
+        if granted { await MainActor.run { UIApplication.shared.registerForRemoteNotifications() } }
+        return granted
+    }
+
+    /// Fire-and-forget prompt (legacy callers).
+    static func enable() { Task { await request() } }
+
+    /// Register for remote notifications ONLY if permission is already
+    /// granted — never prompts. Used at sign-in so returning users refresh
+    /// their token without a surprise dialog (the prompt lives in onboarding).
+    static func registerIfAuthorized() {
         Task {
-            let center = UNUserNotificationCenter.current()
-            let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
-            guard granted else { return }
+            let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+            guard status == .authorized || status == .provisional else { return }
             await MainActor.run { UIApplication.shared.registerForRemoteNotifications() }
         }
+    }
+
+    /// Current OS notification authorization (for reflecting state in UI).
+    static func isAuthorized() async -> Bool {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        return status == .authorized || status == .provisional
     }
 
     func application(_ application: UIApplication,

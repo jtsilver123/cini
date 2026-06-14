@@ -76,7 +76,9 @@ final class AppSession {
                 isAuthenticated = session != nil
                 if session != nil {
                     await loadProfile()
-                    PushManager.enable()
+                    // Don't prompt at sign-in — onboarding primes and asks.
+                    // Returning users who already allowed just refresh their token.
+                    PushManager.registerIfAuthorized()
                     // Warm the social cache so the log flow's friend chips
                     // and Recommend sheet open instantly.
                     FriendsCache.shared.warm()
