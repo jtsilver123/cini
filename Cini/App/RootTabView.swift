@@ -70,6 +70,11 @@ final class TabRouter {
     }
 
     func closeSearch() { selection = lastNonSearch }
+
+    /// Bumped when the user taps the tab they're already on — each tab's
+    /// root scroll view watches its counter and jumps back to the top.
+    private(set) var retap: [RootTabView.Tab: Int] = [:]
+    func tappedActiveTab(_ tab: RootTabView.Tab) { retap[tab, default: 0] += 1 }
 }
 
 struct RootTabView: View {
@@ -148,8 +153,16 @@ struct RootTabView: View {
     /// OS — `CiniApp` configures `UITabBarAppearance` so iOS 26 doesn't turn
     /// it into floating Liquid Glass.
     private var beliTabs: some View {
-        @Bindable var router = router
-        return TabView(selection: $router.selection) {
+        // Custom binding so tapping the already-active tab is detected
+        // (scroll-to-top) — the plain $selection binding can't see a re-tap.
+        let selection = Binding<Tab>(
+            get: { router.selection },
+            set: { newValue in
+                if newValue == router.selection { router.tappedActiveTab(newValue) }
+                router.selection = newValue
+            }
+        )
+        return TabView(selection: selection) {
             FeedView()
                 .tabItem { Label("Feed", systemImage: "newspaper") }
                 .tag(Tab.feed)

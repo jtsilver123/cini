@@ -36,11 +36,18 @@ struct FeedView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
                 .background(Theme.background)
-                ScrollView {
-                    yourFeed
-                        .padding(.horizontal, 16)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        yourFeed
+                            .padding(.horizontal, 16)
+                            .id("feedTop")
+                    }
+                    .refreshable { await loadFeed() }
+                    // Tapping the Feed tab while on Feed jumps back to the top.
+                    .onChange(of: tabRouter.retap[.feed]) { _, _ in
+                        withAnimation(.snappy) { proxy.scrollTo("feedTop", anchor: .top) }
+                    }
                 }
-                .refreshable { await loadFeed() }
             }
             .background(Theme.background)
             .task { await loadFeed() }
