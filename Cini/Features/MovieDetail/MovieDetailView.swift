@@ -989,6 +989,10 @@ struct MovieDetailView: View {
 
     private func loadEverything() async {
         store.cache(movie)
+        // Stable id captured before enrichment can reassign `movie` — the Rec
+        // Score must be keyed by the SAME id the lists use (negative for TV),
+        // or the page and the list disagree.
+        let pid = movie.tmdbID
         async let detail = TMDBService.shared.details(for: movie.tmdbID)
         async let providersTask = TMDBService.shared.watchProviders(for: movie.tmdbID)
         async let trailerTask = TMDBService.shared.trailerURL(for: movie.tmdbID)
@@ -1000,7 +1004,7 @@ struct MovieDetailView: View {
         async let castTask = TMDBService.shared.cast(for: movie.tmdbID)
         async let extendedTask = TMDBService.shared.extendedDetails(for: movie.tmdbID)
         async let publicNotesTask = SupabaseService.shared.publicNotes(movieID: movie.tmdbID)
-        async let predictedTask = SupabaseService.shared.predictedScores(movieIDs: [movie.tmdbID])
+        async let predictedTask = SupabaseService.shared.predictedScores(movieIDs: [pid])
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -1025,7 +1029,11 @@ struct MovieDetailView: View {
         publicNotes = (try? await publicNotesTask) ?? []
         publicNotesLoaded = true
         let predictedMap = await predictedTask
-        predicted = store.predictedScores[movie.tmdbID] ?? predictedMap[movie.tmdbID]
+        // Fold the fetch into the shared cache so the movie page and the lists
+        // can't disagree, then resolve from that single source. Never blank a
+        // score we already know (a cancelled/empty refetch shouldn't "lose" it).
+        store.mergePredicted(predictedMap)
+        if let p = store.predictedScores[pid] ?? predictedMap[pid] { predicted = p }
     }
 }
 

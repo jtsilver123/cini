@@ -107,6 +107,12 @@ final class RankingStore {
         predictedScores.merge(scores) { _, new in new }
     }
 
+    /// Fold freshly-fetched Rec Scores into the shared cache so every surface
+    /// (lists, movie page) shows the SAME predicted value for a title.
+    func mergePredicted(_ scores: [Int: Double]) {
+        predictedScores.merge(scores) { _, new in new }
+    }
+
     func refreshCustomLists() async {
         customLists = (try? await supabase.myLists()) ?? customLists
     }
