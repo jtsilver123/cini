@@ -51,6 +51,7 @@ struct LogFlowView: View {
     // then the score springs in (score screen) — Beli's flow, our brand.
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
+    @State private var showDiscardConfirm = false
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -123,6 +124,13 @@ struct LogFlowView: View {
         }
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
+        .confirmationDialog("Discard this ranking?", isPresented: $showDiscardConfirm,
+                            titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { cancel() }
+            Button("Keep going", role: .cancel) {}
+        } message: {
+            Text("Your comparisons so far won't be saved.")
+        }
         // Editors draw as an overlay INSIDE the flow — sheets presented
         // from a clear-background fullScreenCover silently fail to appear
         // on device, so presentation is avoided entirely.
@@ -162,7 +170,10 @@ struct LogFlowView: View {
                     .foregroundStyle(Theme.gray)
             }
             Spacer()
-            Button { cancel() } label: {
+            Button {
+                // Mid-comparison, closing throws away real work — confirm it.
+                if phase == .comparing { showDiscardConfirm = true } else { cancel() }
+            } label: {
                 Image(systemName: "xmark")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Theme.ink)
