@@ -916,11 +916,20 @@ struct RankedListScreen: View {
     @State private var searchText = ""
     @State private var showSearch = false
     @State private var filters = MovieFilters()
+    // Movies and TV are ranked apart, so the list is split too — #1 means
+    // #1 among that kind, never a mixed number.
+    @State private var categoryIndex = 0
+    @State private var pickedDefault = false
+    private var category: MediaCategory { categoryIndex == 0 ? .movies : .tvShows }
 
-    /// Rank numbers come from the full list, then the filters apply, so
-    /// "#14" stays #14 while searching.
+    private func rows(in category: MediaCategory) -> [RankingRow] {
+        rankings.filter { movies[$0.movieId].map(category.matches) ?? false }
+    }
+
+    /// Rank numbers come from the full kind list (so "#14" stays #14 while
+    /// searching), within the selected media kind.
     private var visible: [(index: Int, row: RankingRow)] {
-        let all = Array(rankings.enumerated()).map { (index: $0.offset, row: $0.element) }
+        let all = Array(rows(in: category).enumerated()).map { (index: $0.offset, row: $0.element) }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
         return all.filter { entry in
             guard let movie = movies[entry.row.movieId] else { return true }
@@ -932,6 +941,12 @@ struct RankedListScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                // Split by kind whenever there are both — movies and TV are
+                // ranked separately, so they're listed separately.
+                if !rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty {
+                    SegmentedPillControl(segments: ["Movies", "TV Shows"], selection: $categoryIndex)
+                        .padding(.bottom, 12)
+                }
                 HStack {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
@@ -1006,6 +1021,13 @@ struct RankedListScreen: View {
         }
         .scrollDismissesKeyboard(.immediately)
         .background(Theme.background)
+        .onAppear {
+            // Open on the kind that actually has titles (e.g. a TV-only list
+            // shouldn't land on an empty Movies tab).
+            guard !pickedDefault else { return }
+            pickedDefault = true
+            if rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty { categoryIndex = 1 }
+        }
         .navigationTitle("\(title) (\(rankings.count))")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $detailMovie) { movie in
