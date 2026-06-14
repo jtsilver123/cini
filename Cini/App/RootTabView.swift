@@ -3,10 +3,9 @@ import SwiftUI
 /// 5-tab bar identical to Beli's IA:
 /// Feed · Your Lists · Search (raised teal +) · Leaderboard · Profile
 ///
-/// On iOS 26+/27 this uses the native Tab API with a search-role tab so the
-/// bar renders as floating Liquid Glass, minimizes on scroll, and splits the
-/// search tab into its own lens — the platform-native take on Beli's raised
-/// center button. Earlier OSes get the classic raised teal +.
+/// Solid Beli-style bar on every OS — an opaque background with a top
+/// hairline and a raised center `+`, NOT iOS 26's floating Liquid Glass
+/// (`CiniApp` configures `UITabBarAppearance` to stay opaque).
 /// Lets any screen jump tabs (the feed's search bar opens the Search tab,
 /// so every entry point lands on ONE search interface).
 @Observable
@@ -83,13 +82,7 @@ struct RootTabView: View {
     }
 
     var body: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                modernTabs
-            } else {
-                legacyTabs
-            }
-        }
+        beliTabs
         .environment(router)
         // Ask Cini floats bottom-right on every page — but only where the
         // on-device model can exist (iOS 26+/27 on Apple Intelligence
@@ -150,30 +143,11 @@ struct RootTabView: View {
         }
     }
 
-    @available(iOS 26.0, *)
-    private var modernTabs: some View {
-        @Bindable var router = router
-        return TabView(selection: $router.selection) {
-            SwiftUI.Tab("Feed", systemImage: "newspaper", value: Tab.feed) {
-                FeedView()
-            }
-            SwiftUI.Tab("Your Lists", systemImage: "list.bullet", value: Tab.lists) {
-                YourListsView()
-            }
-            SwiftUI.Tab("Leaderboard", systemImage: "trophy", value: Tab.leaderboard) {
-                LeaderboardView()
-            }
-            SwiftUI.Tab("Profile", systemImage: "person.crop.circle", value: Tab.profile) {
-                ProfileView()
-            }
-            SwiftUI.Tab(value: Tab.search, role: .search) {
-                SearchView()
-            }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-    }
-
-    private var legacyTabs: some View {
+    /// Beli's bar: a solid, opaque bottom bar with a top hairline, labeled
+    /// icons, and a raised teal `+` in the center for Search. Opaque on every
+    /// OS — `CiniApp` configures `UITabBarAppearance` so iOS 26 doesn't turn
+    /// it into floating Liquid Glass.
+    private var beliTabs: some View {
         @Bindable var router = router
         return TabView(selection: $router.selection) {
             FeedView()

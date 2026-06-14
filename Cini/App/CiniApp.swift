@@ -9,6 +9,26 @@ struct CiniApp: App {
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
 
+    init() {
+        // Beli-style tab bar: a solid, opaque bar with a top hairline — NOT
+        // iOS 26's floating Liquid Glass. Configuring an opaque appearance
+        // opts the classic tab bar out of the glass treatment.
+        let bar = UITabBarAppearance()
+        bar.configureWithOpaqueBackground()
+        bar.backgroundColor = UIColor(Theme.surface)
+        bar.shadowColor = UIColor(Theme.hairline)
+        let item = UITabBarItemAppearance()
+        item.normal.iconColor = UIColor(Theme.gray)
+        item.normal.titleTextAttributes = [.foregroundColor: UIColor(Theme.gray)]
+        item.selected.iconColor = UIColor(Theme.marquee)
+        item.selected.titleTextAttributes = [.foregroundColor: UIColor(Theme.marquee)]
+        bar.stackedLayoutAppearance = item
+        bar.inlineLayoutAppearance = item
+        bar.compactInlineLayoutAppearance = item
+        UITabBar.appearance().standardAppearance = bar
+        UITabBar.appearance().scrollEdgeAppearance = bar
+    }
+
     private var colorScheme: ColorScheme? {
         switch appearance {
         case "light": .light
