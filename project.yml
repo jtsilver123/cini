@@ -22,7 +22,7 @@ settings:
     # Build with the latest (iOS 27 beta) SDK so Liquid Glass paths compile;
     # the app still runs back to iOS 17 via availability checks.
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-    TARGETED_DEVICE_FAMILY: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
 
 targets:
@@ -42,11 +42,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.cini.ios
         INFOPLIST_FILE: Cini/Resources/Info.plist
-        # Must live at the TARGET level: XcodeGen writes its own per-target
-        # default of "1,2" (iPhone+iPad) which overrides the project setting,
-        # and an iPad-capable bundle trips ITMS-90474 (iPad multitasking
-        # requires all four orientations).
-        TARGETED_DEVICE_FAMILY: "1"
+        # Universal (iPhone + iPad). Must live at the TARGET level — XcodeGen
+        # writes its own per-target default that overrides the project setting.
+        # iPad runs portrait-only and full screen (UIRequiresFullScreen in
+        # Info.plist), which opts out of iPad multitasking and so sidesteps
+        # ITMS-90474's "must support all four orientations" requirement.
+        TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         MARKETING_VERSION: "1.0.0"

@@ -120,6 +120,27 @@ run 4; we are now iterating on Apple's upload validator only:
    per_page 1 — parse the oversized JSON overflow file with python),
    then `get_job_logs` (failed_only) if red; repeat until green.
 
+### iPad support enabled (user directive, 2026-06-14)
+
+The app is now a **universal** binary (`TARGETED_DEVICE_FAMILY: "1,2"` at
+both the project and `Cini` target level in `project.yml`). It runs
+**portrait-only and full screen** on iPad — `UISupportedInterfaceOrientations~ipad`
+is Portrait + PortraitUpsideDown, and `UIRequiresFullScreen` stays `true`.
+
+This is *not* a contradiction of the run-5 ITMS-90474 rejection above: that
+failure was an iPad-capable bundle with portrait-only orientations **and no
+`UIRequiresFullScreen`**. The validator's own message offers two fixes —
+include all four orientations, OR "set UIRequiresFullScreen to true to opt
+out of iPad multitasking." We take the second. With fullscreen opt-out
+(plus `UIApplicationSupportsMultipleScenes` = false), portrait-only on iPad
+is accepted. Do NOT revert device family to "1" — iPad support is intended.
+
+No layout code changed: every screen is adaptive SwiftUI on `NavigationStack`
+(no deprecated `NavigationView`/split-view behavior), with no `UIScreen`/
+size-class/idiom branching, so it reflows to the iPad canvas automatically.
+Portrait content is simply wider on iPad; a future polish pass could cap
+content width for a more designed look, but it is functional as-is.
+
 ### UI PRINCIPLE (user directive, 2026-06-11)
 
 **Re-use UI locations and components.** Identical actions live in
