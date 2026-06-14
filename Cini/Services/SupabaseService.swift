@@ -170,9 +170,9 @@ final class SupabaseService {
     func homeZip() async -> String? {
         struct Row: Decodable { let home_zip: String? }
         guard let id = currentUserID else { return nil }
-        let row: Row? = try? await client.from("user_locations")
-            .select("home_zip").eq("user_id", value: id).maybeSingle().execute().value
-        return row?.home_zip
+        let rows: [Row] = (try? await client.from("user_locations")
+            .select("home_zip").eq("user_id", value: id).limit(1).execute().value) ?? []
+        return rows.first?.home_zip
     }
 
     /// Trigram-fuzzy member search (typos in usernames/display names still
