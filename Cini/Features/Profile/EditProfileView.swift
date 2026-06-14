@@ -8,9 +8,9 @@ struct EditProfileView: View {
     var onSaved: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
-    @State private var photoItem: PhotosPickerItem?
     @State private var avatarURL: URL?
     @State private var isUploadingPhoto = false
+    @State private var showCropPicker = false
 
     @State private var displayName: String
     @State private var username: String
@@ -51,7 +51,9 @@ struct EditProfileView: View {
                     VStack(spacing: 12) {
                         AvatarView(url: avatarURL ?? profile.avatarURL, size: 96,
                                    name: profile.displayName.isEmpty ? profile.username : profile.displayName)
-                        PhotosPicker(selection: $photoItem, matching: .images) {
+                        Button {
+                            showCropPicker = true
+                        } label: {
                             if isUploadingPhoto {
                                 ProgressView()
                             } else {
@@ -60,13 +62,16 @@ struct EditProfileView: View {
                                     .foregroundStyle(Theme.marquee)
                             }
                         }
+                        .disabled(isUploadingPhoto)
                     }
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
                 }
-                .onChange(of: photoItem) { _, item in
-                    guard let item else { return }
-                    Task { await uploadPhoto(item) }
+                .sheet(isPresented: $showCropPicker) {
+                    CropImagePicker { image in
+                        Task { await uploadPhoto(image) }
+                    }
+                    .ignoresSafeArea()
                 }
 
                 Section("Identity") {
@@ -176,22 +181,10 @@ struct EditProfileView: View {
         }
     }
 
-    private func uploadPhoto(_ item: PhotosPickerItem) async {
+    private func uploadPhoto(_ image: UIImage) async {
         isUploadingPhoto = true
         defer { isUploadingPhoto = false }
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data) else {
-            errorMessage = "Couldn't read that photo — try another."
-            return
-        }
-        // Avatars render at ~100pt; 512px keeps uploads tiny and sharp.
-        let side: CGFloat = 512
-        let scale = max(side / image.size.width, side / image.size.height)
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
-        guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
+        guard let jpeg = AvatarImage.jpeg(from: image) else {
             errorMessage = "Couldn't process that photo — try another."
             return
         }

@@ -21,9 +21,9 @@ struct OnboardingView: View {
     @State private var displayName = ""
     @State private var usernameError: String?
     @State private var saving = false
-    @State private var photoItem: PhotosPickerItem?
     @State private var avatarURL: URL?
     @State private var isUploadingPhoto = false
+    @State private var showCropPicker = false
     @State private var showImport = false
     @State private var importStartsWithPaste = false
     @State private var starters: [Movie] = []
@@ -162,7 +162,9 @@ struct OnboardingView: View {
             // Photo + name: skipping the photo still shows their initials
             // everywhere, which the avatar previews live as they type.
             VStack(spacing: 8) {
-                PhotosPicker(selection: $photoItem, matching: .images) {
+                Button {
+                    showCropPicker = true
+                } label: {
                     ZStack(alignment: .bottomTrailing) {
                         AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 84,
                                    name: displayName.isEmpty ? username : displayName)
@@ -181,9 +183,11 @@ struct OnboardingView: View {
                         .foregroundStyle(Theme.gray)
                 }
             }
-            .onChange(of: photoItem) { _, item in
-                guard let item else { return }
-                Task { await uploadPhoto(item) }
+            .sheet(isPresented: $showCropPicker) {
+                CropImagePicker { image in
+                    Task { await uploadPhoto(image) }
+                }
+                .ignoresSafeArea()
             }
 
             VStack(spacing: 10) {
@@ -274,22 +278,10 @@ struct OnboardingView: View {
         return Theme.gray
     }
 
-    private func uploadPhoto(_ item: PhotosPickerItem) async {
+    private func uploadPhoto(_ image: UIImage) async {
         isUploadingPhoto = true
         defer { isUploadingPhoto = false }
-        guard let data = try? await item.loadTransferable(type: Data.self),
-              let image = UIImage(data: data) else {
-            ToastCenter.shared.show("Couldn't read that photo — try another.")
-            return
-        }
-        // Avatars render at ~100pt; 512px keeps uploads tiny and sharp.
-        let side: CGFloat = 512
-        let scale = max(side / image.size.width, side / image.size.height)
-        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let resized = UIGraphicsImageRenderer(size: size).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
-        guard let jpeg = resized.jpegData(compressionQuality: 0.82) else {
+        guard let jpeg = AvatarImage.jpeg(from: image) else {
             ToastCenter.shared.show("Couldn't process that photo — try another.")
             return
         }

@@ -51,7 +51,34 @@ def sign_in():
     if status != 200:
         print(f"FATAL: sign-in failed ({status}): {body[:200]}")
         sys.exit(1)
-    return json.loads(body)["access_token"]
+    data = json.loads(body)
+    return data["access_token"], data["user"]["id"]
+
+def storage_raw(method, path, token, data=None, content_type=None):
+    """Storage REST call with a binary body (avatar upload uses bytes,
+    not JSON — the JSON http() helper can't exercise this path)."""
+    req = urllib.request.Request(URL + path, method=method)
+    req.add_header("apikey", KEY)
+    req.add_header("Authorization", f"Bearer {token}")
+    if content_type:
+        req.add_header("Content-Type", content_type)
+        req.add_header("x-upsert", "true")
+    try:
+        with urllib.request.urlopen(req, data) as resp:
+            return resp.status, resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()
+
+def check_storage(token, uid, record):
+    """Avatar upload smoke test — uploads a 1-byte object to the demo
+    user's avatar path and deletes it. Catches Storage RLS gaps (the
+    missing-SELECT-policy class) that PostgREST checks can't see."""
+    path = f"/storage/v1/object/avatars/{uid}.jpg"
+    status, body = storage_raw("POST", path, token, data=b"\xff",
+                               content_type="image/jpeg")
+    record("storage", "avatar_upload", status, body)
+    if status in (200, 201):
+        storage_raw("DELETE", f"/storage/v1/object/avatars/{uid}.jpg", token)
 
 # Every read query the app makes: (name, table, select string).
 # Keep in sync with SupabaseService.swift — the select strings are verbatim.
@@ -126,7 +153,7 @@ def is_contract_error(status, body):
 
 def main():
     write_mode = "--write" in sys.argv
-    token = sign_in()
+    token, uid = sign_in()
     failures = []
 
     def record(kind, name, status, body):
@@ -146,6 +173,9 @@ def main():
             "GET", f"/rest/v1/{table}?select={urllib.parse.quote(select)}&limit=1",
             token=token)
         record("read", name, status, body)
+
+    print("== storage ==")
+    check_storage(token, uid, record)
 
     print("== rpcs ==")
     for name, params in RPCS:
