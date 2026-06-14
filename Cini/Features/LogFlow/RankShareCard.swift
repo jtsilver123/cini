@@ -146,6 +146,25 @@ struct ScoreRevealPlaceholder: View {
     }
 }
 
+/// One-shot ripple that expands and fades behind the score the instant it
+/// lands — the little "ta-da" that makes the reveal feel earned.
+struct ScoreRevealRing: View {
+    var size: CGFloat = 64
+    @State private var go = false
+
+    var body: some View {
+        Circle()
+            .stroke(Theme.marquee, lineWidth: 2.5)
+            .frame(width: size, height: size)
+            .scaleEffect(go ? 1.9 : 0.85)
+            .opacity(go ? 0 : 0.85)
+            .onAppear {
+                withAnimation(.easeOut(duration: 0.65)) { go = true }
+            }
+            .allowsHitTesting(false)
+    }
+}
+
 /// The rendered share image: a fully-revealed ticket with pre-fetched
 /// poster + avatar bitmaps (ImageRenderer can't wait on async images).
 struct RankShareCard: View {

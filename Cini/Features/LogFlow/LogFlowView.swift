@@ -526,6 +526,7 @@ struct LogFlowView: View {
                 score: {
                     if scoreRevealed {
                         ScoreBadge(score: scored.score, size: 64)
+                            .overlay { ScoreRevealRing(size: 64) }
                             .transition(.scale(scale: 0.4).combined(with: .opacity))
                     } else {
                         // Calculates on its own, then springs in — no tap.
