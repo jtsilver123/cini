@@ -11,16 +11,32 @@ final class ToastCenter {
     static let shared = ToastCenter()
 
     private(set) var message: String?
+    private(set) var undo: (() -> Void)?
     private var hideTask: Task<Void, Never>?
 
-    func show(_ text: String) {
+    func show(_ text: String) { present(text, undo: nil, seconds: 2.4) }
+
+    /// A reversible action gets a few extra seconds and an Undo button.
+    func showUndo(_ text: String, undo: @escaping () -> Void) {
+        present(text, undo: undo, seconds: 4.5)
+    }
+
+    private func present(_ text: String, undo: (() -> Void)?, seconds: Double) {
         hideTask?.cancel()
-        withAnimation(.snappy) { message = text }
+        withAnimation(.snappy) { message = text; self.undo = undo }
         hideTask = Task {
-            try? await Task.sleep(for: .seconds(2.4))
+            try? await Task.sleep(for: .seconds(seconds))
             guard !Task.isCancelled else { return }
-            withAnimation(.snappy) { self.message = nil }
+            withAnimation(.snappy) { self.message = nil; self.undo = nil }
         }
+    }
+
+    func performUndo() {
+        let action = undo
+        hideTask?.cancel()
+        Haptics.tap()
+        withAnimation(.snappy) { message = nil; undo = nil }
+        action?()
     }
 
     /// The standard write-failure line.
@@ -30,7 +46,8 @@ final class ToastCenter {
     }
 }
 
-/// Floating capsule above the tab bar; never intercepts touches.
+/// Floating capsule above the tab bar; never intercepts touches except for
+/// an Undo button.
 struct ToastOverlay: View {
     @State private var center = ToastCenter.shared
 
@@ -38,25 +55,35 @@ struct ToastOverlay: View {
         VStack {
             Spacer()
             if let message = center.message {
-                Text(message)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 12)
-                    .background(
-                        Capsule()
-                            .fill(Theme.surface2)
-                            .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
-                            .shadow(color: Theme.cardShadow, radius: 12, y: 4)
-                    )
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 96)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                HStack(spacing: 14) {
+                    Text(message)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    if center.undo != nil {
+                        Button("Undo") { center.performUndo() }
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(Theme.marquee)
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule()
+                        .fill(Theme.surface2)
+                        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                        .shadow(color: Theme.cardShadow, radius: 12, y: 4)
+                )
+                .padding(.horizontal, 32)
+                .padding(.bottom, 96)
+                // Only the Undo capsule should catch touches; a plain toast
+                // must let taps fall through to the UI underneath.
+                .allowsHitTesting(center.undo != nil)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .allowsHitTesting(false)
     }
 }
 

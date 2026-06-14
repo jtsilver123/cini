@@ -768,6 +768,13 @@ struct YourListsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { if !reorderMode { detailMovie = movie } }
                         .listRowBackground(Theme.background)
+                        .swipeActions(edge: .trailing) {
+                            Button {
+                                Haptics.tap()
+                                logMovie = movie
+                            } label: { Label("Rank again", systemImage: "arrow.2.squarepath") }
+                            .tint(Theme.marquee)
+                        }
                 }
             }
             .onMove { from, to in
@@ -845,6 +852,23 @@ struct YourListsView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { detailMovie = movie }
                     .listRowBackground(Theme.background)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            Task {
+                                await store.toggleWatchlist(movie: movie)   // remove
+                                ToastCenter.shared.showUndo("Removed from Want to Watch") {
+                                    Task { await store.toggleWatchlist(movie: movie) }   // re-add
+                                }
+                            }
+                        } label: { Label("Remove", systemImage: "bookmark.slash") }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            Haptics.tap()
+                            logMovie = movie
+                        } label: { Label("Rank", systemImage: "plus.circle") }
+                        .tint(Theme.marquee)
+                    }
                 }
             }
         }

@@ -487,9 +487,38 @@ struct FeedCard: View {
     @State private var liked = false
     @State private var likeInFlight = false
     @State private var showComments = false
+    @State private var heartPop = false
 
     private var movie: Movie? { event.movies?.asMovie }
     private var actorName: String { event.profiles?.username ?? "someone" }
+
+    /// Toggle the like with optimistic UI + revert on failure (shared by the
+    /// heart button and the double-tap gesture).
+    private func toggleLike() {
+        guard !likeInFlight else { return }
+        likeInFlight = true
+        Haptics.tap()
+        liked.toggle()
+        Task {
+            defer { likeInFlight = false }
+            do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
+            catch {
+                liked.toggle()
+                ToastCenter.shared.saveFailed()
+            }
+        }
+    }
+
+    /// Double-tap the card to like (Instagram-style) — only ever likes, never
+    /// unlikes, and pops a heart.
+    private func doubleTapLike() {
+        if !liked { toggleLike() }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { heartPop = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            withAnimation(.easeOut(duration: 0.25)) { heartPop = false }
+        }
+    }
 
     private var headline: Text {
         let title = Text(movie?.title ?? "a movie").bold()
@@ -534,18 +563,7 @@ struct FeedCard: View {
 
             HStack(spacing: 18) {
                 Button {
-                    guard !likeInFlight else { return }
-                    likeInFlight = true
-                    Haptics.tap()
-                    liked.toggle()   // optimistic; reverted if the call fails
-                    Task {
-                        defer { likeInFlight = false }
-                        do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
-                        catch {
-                            liked.toggle()
-                            ToastCenter.shared.saveFailed()
-                        }
-                    }
+                    toggleLike()
                 } label: {
                     Image(systemName: liked ? "heart.fill" : "heart")
                         .foregroundStyle(liked ? .red : Theme.ink)
@@ -605,9 +623,21 @@ struct FeedCard: View {
                     .padding(12)
             }
         }
+        // Double-tap to like, Instagram-style — a heart pops in the center.
+        .overlay {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.3), radius: 8)
+                .scaleEffect(heartPop ? 1 : 0.5)
+                .opacity(heartPop ? 0.95 : 0)
+                .allowsHitTesting(false)
+        }
         // The whole card opens the referenced title; the action buttons
-        // inside still win their own taps.
+        // inside still win their own taps. Double-tap likes before single-tap
+        // opens, so SwiftUI disambiguates correctly.
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) { doubleTapLike() }
         .onTapGesture {
             if let movie { onOpenMovie(movie) }
         }

@@ -266,6 +266,17 @@ struct CustomListScreen: View {
             if failed {
                 movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? movieIDs
                 ToastCenter.shared.saveFailed()
+            } else {
+                ToastCenter.shared.showUndo(
+                    doomed.count == 1 ? "Removed from list" : "Removed \(doomed.count) from list"
+                ) {
+                    Task {
+                        for id in doomed {
+                            try? await SupabaseService.shared.addToList(list.id, movieID: id)
+                        }
+                        movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? movieIDs
+                    }
+                }
             }
         }
     }
