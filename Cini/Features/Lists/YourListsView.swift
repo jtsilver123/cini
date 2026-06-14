@@ -41,6 +41,12 @@ struct YourListsView: View {
     @State private var showEditLists = false
     @State private var showNewList = false
     @State private var newListName = ""
+    @State private var showDeleteListConfirm = false
+
+    /// The custom list currently open as a tab, if any.
+    private var selectedList: CustomList? {
+        selectedListID.flatMap { id in customLists.first { $0.id == id } }
+    }
 
     private var hiddenTabs: Set<String> {
         Set(hiddenTabsRaw.split(separator: ",").map(String.init))
@@ -136,6 +142,25 @@ struct YourListsView: View {
                 Button("Cancel", role: .cancel) { newListName = "" }
             } message: {
                 Text("Add movies to it from any movie page with \"Add to List\".")
+            }
+            // A whole list is hours of curation — deleting one confirms.
+            .confirmationDialog(
+                "Delete \"\(selectedList?.name ?? "this list")\"?",
+                isPresented: $showDeleteListConfirm, titleVisibility: .visible
+            ) {
+                Button("Delete list", role: .destructive) {
+                    guard let doomed = selectedList else { return }
+                    // Snap back to Watched, then delete through the store so
+                    // every surface (tabs, the add-to-list picker) agrees.
+                    withAnimation(.snappy) { selectedListID = nil; subTab = .watched }
+                    Task {
+                        await store.deleteList(doomed.id)
+                        customLists = store.customLists
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Its movies stay on your other lists — only this list goes.")
             }
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
@@ -283,6 +308,15 @@ struct YourListsView: View {
                         showImport = true
                     } label: {
                         Label("Import Existing List", systemImage: "square.and.arrow.down")
+                    }
+                    // Deleting a custom list lives where you're viewing it.
+                    if let selectedList {
+                        Divider()
+                        Button(role: .destructive) {
+                            showDeleteListConfirm = true
+                        } label: {
+                            Label("Delete \"\(selectedList.name)\"", systemImage: "trash")
+                        }
                     }
                 } label: {
                     Image(systemName: "ellipsis")

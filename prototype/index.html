@@ -1613,10 +1613,10 @@ function openCustomLists(){
         <button class="pill" onclick="toast('List created — add movies from any movie page')">Create</button>
       </div>
       ${[["Date night",2,"past,poor"],["2023 catch-up",3,"opp,hold,anat"]].map(([n,c,keys])=>`
-        <div class="erow" onclick="toast('${n} — full list page in the app')">
+        <div class="erow">
           <span class="ic" style="color:var(--marquee);">${I("star",18)}</span>
-          <span style="flex:1; font-weight:600;">${n}<div class="sub" style="margin-top:1px;">${c} titles</div></span>
-          <span class="sub">${I("chevR",14)}</span>
+          <span style="flex:1; font-weight:600; cursor:pointer;" onclick="toast('${n} — full list page in the app')">${n}<div class="sub" style="margin-top:1px;">${c} titles</div></span>
+          <button class="iconbtn" style="color:var(--red);" onclick="event.stopPropagation(); if(confirm('Delete &quot;${n}&quot;? Its movies stay on your other lists.')) toast('List deleted')">${I("trash",17)}</button>
         </div>`).join("")}
       <div class="sub" style="margin-top:10px; font-size:11.5px;">Add any movie from its page with "Add to List".</div>
     </div>`);
