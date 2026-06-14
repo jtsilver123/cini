@@ -177,6 +177,10 @@ def main():
     print("== storage ==")
     check_storage(token, uid, record)
 
+    # global_rank needs the live uid, so it can't sit in the static list.
+    status, body = http("POST", "/rest/v1/rpc/global_rank", {"p_user": uid}, token=token)
+    record("rpc", "global_rank", status, body)
+
     print("== rpcs ==")
     for name, params in RPCS:
         status, body = http("POST", f"/rest/v1/rpc/{name}", params, token=token)
