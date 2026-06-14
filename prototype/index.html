@@ -181,6 +181,14 @@
   @keyframes fadeUp{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
   @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
   @keyframes popIn{0%{transform:scale(.55); opacity:0;} 65%{transform:scale(1.12);} 100%{transform:scale(1); opacity:1;}}
+  @keyframes spin360{to{transform:rotate(360deg);}}
+  /* "Calculating your score" — a spinning arc around the badge. */
+  .calcwrap{position:relative; width:52px; height:52px;}
+  .calcwrap .calcring{position:absolute; inset:-3px; border-radius:50%;
+    background:conic-gradient(var(--marquee) 0 80deg, transparent 80deg 360deg);
+    -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    mask:radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+    animation:spin360 .7s linear infinite;}
   @keyframes heartPop{0%{transform:scale(1);} 35%{transform:scale(1.5) rotate(-6deg);} 100%{transform:scale(1);}}
   @keyframes flashRow{0%{background:var(--gold-soft);} 100%{background:transparent;}}
   @keyframes heroZoom{from{transform:scale(1.06); opacity:.6;} to{transform:scale(1); opacity:1;}}
@@ -1792,7 +1800,7 @@ function logCards(){
     // ticket (score screen) a beat later — tap to reveal early.
     const scoreSlot = log.revealed
       ? `<div class="badge result ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`
-      : `<div class="badge" style="background:var(--surface); border:1.8px solid var(--hair); color:var(--gray); cursor:pointer;" onclick="revealScore()">…</div>`;
+      : `<div class="calcwrap"><div class="calcring"></div><div class="badge" id="calcBadge" style="background:var(--surface); color:var(--gray);">5.0</div></div>`;
     html+=`
       <div class="fcard ticket" style="text-align:center;">
         <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;">
@@ -1814,7 +1822,7 @@ function logCards(){
         ${log.revealed?`<div style="display:flex; gap:10px;">
           <button class="pill out" style="flex:1; justify-content:center; padding:12px;" onclick="share('${esc(m.t)} — ranked #${e.rank} on Cini')">${I("send",16)} Share</button>
           <button class="pill" style="flex:1; justify-content:center; padding:12px;" onclick="finishLog()">Done</button>
-        </div>`:`<div class="sub" style="font-size:12px;">Tap to reveal your score</div>`}
+        </div>`:`<div class="sub" style="font-size:12px;">Calculating your score…</div>`}
       </div>`;
   }
   return html;
@@ -1865,11 +1873,22 @@ function commitLog(pos){
   if(!S.rankedThisWeek){ S.streak++; S.rankedThisWeek=true; }
   S.activity.unshift({kind:"ranked", k:log.k, when:"just now"}); S.activity=S.activity.slice(0,8);
   log.stage="result"; log.revealed=false; save(); refreshLog();
-  // Auto-reveal the score a beat after the ticket lands (suspense → payoff).
-  setTimeout(()=>{ if(log && log.stage==="result") revealScore(); }, 850);
+  // The score "calculates" (flickering digits) then auto-reveals — no tap.
+  startCalc();
+  setTimeout(()=>{ if(log && log.stage==="result") revealScore(); }, 1000);
+}
+let _calcInt=null;
+function startCalc(){
+  clearInterval(_calcInt);
+  _calcInt=setInterval(()=>{
+    const b=document.getElementById("calcBadge");
+    if(!b || !log || log.revealed){ clearInterval(_calcInt); return; }
+    b.textContent=(Math.random()*8.4+1.5).toFixed(1);
+  }, 70);
 }
 function revealScore(){
   if(!log || log.revealed) return;
+  clearInterval(_calcInt);
   log.revealed=true; buzz(); refreshLog();
 }
 let _flashKey=null;

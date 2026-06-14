@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import RankingEngine
 
 // The shareable "ticket" and the in-app result card are the SAME design —
@@ -107,31 +108,41 @@ struct RankTicket<Poster: View, Avatar: View, Score: View>: View {
     }
 }
 
-/// The pre-reveal score circle — a pulsing "…" that occupies the exact
-/// footprint of the real `ScoreBadge`, so the reveal swaps in place with
-/// no layout jump. This is the "rating screen" before it becomes the
-/// "score screen".
+/// The pre-reveal score circle — a spinning arc with the number flickering,
+/// so it reads as "calculating your score" before the real `ScoreBadge`
+/// springs in (no tap needed). Occupies the exact footprint of the badge so
+/// the reveal swaps in place with no layout jump.
 struct ScoreRevealPlaceholder: View {
     var size: CGFloat = 64
-    @State private var pulse = false
+    @State private var spin = false
+    @State private var flicker = 5.0
+    private let tick = Timer.publish(every: 0.06, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        Circle()
-            .strokeBorder(Theme.hairline, lineWidth: 1.8)
-            .background(Circle().fill(Theme.surface))
-            .frame(width: size, height: size)
-            .overlay(
-                Text("…")
-                    .font(.system(size: size * 0.4, weight: .bold))
-                    .foregroundStyle(Theme.gray)
-                    .offset(y: -size * 0.08)
-            )
-            .opacity(pulse ? 0.55 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                    pulse = true
-                }
+        ZStack {
+            Circle()
+                .fill(Theme.surface)
+                .frame(width: size, height: size)
+                .shadow(color: Theme.cardShadow, radius: 4, y: 2)
+            // Indeterminate "computing" arc.
+            Circle()
+                .trim(from: 0, to: 0.22)
+                .stroke(Theme.marquee, style: StrokeStyle(lineWidth: size * 0.05, lineCap: .round))
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(spin ? 360 : 0))
+            Text(flicker, format: .number.precision(.fractionLength(1)))
+                .font(.system(size: size * 0.32, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(Theme.gray.opacity(0.7))
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 0.7).repeatForever(autoreverses: false)) {
+                spin = true
             }
+        }
+        .onReceive(tick) { _ in
+            flicker = Double.random(in: 1...9.9)
+        }
     }
 }
 

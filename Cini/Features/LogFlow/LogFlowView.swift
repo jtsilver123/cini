@@ -528,9 +528,8 @@ struct LogFlowView: View {
                         ScoreBadge(score: scored.score, size: 64)
                             .transition(.scale(scale: 0.4).combined(with: .opacity))
                     } else {
-                        // Tap to reveal early, or it springs in on its own.
+                        // Calculates on its own, then springs in — no tap.
                         ScoreRevealPlaceholder(size: 64)
-                            .onTapGesture { revealScore() }
                     }
                 }
             )
@@ -583,13 +582,13 @@ struct LogFlowView: View {
         .foregroundStyle(Theme.marquee)
     }
 
-    /// Auto-reveal a beat after the ticket lands, so the "…" registers as
-    /// suspense before the score springs in.
+    /// Auto-reveal a beat after the ticket lands, so the calculating
+    /// animation registers before the score springs in.
     private func scheduleReveal() {
         guard !didScheduleReveal else { return }
         didScheduleReveal = true
         Task {
-            try? await Task.sleep(for: .milliseconds(850))
+            try? await Task.sleep(for: .milliseconds(1000))
             revealScore()
         }
     }
