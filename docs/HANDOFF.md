@@ -1,11 +1,36 @@
 # HANDOFF — read this first in any new session
 
-**STATUS (2026-06-11 evening): preparing App Store submission.** Build
-1.0.37 (run 27358267832, commit d608b08) is on TestFlight; the NEXT
-build (user-requested, gated on CI for 46e2e6d) carries the big
-data-layer fixes below plus push deep links and final UI polish.
-Migrations through **0028** applied to prod and mirrored in
-supabase/migrations/.
+> **New here? Read `CLAUDE.md` (repo root) first** — it's the operating
+> manual (golden rules, repo map, workflow, build policy). `docs/DESIGN.md`
+> is the design system. This file is the running status log + build history.
+
+**STATUS (2026-06-14): on TestFlight, iterating on UX polish.** Migrations
+through **0042** applied to prod and mirrored in `supabase/migrations/`
+(latest: `0042_avatar_storage_policies.sql`). Edge functions deployed +
+mirrored: `send-push`, `import-upload`, `availability-alerts`,
+`showtime-alerts`. A user-requested build was triggered 2026-06-14 off
+`claude/ecstatic-cori-k7s2n0` (CI green on the head commit).
+
+**Recent UX/data work (2026-06-14 session):**
+- **Avatar fix + crop.** Root cause of "profile photo won't update" was a
+  missing **SELECT** policy on the `avatars` Storage bucket (an upload's
+  `INSERT … RETURNING` needs SELECT; Storage returns 400 on the RLS deny) —
+  fixed in migration **0042** (live, so it works on existing builds too).
+  Added a native square crop (`CropImagePicker`) + one orientation-safe
+  avatar path (`AvatarImage.jpeg`). `contract_check.py` gained a **Storage
+  upload/delete smoke test** so this class of gap can't slip CI again.
+- **Feed `(+)` reflects ranked state.** `ArtworkQuickActions` is now
+  ranked-aware (green check + "rank again", bookmark hidden once watched),
+  matching the movie page.
+- **Rank result redesign.** New `RankTicket` (one source of truth for the
+  in-app result card and the shared image): personal header (avatar + name +
+  @handle + CINI marquee) over the admit-one ticket. **Two-step reveal** —
+  the score "calculates" (`ScoreRevealPlaceholder`: spinning arc + flickering
+  number, auto-reveals, no tap) then springs in with a haptic + ripple
+  (`ScoreRevealRing`). All mirrored in the prototype.
+- **Cache-coherence sweep.** All list create/delete now route through
+  `RankingStore` (fixed "phantom" deleted lists). `import-upload` now surfaces
+  a 500 instead of silently returning ok on a failed status write.
 
 **The silent-contract-drift saga (critical context):** three production
 features were broken invisibly because server schema drifted under
@@ -131,7 +156,7 @@ and shipped on request only — Apple caps uploads per app per day
 - Old App-Manager key `J4369F4GMF`: unused — user should revoke
 - Bundle ID: `app.cini.ios` · App record created in App Store Connect
 - Supabase project: `npumchnkbcajyuhurgez` (user's personal org; the
-  Supabase MCP in new sessions connects to it). Migrations 0001–0028
+  Supabase MCP in new sessions connects to it). Migrations 0001–0042
   applied; advisors clean (SECURITY DEFINER WARNs are intentional
   authenticated RPCs; leaked-password WARN is N/A on free plan); pg_cron:
   nightly taste-match + predicted-cache-nightly
