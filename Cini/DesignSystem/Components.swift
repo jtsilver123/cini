@@ -238,26 +238,35 @@ struct ArtworkQuickActions: View {
     @Environment(RankingStore.self) private var store
     @State private var showSaveSheet = false
 
+    // Already ranked? Mirror the movie page: a green check (tap to rank
+    // again) replaces the (+), and the bookmark drops away — a rank means
+    // watched, so "save to watch later" no longer makes sense.
+    private var isRanked: Bool { store.isWatched(movie.tmdbID) }
+
     var body: some View {
         HStack(spacing: 14) {
             Button {
                 onLog(movie)
             } label: {
-                Image(systemName: "plus.circle")
-                    .foregroundStyle(.white)
+                Image(systemName: isRanked ? "checkmark.circle.fill" : "plus.circle")
+                    .foregroundStyle(isRanked ? Theme.scoreGreen : .white)
                     .padding(8)
                     .background(Circle().fill(.black.opacity(0.45)))
             }
             .buttonStyle(.plain)
-            Button {
-                bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
-            } label: {
-                Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
-                    .padding(8)
-                    .background(Circle().fill(.black.opacity(0.45)))
+            .accessibilityLabel(isRanked ? "Ranked — rank again" : "Rank this")
+            if !isRanked {
+                Button {
+                    bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
+                } label: {
+                    Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                        .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                        .padding(8)
+                        .background(Circle().fill(.black.opacity(0.45)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(store.isOnWatchlist(movie.tmdbID) ? "On your watchlist" : "Add to watchlist")
             }
-            .buttonStyle(.plain)
         }
         .font(.title3)
         .sheet(isPresented: $showSaveSheet) {

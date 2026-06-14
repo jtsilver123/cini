@@ -557,6 +557,7 @@ function toggleFollow(u){
 function renderFeed(){
   const cards = FEED.map(e=>{
     const m=MOVIES[e.movie];
+    const fRanked = !!myEntry(e.movie);
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
     const headline = e.kind==="ranked"
       ? `${name} ranked <b>${m.t}</b>`
@@ -579,8 +580,8 @@ function renderFeed(){
       </div>
       ${e.kind==="ranked"?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
       <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
-        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="openLog('${e.movie}')">${I("plus",18)}</button>
-        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${fRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${e.movie}')">${fRanked?I("check",18):I("plus",18)}</button>
+        ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
       </div>
     </div>`;
   }).join("");
