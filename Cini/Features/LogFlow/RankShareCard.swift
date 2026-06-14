@@ -1,56 +1,182 @@
 import SwiftUI
 import RankingEngine
 
-// The shareable "ticket" — rendered to an image for the share sheet
-// (IG stories, iMessage). Same admit-one language as the in-app result
-// card, sized for a story crop.
+// The shareable "ticket" and the in-app result card are the SAME design —
+// one `RankTicket` view, so what people screenshot matches what they just
+// saw reveal. Cinema admit-one language, our brand, movies + TV.
 
-struct RankShareCard: View {
+/// The cinema-ticket result card. Generic over its poster / avatar / score
+/// slots so the live in-app card (async images, animated score reveal) and
+/// the rendered share image (pre-fetched UIImages, static score) share all
+/// the chrome and never drift apart.
+struct RankTicket<Poster: View, Avatar: View, Score: View>: View {
     let movie: Movie
-    let scored: ScoredItem<Int>
-    let poster: UIImage?
+    let rank: Int
+    let name: String
+    let handle: String
+    var streakWeeks: Int = 0
+    /// nil in-app (fills the card width); fixed for the rendered share image.
+    var width: CGFloat? = nil
+    @ViewBuilder var poster: () -> Poster
+    @ViewBuilder var avatar: () -> Avatar
+    @ViewBuilder var score: () -> Score
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("ADMIT ONE · CINI")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(4)
-                .foregroundStyle(Theme.gray)
-            if let poster {
-                Image(uiImage: poster)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 210, height: 315)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+        VStack(spacing: 14) {
+            // Whose take this is — leads the card so it reads as personal
+            // and shareable, with the marquee opposite (Beli's wordmark spot).
+            HStack(spacing: 9) {
+                avatar()
+                    .frame(width: 38, height: 38)
+                    .clipShape(Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                    Text("@\(handle)")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text("CINI")
+                    .font(.system(size: 12, weight: .heavy))
+                    .tracking(3)
+                    .foregroundStyle(Theme.marquee)
             }
-            Text(movie.title)
-                .font(Theme.serif(26))
-                .foregroundStyle(Theme.ink)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            // TV badge rides bylineText — shows and movies share the ticket.
-            if !movie.bylineText.isEmpty {
-                Text(movie.bylineText)
-                    .font(.caption)
-                    .foregroundStyle(Theme.gray)
-                    .lineLimit(1)
-            }
-            HStack(spacing: 16) {
-                (Text("Ranked ") + Text("#\(scored.rank)").foregroundStyle(Theme.gold))
-                    .font(.title3.weight(.bold))
+
+            poster()
+                .frame(width: 150, height: 225)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .shadow(color: Theme.cardShadow, radius: 10, y: 5)
+
+            VStack(spacing: 3) {
+                Text(movie.title)
+                    .font(Theme.serif(24))
                     .foregroundStyle(Theme.ink)
-                ScoreBadge(score: scored.score, size: 52)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                if !movie.bylineText.isEmpty {
+                    Text(movie.bylineText)
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
+                }
             }
+
+            // The payoff — the big score in its circle.
+            score()
+
+            (Text("Ranked ") + Text("#\(rank)").foregroundStyle(Theme.gold))
+                .font(.title3.weight(.bold))
+                .foregroundStyle(Theme.ink)
+            Text("on your Watched list")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+
+            if streakWeeks > 0 {
+                HStack(spacing: 5) {
+                    Image(systemName: "flame.fill").font(.caption2)
+                    Text(streakWeeks == 1 ? "Streak started" : "\(streakWeeks)-week streak")
+                        .font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(Theme.gold)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Theme.gold.opacity(0.12)))
+            }
+
+            // Ticket perforation + admit-one footer.
             Line()
                 .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
                 .foregroundStyle(Theme.hairline)
                 .frame(height: 1)
-            Text("cini")
-                .font(Theme.wordmark)
-                .foregroundStyle(Theme.marquee)
+                .padding(.top, 2)
+            Text("ADMIT ONE · CINI")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(3.5)
+                .foregroundStyle(Theme.gray)
         }
-        .padding(28)
-        .frame(width: 360)
-        .background(Theme.background)
+        .padding(24)
+        .frame(maxWidth: width ?? .infinity)
+        .background(Theme.surface)
+    }
+}
+
+/// The pre-reveal score circle — a pulsing "…" that occupies the exact
+/// footprint of the real `ScoreBadge`, so the reveal swaps in place with
+/// no layout jump. This is the "rating screen" before it becomes the
+/// "score screen".
+struct ScoreRevealPlaceholder: View {
+    var size: CGFloat = 64
+    @State private var pulse = false
+
+    var body: some View {
+        Circle()
+            .strokeBorder(Theme.hairline, lineWidth: 1.8)
+            .background(Circle().fill(Theme.surface))
+            .frame(width: size, height: size)
+            .overlay(
+                Text("…")
+                    .font(.system(size: size * 0.4, weight: .bold))
+                    .foregroundStyle(Theme.gray)
+                    .offset(y: -size * 0.08)
+            )
+            .opacity(pulse ? 0.55 : 1)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            }
+    }
+}
+
+/// The rendered share image: a fully-revealed ticket with pre-fetched
+/// poster + avatar bitmaps (ImageRenderer can't wait on async images).
+struct RankShareCard: View {
+    let movie: Movie
+    let scored: ScoredItem<Int>
+    let poster: UIImage?
+    var name: String = ""
+    var handle: String = ""
+    var avatar: UIImage?
+    var streakWeeks: Int = 0
+
+    var body: some View {
+        RankTicket(
+            movie: movie,
+            rank: scored.rank,
+            name: name.isEmpty ? "—" : name,
+            handle: handle,
+            streakWeeks: streakWeeks,
+            width: 360,
+            poster: {
+                if let poster {
+                    Image(uiImage: poster).resizable().scaledToFill()
+                } else {
+                    Rectangle().fill(Theme.gray.opacity(0.18))
+                        .overlay(Image(systemName: "film").font(.title).foregroundStyle(Theme.gray))
+                }
+            },
+            avatar: {
+                if let avatar {
+                    Image(uiImage: avatar).resizable().scaledToFill()
+                } else {
+                    Circle().fill(Theme.marqueeSoft)
+                        .overlay(
+                            Text(initials)
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .foregroundStyle(Theme.marquee)
+                        )
+                }
+            },
+            score: { ScoreBadge(score: scored.score, size: 64) }
+        )
+    }
+
+    private var initials: String {
+        let words = name.split(separator: " ").prefix(2)
+        return words.compactMap { $0.first.map(String.init) }.joined().uppercased()
     }
 }

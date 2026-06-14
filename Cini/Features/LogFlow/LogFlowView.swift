@@ -47,6 +47,10 @@ struct LogFlowView: View {
     @State private var enrichRow: EnrichmentCard.Row?
     @State private var movieCast: [CastMember] = []
     @State private var shareImage: Image?
+    // Two-step reveal: the result lands as a "…" ticket (rating screen),
+    // then the score springs in (score screen) — Beli's flow, our brand.
+    @State private var scoreRevealed = false
+    @State private var didScheduleReveal = false
     // Filing destination next to the media chip: nil = Want to Watch.
     @State private var targetList: CustomList?
     @State private var myLists: [CustomList] = []
@@ -508,79 +512,94 @@ struct LogFlowView: View {
     // MARK: Card 6 — result
 
     private func resultCard(_ scored: ScoredItem<Int>) -> some View {
-        VStack(spacing: 14) {
-            Text("ADMIT ONE · CINI")
-                .font(.system(size: 10, weight: .bold))
-                .tracking(3.5)
-                .foregroundStyle(Theme.gray)
-            if let streak = appSession.profile?.streakWeeks, streak > 0 {
-                HStack(spacing: 5) {
-                    Image(systemName: "flame.fill").font(.caption)
-                    Text(streak == 1 ? "Streak started" : "\(streak)-week streak alive")
-                        .font(.caption.weight(.bold))
-                }
-                .foregroundStyle(Theme.gold)
-            }
-            HStack(spacing: 14) {
-                PosterView(url: movie.posterURL, width: 52)
-                VStack(alignment: .leading, spacing: 3) {
-                    (Text("Ranked ") + Text("#\(scored.rank)").foregroundStyle(Theme.gold))
-                        .font(.title3.weight(.bold))
-                    Text("on your Watched list").font(.subheadline).foregroundStyle(Theme.gray)
-                }
-                Spacer()
-                ScoreBadge(score: scored.score, size: 56)
-                    .transition(.scale(scale: 0.5).combined(with: .opacity))
-            }
-            // Ticket perforation
-            Line()
-                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
-                .foregroundStyle(Theme.hairline)
-                .frame(height: 1)
-            HStack(spacing: 10) {
-                if let shareImage {
-                    // Styled to match PillButton's outlined look on both
-                    // OS generations — paired buttons must read as a pair.
-                    if #available(iOS 26.0, *) {
-                        ShareLink(
-                            item: shareImage,
-                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
-                                                  image: shareImage)
-                        ) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Share").font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(Theme.marquee)
-                        }
-                        .buttonStyle(.glass)
+        let profile = appSession.profile
+        let name = (profile?.displayName.isEmpty == false ? profile!.displayName : (profile?.username ?? ""))
+        return VStack(spacing: 16) {
+            RankTicket(
+                movie: movie,
+                rank: scored.rank,
+                name: name,
+                handle: profile?.username ?? "",
+                streakWeeks: profile?.streakWeeks ?? 0,
+                poster: { PosterView(url: movie.posterURL, width: 150) },
+                avatar: { AvatarView(url: profile?.avatarURL, size: 38, name: name) },
+                score: {
+                    if scoreRevealed {
+                        ScoreBadge(score: scored.score, size: 64)
+                            .transition(.scale(scale: 0.4).combined(with: .opacity))
                     } else {
-                        ShareLink(
-                            item: shareImage,
-                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
-                                                  image: shareImage)
-                        ) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.subheadline.weight(.semibold))
-                                Text("Share").font(.subheadline.weight(.semibold))
-                            }
-                            .foregroundStyle(Theme.marquee)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 9)
-                            .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
-                        }
+                        // Tap to reveal early, or it springs in on its own.
+                        ScoreRevealPlaceholder(size: 64)
+                            .onTapGesture { revealScore() }
                     }
                 }
-                PillButton(title: "Done") { dismiss() }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: Theme.cardShadow, radius: 18, y: 8)
+
+            // Actions arrive with the score, not before — the reveal is the
+            // moment; sharing is the reward.
+            if scoreRevealed {
+                HStack(spacing: 10) {
+                    if let shareImage {
+                        if #available(iOS 26.0, *) {
+                            ShareLink(
+                                item: shareImage,
+                                preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                                      image: shareImage)
+                            ) {
+                                shareLabel
+                            }
+                            .buttonStyle(.glass)
+                        } else {
+                            ShareLink(
+                                item: shareImage,
+                                preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                                      image: shareImage)
+                            ) {
+                                shareLabel
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 9)
+                                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                            }
+                        }
+                    }
+                    PillButton(title: "Done") { dismiss() }
+                }
+                .frame(maxWidth: .infinity)
+                .transition(.opacity)
             }
-            .frame(maxWidth: .infinity)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .floatingCard()
+        .onAppear { scheduleReveal() }
         .task { await prepareShareCard(scored) }
+    }
+
+    private var shareLabel: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "square.and.arrow.up")
+                .font(.subheadline.weight(.semibold))
+            Text("Share").font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(Theme.marquee)
+    }
+
+    /// Auto-reveal a beat after the ticket lands, so the "…" registers as
+    /// suspense before the score springs in.
+    private func scheduleReveal() {
+        guard !didScheduleReveal else { return }
+        didScheduleReveal = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(850))
+            revealScore()
+        }
+    }
+
+    private func revealScore() {
+        guard !scoreRevealed else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) {
+            scoreRevealed = true
+        }
     }
 
     /// Render the share ticket once the result shows — poster fetched
@@ -593,7 +612,17 @@ struct LogFlowView: View {
            let (data, _) = try? await URLSession.shared.data(from: url) {
             poster = UIImage(data: data)
         }
-        let renderer = ImageRenderer(content: RankShareCard(movie: movie, scored: scored, poster: poster))
+        let profile = appSession.profile
+        var avatar: UIImage?
+        if let url = profile?.avatarURL,
+           let (data, _) = try? await URLSession.shared.data(from: url) {
+            avatar = UIImage(data: data)
+        }
+        let name = (profile?.displayName.isEmpty == false ? profile!.displayName : (profile?.username ?? ""))
+        let card = RankShareCard(movie: movie, scored: scored, poster: poster,
+                                 name: name, handle: profile?.username ?? "",
+                                 avatar: avatar, streakWeeks: profile?.streakWeeks ?? 0)
+        let renderer = ImageRenderer(content: card)
         renderer.scale = 3
         if let rendered = renderer.uiImage {
             shareImage = Image(uiImage: rendered)

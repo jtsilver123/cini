@@ -1787,17 +1787,34 @@ function logCards(){
 
   if(log.stage==="result"){
     const e=myEntry(log.k);
+    const ini = S.me.name.split(" ").slice(0,2).map(w=>w[0]||"").join("").toUpperCase();
+    // Two-step reveal: the "…" ticket (rating screen) becomes the score
+    // ticket (score screen) a beat later — tap to reveal early.
+    const scoreSlot = log.revealed
+      ? `<div class="badge result ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`
+      : `<div class="badge" style="background:var(--surface); border:1.8px solid var(--hair); color:var(--gray); cursor:pointer;" onclick="revealScore()">…</div>`;
     html+=`
-      <div class="fcard ticket">
-        <div class="sub" style="text-align:center; letter-spacing:.28em; font-weight:700; font-size:10px; margin-bottom:6px;">ADMIT ONE · CINI</div>
-        <div style="text-align:center; color:var(--gold); font-size:12px; font-weight:800; margin-bottom:10px;">${I("flame",13)} ${S.streak}-week streak alive</div>
-        <div style="display:flex; gap:13px; align-items:center;">
-          <div class="poster" style="width:46px;height:69px; background-image:url('${IMG(m.p)}');"></div>
-          <div style="flex:1;"><b style="font-size:17px;">Ranked <span style="color:var(--gold);">#${e.rank}</span></b><div class="sub" style="margin-top:1px;">on your Watched list</div></div>
-          <div class="badge result ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>
+      <div class="fcard ticket" style="text-align:center;">
+        <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;">
+          <div class="avatar" style="width:38px; height:38px; font-size:14px; background:var(--marquee-soft); color:var(--marquee);">${ini}</div>
+          <div style="text-align:left; flex:1; min-width:0;">
+            <b style="font-size:14px; display:block; line-height:1.15;">${S.me.name}</b>
+            <span class="sub" style="font-size:12px;">@jtsilver123</span>
+          </div>
+          <span style="font-weight:800; letter-spacing:.18em; font-size:12px; color:var(--marquee);">CINI</span>
         </div>
+        <div class="poster" style="width:120px; height:180px; margin:0 auto; background-image:url('${IMG(m.p)}');"></div>
+        <div class="serif" style="font-size:22px; margin-top:12px;">${m.t}</div>
+        <div class="sub" style="font-size:12px;">${m.g[0]} · ${m.y}</div>
+        <div style="display:flex; justify-content:center; margin:14px 0 8px;">${scoreSlot}</div>
+        <b style="font-size:16px;">Ranked <span style="color:var(--gold);">#${e.rank}</span></b>
+        <div class="sub" style="font-size:12px;">on your Watched list</div>
+        ${S.streak>0?`<div style="display:inline-flex; gap:5px; align-items:center; color:var(--gold); font-size:11px; font-weight:800; margin-top:8px; padding:5px 11px; border-radius:999px; background:var(--marquee-soft);">${I("flame",12)} ${S.streak}-week streak</div>`:""}
         <div class="perf"></div>
-        <button class="pill" style="width:100%; justify-content:center; padding:13px;" onclick="finishLog()">Done</button>
+        ${log.revealed?`<div style="display:flex; gap:10px;">
+          <button class="pill out" style="flex:1; justify-content:center; padding:12px;" onclick="share('${esc(m.t)} — ranked #${e.rank} on Cini')">${I("send",16)} Share</button>
+          <button class="pill" style="flex:1; justify-content:center; padding:12px;" onclick="finishLog()">Done</button>
+        </div>`:`<div class="sub" style="font-size:12px;">Tap to reveal your score</div>`}
       </div>`;
   }
   return html;
@@ -1847,7 +1864,13 @@ function commitLog(pos){
   S.watchlist=S.watchlist.filter(x=>x!==log.k);
   if(!S.rankedThisWeek){ S.streak++; S.rankedThisWeek=true; }
   S.activity.unshift({kind:"ranked", k:log.k, when:"just now"}); S.activity=S.activity.slice(0,8);
-  log.stage="result"; save(); refreshLog();
+  log.stage="result"; log.revealed=false; save(); refreshLog();
+  // Auto-reveal the score a beat after the ticket lands (suspense → payoff).
+  setTimeout(()=>{ if(log && log.stage==="result") revealScore(); }, 850);
+}
+function revealScore(){
+  if(!log || log.revealed) return;
+  log.revealed=true; buzz(); refreshLog();
 }
 let _flashKey=null;
 function finishLog(){
