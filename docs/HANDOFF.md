@@ -5,8 +5,8 @@
 > is the design system. This file is the running status log + build history.
 
 **STATUS (2026-06-14): on TestFlight, iterating on UX polish.** Migrations
-through **0042** applied to prod and mirrored in `supabase/migrations/`
-(latest: `0042_avatar_storage_policies.sql`). Edge functions deployed +
+through **0044** applied to prod and mirrored in `supabase/migrations/`
+(latest: `0044_security_hardening.sql`). Edge functions deployed +
 mirrored: `send-push`, `import-upload`, `availability-alerts`,
 `showtime-alerts`. A user-requested build was triggered 2026-06-14 off
 `claude/ecstatic-cori-k7s2n0` (CI green on the head commit).
@@ -31,6 +31,18 @@ mirrored: `send-push`, `import-upload`, `availability-alerts`,
 - **Cache-coherence sweep.** All list create/delete now route through
   `RankingStore` (fixed "phantom" deleted lists). `import-upload` now surfaces
   a 500 instead of silently returning ok on a failed status write.
+- **Movies & TV ranked SEPARATELY (migration 0043).** `RankingStore` keeps one
+  `RankingList` per kind; `rank_insert`/`rank_remove`/`rescore_bucket` scope by
+  `(user, bucket, media_kind)`. Comparisons never cross kinds; first-of-kind
+  skips comparisons; per-kind `#N` everywhere (Top-3 = films only, profile
+  Watched drill-down split).
+- **Full end-to-end audit (migration 0044).** Fixed: `home_zip` (location PII)
+  moved off the world-readable `profiles` table to an owner-only
+  `user_locations` table + `set_home_zip` RPC (showtime-alerts reads it there);
+  `rescore_bucket` search_path pinned; avatars SELECT scoped to owner (no
+  listing); `import_movie_details` media_kind clamped; `moveRanked` and
+  `commit` now revert + signal on a failed write instead of faking success.
+  Push pipeline audited end-to-end (all 11 kinds covered; crons active).
 
 **The silent-contract-drift saga (critical context):** three production
 features were broken invisibly because server schema drifted under
@@ -156,7 +168,7 @@ and shipped on request only — Apple caps uploads per app per day
 - Old App-Manager key `J4369F4GMF`: unused — user should revoke
 - Bundle ID: `app.cini.ios` · App record created in App Store Connect
 - Supabase project: `npumchnkbcajyuhurgez` (user's personal org; the
-  Supabase MCP in new sessions connects to it). Migrations 0001–0042
+  Supabase MCP in new sessions connects to it). Migrations 0001–0044
   applied; advisors clean (SECURITY DEFINER WARNs are intentional
   authenticated RPCs; leaked-password WARN is N/A on free plan); pg_cron:
   nightly taste-match + predicted-cache-nightly
