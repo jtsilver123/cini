@@ -77,9 +77,12 @@ Deno.serve(async (req: Request) => {
       .upload(path, bytes, { contentType: "application/octet-stream", upsert: true });
     if (uploadError) return json(500, { error: "Upload failed — try again." });
 
-    await supabase.from("pending_imports")
+    const { error: updateError } = await supabase.from("pending_imports")
       .update({ status: "ready", path })
       .eq("code", code);
+    if (updateError) {
+      return json(500, { error: "Upload saved but couldn't finish — try again." });
+    }
 
     return json(200, { ok: true });
   } catch (e) {

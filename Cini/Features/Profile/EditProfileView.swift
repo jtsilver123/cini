@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 /// Edit profile, Beli-style: photo up top, identity rows, socials (shown
 /// openly on the profile — no lock icons), privacy, then Account settings.

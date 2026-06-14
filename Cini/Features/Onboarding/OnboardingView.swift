@@ -1,5 +1,4 @@
 import SwiftUI
-import PhotosUI
 
 /// First-run flow for a brand-new account:
 ///

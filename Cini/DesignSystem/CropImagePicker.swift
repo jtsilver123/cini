@@ -39,25 +39,19 @@ struct CropImagePicker: UIViewControllerRepresentable {
 }
 
 /// Square-fill, resize to 512, JPEG — the one avatar processing path,
-/// shared by onboarding and edit-profile.
+/// shared by onboarding and edit-profile. Draw-based so UIImage
+/// orientation (portrait selfies) is respected; no cgImage pixel math.
 enum AvatarImage {
     static func jpeg(from image: UIImage, side: CGFloat = 512) -> Data? {
-        // Center-crop to square first (the crop UI already squares it, but
-        // belt-and-suspenders for the cancel-then-original path).
-        let shortest = min(image.size.width, image.size.height)
-        let square = CGRect(
-            x: (image.size.width - shortest) / 2,
-            y: (image.size.height - shortest) / 2,
-            width: shortest, height: shortest)
-        let cropped = image.cgImage?.cropping(to: CGRect(
-            x: square.minX * image.scale, y: square.minY * image.scale,
-            width: square.width * image.scale, height: square.height * image.scale))
-            .map { UIImage(cgImage: $0, scale: image.scale, orientation: image.imageOrientation) } ?? image
-
         let target = CGSize(width: side, height: side)
-        let resized = UIGraphicsImageRenderer(size: target).image { _ in
-            cropped.draw(in: CGRect(origin: .zero, size: target))
+        let renderer = UIGraphicsImageRenderer(size: target)
+        return renderer.jpegData(withCompressionQuality: 0.82) { _ in
+            // Aspect-FILL the square and center — the crop UI already
+            // squares it, and avatars are circle-clipped anyway.
+            let scale = max(side / image.size.width, side / image.size.height)
+            let w = image.size.width * scale
+            let h = image.size.height * scale
+            image.draw(in: CGRect(x: (side - w) / 2, y: (side - h) / 2, width: w, height: h))
         }
-        return resized.jpegData(compressionQuality: 0.82)
     }
 }
