@@ -99,7 +99,10 @@ struct RankTicket<Poster: View, Avatar: View, Score: View>: View {
                 .foregroundStyle(Theme.gray)
         }
         .padding(24)
-        .frame(maxWidth: width ?? .infinity)
+        // In-app (width nil) fills the card; the rendered share image needs
+        // a FIXED width so a short title can't shrink the ticket.
+        .frame(maxWidth: width == nil ? .infinity : nil)
+        .frame(width: width)
         .background(Theme.surface)
     }
 }
