@@ -1,5 +1,6 @@
 // showtime-alerts: daily cron. Tells users when a watchlist movie is
-// playing near their saved zip.
+// playing near their saved zip — at ANY age (a decades-old re-release
+// counts, not just new releases).
 //
 // API frugality: exactly ONE Gracenote call per DISTINCT zip per run,
 // regardless of user count. Each user is notified at most once per movie
@@ -41,6 +42,8 @@ function similarity(q: string, c: string): number {
   return 1 - editDistance(q, c) / Math.max(q.length, c.length);
 }
 
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
 Deno.serve(async (_req: Request) => {
   try {
     const { data: secrets } = await supabase.rpc("get_apns_secrets");
@@ -64,7 +67,7 @@ Deno.serve(async (_req: Request) => {
     const userIDs = candidates.map((p: any) => p.id);
     const { data: watchlists } = await supabase
       .from("watchlist")
-      .select("user_id, movie_id, movies(title, release_year)")
+      .select("user_id, movie_id, movies(title, release_year, media_kind)")
       .in("user_id", userIDs);
     const { data: noticed } = await supabase
       .from("showtime_notices")
@@ -93,12 +96,21 @@ Deno.serve(async (_req: Request) => {
         for (const entry of entries) {
           const movie = entry.movies as any;
           if (!movie?.title) continue;
+          // TV shows don't play in theaters — skip them.
+          if (movie.media_kind === "tv") continue;
           if (alreadyNoticed.has(`${user.id}:${entry.movie_id}`)) continue;
 
-          const hit = playing.some((p) =>
-            similarity(movie.title, p.title) > 0.85 &&
-            (!movie.release_year || !p.releaseYear || Math.abs(movie.release_year - p.releaseYear) <= 1)
-          );
+          // Any watchlist movie playing near you, no matter its age — a
+          // decades-old re-release counts. The year only disambiguates
+          // remakes on a FUZZY title; an exact-title screening matches
+          // outright even if the listing's year is the re-release year.
+          const hit = playing.some((p) => {
+            const sim = similarity(movie.title, p.title);
+            if (sim <= 0.85) return false;
+            if (norm(movie.title) === norm(p.title)) return true;
+            return !movie.release_year || !p.releaseYear ||
+                   Math.abs(movie.release_year - p.releaseYear) <= 1;
+          });
           if (!hit) continue;
 
           // Record first so a crash can't double-notify, then let the

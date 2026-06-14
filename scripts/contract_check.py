@@ -95,6 +95,7 @@ READS = [
     ("rec_requests", "rec_requests", "id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)"),
     ("streaming_alerts", "streaming_alerts", "user_id, movie_id, notified_at"),
     ("pending_imports", "pending_imports", "status, path"),
+    ("home_zip", "user_locations", "home_zip"),
     ("blocked_ids", "blocks", "blocked_id"),
     ("custom_lists", "custom_lists", "id, user_id, name, is_private, created_at, media_kind, custom_list_items(count)"),
     ("list_ids_containing", "custom_list_items", "list_id"),

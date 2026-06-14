@@ -16,6 +16,10 @@ struct AccountSettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
     @State private var isDeleting = false
+    @State private var homeZip: String?
+    @State private var loadedZip = false
+    @State private var detectingZip = false
+    @State private var zipMessage: String?
     @AppStorage("cini.appearance") private var appearance = "system"
 
     private var emailLooksValid: Bool {
@@ -53,6 +57,47 @@ struct AccountSettingsView: View {
                 }
             } footer: {
                 Text("Choose which kinds of alerts Cini sends you.")
+            }
+
+            Section {
+                if let homeZip {
+                    LabeledContent {
+                        Text(homeZip).foregroundStyle(Theme.gray)
+                    } label: {
+                        Label("Theater alerts", systemImage: "popcorn")
+                    }
+                    Button {
+                        Task { await detectArea() }
+                    } label: {
+                        if detectingZip { ProgressView() } else { Text("Update my area") }
+                    }
+                    .disabled(detectingZip)
+                    Button("Turn off", role: .destructive) {
+                        Task {
+                            await SupabaseService.shared.setHomeZip(nil)
+                            homeZip = nil
+                            zipMessage = nil
+                        }
+                    }
+                } else {
+                    Button {
+                        Task { await detectArea() }
+                    } label: {
+                        if detectingZip {
+                            ProgressView()
+                        } else {
+                            Label("Turn on theater alerts", systemImage: "popcorn")
+                        }
+                    }
+                    .disabled(detectingZip)
+                }
+                if let zipMessage {
+                    Text(zipMessage).font(.caption).foregroundStyle(Theme.scoreRed)
+                }
+            } header: {
+                Text("Theaters")
+            } footer: {
+                Text("We'll notify you when a movie on your Want to Watch — new or old — is playing near you. Uses your location once to find your area.")
             }
 
             Section {
@@ -161,6 +206,28 @@ struct AccountSettingsView: View {
         }
         .sheet(isPresented: $showExportShare) {
             ActivityShareSheet(items: exportURLs)
+        }
+        .task {
+            guard !loadedZip else { return }
+            loadedZip = true
+            homeZip = await SupabaseService.shared.homeZip()
+        }
+    }
+
+    /// Find the user's area (one-shot location → ZIP) and save it so theater
+    /// alerts can fire for their Want to Watch.
+    private func detectArea() async {
+        zipMessage = nil
+        detectingZip = true
+        defer { detectingZip = false }
+        do {
+            let zip = try await LocationZip.shared.currentZip()
+            await SupabaseService.shared.setHomeZip(zip)
+            homeZip = zip
+        } catch LocationZip.LocationError.denied {
+            zipMessage = "Location is off for Cini — enable it in Settings to use theater alerts."
+        } catch {
+            zipMessage = "Couldn't find your area — try again."
         }
     }
 

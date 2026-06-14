@@ -152,9 +152,27 @@ final class SupabaseService {
 
     /// Home ZIP for showtime alerts. Stored in a private, owner-only table
     /// (not on the world-readable profiles row) via a SECURITY DEFINER RPC.
-    func setHomeZip(_ zip: String) async {
-        struct Params: Encodable { let p_zip: String }
+    /// Pass nil to turn theater alerts off.
+    func setHomeZip(_ zip: String?) async {
+        struct Params: Encodable {
+            let p_zip: String?
+            // Encode null explicitly (not omitted) so clearing actually clears.
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encode(p_zip, forKey: .p_zip)
+            }
+            enum CodingKeys: String, CodingKey { case p_zip }
+        }
         _ = try? await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
+    }
+
+    /// The user's saved theater-alert ZIP, if any (owner-only read).
+    func homeZip() async -> String? {
+        struct Row: Decodable { let home_zip: String? }
+        guard let id = currentUserID else { return nil }
+        let row: Row? = try? await client.from("user_locations")
+            .select("home_zip").eq("user_id", value: id).maybeSingle().execute().value
+        return row?.home_zip
     }
 
     /// Trigram-fuzzy member search (typos in usernames/display names still

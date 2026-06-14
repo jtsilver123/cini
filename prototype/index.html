@@ -424,6 +424,7 @@ const DEFAULT_STATE = {
   ],
   notifs:[
     {kind:"like", who:"maddyc", movie:"dune2", when:"1h ago", unread:true},
+    {kind:"watchlist_showing", who:"cini", movie:"poor", when:"2h ago", unread:true},
     {kind:"new_follower", who:"oliviafang", when:"3h ago", unread:true},
     {kind:"friend_ranked_watchlist_movie", who:"jzjackjz", movie:"poor", when:"yesterday", unread:false},
     {kind:"comment", who:"tthom1088", movie:"opp", when:"2d ago", unread:false},
@@ -1986,6 +1987,7 @@ function notifLine(n){
     case "like": return `${who} liked your activity on ${movie}`;
     case "comment": return `${who} commented on ${movie}`;
     case "friend_ranked_watchlist_movie": return `${who} ranked ${movie} — it's on your watchlist`;
+    case "watchlist_showing": return `${movie} — on your Want to Watch — is playing in theaters near you 🍿`;
     default: return `${who} did something new`;
   }
 }
