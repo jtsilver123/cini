@@ -73,35 +73,38 @@ struct LogFlowView: View {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 8) {
-                        titleCard
-                        categoryCard
-                        sentimentCard
-
-                        // Beli's order: the details card hands off to the
-                        // comparison card — it doesn't stack above it, so
-                        // comparing never means scrolling down.
-                        if phase == .enrich {
-                            EnrichmentCard(
-                                movie: movie,
-                                draft: $draft,
-                                isLocked: false,
-                                onOkay: { startComparisons() },
-                                activeRow: $enrichRow
-                            )
-                            .id("enrich")
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-
-                        if phase == .comparing, let session, !session.isComplete {
-                            comparisonCard(session)
-                                .id("compare")
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-
+                        // The result is the whole screen — the earlier cards
+                        // fall away so the ticket lands in view, no scrolling.
                         if phase == .result, let scored {
                             resultCard(scored)
                                 .id("result")
+                                .padding(.top, 40)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                        } else {
+                            titleCard
+                            categoryCard
+                            sentimentCard
+
+                            // Beli's order: the details card hands off to the
+                            // comparison card — it doesn't stack above it, so
+                            // comparing never means scrolling down.
+                            if phase == .enrich {
+                                EnrichmentCard(
+                                    movie: movie,
+                                    draft: $draft,
+                                    isLocked: false,
+                                    onOkay: { startComparisons() },
+                                    activeRow: $enrichRow
+                                )
+                                .id("enrich")
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+
+                            if phase == .comparing, let session, !session.isComplete {
+                                comparisonCard(session)
+                                    .id("compare")
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
                         }
                     }
                     .padding(.horizontal, 14)

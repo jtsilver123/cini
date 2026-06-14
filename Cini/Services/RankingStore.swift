@@ -8,10 +8,14 @@ import RankingEngine
 @Observable
 @MainActor
 final class RankingStore {
-    private(set) var list = RankingList<Int>()
-    /// Scored snapshot of `list`, recomputed only when the list mutates —
-    /// reading rankings is hot (every list render, chat context), scoring
-    /// a few hundred items on each read is not free.
+    /// One ranked list per media kind — movies and TV are ranked
+    /// SEPARATELY and never compared head-to-head. Keys: "movie", "tv".
+    /// Each kind has its own buckets, positions, scores, and #1.
+    private(set) var lists: [String: RankingList<Int>] = ["movie": RankingList(), "tv": RankingList()]
+    /// Scored snapshot of both lists (movies then TV), recomputed only when a
+    /// list mutates — reading rankings is hot (every list render, chat
+    /// context), scoring a few hundred items on each read is not free. Each
+    /// item's rank/score is within its own media kind.
     private(set) var watchedItems: [ScoredItem<Int>] = []
     private(set) var movies: [Int: Movie] = [:]          // metadata cache
     private(set) var watchlist: [WatchlistItem] = []
@@ -38,7 +42,7 @@ final class RankingStore {
         // Cold start: the last-synced snapshot renders lists instantly
         // while the fresh data loads (same idea as FeedDiskCache).
         if !isLoaded, let snapshot = RankingDiskCache.load(for: userID) {
-            list = snapshot.list
+            lists = snapshot.lists
             watchlist = snapshot.watchlist
             movies = snapshot.movies
             listChanged()
@@ -49,22 +53,21 @@ final class RankingStore {
             async let watchlistRows = supabase.watchlist(userID: userID)
             let (rankings, watching) = try await (rankingRows, watchlistRows)
 
-            let items = rankings.compactMap { row -> RankedItem<Int>? in
-                guard let sentiment = Sentiment(rawValue: row.bucket) else { return nil }
-                return RankedItem(id: row.movieId, sentiment: sentiment)
-            }
-            list = RankingList(items: items)
-            listChanged()
             watchlist = watching.map {
                 WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId,
                               createdAt: $0.createdAt, note: $0.note, watchBy: $0.watchBy)
             }
 
+            // Movies must be known before partitioning rankings, since the
+            // media kind that splits the two lists lives on the movie row.
             let allIDs = Set(rankings.map(\.movieId) + watching.map(\.movieId))
             let rows = try await supabase.movies(ids: Array(allIDs))
             for row in rows { movies[row.tmdbId] = row.asMovie }
+
+            lists = buildLists(from: rankings)
+            listChanged()
             isLoaded = true
-            RankingDiskCache.save(.init(userID: userID, list: list,
+            RankingDiskCache.save(.init(userID: userID, lists: lists,
                                         watchlist: watchlist, movies: movies))
             // Fire-and-forget: warm the Want to Watch Rec Scores so the
             // Lists tab opens with badges already in place.
@@ -74,6 +77,24 @@ final class RankingStore {
             assertionFailure("RankingStore.load failed: \(error)")
         }
     }
+
+    /// Split the server's rankings into per-kind lists. Positions already
+    /// come back scoped per media kind (migration 0043) and ordered by
+    /// position, so filtering by kind preserves each list's order.
+    private func buildLists(from rankings: [RankingRow]) -> [String: RankingList<Int>] {
+        var byKind: [String: [RankedItem<Int>]] = ["movie": [], "tv": []]
+        for row in rankings {
+            guard let sentiment = Sentiment(rawValue: row.bucket) else { continue }
+            byKind[kindKey(movies[row.movieId]?.mediaKind), default: []]
+                .append(RankedItem(id: row.movieId, sentiment: sentiment))
+        }
+        return ["movie": RankingList(items: byKind["movie"] ?? []),
+                "tv": RankingList(items: byKind["tv"] ?? [])]
+    }
+
+    /// "movie" or "tv" — the key into `lists`. Anything not TV files as movie.
+    private func kindKey(_ mediaKind: String?) -> String { mediaKind == "tv" ? "tv" : "movie" }
+    private func kindKey(forMovie id: Int) -> String { kindKey(movies[id]?.mediaKind) }
 
     func refreshPredictedScores() async {
         let scores = await supabase.predictedScores(movieIDs: watchlist.map(\.movieID))
@@ -115,32 +136,37 @@ final class RankingStore {
 
     // MARK: - Reading
 
-    var watchedCount: Int { list.count }
+    var watchedCount: Int { lists.values.reduce(0) { $0 + $1.count } }
     var watchlistCount: Int { watchlist.count }
 
     func movie(_ id: Int) -> Movie? { movies[id] }
-    func isWatched(_ movieID: Int) -> Bool { list.contains(movieID) }
+    func isWatched(_ movieID: Int) -> Bool { lists.values.contains { $0.contains(movieID) } }
     func isOnWatchlist(_ movieID: Int) -> Bool { watchlist.contains { $0.movieID == movieID } }
     func scoredItem(for movieID: Int) -> ScoredItem<Int>? {
         watchedItems.first { $0.id == movieID }
     }
 
-    /// Every list mutation funnels through here so the scored snapshot
-    /// stays in lockstep.
+    /// Every list mutation funnels through here so the scored snapshot stays
+    /// in lockstep. Movies first, then TV — each scored within its own kind.
     private func listChanged() {
-        watchedItems = list.scoredItems
+        watchedItems = (lists["movie"]?.scoredItems ?? []) + (lists["tv"]?.scoredItems ?? [])
     }
 
     // MARK: - Log flow
 
     func beginSession(movie: Movie, sentiment: Sentiment) -> InsertionSession<Int> {
         cache(movie)
-        if list.contains(movie.tmdbID) {
-            let session = list.beginReranking(of: movie.tmdbID, sentiment: sentiment)
-            listChanged()
-            return session
-        }
-        return list.beginInsertion(of: movie.tmdbID, sentiment: sentiment)
+        // Compare only within this title's media kind — the opponents come
+        // from that kind's bucket, so a movie never faces a TV show, and the
+        // first movie (or first show) has an empty bucket → no comparisons.
+        let key = kindKey(movie.mediaKind)
+        var kindList = lists[key] ?? RankingList()
+        let session = kindList.contains(movie.tmdbID)
+            ? kindList.beginReranking(of: movie.tmdbID, sentiment: sentiment)
+            : kindList.beginInsertion(of: movie.tmdbID, sentiment: sentiment)
+        lists[key] = kindList
+        listChanged()
+        return session
     }
 
     /// Commit locally and mirror to the rank_insert RPC.
@@ -152,7 +178,10 @@ final class RankingStore {
             ToastCenter.shared.saveFailed()
             return nil
         }
-        let scored = list.commit(session)
+        let key = kindKey(forMovie: session.newItemID)
+        var kindList = lists[key] ?? RankingList()
+        let scored = kindList.commit(session)
+        lists[key] = kindList
         listChanged()
         watchlist.removeAll { $0.movieID == session.newItemID }
         ImportQueue.shared.markRanked(session.newItemID)
@@ -190,8 +219,9 @@ final class RankingStore {
     /// adopts its new neighborhood's sentiment (dragging into the loved
     /// block makes it loved), then the standard rank_insert RPC persists
     /// the move and rescores server-side.
-    func moveRanked(fromOffsets: IndexSet, toOffset: Int) async {
-        let current = watchedItems
+    func moveRanked(kind: String, fromOffsets: IndexSet, toOffset: Int) async {
+        let key = kindKey(kind)
+        let current = lists[key]?.scoredItems ?? []
         guard let from = fromOffsets.first, current.indices.contains(from) else { return }
         var ids = current.map(\.id)
         let sentimentOf = Dictionary(uniqueKeysWithValues: current.map { ($0.id, $0.sentiment) })
@@ -210,7 +240,7 @@ final class RankingStore {
         let items = ids.map {
             RankedItem(id: $0, sentiment: $0 == moving ? newSentiment : (sentimentOf[$0] ?? .fine))
         }
-        list = RankingList(items: items)
+        lists[key] = RankingList(items: items)
         listChanged()
 
         let bucketPosition = ids[0..<to].filter {
@@ -226,7 +256,10 @@ final class RankingStore {
     func removeRanking(movieID: Int) async -> Bool {
         do {
             try await supabase.rankRemove(movieID: movieID)
-            list.remove(movieID)
+            let key = kindKey(forMovie: movieID)
+            var kindList = lists[key] ?? RankingList()
+            kindList.remove(movieID)
+            lists[key] = kindList
             listChanged()
             // The 'ranked' feed event points at a rating that no longer
             // exists — pull it too.
@@ -354,7 +387,7 @@ final class RankingStore {
 enum RankingDiskCache {
     struct Snapshot: Codable {
         let userID: UUID
-        let list: RankingList<Int>
+        let lists: [String: RankingList<Int>]
         let watchlist: [WatchlistItem]
         let movies: [Int: Movie]
     }

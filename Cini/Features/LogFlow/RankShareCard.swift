@@ -72,7 +72,8 @@ struct RankTicket<Poster: View, Avatar: View, Score: View>: View {
             (Text("Ranked ") + Text("#\(rank)").foregroundStyle(Theme.gold))
                 .font(.title3.weight(.bold))
                 .foregroundStyle(Theme.ink)
-            Text("on your Watched list")
+            // Rank is within its own kind — movies and TV are ranked apart.
+            Text(movie.mediaKind == "tv" ? "among your shows" : "among your movies")
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
 

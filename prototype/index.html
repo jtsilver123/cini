@@ -437,15 +437,20 @@ function save(){ try{ localStorage.setItem("cini-proto-v4", JSON.stringify(S)); 
 /* ---------- Mini ranking engine (mirrors the real RankingEngine) ---------- */
 const BANDS = {loved:[6.7,10.0], fine:[3.4,6.6], disliked:[0,3.3]};
 const ORDER = ["loved","fine","disliked"];
+// Movies and TV are ranked SEPARATELY — own buckets, positions, scores, #1.
+function mkOf(k){ return (MOVIES[k] && MOVIES[k].tv) ? "tv" : "movie"; }
 function scoredWatched(){
-  const out=[]; let rank=1;
-  for(const b of ORDER){
-    const items=S.watched.filter(w=>w.b===b);
-    items.forEach((w,i)=>{
-      const [lo,hi]=BANDS[b];
-      const score = items.length===1 ? hi : hi-(hi-lo)*i/(items.length-1);
-      out.push({...w, rank:rank++, score:Math.round(score*10)/10});
-    });
+  const out=[];
+  for(const kind of ["movie","tv"]){
+    let rank=1;
+    for(const b of ORDER){
+      const items=S.watched.filter(w=>w.b===b && mkOf(w.k)===kind);
+      items.forEach((w,i)=>{
+        const [lo,hi]=BANDS[b];
+        const score = items.length===1 ? hi : hi-(hi-lo)*i/(items.length-1);
+        out.push({...w, rank:rank++, score:Math.round(score*10)/10});
+      });
+    }
   }
   return out;
 }
@@ -1721,7 +1726,8 @@ function closeLog(){
   if(log && log.stage!=="result" && log.snapshot){ S.watched=JSON.parse(log.snapshot); save(); }
   log=null; closeOverlay();
 }
-function bucketItems(){ return S.watched.filter(w=>w.b===log.bucket && w.k!==log.k).map(w=>w.k); }
+// Opponents come only from the SAME media kind — a movie never faces a show.
+function bucketItems(){ return S.watched.filter(w=>w.b===log.bucket && w.k!==log.k && mkOf(w.k)===mkOf(log.k)).map(w=>w.k); }
 function logCards(){
   const m=MOVIES[log.k];
   let html=`
@@ -1821,7 +1827,7 @@ function logCards(){
         <div class="sub" style="font-size:12px;">${m.g[0]} · ${m.y}</div>
         <div style="display:flex; justify-content:center; margin:14px 0 8px;">${scoreSlot}</div>
         <b style="font-size:16px;">Ranked <span style="color:var(--gold);">#${e.rank}</span></b>
-        <div class="sub" style="font-size:12px;">on your Watched list</div>
+        <div class="sub" style="font-size:12px;">among your ${mkOf(log.k)==="tv"?"shows":"movies"}</div>
         ${S.streak>0?`<div style="display:inline-flex; gap:5px; align-items:center; color:var(--gold); font-size:11px; font-weight:800; margin-top:8px; padding:5px 11px; border-radius:999px; background:var(--marquee-soft);">${I("flame",12)} ${S.streak}-week streak</div>`:""}
         <div class="perf"></div>
         ${log.revealed?`<div style="display:flex; gap:10px;">

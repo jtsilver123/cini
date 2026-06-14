@@ -737,7 +737,7 @@ struct YourListsView: View {
                 }
             }
             .onMove { from, to in
-                Task { await store.moveRanked(fromOffsets: from, toOffset: to) }
+                Task { await store.moveRanked(kind: category.mediaKind, fromOffsets: from, toOffset: to) }
             }
         }
         .listStyle(.plain)
