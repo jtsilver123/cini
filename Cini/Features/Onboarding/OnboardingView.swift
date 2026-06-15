@@ -2,8 +2,9 @@ import SwiftUI
 
 /// First-run flow for a brand-new account. Value props and phone/email/password
 /// are collected before this (the pre-auth carousel + sign-up), Beli-style, so
-/// onboarding picks up at identity:
+/// onboarding picks up at the welcome:
 ///
+///   0. You're in! — meet Jake, the friend everyone starts following
 ///   1. Claim your @ — name, username (and who invited you)
 ///   2. Add a profile photo — its own screen, skippable
 ///   3. Find your friends — contacts + invite
@@ -37,6 +38,12 @@ struct OnboardingView: View {
     @State private var notifsEnabled = false
     @State private var theaterZip: String?
     @State private var detectingZip = false
+    /// The founder everyone auto-follows — introduced on the "You're in!" screen
+    /// (Beli's "Judy"). Fetched so the avatar/name stay accurate.
+    @State private var founder: Profile?
+    @State private var showFounderInfo = false
+    @State private var showInviterEntry = false
+    private static let founderID = UUID(uuidString: "c8a4e18e-7b5b-405d-bb74-6e1e79702f60")!
 
     private var usernameValid: Bool {
         username.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
@@ -63,7 +70,8 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            progressBar
+            // The "You're in!" welcome (step 0) is a clean moment — no bar.
+            if step > 0 { progressBar }
             // A driven step switch (not a paged TabView): steps advance only via
             // their buttons, so you can't swipe past a required one (username /
             // photo) or jump ahead to content that isn't ready.
@@ -99,12 +107,14 @@ struct OnboardingView: View {
             // Reflect any permissions already granted (re-entering onboarding).
             notifsEnabled = await PushManager.isAuthorized()
             theaterZip = await SupabaseService.shared.homeZip()
+            founder = try? await SupabaseService.shared.profile(id: Self.founderID).asProfile
         }
     }
 
+    /// Six segments for the six data steps (1–6); the welcome screen has none.
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<6, id: \.self) { index in
+            ForEach(1..<7, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -116,17 +126,60 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 5) }
+        withAnimation(.snappy) { step = min(step + 1, 6) }
     }
 
     @ViewBuilder private var currentStep: some View {
         switch step {
-        case 0: usernameStep
-        case 1: photoStep
-        case 2: findFriendsStep
-        case 3: importStep
-        case 4: permissionsStep
+        case 0: youreInStep
+        case 1: usernameStep
+        case 2: photoStep
+        case 3: findFriendsStep
+        case 4: importStep
+        case 5: permissionsStep
         default: firstRankStep
+        }
+    }
+
+    // MARK: 0 — You're in! (meet Jake, the friend everyone starts with)
+
+    private var founderFirstName: String {
+        (founder?.displayName)
+            .flatMap { $0.isEmpty ? nil : $0.split(separator: " ").first.map(String.init) } ?? "Jake"
+    }
+
+    private var youreInStep: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            Text("You're in!")
+                .font(Theme.serif(40)).foregroundStyle(Theme.ink)
+            AvatarView(url: founder?.avatarURL, size: 132,
+                       name: founder?.displayName ?? "Jake Silver")
+            VStack(spacing: 8) {
+                Text("\(founderFirstName) thinks you have great taste")
+                    .font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.center).padding(.horizontal, 28)
+                Button("Who's \(founderFirstName)?") { showFounderInfo = true }
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.marquee)
+            }
+            Spacer()
+            PillButton(title: "Get started") { advance() }
+                .padding(.horizontal, 28)
+            Button("Invited by someone else?") { showInviterEntry = true }
+                .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
+        }
+        .alert("Who's \(founderFirstName)?", isPresented: $showFounderInfo) {
+            Button("Got it", role: .cancel) {}
+        } message: {
+            Text("\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.")
+        }
+        .alert("Who invited you?", isPresented: $showInviterEntry) {
+            TextField("their @username", text: $inviterUsername)
+                .textInputAutocapitalization(.never)
+            Button("Save") {}
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter their username and you'll follow each other automatically once you finish.")
         }
     }
 
