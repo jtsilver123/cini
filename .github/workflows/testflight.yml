@@ -94,17 +94,15 @@ jobs:
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             -allowProvisioningUpdates
 
-      # Fail fast if the distribution re-sign dropped the entitlements —
-      # otherwise Apple sign-in breaks on device and we only find out from
-      # a tester.
+      # Fail fast if the distribution re-sign dropped the push entitlement —
+      # otherwise notifications break on device and we only find out from a
+      # tester. (Sign in with Apple was removed in favor of email-only auth.)
       - name: Verify entitlements survived export
         run: |
           IPA=$(find "$RUNNER_TEMP/export" -name '*.ipa' | head -1)
           unzip -q "$IPA" -d "$RUNNER_TEMP/ipa-check"
           APP=$(find "$RUNNER_TEMP/ipa-check/Payload" -maxdepth 1 -name '*.app' | head -1)
           codesign -d --entitlements :- "$APP" | tee "$RUNNER_TEMP/final-entitlements.plist"
-          grep -q "com.apple.developer.applesignin" "$RUNNER_TEMP/final-entitlements.plist" \
-            || { echo "::error::Sign in with Apple entitlement missing from final IPA"; exit 1; }
           grep -q "aps-environment" "$RUNNER_TEMP/final-entitlements.plist" \
             || { echo "::error::aps-environment entitlement missing from final IPA"; exit 1; }
 

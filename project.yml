@@ -55,7 +55,6 @@ targets:
     entitlements:
       path: Cini/Resources/Cini.entitlements
       properties:
-        com.apple.developer.applesignin: [Default]
         aps-environment: production
     scheme:
       testTargets:

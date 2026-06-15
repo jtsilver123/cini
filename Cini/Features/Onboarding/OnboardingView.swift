@@ -16,6 +16,8 @@ struct OnboardingView: View {
     var onFinished: () -> Void
 
     @State private var step = 0
+    @State private var phone = ""
+    @State private var savingPhone = false
     @State private var username = ""
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
@@ -63,9 +65,10 @@ struct OnboardingView: View {
             TabView(selection: $step) {
                 welcomeStep.tag(0)
                 usernameStep.tag(1)
-                importStep.tag(2)
-                permissionsStep.tag(3)
-                firstRankStep.tag(4)
+                phoneStep.tag(2)
+                importStep.tag(3)
+                permissionsStep.tag(4)
+                firstRankStep.tag(5)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -99,7 +102,7 @@ struct OnboardingView: View {
 
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<5, id: \.self) { index in
+            ForEach(0..<6, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -111,7 +114,45 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 4) }
+        withAnimation(.snappy) { step = min(step + 1, 5) }
+    }
+
+    // MARK: 2.5 — Phone (required, like Beli — powers find-your-friends)
+
+    private var phoneStep: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            VStack(spacing: 10) {
+                Text("What's your number?")
+                    .font(Theme.serif(32)).multilineTextAlignment(.center)
+                Text("So friends from your contacts can find you on Cini. It's never shown on your profile or shared with anyone.")
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center).padding(.horizontal, 28)
+            }
+            HStack(spacing: 6) {
+                Text("+1").foregroundStyle(Theme.gray)
+                TextField("Phone number", text: $phone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+            .padding(.horizontal, 28)
+            Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
+                .font(.caption2).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center).padding(.horizontal, 28)
+            Spacer()
+            PillButton(title: savingPhone ? "Saving…" : "Continue", style: .filled) {
+                Task {
+                    savingPhone = true
+                    await SupabaseService.shared.setPhone(phone)
+                    savingPhone = false
+                    advance()
+                }
+            }
+            .disabled(phone.filter(\.isNumber).count < 10 || savingPhone)
+            .padding(.horizontal, 28).padding(.bottom, 30)
+        }
     }
 
     // MARK: 1 — Welcome
