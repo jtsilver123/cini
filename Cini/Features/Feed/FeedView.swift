@@ -17,7 +17,6 @@ struct FeedView: View {
     @State private var showMenuImport = false
     @State private var showSettings = false
     @State private var showInviteSheet = false
-    @State private var showUnlocks = false
     @State private var showLogoutConfirm = false
     @State private var showAskRecs = false
     @State private var showRespondRecs = false
@@ -77,9 +76,6 @@ struct FeedView: View {
             .sheet(isPresented: $showInviteSheet) {
                 InviteSheet()
                     .presentationDetents([.large])
-            }
-            .sheet(isPresented: $showUnlocks) {
-                UnlocksView()
             }
             .sheet(isPresented: $showAskRecs) {
                 RequestRecsSheet()
@@ -313,7 +309,7 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
-                FeedUnlockCard { showUnlocks = true }
+                FeedUnlockCard()
                     .padding(.top, 6)
             }
 

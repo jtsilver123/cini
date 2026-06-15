@@ -104,9 +104,9 @@ struct AuthView: View {
                 Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
                     .font(.caption2).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                primaryButton("Continue", disabled: !PhoneNumber.isValid(phone)) {
-                    focused = false
-                    withAnimation { signupStep = 1 }
+                messages
+                primaryButton("Continue", loading: isWorking, disabled: !PhoneNumber.isValid(phone)) {
+                    Task { await continueFromPhone() }
                 }
                 Button("Have an account? Sign in") { switchMode(toSignUp: false) }
                     .font(.subheadline).foregroundStyle(Theme.marquee)
@@ -142,6 +142,7 @@ struct AuthView: View {
                 .onChange(of: phone) { _, new in
                     let formatted = PhoneNumber.formattedLive(new)
                     if formatted != phone { phone = formatted }
+                    errorMessage = nil
                 }
         }
         .padding(14)
@@ -272,6 +273,20 @@ struct AuthView: View {
             }
         } catch {
             errorMessage = friendly(error)
+        }
+    }
+
+    /// Phone step → email step, but first confirm the number isn't already on
+    /// another account (each number must be unique, since it's a login key).
+    private func continueFromPhone() async {
+        errorMessage = nil
+        isWorking = true
+        defer { isWorking = false }
+        if await SupabaseService.shared.phoneAvailable(phone) {
+            focused = false
+            withAnimation { signupStep = 1 }
+        } else {
+            errorMessage = "That number's already on Cini — sign in instead."
         }
     }
 

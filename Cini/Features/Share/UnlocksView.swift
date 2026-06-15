@@ -29,24 +29,35 @@ let unlockCatalog: [UnlockFeature] = [
 
 /// Beli-style feed card: progress through the unlockable features + an invite
 /// CTA. Shown near the top of the feed until everything is unlocked.
+///
+/// Tapping a feature circle opens its "learn more" sheet (which also unlocks it
+/// if a credit is available); the button goes straight to the invite list with
+/// contacts pre-loaded. There's no separate "Unlock Features" screen anymore.
 struct FeedUnlockCard: View {
     @Environment(AppSession.self) private var session
-    var onTap: () -> Void
+    @State private var detailFeature: UnlockFeature?
+    @State private var showInvite = false
+    @State private var working: String?
 
     var body: some View {
         let unlockedCount = unlockCatalog.filter { session.isUnlocked($0.id) }.count
         let credits = session.availableUnlocks
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(credits > 0 ? "\(credits) unlock\(credits == 1 ? "" : "s") ready!" : "Unlock more of Cini")
-                        .font(.headline).foregroundStyle(Theme.ink)
-                    Text("Unlock features as friends join (\(unlockedCount)/\(unlockCatalog.count))")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                }
-                HStack(spacing: 8) {
-                    ForEach(unlockCatalog) { feature in
-                        let unlocked = session.isUnlocked(feature.id)
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(credits > 0 ? "\(credits) unlock\(credits == 1 ? "" : "s") ready!" : "Unlock more of Cini")
+                    .font(.headline).foregroundStyle(Theme.ink)
+                Text(credits > 0
+                     ? "Tap a feature below to unlock it."
+                     : "Unlock features as friends join (\(unlockedCount)/\(unlockCatalog.count)) · tap one to learn more")
+                    .font(.caption).foregroundStyle(Theme.gray)
+            }
+            HStack(spacing: 8) {
+                ForEach(unlockCatalog) { feature in
+                    let unlocked = session.isUnlocked(feature.id)
+                    Button {
+                        Haptics.tap()
+                        detailFeature = feature
+                    } label: {
                         VStack(spacing: 6) {
                             ZStack {
                                 Circle()
@@ -62,19 +73,52 @@ struct FeedUnlockCard: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
+                    .buttonStyle(.plain)
                 }
-                Text(credits > 0 ? "Choose a feature to unlock" : "Invite friends")
+            }
+            Button {
+                Haptics.tap()
+                showInvite = true
+            } label: {
+                Text("Invite friends")
                     .font(.subheadline.weight(.bold)).foregroundStyle(.white)
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(Capsule().fill(Theme.velvet))
             }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.hairline, lineWidth: 1))
+            .buttonStyle(.plain)
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.hairline, lineWidth: 1))
+        )
+        .sheet(isPresented: $showInvite) {
+            InviteSheet(autoFindContacts: true).presentationDetents([.large])
+        }
+        .sheet(item: $detailFeature) { feature in
+            FeatureDetailSheet(
+                feature: feature,
+                unlocked: session.isUnlocked(feature.id),
+                canUnlock: session.availableUnlocks > 0,
+                onUnlock: { unlock(feature) },
+                onInvite: { showInvite = true }
             )
         }
-        .buttonStyle(.plain)
+    }
+
+    private func unlock(_ feature: UnlockFeature) {
+        Task {
+            Haptics.tap()
+            working = feature.id
+            let ok = await SupabaseService.shared.unlockFeature(feature.id)
+            if ok {
+                await session.loadProfile()
+                ToastCenter.shared.show("\(feature.title) unlocked 🎉")
+            } else {
+                ToastCenter.shared.saveFailed()
+            }
+            working = nil
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Contacts
 
 /// Serif "Leaderboard" header, Invite pill, Watched/Influence/Notes/Photos
 /// metric control, genre filter, and ranked rows with taste-match lines.
@@ -145,6 +146,11 @@ struct LeaderboardView: View {
 // MARK: - Invite sheet (growth loop)
 
 struct InviteSheet: View {
+    /// When true the contact list loads itself as the sheet appears (used from
+    /// the feed's unlock card so the list is pre-populated). Elsewhere the user
+    /// taps "Find friends" first.
+    var autoFindContacts = false
+
     @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -153,6 +159,7 @@ struct InviteSheet: View {
     @State private var contactMembers: [SuggestedMember] = []
     @State private var contactsChecked = false
     @State private var loadingContacts = false
+    @State private var autoTried = false
     @State private var followed: Set<UUID> = []
     @State private var query = ""
     @State private var showShare = false
@@ -217,6 +224,15 @@ struct InviteSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $showShare) { ActivityShareSheet(items: [inviteText]) }
+            .task {
+                // Pre-populate the list when asked, unless contacts were already
+                // denied — then leave the "Find friends" button so they can opt in.
+                guard autoFindContacts, !autoTried, !contactsChecked else { return }
+                autoTried = true
+                if CNContactStore.authorizationStatus(for: .contacts) != .denied {
+                    await loadContacts()
+                }
+            }
         }
     }
 

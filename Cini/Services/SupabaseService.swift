@@ -337,6 +337,16 @@ final class SupabaseService {
         (try? await client.rpc("my_phone").execute().value)
     }
 
+    /// Whether a phone number is free (not already on another account). Callable
+    /// before the account exists (anon), so signup can catch a duplicate on the
+    /// phone step rather than after creating the account. Fails open on a network
+    /// error — `set_phone` still enforces uniqueness server-side at save time.
+    func phoneAvailable(_ phone: String) async -> Bool {
+        struct Params: Encodable { let p_phone: String }
+        do { return try await client.rpc("phone_available", params: Params(p_phone: phone)).execute().value }
+        catch { Self.logSwallowed("phone_available", error); return true }
+    }
+
     /// Which contact phone numbers belong to Cini members.
     func membersFromPhones(_ phones: [String]) async throws -> [SuggestedMember] {
         struct Params: Encodable { let p_phones: [String] }
