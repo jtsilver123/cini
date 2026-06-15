@@ -343,7 +343,7 @@ def render_all(device):
     global W, H, DEVICE, ISLAND, BASE
     DEVICE = device
     if device == "iphone":
-        W, H, ISLAND = 1290, 2796, True       # 6.7" iPhone
+        W, H, ISLAND = 1284, 2778, True       # 6.7" iPhone (App Store size)
     else:
         W, H, ISLAND = 2048, 2732, False      # 12.9" iPad
     out = os.path.join(OUT, device)
