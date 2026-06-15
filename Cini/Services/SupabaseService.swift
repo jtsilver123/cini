@@ -336,6 +336,31 @@ final class SupabaseService {
         }
     }
 
+    /// How many friends this user has brought to Cini — each one is a credit
+    /// they can spend to unlock a feature.
+    func referralCount() async -> Int {
+        (try? await client.rpc("referral_count").execute().value) ?? 0
+    }
+
+    /// The feature keys this user has unlocked (aggregate_scores, …).
+    func unlockedFeatures() async -> [String] {
+        (try? await client.rpc("unlocked_features").execute().value) ?? []
+    }
+
+    /// Spend a referral credit to unlock a feature. Returns false if there's
+    /// no unspent credit (or the key is unknown).
+    @discardableResult
+    func unlockFeature(_ feature: String) async -> Bool {
+        struct Params: Encodable { let p_feature: String }
+        do {
+            return try await client.rpc("unlock_feature", params: Params(p_feature: feature))
+                .execute().value
+        } catch {
+            Self.logSwallowed("unlock_feature", error)
+            return false
+        }
+    }
+
     /// Rec Scores ("how much we think you'll like it") for specific
     /// titles — powers the Want to Watch list badges.
     func predictedScores(movieIDs: [Int]) async -> [Int: Double] {
