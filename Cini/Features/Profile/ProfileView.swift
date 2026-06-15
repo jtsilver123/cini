@@ -41,6 +41,8 @@ struct ProfileScreen: View {
     @State private var loaded = false
     @State private var lastLoaded: Date = .distantPast
     @State private var showLogoutConfirm = false
+    @State private var showTop5Share = false
+    @State private var showMatchShare = false
 
     private var isSelf: Bool { userID == nil || userID == session.profile?.id }
     private var resolvedID: UUID? { userID ?? session.profile?.id }
@@ -65,6 +67,7 @@ struct ProfileScreen: View {
                     VStack(spacing: 18) {
                         identity
                         topThree
+                        if isSelf, !rankings.isEmpty { shareTopFiveButton }
                         statRow
                         buttonRow
                         listRows
@@ -103,6 +106,25 @@ struct ProfileScreen: View {
         .sheet(isPresented: $showInviteSheet) {
             InviteSheet()
                 .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showTop5Share) {
+            TopFiveShareSheet(
+                name: profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (profile?.username ?? ""),
+                handle: profile?.username ?? "",
+                avatarURL: profile?.avatarURL,
+                movieEntries: topEntries("movie"),
+                showEntries: topEntries("tv"))
+        }
+        .sheet(isPresented: $showMatchShare) {
+            if let pct = matchPct {
+                TasteMatchShareSheet(
+                    viewerName: session.profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (session.profile?.username ?? "You"),
+                    viewerAvatarURL: session.profile?.avatarURL,
+                    memberName: profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (profile?.username ?? ""),
+                    memberHandle: profile?.username ?? "",
+                    memberAvatarURL: profile?.avatarURL,
+                    matchPct: Int(pct))
+            }
         }
         .onAppear {
             // Fresh when you come back, without re-firing 6 queries on
@@ -254,6 +276,32 @@ struct ProfileScreen: View {
         }
     }
 
+    /// Self-only: share a beautiful Top-5 card to Twitter/Instagram/etc.
+    private var shareTopFiveButton: some View {
+        Button {
+            Haptics.tap()
+            showTop5Share = true
+        } label: {
+            Label("Share my Top 5", systemImage: "square.and.arrow.up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .padding(.horizontal, 16).padding(.vertical, 8)
+                .background(Capsule().strokeBorder(Theme.marquee.opacity(0.5), lineWidth: 1.2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Top ranked entries for one kind ("movie"/"tv"), best first, 1-based rank.
+    private func topEntries(_ kind: String) -> [TopFiveShareSheet.Entry] {
+        let filtered = rankings.compactMap { row -> (RankingRow, Movie)? in
+            guard let m = movies[row.movieId] else { return nil }
+            return ((m.mediaKind == "tv") == (kind == "tv")) ? (row, m) : nil
+        }
+        return filtered.prefix(5).enumerated().map { index, pair in
+            TopFiveShareSheet.Entry(movie: pair.1, rank: index + 1, score: pair.0.score)
+        }
+    }
+
     // MARK: Identity + stats
 
     private var identity: some View {
@@ -286,9 +334,20 @@ struct ProfileScreen: View {
                 .padding(.top, 2)
             }
             if let matchPct, !isSelf {
-                Text("+\(Int(matchPct))% Match")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.scoreGreen)
+                VStack(spacing: 6) {
+                    Text("+\(Int(matchPct))% Match")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.scoreGreen)
+                    Button {
+                        Haptics.tap()
+                        showMatchShare = true
+                    } label: {
+                        Label("Share match", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
     }

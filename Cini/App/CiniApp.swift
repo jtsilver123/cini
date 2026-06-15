@@ -40,7 +40,9 @@ struct CiniApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if session.isAuthenticated {
+                if !session.didResolveAuth {
+                    LaunchView()
+                } else if session.isAuthenticated {
                     RootTabView()
                         .fullScreenCover(isPresented: $showOnboarding) {
                             OnboardingView {
@@ -71,6 +73,7 @@ struct CiniApp: App {
             .environment(session.rankingStore)
             .tint(Theme.marquee)
             .preferredColorScheme(colorScheme)
+            .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }
         }
     }
@@ -82,6 +85,10 @@ struct CiniApp: App {
 @MainActor
 final class AppSession {
     var isAuthenticated = false
+    /// False until the first auth event resolves. Lets the UI show a branded
+    /// launch screen while the saved session restores, instead of flashing the
+    /// auth screen for a beat on every relaunch.
+    var didResolveAuth = false
     var profile: Profile?
     var globalRank: Int?
 
@@ -94,6 +101,7 @@ final class AppSession {
             switch event {
             case .initialSession, .signedIn:
                 isAuthenticated = session != nil
+                didResolveAuth = true
                 if session != nil {
                     await loadProfile()
                     // Don't prompt at sign-in — onboarding primes and asks.
@@ -105,6 +113,7 @@ final class AppSession {
                 }
             case .signedOut:
                 isAuthenticated = false
+                didResolveAuth = true
                 profile = nil
                 FeedDiskCache.clear()
                 RankingDiskCache.clear()
@@ -130,5 +139,33 @@ final class AppSession {
             await supabase.unregisterDeviceToken(token)
         }
         try? await supabase.signOut()
+    }
+}
+
+/// Branded launch screen shown while the saved session restores — the marquee
+/// wordmark on the house-lights-down background, like Beli's splash, so a
+/// returning user never sees the auth screen flash by.
+struct LaunchView: View {
+    @State private var glow = false
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            VStack(spacing: 10) {
+                Text("cini")
+                    .font(Theme.display(64))
+                    .foregroundStyle(Theme.marquee)
+                    .shadow(color: Theme.marquee.opacity(glow ? 0.55 : 0.2), radius: glow ? 22 : 10)
+                Text("EVERY FILM · RANKED")
+                    .font(.caption2.weight(.bold))
+                    .tracking(4)
+                    .foregroundStyle(Theme.gray)
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                glow = true
+            }
+        }
     }
 }
