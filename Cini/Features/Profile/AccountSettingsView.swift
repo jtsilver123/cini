@@ -138,6 +138,7 @@ private struct ChangeEmailScreen: View {
     @State private var newEmail = ""
     @State private var message: String?
     @State private var errorMessage: String?
+    @State private var sending = false
 
     private var valid: Bool {
         let t = newEmail.trimmingCharacters(in: .whitespaces)
@@ -157,8 +158,13 @@ private struct ChangeEmailScreen: View {
                 Text("The change applies once you tap the link we send to the new address.")
             }
             Section {
-                Button("Send confirmation") { Task { await change() } }
-                    .disabled(!valid)
+                Button { Task { await change() } } label: {
+                    HStack {
+                        Text("Send confirmation")
+                        if sending { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(!valid || sending)
                 if let message { Text(message).font(.caption).foregroundStyle(Theme.scoreGreen) }
                 if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(Theme.scoreRed) }
             }
@@ -171,6 +177,8 @@ private struct ChangeEmailScreen: View {
 
     private func change() async {
         message = nil; errorMessage = nil
+        sending = true
+        defer { sending = false }
         do {
             try await SupabaseService.shared.updateEmail(
                 newEmail.trimmingCharacters(in: .whitespaces).lowercased())
@@ -188,25 +196,33 @@ private struct ChangePhoneScreen: View {
     @State var phone: String
     var onSaved: (String) -> Void
     @State private var saved = false
+    @State private var saving = false
 
     var body: some View {
         Form {
             Section {
-                TextField("Phone number", text: $phone)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-                    .onChange(of: phone) { _, _ in saved = false }
-                Button("Save number") {
-                    Task {
-                        if await SupabaseService.shared.setPhone(phone) {
-                            saved = true
-                            onSaved(phone)
-                        } else {
-                            ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.")
+                HStack(spacing: 6) {
+                    Text("+1").foregroundStyle(Theme.gray)
+                    TextField("Phone number", text: $phone)
+                        .keyboardType(.phonePad)
+                        .textContentType(.telephoneNumber)
+                        .onChange(of: phone) { _, new in
+                            saved = false
+                            let formatted = PhoneNumber.formattedLive(new)
+                            if formatted != phone { phone = formatted }
                         }
+                }
+                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
+                    Text("That doesn't look like a valid number — check for typos.")
+                        .font(.caption).foregroundStyle(Theme.scoreRed)
+                }
+                Button { Task { await save() } } label: {
+                    HStack {
+                        Text("Save number")
+                        if saving { Spacer(); ProgressView() }
                     }
                 }
-                .disabled(phone.filter(\.isNumber).count < 10)
+                .disabled(!PhoneNumber.isValid(phone) || saving)
                 if saved {
                     Label("Saved", systemImage: "checkmark.circle.fill")
                         .font(.caption).foregroundStyle(Theme.scoreGreen)
@@ -219,6 +235,17 @@ private struct ChangePhoneScreen: View {
         .background(Theme.background)
         .navigationTitle("Phone number")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func save() async {
+        saving = true
+        defer { saving = false }
+        if await SupabaseService.shared.setPhone(phone) {
+            saved = true
+            onSaved(phone)
+        } else {
+            ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.")
+        }
     }
 }
 
@@ -283,6 +310,7 @@ private struct TheaterAlertsScreen: View {
     @State private var loaded = false
     @State private var detecting = false
     @State private var zipMessage: String?
+    @State private var confirmOff = false
 
     var body: some View {
         Form {
@@ -297,12 +325,19 @@ private struct TheaterAlertsScreen: View {
                         if detecting { ProgressView() } else { Text("Update my area") }
                     }
                     .disabled(detecting)
-                    Button("Turn off alerts", role: .destructive) {
-                        Task {
-                            await SupabaseService.shared.setHomeZip(nil)
-                            homeZip = nil; zipMessage = nil
+                    Button("Turn off alerts", role: .destructive) { confirmOff = true }
+                        .confirmationDialog("Turn off theater alerts?",
+                                            isPresented: $confirmOff, titleVisibility: .visible) {
+                            Button("Turn off alerts", role: .destructive) {
+                                Task {
+                                    await SupabaseService.shared.setHomeZip(nil)
+                                    homeZip = nil; zipMessage = nil
+                                }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("You'll stop getting notified when your Want to Watch titles play near you.")
                         }
-                    }
                 } else {
                     Button { Task { await detectArea() } } label: {
                         if detecting { ProgressView() }

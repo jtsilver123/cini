@@ -87,7 +87,7 @@ struct ShowtimesSheet: View {
         case .loaded:
             if theaters.isEmpty {
                 placeholder(icon: "ticket", title: "No showings",
-                            message: "\(movie.title) isn't playing near \(zipcode) on this date.")
+                            message: "\(movie.title) isn't playing near \(zipcode) on this date. Try another date above.")
             } else {
                 VStack(spacing: 0) {
                     theaterList

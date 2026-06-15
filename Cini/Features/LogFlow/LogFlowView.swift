@@ -565,6 +565,15 @@ struct LogFlowView: View {
                                     .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
                             }
                         }
+                    } else {
+                        // Card image didn't render — share text so the button
+                        // is never silently missing.
+                        ShareLink(item: "\(movie.title) — ranked #\(scored.rank) on Cini 🎬") {
+                            shareLabel
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 9)
+                                .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
+                        }
                     }
                     PillButton(title: "Done") { dismiss() }
                 }

@@ -203,6 +203,7 @@ struct RequestRecsSheet: View {
                 }
             }
             .padding(16)
+            .disabled(selected.isEmpty || sending)
             .opacity(selected.isEmpty ? 0.5 : 1)
         }
         .background(Theme.background)
@@ -440,6 +441,7 @@ struct RespondPickerView: View {
                 }
             }
             .padding(16)
+            .disabled(picked.isEmpty || sending)
             .opacity(picked.isEmpty ? 0.5 : 1)
         }
         .background(Theme.background)

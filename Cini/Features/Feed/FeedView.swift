@@ -14,7 +14,6 @@ struct FeedView: View {
     @State private var logMovie: Movie?
     @State private var memberTarget: MemberRef?
     @State private var showImport = false
-    @State private var showRankSheet = false
     @State private var showMenuImport = false
     @State private var showSettings = false
     @State private var showInviteSheet = false
@@ -381,11 +380,10 @@ struct FeedView: View {
                         .foregroundStyle(Theme.gray)
                 }
                 Spacer()
-                PillButton(title: "Rank") { showRankSheet = true }
+                // Consistent with every other "rank" entry point — go to the
+                // Search tab rather than a one-off sheet.
+                PillButton(title: "Rank") { tabRouter.selection = .search }
             }
-        }
-        .sheet(isPresented: $showRankSheet) {
-            SearchView()
         }
     }
 

@@ -644,6 +644,19 @@ struct YourListsView: View {
                         let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
                         customListMovies = ids.compactMap { store.movie($0) }
                         ToastCenter.shared.saveFailed()
+                    } else {
+                        // Offer Undo — consistent with Want to Watch / watched.
+                        let label = doomed.count == 1
+                            ? "Removed \(doomed[0].title)" : "Removed \(doomed.count) titles"
+                        ToastCenter.shared.showUndo(label) {
+                            Task {
+                                for movie in doomed {
+                                    try? await SupabaseService.shared.addToList(listID, movieID: movie.tmdbID)
+                                }
+                                let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
+                                customListMovies = ids.compactMap { store.movie($0) }
+                            }
+                        }
                     }
                 }
             }
