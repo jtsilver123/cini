@@ -49,6 +49,11 @@ struct CiniApp: App {
               let raw = comps.queryItems?.first(where: { $0.name == "u" })?.value else { return }
         let username = raw.replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces)
         guard !username.isEmpty else { return }
+        // Your own link is a no-op — don't leave a stale inviter pointing at you.
+        if username.lowercased() == session.profile?.username.lowercased() {
+            pendingInviter = ""
+            return
+        }
         pendingInviter = username
         if session.isAuthenticated {
             Task {

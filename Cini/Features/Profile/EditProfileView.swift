@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Edit profile, Beli-style: photo up top, identity rows, socials (shown
-/// openly on the profile — no lock icons), privacy, then Account settings.
+/// Edit profile, Beli-style: photo up top, identity rows, socials (a
+/// referral-unlock — locked until `social_links` is unlocked), privacy,
+/// then Account settings.
 struct EditProfileView: View {
     let profile: Profile
     var onSaved: () -> Void = {}

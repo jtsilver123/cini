@@ -792,11 +792,8 @@ struct YourListsView: View {
                                                  set: { if !$0 { pendingDeleteRating = nil } }),
                             presenting: pendingDeleteRating) { movie in
             Button("Delete rating", role: .destructive) {
-                Task {
-                    if await store.removeRanking(movieID: movie.tmdbID) == false {
-                        ToastCenter.shared.saveFailed()
-                    }
-                }
+                // removeRanking surfaces its own saveFailed() toast on error.
+                Task { await store.removeRanking(movieID: movie.tmdbID) }
                 pendingDeleteRating = nil
             }
             Button("Cancel", role: .cancel) { pendingDeleteRating = nil }
