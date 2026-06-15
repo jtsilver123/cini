@@ -38,6 +38,19 @@ final class SupabaseService {
         try await client.auth.signIn(email: email, password: password)
     }
 
+    /// Log in with a phone number + password. The phone→account lookup runs
+    /// in the `phone-login` edge function (service role), which returns a
+    /// session we adopt — no OTP, and the client never sees phone→email.
+    func signInWithPhone(phone: String, password: String) async throws {
+        struct Body: Encodable { let phone: String; let password: String }
+        struct Tokens: Decodable { let access_token: String; let refresh_token: String }
+        let tokens: Tokens = try await client.functions.invoke(
+            "phone-login",
+            options: FunctionInvokeOptions(body: Body(phone: phone, password: password)))
+        try await client.auth.setSession(accessToken: tokens.access_token,
+                                         refreshToken: tokens.refresh_token)
+    }
+
     func signUp(email: String, password: String, username: String) async throws {
         try await client.auth.signUp(
             email: email,

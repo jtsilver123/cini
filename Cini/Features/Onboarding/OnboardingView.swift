@@ -147,7 +147,8 @@ struct OnboardingView: View {
                     savingPhone = true
                     let ok = await SupabaseService.shared.setPhone(phone)
                     savingPhone = false
-                    if ok { advance() } else { ToastCenter.shared.saveFailed() }
+                    if ok { advance() }
+                    else { ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.") }
                 }
             }
             .disabled(phone.filter(\.isNumber).count < 10 || savingPhone)

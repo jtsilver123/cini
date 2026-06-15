@@ -53,7 +53,7 @@ struct AuthView: View {
             Spacer()
 
             VStack(spacing: 10) {
-                field("Email", text: $email, keyboard: .emailAddress)
+                field(isSigningUp ? "Email" : "Email or phone", text: $email, keyboard: .emailAddress)
                     // Keychain autofill needs the content types; without
                     // them sign-up means typing blind.
                     .textContentType(.emailAddress)
@@ -85,8 +85,9 @@ struct AuthView: View {
                     .background(Capsule().fill(Theme.velvet))
                 }
                 .buttonStyle(.plain)
-                .disabled(isWorking || email.isEmpty || password.count < 6)
-                .opacity(email.isEmpty || password.count < 6 ? 0.6 : 1)
+                .disabled(isWorking || password.count < 6
+                          || (isSigningUp ? !email.contains("@") : email.isEmpty))
+                .opacity((isSigningUp ? !email.contains("@") : email.isEmpty) || password.count < 6 ? 0.6 : 1)
 
                 Button(isSigningUp ? "Have an account? Sign in" : "New here? Create an account") {
                     isSigningUp.toggle()
@@ -161,8 +162,11 @@ struct AuthView: View {
                 isSigningUp = false
                 awaitingConfirmation = true
                 resentJustNow = false
-            } else {
+            } else if email.contains("@") {
                 try await SupabaseService.shared.signIn(email: email, password: password)
+            } else {
+                // No "@" → treat it as a phone number (resolved server-side).
+                try await SupabaseService.shared.signInWithPhone(phone: email, password: password)
             }
         } catch {
             errorMessage = friendly(error)
@@ -190,6 +194,10 @@ struct AuthView: View {
     private func friendly(_ error: Error) -> String {
         let text = "\(error)".lowercased()
         if text.contains("invalid login credentials") { return "Wrong email or password." }
+        // phone-login edge function returns 401 / invalid_credentials.
+        if text.contains("invalid_credentials") || text.contains("401") {
+            return "Wrong email/phone or password."
+        }
         if text.contains("validate email") || text.contains("invalid format") {
             return "That doesn't look like an email address — check for typos."
         }

@@ -59,7 +59,7 @@ struct AccountSettingsView: View {
                 Button("Save number") {
                     Task {
                         if await SupabaseService.shared.setPhone(phone) { phoneSaved = true }
-                        else { ToastCenter.shared.saveFailed() }
+                        else { ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.") }
                     }
                 }
                 .disabled(phone.filter(\.isNumber).count < 10)
