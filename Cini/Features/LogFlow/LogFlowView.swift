@@ -543,37 +543,22 @@ struct LogFlowView: View {
             // moment; sharing is the reward.
             if scoreRevealed {
                 HStack(spacing: 10) {
+                    // Solid gold capsule (was a translucent/outlined "glass"
+                    // style that read as a clear, barely-visible button).
                     if let shareImage {
-                        if #available(iOS 26.0, *) {
-                            ShareLink(
-                                item: shareImage,
-                                preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
-                                                      image: shareImage)
-                            ) {
-                                shareLabel
-                            }
-                            .buttonStyle(.glass)
-                        } else {
-                            ShareLink(
-                                item: shareImage,
-                                preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
-                                                      image: shareImage)
-                            ) {
-                                shareLabel
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 9)
-                                    .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
-                            }
-                        }
+                        ShareLink(
+                            item: shareImage,
+                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                                                  image: shareImage)
+                        ) { shareLabel }
+                        .buttonStyle(.plain)
                     } else {
                         // Card image didn't render — share text so the button
                         // is never silently missing.
                         ShareLink(item: "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.appStore)") {
                             shareLabel
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 9)
-                                .overlay(Capsule().strokeBorder(Theme.marquee, lineWidth: 1.2))
                         }
+                        .buttonStyle(.plain)
                     }
                     PillButton(title: "Done") { dismiss() }
                 }
@@ -588,10 +573,13 @@ struct LogFlowView: View {
     private var shareLabel: some View {
         HStack(spacing: 6) {
             Image(systemName: "square.and.arrow.up")
-                .font(.subheadline.weight(.semibold))
-            Text("Share").font(.subheadline.weight(.semibold))
+            Text("Share")
         }
-        .foregroundStyle(Theme.marquee)
+        .font(.headline)
+        .foregroundStyle(Theme.background)        // dark text on gold = high contrast
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(Capsule().fill(Theme.marquee))
     }
 
     /// Auto-reveal a beat after the ticket lands, so the calculating
