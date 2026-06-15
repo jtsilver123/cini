@@ -71,12 +71,7 @@ struct AuthView: View {
     private var signInScreen: some View {
         VStack(spacing: 18) {
             header("Welcome back", "Sign in to pick up your rankings.")
-            authField("Email or phone", text: $email, keyboard: .emailAddress)
-            // Non-US numbers need their country code, e.g. +44…
-            Text("Signing in with a phone? Include your country code (e.g. +1).")
-                .font(.caption2).foregroundStyle(Theme.gray)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4).padding(.top, -8)
+            authField("Email or phone (non-US include \"+\")", text: $email, keyboard: .emailAddress)
             authField("Password", text: $password, secure: true)
             primaryButton("Sign in", loading: isWorking,
                           disabled: email.isEmpty || password.count < 6) {
