@@ -445,7 +445,7 @@ struct OnboardingView: View {
             }
         }
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
     }
 
     private func enableTheaterAlerts() async {

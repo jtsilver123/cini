@@ -812,7 +812,7 @@ struct CommentsSheet: View {
                 HStack(spacing: 10) {
                     TextField("Add a comment…", text: $draft, axis: .vertical)
                         .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.fill))
+                        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.fill))
                     Button {
                         Task { await post() }
                     } label: {

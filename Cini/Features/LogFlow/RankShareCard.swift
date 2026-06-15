@@ -49,7 +49,7 @@ struct RankTicket<Poster: View, Avatar: View, Score: View>: View {
 
             poster()
                 .frame(width: 150, height: 225)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: Theme.cardShadow, radius: 10, y: 5)
 
             VStack(spacing: 3) {

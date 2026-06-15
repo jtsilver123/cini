@@ -129,7 +129,7 @@ struct EnrichmentCard: View {
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 9)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 10)
+                                        RoundedRectangle(cornerRadius: 12)
                                             .fill(isOn ? Theme.marquee : Theme.fill)
                                     )
                             }
@@ -193,7 +193,7 @@ struct EnrichmentCard: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .fill(isOn ? Theme.marquee : Theme.fill)
             )
         }
@@ -353,7 +353,7 @@ struct WatchedWithPicker: View {
                 }
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
             .listRowSeparator(.hidden)
 
             ForEach(visible) { friend in
@@ -499,7 +499,7 @@ struct FriendThinkRow: View {
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                     }
                     .buttonStyle(.plain)
                 } else {

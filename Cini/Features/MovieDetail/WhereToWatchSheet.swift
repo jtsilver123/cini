@@ -45,10 +45,10 @@ struct WhereToWatchSheet: View {
                         CachedAsyncImage(url: provider.logoURL) { image in
                             image.resizable().scaledToFit()
                         } placeholder: {
-                            RoundedRectangle(cornerRadius: 10).fill(Theme.gray.opacity(0.2))
+                            RoundedRectangle(cornerRadius: 12).fill(Theme.gray.opacity(0.2))
                         }
                         .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(provider.providerName).font(.subheadline.weight(.semibold))

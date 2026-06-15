@@ -628,7 +628,7 @@ struct ImportHandoffBadge: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(Theme.surface))
 
             Image(systemName: "arrow.right")
@@ -641,9 +641,9 @@ struct ImportHandoffBadge: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 7)
                 .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Theme.surface)
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .strokeBorder(Theme.marquee.opacity(0.55), lineWidth: 1)))
         }
         .accessibilityLabel("Import from Letterboxd into Cini")

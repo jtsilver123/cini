@@ -41,7 +41,7 @@ struct FollowListScreen: View {
                     .padding(12)
                 }
                 .buttonStyle(.plain)
-                .floatingCard(cornerRadius: 14)
+                .floatingCard(cornerRadius: 16)
                 .padding(.bottom, 12)
 
                 if !loaded {

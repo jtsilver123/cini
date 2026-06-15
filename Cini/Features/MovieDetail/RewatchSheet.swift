@@ -75,7 +75,7 @@ struct RewatchSheet: View {
             .foregroundStyle(isOn ? Theme.background : Theme.ink)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 10).fill(isOn ? Theme.marquee : Theme.fill))
+            .background(RoundedRectangle(cornerRadius: 12).fill(isOn ? Theme.marquee : Theme.fill))
         }
         .buttonStyle(.plain)
     }

@@ -322,7 +322,7 @@ struct ProfileScreen: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.marqueeSoft))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.marqueeSoft))
         }
         .buttonStyle(.plain)
     }
@@ -596,9 +596,9 @@ struct ProfileScreen: View {
                     .padding(10)
                     .frame(width: 118)
                     .background(
-                        RoundedRectangle(cornerRadius: 14)
+                        RoundedRectangle(cornerRadius: 16)
                             .fill(Theme.surface)
-                            .overlay(RoundedRectangle(cornerRadius: 14)
+                            .overlay(RoundedRectangle(cornerRadius: 16)
                                 .strokeBorder(Theme.hairline, lineWidth: 1))
                     )
                 }
@@ -1098,7 +1098,7 @@ struct RankedListScreen: View {
                         }
                     }
                     .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                     .padding(.bottom, 10)
                 }
                 if rankings.isEmpty {

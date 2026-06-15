@@ -234,7 +234,7 @@ struct InviteSheet: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
         }
         .buttonStyle(.plain)
     }
@@ -249,7 +249,7 @@ struct InviteSheet: View {
                 if loadingContacts { ProgressView() }
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
         }
         .buttonStyle(.plain)
         .disabled(loadingContacts)

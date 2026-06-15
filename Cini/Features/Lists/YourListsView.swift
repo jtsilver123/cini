@@ -509,7 +509,7 @@ struct YourListsView: View {
             }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
         .padding(.horizontal, 16)
     }
 

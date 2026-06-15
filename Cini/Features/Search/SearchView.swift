@@ -394,7 +394,7 @@ struct SearchView: View {
                     .padding(12)
                 }
                 .buttonStyle(.plain)
-                .floatingCard(cornerRadius: 14)
+                .floatingCard(cornerRadius: 16)
                 .padding(.vertical, 6)
             } else {
                 // Checked but no matches — say so instead of vanishing.
@@ -439,7 +439,7 @@ struct SearchView: View {
                 .padding(12)
             }
             .buttonStyle(.plain)
-            .floatingCard(cornerRadius: 14)
+            .floatingCard(cornerRadius: 16)
             .padding(.vertical, 10)
         }
         .sheet(isPresented: $showInvite) {
@@ -575,7 +575,7 @@ struct SearchView: View {
                 .padding(14)
             }
             .buttonStyle(.plain)
-            .floatingCard(cornerRadius: 14)
+            .floatingCard(cornerRadius: 16)
             .padding(.vertical, 6)
 
             ForEach(visibleMaybeSeen.prefix(showAllMaybeSeen ? 100 : 4)) { movie in

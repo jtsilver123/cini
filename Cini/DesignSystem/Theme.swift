@@ -96,6 +96,12 @@ enum Theme {
     static let pageHeader = display(32)
     static let detailTitle = serif(36)
 
+    // MARK: Corner radius scale
+    // One consistent set instead of ad-hoc 10/14/16/18 sprinkled around.
+    static let rControl: CGFloat = 12   // fields, chips, small fills
+    static let rCard: CGFloat = 16      // cards, list rows, surfaces
+    static let rHero: CGFloat = 22      // sheets / floating hero cards
+
     // MARK: Elevation
 
     /// Card shadow — heavy in the screening room, feather-light by day.

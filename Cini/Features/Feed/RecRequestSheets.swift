@@ -340,7 +340,7 @@ struct RespondPickerView: View {
                 }
                 TextField("Add a note (optional)", text: $note)
                     .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)

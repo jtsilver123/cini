@@ -406,7 +406,7 @@ struct CiniChatAvailableView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(message.isUser ? Theme.marquee : Theme.surface)
                     .shadow(color: Theme.cardShadow, radius: 4, y: 2)
             )
@@ -814,7 +814,7 @@ struct ThinkingTicker: View {
             }
             .padding(.vertical, 10)
             .padding(.horizontal, 14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface2))
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface2))
             .animation(.snappy(duration: 0.25), value: steps)
         }
     }
@@ -846,7 +846,7 @@ struct ChatReviewPicker: View {
                         .onChange(of: query) { _, _ in schedule() }
                 }
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Theme.background)
 

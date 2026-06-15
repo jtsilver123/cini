@@ -927,7 +927,7 @@ struct MovieDetailView: View {
                     .foregroundStyle(Theme.gray)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Theme.fill))
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                 }
                 .buttonStyle(.plain)
             } else {

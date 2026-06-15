@@ -70,8 +70,8 @@ struct FeedUnlockCard: View {
             }
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 18).fill(Theme.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.hairline, lineWidth: 1))
+                RoundedRectangle(cornerRadius: 16).fill(Theme.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.hairline, lineWidth: 1))
             )
         }
         .buttonStyle(.plain)
@@ -168,7 +168,7 @@ struct UnlocksView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Theme.surface))
+        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
     }
 
     private func featureCard(_ feature: UnlockFeature) -> some View {

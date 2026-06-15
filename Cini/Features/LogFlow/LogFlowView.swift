@@ -673,7 +673,7 @@ struct PosterView: View {
                 .overlay(Image(systemName: "film").font(.title2).foregroundStyle(Theme.gray))
         }
         .frame(width: width, height: width * 1.5)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: Theme.cardShadow, radius: 8, y: 4)
     }
 }

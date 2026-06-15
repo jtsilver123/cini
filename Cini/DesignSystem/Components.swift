@@ -347,12 +347,12 @@ struct ProfileSkeleton: View {
                 Spacer()
             }
             HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 14).fill(Theme.fill).frame(height: 92)
-                RoundedRectangle(cornerRadius: 14).fill(Theme.fill).frame(height: 92)
+                RoundedRectangle(cornerRadius: 16).fill(Theme.fill).frame(height: 92)
+                RoundedRectangle(cornerRadius: 16).fill(Theme.fill).frame(height: 92)
             }
             VStack(spacing: 12) {
                 ForEach(0..<4, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: 10).fill(Theme.fill).frame(height: 44)
+                    RoundedRectangle(cornerRadius: 12).fill(Theme.fill).frame(height: 44)
                 }
             }
         }
@@ -753,9 +753,9 @@ struct HairlineCard<Content: View>: View {
         content
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Theme.surface)
-                    .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.hairline, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Theme.hairline, lineWidth: 1))
             )
     }
 }
