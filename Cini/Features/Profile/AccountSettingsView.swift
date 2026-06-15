@@ -276,9 +276,9 @@ private struct TheaterAlertsScreen: View {
     var body: some View {
         Form {
             Section {
-                if let homeZip {
+                if let zip = homeZip {
                     LabeledContent {
-                        Text(homeZip).foregroundStyle(Theme.gray)
+                        Text(zip).foregroundStyle(Theme.gray)
                     } label: {
                         Label("Your area", systemImage: "mappin.and.ellipse")
                     }
