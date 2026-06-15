@@ -171,6 +171,10 @@ struct AuthView: View {
             if id.contains("@") {
                 try await SupabaseService.shared.signIn(email: id, password: password)
             } else {
+                guard PhoneNumber.isValid(id) else {
+                    errorMessage = "Enter a valid email or phone number."
+                    return
+                }
                 try await SupabaseService.shared.signInWithPhone(phone: id, password: password)
             }
         } catch {

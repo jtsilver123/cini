@@ -159,10 +159,20 @@ struct OnboardingView: View {
                 TextField("Phone number", text: $phone)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
+                    .onChange(of: phone) { _, new in
+                        let formatted = PhoneNumber.formattedLive(new)
+                        if formatted != phone { phone = formatted }
+                    }
             }
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
             .padding(.horizontal, 28)
+            // Beli-style: once enough digits are in, flag obviously-invalid numbers.
+            if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
+                Text("That doesn't look like a valid number — check for typos.")
+                    .font(.caption).foregroundStyle(Theme.scoreRed)
+                    .multilineTextAlignment(.center).padding(.horizontal, 28)
+            }
             Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
                 .font(.caption2).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 28)
@@ -176,7 +186,7 @@ struct OnboardingView: View {
                     else { ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.") }
                 }
             }
-            .disabled(phone.filter(\.isNumber).count < 10 || savingPhone)
+            .disabled(!PhoneNumber.isValid(phone) || savingPhone)
             .padding(.horizontal, 28).padding(.bottom, 30)
         }
     }
