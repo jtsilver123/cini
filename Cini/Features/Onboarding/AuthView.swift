@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// Beli-style auth: one thing per screen. Sign-in is a single screen (email
-/// OR phone + password). Sign-up is email → password, then straight into
-/// onboarding (email confirmation is off, so signup returns a live session).
+/// OR phone + password). Sign-up is phone → email → password (phone first,
+/// like Beli; the number is saved right after the account is created), then
+/// straight into onboarding (email confirmation is off, so signup returns a
+/// live session).
 struct AuthView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -18,6 +20,16 @@ struct AuthView: View {
     init(startInSignUp: Bool = false) {
         _isSigningUp = State(initialValue: startInSignUp)
     }
+
+    // Password policy (shown live as a checklist on the create-password screen).
+    private var pwHasLength: Bool { (8...20).contains(password.count) }
+    private var pwHasMix: Bool {
+        let letter = password.contains { $0.isLetter }
+        let number = password.contains { $0.isNumber }
+        let special = password.contains { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }
+        return letter && number && special
+    }
+    private var passwordValid: Bool { pwHasLength && pwHasMix }
 
     var body: some View {
         ZStack {
@@ -100,10 +112,11 @@ struct AuthView: View {
                     withAnimation { signupStep = 2 }
                 }
             default:
-                header("Create a password", "At least 6 characters.")
+                header("Create a password", "Make it strong — this protects your account.")
                 authField("Password", text: $password, secure: true)
+                passwordRules
                 primaryButton("Create account", loading: isWorking,
-                              disabled: password.count < 6) {
+                              disabled: !passwordValid) {
                     Task { await signUp() }
                 }
                 messages
@@ -127,6 +140,27 @@ struct AuthView: View {
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+    }
+
+    private var passwordRules: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            passwordRule("8–20 characters", pwHasLength)
+            passwordRule("Letters, numbers, and a special character", pwHasMix)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+    }
+
+    private func passwordRule(_ text: String, _ met: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: met ? "checkmark.circle.fill" : "circle")
+                .font(.footnote)
+                .foregroundStyle(met ? Theme.scoreGreen : Theme.gray)
+            Text(text)
+                .font(.footnote)
+                .foregroundStyle(met ? Theme.ink : Theme.gray)
+        }
+        .animation(.snappy(duration: 0.15), value: met)
     }
 
     // MARK: Pieces
@@ -254,7 +288,9 @@ struct AuthView: View {
         if text.contains("network") || text.contains("offline") || text.contains("timed out") {
             return "No connection — check your internet and try again."
         }
-        if text.contains("at least 6") || text.contains("password") { return "Password needs at least 6 characters." }
+        if text.contains("at least") || text.contains("password") {
+            return "Password needs 8–20 characters with letters, numbers, and a special character."
+        }
         return "Something went wrong — try again."
     }
 }

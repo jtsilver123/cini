@@ -4,11 +4,12 @@ import SwiftUI
 /// are collected before this (the pre-auth carousel + sign-up), Beli-style, so
 /// onboarding picks up at identity:
 ///
-///   1. Claim your @ — name, username, photo (and who invited you)
-///   2. Find your friends — contacts + invite
-///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
-///   4. Stay in the loop — enable notifications + theater alerts
-///   5. Rank your first movie — a poster grid of recognizable titles
+///   1. Claim your @ — name, username (and who invited you)
+///   2. Add a profile photo — its own screen, skippable
+///   3. Find your friends — contacts + invite
+///   4. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
+///   5. Stay in the loop — enable notifications + theater alerts
+///   6. Rank your first movie — a poster grid of recognizable titles
 ///
 /// Shown once (per device) when an authenticated user has zero rankings.
 struct OnboardingView: View {
@@ -65,10 +66,11 @@ struct OnboardingView: View {
             progressBar
             TabView(selection: $step) {
                 usernameStep.tag(0)
-                findFriendsStep.tag(1)
-                importStep.tag(2)
-                permissionsStep.tag(3)
-                firstRankStep.tag(4)
+                photoStep.tag(1)
+                findFriendsStep.tag(2)
+                importStep.tag(3)
+                permissionsStep.tag(4)
+                firstRankStep.tag(5)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -102,7 +104,7 @@ struct OnboardingView: View {
 
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<5, id: \.self) { index in
+            ForEach(0..<6, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -114,10 +116,10 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 4) }
+        withAnimation(.snappy) { step = min(step + 1, 5) }
     }
 
-    // MARK: 2 — Find your friends (Beli puts this in onboarding)
+    // MARK: 3 — Find your friends (Beli puts this in onboarding)
 
     private var findFriendsStep: some View {
         VStack(spacing: 22) {
@@ -140,7 +142,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 1 — Claim username
+    // MARK: 1 — Claim username (name + handle; photo is its own step)
 
     private var usernameStep: some View {
         VStack(spacing: 18) {
@@ -150,37 +152,6 @@ struct OnboardingView: View {
             Text("This is how friends find and follow you.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
-
-            // Photo + name: skipping the photo still shows their initials
-            // everywhere, which the avatar previews live as they type.
-            VStack(spacing: 8) {
-                Button {
-                    showCropPicker = true
-                } label: {
-                    ZStack(alignment: .bottomTrailing) {
-                        AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 84,
-                                   name: displayName.isEmpty ? username : displayName)
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(Theme.marquee)
-                            .background(Circle().fill(Theme.background))
-                    }
-                }
-                .buttonStyle(.plain)
-                if isUploadingPhoto {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text(avatarURL == nil ? "Add a photo" : "Change photo")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.gray)
-                }
-            }
-            .sheet(isPresented: $showCropPicker) {
-                CropImagePicker { image in
-                    Task { await uploadPhoto(image) }
-                }
-                .ignoresSafeArea()
-            }
 
             VStack(spacing: 10) {
                 TextField("Your name", text: $displayName)
@@ -272,6 +243,49 @@ struct OnboardingView: View {
         return Theme.gray
     }
 
+    // MARK: 2 — Add a profile photo (its own screen, like Beli)
+
+    private var photoStep: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            Text("Add a profile photo")
+                .font(Theme.serif(32)).multilineTextAlignment(.center)
+            Text("Show the face behind the reviews. You can skip it — your initials stand in until you do.")
+                .font(.subheadline).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center).padding(.horizontal, 32)
+
+            Button {
+                showCropPicker = true
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 132,
+                               name: displayName.isEmpty ? username : displayName)
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title)
+                        .foregroundStyle(Theme.marquee)
+                        .background(Circle().fill(Theme.background))
+                }
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 6)
+            if isUploadingPhoto { ProgressView().controlSize(.small) }
+
+            Spacer()
+            PillButton(title: avatarURL == nil ? "Add a photo" : "Looks good", style: .filled) {
+                if avatarURL == nil { showCropPicker = true } else { advance() }
+            }
+            .padding(.horizontal, 28)
+            Button(avatarURL == nil ? "Not now" : "Continue without it") { advance() }
+                .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
+        }
+        .sheet(isPresented: $showCropPicker) {
+            CropImagePicker { image in
+                Task { await uploadPhoto(image) }
+            }
+            .ignoresSafeArea()
+        }
+    }
+
     private func uploadPhoto(_ image: UIImage) async {
         isUploadingPhoto = true
         defer { isUploadingPhoto = false }
@@ -281,6 +295,8 @@ struct OnboardingView: View {
         }
         do {
             avatarURL = try await SupabaseService.shared.uploadAvatar(jpeg)
+            // uploadAvatar persists avatar_url; refresh so it shows on finish.
+            await session.loadProfile()
             Haptics.success()
         } catch {
             Haptics.error()
@@ -312,7 +328,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 3 — Bring your history
+    // MARK: 4 — Bring your history
 
     private var importStep: some View {
         VStack(spacing: 18) {
@@ -346,7 +362,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 4 — Stay in the loop (notifications + theater alerts)
+    // MARK: 5 — Stay in the loop (notifications + theater alerts)
 
     private var permissionsStep: some View {
         VStack(spacing: 18) {
@@ -429,7 +445,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 5 — Rank your first movie
+    // MARK: 6 — Rank your first movie
 
     private var firstRankStep: some View {
         VStack(spacing: 14) {
