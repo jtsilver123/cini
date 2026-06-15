@@ -7,7 +7,10 @@ struct CiniApp: App {
     /// User ids that have finished onboarding on this device (comma-joined).
     /// Per-account so a new signup on a shared phone still onboards.
     @AppStorage("cini.onboardedUserIDs") private var onboardedUserIDsRaw = ""
+    /// Accounts that have seen the post-onboarding product tour.
+    @AppStorage("cini.touredUserIDs") private var touredUserIDsRaw = ""
     @State private var showOnboarding = false
+    @State private var showTour = false
 
     private func isOnboarded(_ uid: String) -> Bool {
         onboardedUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
@@ -15,6 +18,13 @@ struct CiniApp: App {
     private func markOnboarded(_ uid: String) {
         guard !isOnboarded(uid) else { return }
         onboardedUserIDsRaw += onboardedUserIDsRaw.isEmpty ? uid : ",\(uid)"
+    }
+    private func isToured(_ uid: String) -> Bool {
+        touredUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
+    }
+    private func markToured(_ uid: String) {
+        guard !isToured(uid) else { return }
+        touredUserIDsRaw += touredUserIDsRaw.isEmpty ? uid : ",\(uid)"
     }
 
     /// Changes whenever the signed-in account or its load state changes, so the
@@ -113,11 +123,26 @@ struct CiniApp: App {
                             OnboardingView {
                                 if let uid = SupabaseService.shared.currentUserID?.uuidString {
                                     markOnboarded(uid)
+                                    // New user just finished onboarding → quick tour.
+                                    if !isToured(uid) { showTour = true }
                                 }
                                 withAnimation { showOnboarding = false }
                             }
                         } else {
                             RootTabView()
+                                // Overlay (not a cover) so it can't be dropped
+                                // during the onboarding→app transition.
+                                .overlay {
+                                    if showTour {
+                                        ProductTourView {
+                                            if let uid = SupabaseService.shared.currentUserID?.uuidString {
+                                                markToured(uid)
+                                            }
+                                            withAnimation { showTour = false }
+                                        }
+                                        .transition(.opacity)
+                                    }
+                                }
                         }
                     }
                     // Keyed on the user id so it re-evaluates for a new account
