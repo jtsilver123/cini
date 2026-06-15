@@ -92,6 +92,7 @@ struct LeaderboardView: View {
                             Text("@\(row.username)")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
+                                .lineLimit(1)
                             if let pct = row.matchPct {
                                 Text("+\(Int(pct))% Match")
                                     .font(.caption.weight(.semibold))

@@ -143,7 +143,9 @@ struct RequestRecsSheet: View {
                     Text(preferredName(friend.displayName, friend.username) ?? friend.username)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
                     Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
@@ -415,7 +417,8 @@ struct RespondPickerView: View {
                     for movieID in picked {
                         guard let movie = store.movie(movieID) else { continue }
                         // direct_recs FKs onto movies — cache first.
-                        try? await SupabaseService.shared.cacheMovie(movie)
+                        do { try await SupabaseService.shared.cacheMovie(movie) }
+                        catch { SupabaseService.logSwallowed("send_rec_cache_movie", error) }
                         if await SupabaseService.shared.sendDirectRec(
                             to: request.requesterId, movieID: movieID, note: trimmed) {
                             sent += 1
