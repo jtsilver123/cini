@@ -38,6 +38,8 @@ struct MovieDetailView: View {
     @State private var showShowtimes = false
     @State private var showSendRec = false
     @State private var memberTarget: MemberRef?
+    // Commenter tapped in the comments sheet → open after it dismisses.
+    @State private var pendingCommentMember: MemberRef?
     @State private var personTarget: CastMember?
     @State private var predicted: Double?
     @State private var scoreInfo: ScoreInfo?
@@ -117,9 +119,14 @@ struct MovieDetailView: View {
         }
         // Presented from the screen root — sheets attached deep inside the
         // scrolling stack can silently fail to appear on device.
-        .sheet(item: $commentsTarget) { target in
-            CommentsSheet(eventID: target.id)
-                .presentationDetents([.medium, .large])
+        .sheet(item: $commentsTarget, onDismiss: {
+            if let m = pendingCommentMember { pendingCommentMember = nil; memberTarget = m }
+        }) { target in
+            CommentsSheet(eventID: target.id, onOpenMember: { member in
+                pendingCommentMember = member
+                commentsTarget = nil
+            })
+            .presentationDetents([.medium, .large])
         }
         .sheet(item: $scoreInfo) { info in
             ScoreInfoSheet(info: info)

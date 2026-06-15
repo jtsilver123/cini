@@ -557,6 +557,9 @@ struct FeedCard: View {
     @State private var likeInFlight = false
     @State private var showComments = false
     @State private var heartPop = false
+    // Stashed when a commenter is tapped; opened after the sheet dismisses so
+    // the profile pushes cleanly in the main nav stack (not inside the sheet).
+    @State private var pendingMember: MemberRef?
 
     private var movie: Movie? { event.movies?.asMovie }
     private var actorName: String { event.profiles?.username ?? "someone" }
@@ -715,9 +718,14 @@ struct FeedCard: View {
         .onChange(of: initiallyLiked, initial: true) { _, isLiked in
             liked = isLiked
         }
-        .sheet(isPresented: $showComments) {
-            CommentsSheet(eventID: event.id)
-                .presentationDetents([.medium, .large])
+        .sheet(isPresented: $showComments, onDismiss: {
+            if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
+        }) {
+            CommentsSheet(eventID: event.id, onOpenMember: { member in
+                pendingMember = member
+                showComments = false
+            })
+            .presentationDetents([.medium, .large])
         }
     }
 }
@@ -728,12 +736,15 @@ struct CommentsSheet: View {
     /// Comments hang off a feed event — the feed passes its card's event,
     /// the movie page passes the 'ranked' event behind a public rating.
     let eventID: UUID
+    /// Tapping a commenter routes to their profile in the PRESENTER's nav stack
+    /// (after this sheet dismisses) — never a cramped profile pushed inside the
+    /// comments sheet.
+    var onOpenMember: (MemberRef) -> Void = { _ in }
 
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
     @State private var loaded = false
     @State private var blockCandidate: CommentRow?
-    @State private var memberTarget: MemberRef?
 
     var body: some View {
         NavigationStack {
@@ -753,10 +764,11 @@ struct CommentsSheet: View {
                         HStack(alignment: .top, spacing: 12) {
                             // A plain Button (not a List NavigationLink, which
                             // injects a disclosure chevron and breaks the row
-                            // layout) — navigate programmatically instead.
+                            // layout) — hand the member to the presenter so the
+                            // real profile opens in the main nav stack.
                             Button {
-                                memberTarget = MemberRef(id: comment.userId,
-                                                         username: comment.profiles?.username ?? "member")
+                                onOpenMember(MemberRef(id: comment.userId,
+                                                       username: comment.profiles?.username ?? "member"))
                             } label: {
                                 AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
                                            name: preferredName(comment.profiles?.displayName, comment.profiles?.username))
@@ -843,9 +855,6 @@ struct CommentsSheet: View {
             .background(Theme.background)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(item: $memberTarget) { ref in
-                MemberProfileView(userID: ref.id, username: ref.username)
-            }
         }
         // Blocking is heavy — always confirm before mutual invisibility.
         .confirmationDialog(
