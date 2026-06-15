@@ -37,6 +37,10 @@ jobs:
           cp import.html _site/import/index.html
           # import.html is served from /import/, so it needs its own copy.
           cp favicon.png _site/import/favicon.png
+          # Invite landing page served from /i/.
+          mkdir -p _site/i
+          cp i/index.html _site/i/index.html
+          cp favicon.png _site/i/favicon.png
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

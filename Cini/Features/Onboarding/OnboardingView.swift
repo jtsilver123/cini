@@ -18,6 +18,8 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var username = ""
     @State private var inviterUsername = ""
+    /// Set when the user arrived via a friend's invite link — prefilled above.
+    @AppStorage("cini.pendingInviter") private var pendingInviter = ""
     @State private var displayName = ""
     @State private var usernameError: String?
     @State private var saving = false
@@ -251,6 +253,8 @@ struct OnboardingView: View {
                 }
                 .padding(14)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                // Tapped a friend's invite link → it's already filled in.
+                .onAppear { if inviterUsername.isEmpty, !pendingInviter.isEmpty { inviterUsername = pendingInviter } }
             }
             .padding(.horizontal, 28)
 
@@ -308,10 +312,13 @@ struct OnboardingView: View {
             try await SupabaseService.shared.updateProfile(
                 ProfileUpdate(username: username,
                               display_name: displayName.isEmpty ? nil : displayName))
-            // Invited by a friend: follow each other automatically.
-            let inviter = inviterUsername.trimmingCharacters(in: .whitespaces)
+            // Invited by a friend (typed, or carried in from their link):
+            // follow each other automatically.
+            let typed = inviterUsername.trimmingCharacters(in: .whitespaces)
+            let inviter = (typed.isEmpty ? pendingInviter : typed).trimmingCharacters(in: .whitespaces)
             if !inviter.isEmpty {
                 await SupabaseService.shared.redeemInvite(from: inviter)
+                pendingInviter = ""
             }
             await session.loadProfile()
             advance()

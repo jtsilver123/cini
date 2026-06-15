@@ -8,6 +8,9 @@ struct CiniApp: App {
     @State private var showOnboarding = false
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
+    /// Carried in from a friend's invite link (`cini://invite?u=…`) so
+    /// onboarding prefills it / we auto-follow — no typing a username.
+    @AppStorage("cini.pendingInviter") private var pendingInviter = ""
 
     init() {
         // Beli-style tab bar: a solid, opaque bar with a top hairline — NOT
@@ -34,6 +37,27 @@ struct CiniApp: App {
         case "light": .light
         case "system": nil       // follow the device setting
         default: .dark
+        }
+    }
+
+    /// `cini://invite?u=<username>` from a friend's invite link: remember the
+    /// inviter so onboarding prefills it, and if we're already signed in,
+    /// follow them right away — the invitee never types a username.
+    private func handleInvite(_ url: URL) {
+        guard url.scheme == "cini",
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let raw = comps.queryItems?.first(where: { $0.name == "u" })?.value else { return }
+        let username = raw.replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces)
+        guard !username.isEmpty else { return }
+        pendingInviter = username
+        if session.isAuthenticated {
+            Task {
+                if await SupabaseService.shared.redeemInvite(from: username) {
+                    pendingInviter = ""
+                    await session.loadProfile()
+                    ToastCenter.shared.show("You're now following @\(username) 🎬")
+                }
+            }
         }
     }
 
@@ -75,6 +99,7 @@ struct CiniApp: App {
             .preferredColorScheme(colorScheme)
             .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }
+            .onOpenURL { handleInvite($0) }
         }
     }
 

@@ -147,15 +147,18 @@ struct LeaderboardView: View {
 struct InviteSheet: View {
     @Environment(AppSession.self) private var session
 
+    private var inviteURL: String {
+        "https://jtsilver123.github.io/cini/i/?u=\(session.profile?.username ?? "")"
+    }
     private var inviteText: String {
-        "Join me on Cini — we rank every movie head-to-head 🎬 Enter my username (\(session.profile?.username ?? "me")) when you sign up and we'll follow each other automatically."
+        "Join me on Cini — we rank every movie & show head-to-head 🎬\n\(inviteURL)"
     }
 
     var body: some View {
         VStack(spacing: 18) {
             Text("Invite friends to Cini")
                 .font(Theme.serif(26))
-            Text("Compare taste, race the leaderboard, and swap recs. Friends who enter your @username at signup follow you automatically.")
+            Text("Compare taste, race the leaderboard, and swap recs. Friends who tap your link follow you automatically — and each friend who joins earns you a feature unlock.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
