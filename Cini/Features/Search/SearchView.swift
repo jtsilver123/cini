@@ -156,9 +156,14 @@ struct SearchView: View {
         guard query.isEmpty, browse == nil,
               tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch else { return }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard tabRouter.selection == .search, query.isEmpty else { return }
-            searchFocused = true
+            // Retry: on first entry the field may not be in the window yet, and
+            // a single focus request gets silently dropped. Stop once it takes.
+            for delay in [150, 350, 600] {
+                try? await Task.sleep(for: .milliseconds(delay))
+                guard tabRouter.selection == .search, query.isEmpty else { return }
+                if searchFocused { return }
+                searchFocused = true
+            }
         }
     }
 
