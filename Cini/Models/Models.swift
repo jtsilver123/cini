@@ -175,20 +175,26 @@ struct Profile: Identifiable, Codable, Hashable {
         "Member since " + memberSince.formatted(.dateTime.month(.wide).year())
     }
 
+    /// Start of the current ISO week, in UTC — `last_logged_week` is a
+    /// date-only column parsed as UTC midnight, so the comparison MUST also be
+    /// in UTC. Using a local-timezone week start made "ranked this week" read
+    /// as false for anyone behind UTC, so the streak banner never cleared.
+    private static var thisWeekStartUTC: Date {
+        var cal = Calendar(identifier: .iso8601)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        return cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+    }
+
     /// True when there's a live streak that hasn't been fed this week.
     var streakAtRisk: Bool {
         guard streakWeeks > 0 else { return false }
         guard let lastLoggedWeek else { return true }
-        let thisWeek = Calendar(identifier: .iso8601)
-            .dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
-        return lastLoggedWeek < thisWeek
+        return lastLoggedWeek < Profile.thisWeekStartUTC
     }
 
     var hasLoggedThisWeek: Bool {
         guard let lastLoggedWeek else { return false }
-        let thisWeek = Calendar(identifier: .iso8601)
-            .dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
-        return lastLoggedWeek >= thisWeek
+        return lastLoggedWeek >= Profile.thisWeekStartUTC
     }
 }
 
