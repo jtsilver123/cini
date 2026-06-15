@@ -7,7 +7,8 @@ struct AuthView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var isSigningUp: Bool
-    @State private var signupStep = 0   // 0 = email, 1 = password
+    @State private var signupStep = 0   // 0 = phone, 1 = email, 2 = password
+    @State private var phone = ""
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
@@ -69,16 +70,36 @@ struct AuthView: View {
 
     @ViewBuilder private var signUpFlow: some View {
         VStack(spacing: 18) {
-            if signupStep == 0 {
-                header("What's your email?", "We'll use it to keep your account safe.")
-                authField("Email", text: $email, keyboard: .emailAddress)
-                primaryButton("Continue", disabled: !email.contains("@")) {
+            switch signupStep {
+            case 0:
+                // Phone first, like Beli — it's the key for finding friends and
+                // for "log in with phone". The account itself is still made with
+                // email + password (saved on the next two screens).
+                header("First, what's your number?",
+                       "So friends from your contacts can find you. It's never shown on your profile.")
+                phoneField
+                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
+                    Text("That doesn't look like a valid number — check for typos.")
+                        .font(.caption).foregroundStyle(Theme.scoreRed)
+                        .multilineTextAlignment(.center)
+                }
+                Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
+                    .font(.caption2).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                primaryButton("Continue", disabled: !PhoneNumber.isValid(phone)) {
                     focused = false
                     withAnimation { signupStep = 1 }
                 }
                 Button("Have an account? Sign in") { switchMode(toSignUp: false) }
                     .font(.subheadline).foregroundStyle(Theme.marquee)
-            } else {
+            case 1:
+                header("What's your email?", "We'll use it to keep your account safe.")
+                authField("Email", text: $email, keyboard: .emailAddress)
+                primaryButton("Continue", disabled: !email.contains("@")) {
+                    focused = false
+                    withAnimation { signupStep = 2 }
+                }
+            default:
                 header("Create a password", "At least 6 characters.")
                 authField("Password", text: $password, secure: true)
                 primaryButton("Create account", loading: isWorking,
@@ -90,6 +111,22 @@ struct AuthView: View {
             Spacer(minLength: 20)
             legal
         }
+    }
+
+    private var phoneField: some View {
+        HStack(spacing: 6) {
+            Text("+1").foregroundStyle(Theme.gray)
+            TextField("Phone number", text: $phone)
+                .keyboardType(.phonePad)
+                .textContentType(.telephoneNumber)
+                .focused($focused)
+                .onChange(of: phone) { _, new in
+                    let formatted = PhoneNumber.formattedLive(new)
+                    if formatted != phone { phone = formatted }
+                }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
     }
 
     // MARK: Pieces
@@ -192,7 +229,13 @@ struct AuthView: View {
                 email: email, password: password,
                 username: "user_\(UUID().uuidString.prefix(8).lowercased())")
             // Email confirmation is off, so signUp returns a live session — the
-            // auth state flips and onboarding takes over automatically.
+            // auth state flips and onboarding takes over automatically. Save the
+            // number we collected up front (phone-first signup); if it's already
+            // on Cini, they can change it later in Settings.
+            let saved = await SupabaseService.shared.setPhone(phone)
+            if !saved {
+                ToastCenter.shared.show("That number's already on Cini — you can update it in Settings.")
+            }
         } catch {
             errorMessage = friendly(error)
         }

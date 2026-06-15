@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// First-run flow for a brand-new account:
+/// First-run flow for a brand-new account. Value props and phone/email/password
+/// are collected before this (the pre-auth carousel + sign-up), Beli-style, so
+/// onboarding picks up at identity:
 ///
-///   1. Welcome — "Rank, don't rate" (the three circles, the one idea)
-///   2. Claim your username (Apple sign-ins arrive as "user_a1b2c3d4")
+///   1. Claim your @ — name, username, photo (and who invited you)
+///   2. Find your friends — contacts + invite
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
 ///   4. Stay in the loop — enable notifications + theater alerts
 ///   5. Rank your first movie — a poster grid of recognizable titles
@@ -16,8 +18,6 @@ struct OnboardingView: View {
     var onFinished: () -> Void
 
     @State private var step = 0
-    @State private var phone = ""
-    @State private var savingPhone = false
     @State private var showFindFriends = false
     @State private var username = ""
     @State private var inviterUsername = ""
@@ -64,13 +64,11 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             progressBar
             TabView(selection: $step) {
-                welcomeStep.tag(0)
-                phoneStep.tag(1)
-                usernameStep.tag(2)
-                findFriendsStep.tag(3)
-                importStep.tag(4)
-                permissionsStep.tag(5)
-                firstRankStep.tag(6)
+                usernameStep.tag(0)
+                findFriendsStep.tag(1)
+                importStep.tag(2)
+                permissionsStep.tag(3)
+                firstRankStep.tag(4)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -104,7 +102,7 @@ struct OnboardingView: View {
 
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<7, id: \.self) { index in
+            ForEach(0..<5, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -116,10 +114,10 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 6) }
+        withAnimation(.snappy) { step = min(step + 1, 4) }
     }
 
-    // MARK: 4 — Find your friends (Beli puts this in onboarding)
+    // MARK: 2 — Find your friends (Beli puts this in onboarding)
 
     private var findFriendsStep: some View {
         VStack(spacing: 22) {
@@ -142,99 +140,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 2.5 — Phone (required, like Beli — powers find-your-friends)
-
-    private var phoneStep: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            VStack(spacing: 10) {
-                Text("What's your number?")
-                    .font(Theme.serif(32)).multilineTextAlignment(.center)
-                Text("So friends from your contacts can find you on Cini. It's never shown on your profile or shared with anyone.")
-                    .font(.subheadline).foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center).padding(.horizontal, 28)
-            }
-            HStack(spacing: 6) {
-                Text("+1").foregroundStyle(Theme.gray)
-                TextField("Phone number", text: $phone)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-                    .onChange(of: phone) { _, new in
-                        let formatted = PhoneNumber.formattedLive(new)
-                        if formatted != phone { phone = formatted }
-                    }
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-            .padding(.horizontal, 28)
-            // Beli-style: once enough digits are in, flag obviously-invalid numbers.
-            if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
-                Text("That doesn't look like a valid number — check for typos.")
-                    .font(.caption).foregroundStyle(Theme.scoreRed)
-                    .multilineTextAlignment(.center).padding(.horizontal, 28)
-            }
-            Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
-                .font(.caption2).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 28)
-            Spacer()
-            PillButton(title: savingPhone ? "Saving…" : "Continue", style: .filled) {
-                Task {
-                    savingPhone = true
-                    let ok = await SupabaseService.shared.setPhone(phone)
-                    savingPhone = false
-                    if ok { advance() }
-                    else { ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.") }
-                }
-            }
-            .disabled(!PhoneNumber.isValid(phone) || savingPhone)
-            .padding(.horizontal, 28).padding(.bottom, 30)
-        }
-    }
-
-    // MARK: 1 — Welcome
-
-    private var welcomeStep: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Text("cini")
-                .font(Theme.display(48))
-                .foregroundStyle(Theme.ink)
-            Text("EVERY FILM · RANKED")
-                .font(.system(size: 11, weight: .bold))
-                .tracking(4)
-                .foregroundStyle(Theme.gray)
-
-            VStack(spacing: 14) {
-                Text("No star ratings. Ever.")
-                    .font(.title3.weight(.bold))
-                Text("You'll answer one question — **\"Which did you like more?\"** — and Cini builds your perfectly ordered list, with scores that come from your own taste.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.horizontal, 36)
-
-            HStack(spacing: 22) {
-                circle(Theme.sentimentLoved, "Liked it")
-                circle(Theme.sentimentFine, "Fine")
-                circle(Theme.sentimentDisliked, "Didn't")
-            }
-            .padding(.top, 6)
-
-            Spacer()
-            PillButton(title: "Get started") { advance() }
-                .padding(.bottom, 36)
-        }
-    }
-
-    private func circle(_ color: Color, _ label: String) -> some View {
-        VStack(spacing: 8) {
-            Circle().fill(color).frame(width: 52, height: 52)
-            Text(label).font(.caption).foregroundStyle(Theme.gray)
-        }
-    }
-
-    // MARK: 2 — Claim username
+    // MARK: 1 — Claim username
 
     private var usernameStep: some View {
         VStack(spacing: 18) {
