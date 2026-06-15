@@ -320,17 +320,6 @@ struct FeedView: View {
 
             askForRecsRow
 
-            // A new release picked from the user's own most-ranked genre
-            // (first-party, no tracking). Sits high but below the ask row.
-            if let promoted {
-                PromotedReleaseCard(
-                    movie: promoted,
-                    reason: promotedReason,
-                    onOpen: { detailMovie = $0 },
-                    onQuickAdd: { logMovie = $0 }
-                )
-            }
-
             // One contextual banner at a time — never a stack of them.
             if !pendingAsks.isEmpty {
                 pendingAsksBanner
@@ -343,13 +332,18 @@ struct FeedView: View {
             if events.isEmpty {
                 if feedLoaded {
                     emptyState
+                    // No friend activity yet — still surface one release to explore.
+                    promotedCard
                 } else {
                     FeedSkeleton()
                         .padding(.top, 4)
                 }
             }
 
-            ForEach(events) { event in
+            // Instagram-style placement: friends' activity leads, then the
+            // featured release flows in after a few posts — never pinned to the
+            // very top. (First-party, taste-matched, no tracking.)
+            ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                 FeedCard(
                     event: event,
                     initiallyLiked: likedEventIDs.contains(event.id),
@@ -357,7 +351,25 @@ struct FeedView: View {
                     onQuickAdd: { logMovie = $0 },
                     onOpenMember: { memberTarget = $0 }
                 )
+                if index == promotedSlot {
+                    promotedCard
+                }
             }
+        }
+    }
+
+    /// Where the featured release flows into the feed: after the 4th post so
+    /// friends' activity leads, or after the last post in a shorter feed.
+    private var promotedSlot: Int { min(3, events.count - 1) }
+
+    @ViewBuilder private var promotedCard: some View {
+        if let promoted {
+            PromotedReleaseCard(
+                movie: promoted,
+                reason: promotedReason,
+                onOpen: { detailMovie = $0 },
+                onQuickAdd: { logMovie = $0 }
+            )
         }
     }
 

@@ -581,7 +581,7 @@ function toggleFollow(u){
 
 /* =================== FEED =================== */
 function renderFeed(){
-  const cards = FEED.map(e=>{
+  const cardArr = FEED.map(e=>{
     const m=MOVIES[e.movie];
     const fRanked = !!myEntry(e.movie);
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
@@ -610,7 +610,7 @@ function renderFeed(){
         ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
       </div>
     </div>`;
-  }).join("");
+  });
 
   // First-party "promoted release" — a new film picked from your taste.
   const pk = Object.keys(MOVIES).find(k=>MOVIES[k].bd) || Object.keys(MOVIES)[0];
@@ -631,6 +631,13 @@ function renderFeed(){
         ${promoRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${pk}')">${bmIcon(pk)}</button>`}
       </div>
     </div>`;
+
+  // Instagram-style placement: friends' activity leads, the featured release
+  // flows in after a few posts rather than being pinned to the top.
+  const promoSlot = Math.min(4, cardArr.length);
+  const feedHTML = cardArr.length
+    ? cardArr.slice(0, promoSlot).join("") + promo + cardArr.slice(promoSlot).join("")
+    : promo;
 
   $("screen-feed").innerHTML = `
     <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
@@ -665,8 +672,7 @@ function renderFeed(){
       <div class="avatar" style="width:44px;height:44px;" onclick="go('profile')">J</div>
       <div style="flex:1; background:rgba(255,255,255,.07); border-radius:999px; padding:13px 17px; color:var(--gray); font-size:14px; cursor:pointer;" onclick="openAskRecs()">Ask your friends for recs</div>
     </div>
-    ${promo}
-    <div style="margin-top:14px;">${cards}</div>`;
+    <div style="margin-top:14px;">${feedHTML}</div>`;
 }
 
 /* =================== LISTS =================== */
