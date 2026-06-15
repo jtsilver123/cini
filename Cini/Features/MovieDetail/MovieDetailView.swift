@@ -890,8 +890,11 @@ struct MovieDetailView: View {
                             Text(row.displayName?.isEmpty == false ? row.displayName! : row.username)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
+                                .lineLimit(1)
                             Text("@\(row.username)").font(.caption).foregroundStyle(Theme.gray)
+                                .lineLimit(1)
                         }
+                        Spacer(minLength: 8)
                     }
                 }
                 .buttonStyle(.plain)

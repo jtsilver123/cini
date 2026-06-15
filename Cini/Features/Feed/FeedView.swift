@@ -748,7 +748,7 @@ struct CommentsSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            Group {
                 if !loaded {
                     Spacer()
                     ProgressView()
@@ -778,9 +778,12 @@ struct CommentsSheet: View {
                                 HStack(spacing: 6) {
                                     Text("@\(comment.profiles?.username ?? "member")")
                                         .font(.caption.weight(.bold))
+                                        .lineLimit(1)
                                     Text(comment.createdAt.formatted(.relative(presentation: .named)))
                                         .font(.caption2)
                                         .foregroundStyle(Theme.gray)
+                                        .lineLimit(1)
+                                        .layoutPriority(-1)
                                 }
                                 Text(comment.body).font(.subheadline)
                             }
@@ -834,6 +837,11 @@ struct CommentsSheet: View {
                     .scrollDismissesKeyboard(.interactively)
                 }
 
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.background)
+            // safeAreaInset keeps the composer pinned ABOVE the keyboard.
+            .safeAreaInset(edge: .bottom) {
                 HStack(spacing: 10) {
                     TextField("Add a comment…", text: $draft, axis: .vertical)
                         .padding(10)
@@ -852,7 +860,6 @@ struct CommentsSheet: View {
                 .padding(12)
                 .background(.thinMaterial)
             }
-            .background(Theme.background)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
         }
