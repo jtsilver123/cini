@@ -74,17 +74,28 @@ def wrap(d, t, f, maxw):
     if cur: out.append(cur)
     return out
 
-def bg():
-    img = Image.new("RGB",(W,H),BG)
+# Per-screen branded backdrops — distinct warm cinema tones (top), settling
+# into the house-lights-down charcoal. Cohesive with the marquee palette.
+BACKDROPS = {
+    "velvet": (0x3a, 0x16, 0x12),
+    "gold":   (0x39, 0x2b, 0x10),
+    "plum":   (0x2c, 0x16, 0x30),
+    "bronze": (0x33, 0x24, 0x12),
+    "ember":  (0x3a, 0x1d, 0x10),
+}
+def bg(accent="gold"):
+    top = BACKDROPS.get(accent, BACKDROPS["gold"])
+    base = (0x13, 0x10, 0x11)
+    img = Image.new("RGB",(W,H))
     d = ImageDraw.Draw(img)
     for y in range(H):
-        t=y/H
-        r=int(0x13+ (0x24-0x13)*(1-t)*0.5); g=int(0x10+(0x1c-0x10)*(1-t)*0.5); b=int(0x11+(0x14-0x11)*(1-t)*0.5)
+        t = min(y/(H*0.62), 1.0)        # fade the tint out by ~60% down
+        r=int(top[0]+(base[0]-top[0])*t); g=int(top[1]+(base[1]-top[1])*t); b=int(top[2]+(base[2]-top[2])*t)
         d.line([(0,y),(W,y)], fill=(r,g,b))
+    # soft marquee-gold glow up top, the brand signature
     glow = Image.new("RGBA",(W,H),(0,0,0,0))
-    gd=ImageDraw.Draw(glow)
-    gd.ellipse([W/2-560, -380, W/2+560, 480], fill=(232,182,76,46))
-    glow=glow.filter(ImageFilter.GaussianBlur(120))
+    ImageDraw.Draw(glow).ellipse([W/2-620,-420,W/2+620,460], fill=(232,182,76,40))
+    glow=glow.filter(ImageFilter.GaussianBlur(150))
     img.paste(Image.alpha_composite(img.convert("RGBA"),glow).convert("RGB"),(0,0))
     return img
 
@@ -95,35 +106,37 @@ def bulbs(d, y, n=17):
         d.ellipse([x-7,y-7,x+7,y+7], fill=MARQUEE)
         d.ellipse([x-3,y-3,x+3,y+3], fill="#fff7e0")
 
-def caption(d, headline, sub, hl_color=MARQUEE):
-    y=150
-    bulbs(d, 92)
-    for ln in wrap(d, headline, sf(80), W-150):
-        ctext(d, W/2, y, ln, sf(80), hl_color, glow=(232,182,76,70)); y+=94
-    y+=16
-    for ln in wrap(d, sub, sa(40), W-220):
+def caption(d, headline, sub):
+    bulbs(d, 86)              # marquee trim across the very top
+    y=160
+    for ln in wrap(d, headline, sf(86), W-150):
+        ctext(d, W/2, y, ln, sf(86), INK); y+=100
+    y+=14
+    for ln in wrap(d, sub, sa(40), W-200):
         ctext(d, W/2, y, ln, sa(40), GRAY); y+=54
     return y
 
 SCREEN = None  # set by phone(); poster() pastes onto this
 def phone(top, draw_screen):
+    """Large clean phone — black bezel + soft shadow, no ornamental rim."""
     global SCREEN
-    pw, ph = 980, 2796-top-70
+    pw, ph = 1020, 2796-top-110
     x0=(W-pw)//2; y0=top
     sh=Image.new("RGBA",(W,H),(0,0,0,0))
-    ImageDraw.Draw(sh).rounded_rectangle([x0-16,y0+10,x0+pw+16,y0+ph+30], radius=92, fill=(0,0,0,150))
-    sh=sh.filter(ImageFilter.GaussianBlur(40))
+    ImageDraw.Draw(sh).rounded_rectangle([x0-14,y0+14,x0+pw+14,y0+ph+34], radius=96, fill=(0,0,0,160))
+    sh=sh.filter(ImageFilter.GaussianBlur(46))
     BASE.paste(Image.alpha_composite(BASE.convert("RGBA"),sh).convert("RGB"),(0,0))
     d=ImageDraw.Draw(BASE)
-    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph+16], radius=86, fill="#000000")
-    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph+16], radius=86, outline=MARQUEE, width=3)
+    d.rounded_rectangle([x0-14,y0-14,x0+pw+14,y0+ph+14], radius=90, fill="#0a0809")
+    # marquee-gold frame echoing the app icon's border
+    d.rounded_rectangle([x0-14,y0-14,x0+pw+14,y0+ph+14], radius=90, outline=MARQUEE, width=5)
     screen=Image.new("RGB",(pw,ph),BG); SCREEN=screen
     sd=ImageDraw.Draw(screen)
     draw_screen(sd, pw, ph)
     mask=Image.new("L",(pw,ph),0)
-    ImageDraw.Draw(mask).rounded_rectangle([0,0,pw-1,ph-1], radius=72, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0,0,pw-1,ph-1], radius=76, fill=255)
     BASE.paste(screen,(x0,y0),mask)
-    d.rounded_rectangle([x0,y0,x0+pw-1,y0+ph-1], radius=72, outline="#2a2526", width=3)
+    d.rounded_rectangle([x0,y0,x0+pw-1,y0+ph-1], radius=76, outline="#2a2526", width=2)
 
 def score_badge(d, cx, cy, val, r=44, color=None):
     color = color or (GREEN if val>=7 else FINE if val>=5 else DIS)
@@ -156,88 +169,159 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
 
 SHOTS=[]
 
+def status_bar(d, pw):
+    d.text((40, 24), "9:41", font=sb(28), fill=INK)
+    # signal + battery glyphs (simple)
+    for i in range(4):
+        h=10+i*8; d.rounded_rectangle([pw-150+i*18, 50-h, pw-138+i*18, 50], radius=2, fill=INK)
+    d.rounded_rectangle([pw-78, 30, pw-40, 52], radius=5, outline=INK, width=2)
+    d.rectangle([pw-74, 34, pw-50, 48], fill=INK)
+
+def tabbar(d, pw, ph, active=0):
+    bh=164; y=ph-bh
+    d.rectangle([0,y,pw,ph], fill=(15,13,14))
+    d.line([(0,y),(pw,y)], fill="#241f20", width=2)
+    labels=["Feed","Your Lists","Search","Leaderboard","Profile"]
+    step=pw/5
+    for i,lbl in enumerate(labels):
+        cx=step*i+step/2; iy=y+46; col=MARQUEE if i==active else GRAY
+        if i==0:
+            for k in range(3): d.rounded_rectangle([cx-22,iy-16+k*13,cx+22,iy-9+k*13],radius=3,fill=col)
+        elif i==1:
+            for k in range(3):
+                d.ellipse([cx-24,iy-16+k*13,cx-15,iy-7+k*13],fill=col)
+                d.rounded_rectangle([cx-8,iy-15+k*13,cx+24,iy-9+k*13],radius=2,fill=col)
+        elif i==2:
+            d.ellipse([cx-22,iy-20,cx+6,iy+8],outline=col,width=5); d.line([cx+3,iy+5,cx+20,iy+22],fill=col,width=6)
+        elif i==3:
+            d.rounded_rectangle([cx-18,iy-20,cx+18,iy+2],radius=9,fill=col)
+            d.rectangle([cx-6,iy+2,cx+6,iy+14],fill=col); d.rectangle([cx-18,iy+14,cx+18,iy+22],fill=col)
+        else:
+            d.ellipse([cx-11,iy-22,cx+11,iy],fill=col); d.ellipse([cx-22,iy-2,cx+22,iy+26],fill=col)
+        f=sa(20); w=d.textlength(lbl,font=f); d.text((cx-w/2,y+100),lbl,font=f,fill=col)
+
+def chip(d, x, y, text, active=False):
+    f=sa(26); w=d.textlength(text,font=f); cw=w+44; ch=58
+    if active:
+        d.rounded_rectangle([x,y,x+cw,y+ch],radius=29,fill=MARQUEE)
+        d.text((x+22,y+14),text,font=f,fill=(19,16,17))
+    else:
+        d.rounded_rectangle([x,y,x+cw,y+ch],radius=29,outline="#3a3335",width=2)
+        d.text((x+22,y+14),text,font=f,fill=GRAY)
+    return x+cw+14
+
+# 1 — HERO (clean brand intro)
 def s_hero(d, pw, ph):
     cx=pw//2
-    d.rounded_rectangle([60,150,pw-60,ph-150], radius=40, outline=MARQUEE, width=4)
-    for i in range(12):
-        x=120+i*((pw-240)/11); d.ellipse([x-6,176,x+6,188],fill=MARQUEE)
-        d.ellipse([x-6,ph-188,x+6,ph-176],fill=MARQUEE)
-    f=disp(150); t="CINI"; w=d.textlength(t,font=f)
-    d.text((cx-w/2, ph/2-300), t, font=f, fill=MARQUEE)
-    ctext(d, cx, ph/2-90, "EVERY FILM · RANKED", sb(32), GRAY, track=10)
+    f=disp(168); t="CINI"; w=d.textlength(t,font=f)
+    d.text((cx-w/2, ph*0.30), t, font=f, fill=MARQUEE)
+    ctext(d, cx, ph*0.30+200, "EVERY FILM · RANKED", sb(34), GRAY, track=12)
+    ctext(d, cx, ph*0.52, "Rank everything you watch", sf(46), INK)
+    ctext(d, cx, ph*0.52+70, "through quick head-to-head taps.", sf(46), INK)
     for k,(c,lbl) in enumerate([(LOVE,"Liked it"),(FINE,"It was fine"),(DIS,"Didn't")]):
         bx=cx-300+k*300
-        d.ellipse([bx-58,ph/2+80,bx+58,ph/2+196], fill=c)
-        ww=d.textlength(lbl,font=sa(28)); d.text((bx-ww/2, ph/2+220), lbl, font=sa(28), fill=GRAY)
-SHOTS.append(("01-hero", "Every film, ranked.", "No star ratings — just your taste, in perfect order.", s_hero, INK))
+        d.ellipse([bx-60,ph*0.70,bx+60,ph*0.70+120], fill=c)
+        ww=d.textlength(lbl,font=sa(28)); d.text((bx-ww/2, ph*0.70+150), lbl, font=sa(28), fill=GRAY)
+SHOTS.append(("01-hero", "Every film, ranked.", "No star ratings — just your taste, in perfect order.", s_hero, "gold"))
 
+# 2 — COMPARE (the ranking modal)
 def s_compare(d, pw, ph):
-    ctext(d, pw//2, 150, "Which did you", sf(60), INK)
-    ctext(d, pw//2, 224, "like more?", sf(60), INK)
-    pwid=360; px=70; py=440
+    status_bar(d, pw)
+    cx=pw//2
+    ctext(d, cx, 200, "Which did you", sf(64), INK)
+    ctext(d, cx, 280, "like more?", sf(64), INK)
+    pwid=380; px=80; py=520
     poster(d, px, py, pwid, pwid*3//2, query="Whiplash", year=2014)
     poster(d, pw-px-pwid, py, pwid, pwid*3//2, query="Interstellar", year=2014)
-    d.ellipse([pw//2-52, py+pwid*3//4-52, pw//2+52, py+pwid*3//4+52], fill=VELVET)
-    vt="VS"; f=sb(40); w=d.textlength(vt,font=f); d.text((pw//2-w/2, py+pwid*3//4-26), vt, font=f, fill="#fff")
-    ctext(d, pw//2, py+pwid*3//2+70, "A few quick taps — no scores to overthink.", sa(28), GRAY)
-SHOTS.append(("02-no-star-ratings", "No star ratings. Ever.", "Answer one question and Cini orders everything you've seen.", s_compare, MARQUEE))
+    cyc=py+pwid*3//4
+    d.ellipse([cx-56, cyc-56, cx+56, cyc+56], fill=VELVET)
+    vt="VS"; f=sb(42); w=d.textlength(vt,font=f); d.text((cx-w/2, cyc-28), vt, font=f, fill="#fff")
+    for k,c in enumerate([LOVE,FINE,DIS]):
+        bx=cx-150+k*150; by=py+pwid*3//2+90
+        d.ellipse([bx-32,by,bx+32,by+64], fill=c)
+    ctext(d, cx, py+pwid*3//2+200, "A few quick taps — no scores to overthink.", sa(28), GRAY)
+SHOTS.append(("02-no-star-ratings", "No star ratings. Ever.", "Answer one question and Cini orders everything you've seen.", s_compare, "velvet"))
 
+# 3 — YOUR LISTS (current app: segmented tabs + filter chips + ranked rows)
 def s_list(d, pw, ph):
-    ctext(d, pw//2, 150, "Your ranked list", sf(56), INK)
-    titles=[("Past Lives",2023,9.4),("The Zone of Interest",2023,8.8),("Oppenheimer",2023,8.1),
-            ("Poor Things",2023,7.6),("Killers of the Flower Moon",2023,7.0),
-            ("Saltburn",2023,6.2),("Wonka",2023,5.4)]
-    y=300
+    status_bar(d, pw)
+    d.text((44, 80), "Your Lists", font=sf(58), fill=INK)
+    segs=["Watched","Want to Watch","Recs"]; sy=180; sx=44; sw=pw-88
+    d.rounded_rectangle([sx,sy,sx+sw,sy+74], radius=37, fill=FILL)
+    seg_w=sw/3
+    for i,s in enumerate(segs):
+        if i==0: d.rounded_rectangle([sx+5,sy+5,sx+seg_w-3,sy+69], radius=32, fill=SURF)
+        f=sa(27); w=d.textlength(s,font=f); d.text((sx+seg_w*i+seg_w/2-w/2, sy+22), s, font=f, fill=INK if i==0 else GRAY)
+    fy=sy+102; x=44
+    x=chip(d,x,fy,"Movies",active=True); x=chip(d,x,fy,"TV")
+    x=chip(d,x,fy,"Genre"); x=chip(d,x,fy,"Decade")
+    titles=[("Past Lives",2023,9.4),("Oppenheimer",2023,8.6),("Poor Things",2023,7.6),
+            ("Killers of the Flower Moon",2023,7.0),("Saltburn",2023,6.2)]
+    y=fy+92
     for i,(t,yr,sc) in enumerate(titles):
-        d.rounded_rectangle([60,y,pw-60,y+150], radius=20, fill=SURF)
-        d.text((92,y+54), f"{i+1}", font=sb(40), fill=GRAY)
-        poster(d, 165, y+18, 86, 114, query=t, year=yr)
-        for j,ln in enumerate(wrap(d, t, sf(36), pw-165-300)):
-            d.text((280, y+30+j*42), ln, font=sf(36), fill=INK)
-        score_badge(d, pw-130, y+75, sc)
-        y+=172
-SHOTS.append(("03-ranked-list", "A list that's truly yours", "Every title scored out of 10 — by you, not strangers.", s_list, MARQUEE))
+        d.rounded_rectangle([44,y,pw-44,y+150], radius=20, fill=SURF)
+        d.text((74,y+52), f"{i+1}", font=sb(38), fill=GRAY)
+        poster(d, 146, y+18, 86, 114, query=t, year=yr)
+        for j,ln in enumerate(wrap(d, t, sf(34), pw-270-170)):
+            d.text((262, y+26+j*40), ln, font=sf(34), fill=INK)
+        d.text((262, y+108), str(yr), font=sa(24), fill=GRAY)
+        score_badge(d, pw-118, y+75, sc)
+        y+=166
+    tabbar(d, pw, ph, active=1)
+SHOTS.append(("03-ranked-list", "A list that's truly yours", "Every title scored out of 10 — by you, not strangers.", s_list, "bronze"))
 
+# 4 — FEED (cini header, search, pills, friend cards)
 def s_feed(d, pw, ph):
-    ctext(d, pw//2, 150, "Better with friends", sf(56), INK)
-    cards=[("MAYA","ranked","Dune: Part Two",2024,8.7),("LEO","wants to watch","The Substance",2024,None),
-           ("PRIYA","ranked","Anora",2024,9.1)]
-    y=300
+    status_bar(d, pw)
+    d.text((44, 72), "cini", font=disp(52), fill=MARQUEE)
+    for k in range(3):
+        bx=pw-220+k*70; d.ellipse([bx,86,bx+40,126], outline=GRAY, width=4)
+    d.rounded_rectangle([44,170,pw-44,242], radius=20, fill=FILL)
+    d.ellipse([66,190,98,222], outline=GRAY, width=4)
+    d.text((118,188), "Search a movie, member, etc.", font=sa(28), fill=GRAY)
+    x=chip(d,44,270,"Trending"); x=chip(d,x,270,"Friend Recs")
+    cards=[("MAYA","ranked","Dune: Part Two",2024,8.7),("PRIYA","ranked","Anora",2024,9.1)]
+    y=370
     for name,act,title,yr,sc in cards:
-        d.rounded_rectangle([60,y,pw-60,y+330], radius=22, fill=SURF)
-        poster(d, 92, y+34, 130, 174, query=title, year=yr)
-        d.text((250,y+44), f"@{name.lower()}", font=sb(30), fill=INK)
-        d.text((250,y+90), f"{act}", font=sa(26), fill=GRAY)
+        d.rounded_rectangle([44,y,pw-44,y+360], radius=22, fill=SURF)
+        d.ellipse([74,y+30,150,y+106], fill=SURF2)
+        d.text((86,y+46), name[0], font=disp(42), fill=MARQUEE)
+        d.text((170,y+40), f"@{name.lower()}", font=sb(30), fill=INK)
+        d.text((170,y+86), act, font=sa(26), fill=GRAY)
+        poster(d, 74, y+140, 150, 200, query=title, year=yr)
         for j,ln in enumerate(wrap(d, title, sf(40), pw-460)):
-            d.text((250, y+140+j*46), ln, font=sf(40), fill=INK)
-        if sc is not None: score_badge(d, pw-150, y+96, sc, r=48)
-        for k,ic in enumerate(["like","reply","share"]):
-            d.text((250+k*150, y+256), ic, font=sa(26), fill=GRAY)
-        y+=355
-SHOTS.append(("04-friends", "Know before you commit", "See what friends scored before you spend the night on it.", s_feed, MARQUEE))
+            d.text((254, y+170+j*48), ln, font=sf(40), fill=INK)
+        if sc is not None: score_badge(d, pw-150, y+220, sc, r=50)
+        y+=386
+    tabbar(d, pw, ph, active=0)
+SHOTS.append(("04-friends", "Better with friends", "See what friends scored before you spend a night on it.", s_feed, "plum"))
 
+# 5 — WANT TO WATCH, sorted by Rec Score
 def s_recs(d, pw, ph):
-    ctext(d, pw//2, 150, "Want to Watch", sf(56), INK)
-    ctext(d, pw//2, 230, "sorted by what you'll love", sa(32), GRAY)
+    status_bar(d, pw)
+    d.text((44, 80), "Want to Watch", font=sf(54), fill=INK)
+    d.text((44, 158), "sorted by what you'll love", font=sa(30), fill=GRAY)
     titles=[("Sinners",2025,9.2),("The Brutalist",2024,8.9),("Conclave",2024,8.3),
             ("A Real Pain",2024,7.8),("Nosferatu",2024,7.1),("Wicked",2024,6.4)]
-    y=340
+    y=240
     for t,yr,sc in titles:
-        d.rounded_rectangle([60,y,pw-60,y+150], radius=20, fill=SURF)
-        poster(d, 80, y+18, 86, 114, query=t, year=yr)
-        for j,ln in enumerate(wrap(d, t, sf(36), pw-200-320)):
-            d.text((196, y+30+j*42), ln, font=sf(36), fill=INK)
-        d.rounded_rectangle([pw-300, y+48, pw-92, y+108], radius=30, fill=SURF2)
-        d.text((pw-282, y+60), "Rec", font=sa(26), fill=GRAY)
-        score_badge(d, pw-150, y+78, sc, r=40)
-        y+=172
-SHOTS.append(("05-rec-scores", "Recs that match your taste", "Rec Scores predict how much YOU'll like what you haven't seen.", s_recs, MARQUEE))
+        d.rounded_rectangle([44,y,pw-44,y+150], radius=20, fill=SURF)
+        poster(d, 64, y+18, 86, 114, query=t, year=yr)
+        for j,ln in enumerate(wrap(d, t, sf(34), pw-220-300)):
+            d.text((176, y+26+j*40), ln, font=sf(34), fill=INK)
+        d.text((176, y+108), str(yr), font=sa(24), fill=GRAY)
+        d.rounded_rectangle([pw-310, y+50, pw-150, y+104], radius=27, fill=SURF2)
+        d.text((pw-292, y+62), "REC", font=sb(22), fill=GRAY)
+        score_badge(d, pw-118, y+77, sc, r=42)
+        y+=164
+    tabbar(d, pw, ph, active=1)
+SHOTS.append(("05-rec-scores", "Recs that match your taste", "Rec Scores predict how much YOU'll like what you haven't seen.", s_recs, "ember"))
 
 os.makedirs(OUT, exist_ok=True)
-for name, headline, sub, fn, hl in SHOTS:
-    BASE = bg()
+for name, headline, sub, fn, accent in SHOTS:
+    BASE = bg(accent)
     d = ImageDraw.Draw(BASE)
-    ph_top = caption(d, headline, sub, hl) + 40
+    ph_top = caption(d, headline, sub) + 30
     phone(int(ph_top), fn)
     BASE.save(os.path.join(OUT, f"{name}.png"))
     print("saved", name)
