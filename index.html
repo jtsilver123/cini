@@ -4,8 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#131011">
-<meta name="description" content="Cini — rank every movie you watch. No star ratings: head-to-head comparisons build your perfectly ordered list, with scores that come from your own taste.">
+<meta name="description" content="Cini — rank every movie and show you watch. No star ratings: quick head-to-head comparisons build your perfectly ordered list, with scores that come from your own taste.">
 <title>Cini — Every Film, Ranked</title>
+
+<!-- Social link previews -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cini">
+<meta property="og:title" content="Cini — Every Film, Ranked">
+<meta property="og:description" content="No star ratings. Answer one question — “Which did you like more?” — and Cini builds your perfectly ordered list of everything you’ve watched.">
+<meta property="og:url" content="https://jtsilver123.github.io/cini/">
+<meta property="og:image" content="https://jtsilver123.github.io/cini/favicon.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cini — Every Film, Ranked">
+<meta name="twitter:description" content="No star ratings. Head-to-head comparisons build your perfectly ordered list of every movie and show you watch.">
+<meta name="twitter:image" content="https://jtsilver123.github.io/cini/favicon.png">
+
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -23,21 +36,62 @@
 </header>
 
 <section class="hero">
-  <div class="wordmark serif">cini</div>
-  <div class="tagline">EVERY FILM · RANKED</div>
-  <h1 class="serif">No star ratings. Ever.</h1>
-  <p class="lede">Answer one question — <b style="color:var(--ink);">“Which did you like more?”</b> —
-  and Cini builds your perfectly ordered list of every movie you’ve seen,
-  with scores that come from your own taste.</p>
-  <div class="dots">
-    <div><div class="d" style="background:#2FBF71;"></div><span>Liked it</span></div>
-    <div><div class="d" style="background:#E8B64C;"></div><span>Fine</span></div>
-    <div><div class="d" style="background:#D96B6B;"></div><span>Didn’t</span></div>
+  <div class="hero-copy">
+    <div class="tagline">EVERY FILM · RANKED</div>
+    <h1 class="serif">No star ratings.<br>Ever.</h1>
+    <p class="lede">Answer one question — <b>“Which did you like more?”</b> —
+    and Cini builds your perfectly ordered list of every movie and show
+    you’ve watched, with scores that come from your own taste.</p>
+    <div class="dots">
+      <div><div class="d" style="background:var(--green);"></div><span>Liked it</span></div>
+      <div><div class="d" style="background:var(--marquee);"></div><span>Fine</span></div>
+      <div><div class="d" style="background:#D96B6B;"></div><span>Didn’t</span></div>
+    </div>
+    <p class="cta-row">
+      <a class="cta" href="mailto:jtsilver123@gmail.com?subject=Cini%20beta">Request beta access</a>
+    </p>
+    <p class="cta-note">Coming soon to the App Store · currently in private TestFlight</p>
   </div>
-  <p style="margin-top:34px;">
-    <a class="cta" href="mailto:jtsilver123@gmail.com?subject=Cini%20beta">Request beta access</a>
-  </p>
-  <p class="cta-note">Coming soon to the App Store · currently in private TestFlight</p>
+
+  <!-- Pure-CSS app mockup: the signature compare → ranked-list flow. -->
+  <div class="hero-device" aria-hidden="true">
+    <div class="device">
+      <div class="screen">
+        <div class="app-bar"><span>Rank your watch</span></div>
+
+        <div class="compare">
+          <p class="compare-q">Which did you like more?</p>
+          <div class="compare-row">
+            <div class="poster" style="--p1:#1F6F6B;--p2:#0E2A3A;"><span>Whiplash</span></div>
+            <div class="vs">vs</div>
+            <div class="poster" style="--p1:#A8352A;--p2:#E8B64C;"><span>Interstellar</span></div>
+          </div>
+        </div>
+
+        <p class="rank-label">Your ranking</p>
+        <div class="rank-list">
+          <div class="rank-row">
+            <span class="rk">1</span>
+            <div class="mini" style="--p1:#3A2A5A;--p2:#A8352A;"></div>
+            <div class="rt"><b>Parasite</b><i>2019 · Thriller</i></div>
+            <span class="badge hi">9.4</span>
+          </div>
+          <div class="rank-row">
+            <span class="rk">2</span>
+            <div class="mini" style="--p1:#1F6F6B;--p2:#0E2A3A;"></div>
+            <div class="rt"><b>Whiplash</b><i>2014 · Drama</i></div>
+            <span class="badge hi">8.8</span>
+          </div>
+          <div class="rank-row">
+            <span class="rk">3</span>
+            <div class="mini" style="--p1:#A8352A;--p2:#E8B64C;"></div>
+            <div class="rt"><b>Interstellar</b><i>2014 · Sci-Fi</i></div>
+            <span class="badge mid">7.1</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <section class="section" id="how">
@@ -52,12 +106,12 @@
     </div>
     <div class="step">
       <h3>Compare, don’t rate</h3>
-      <p>Cini shows you two movies you’ve seen and asks which you liked more.
+      <p>Cini shows you two titles you’ve seen and asks which you liked more.
       A few quick taps slot the new one exactly where it belongs.</p>
     </div>
     <div class="step">
       <h3>Your taste, scored</h3>
-      <p>Every film gets a score out of 10 derived from its place in
+      <p>Every title gets a score out of 10 derived from its place in
       <i>your</i> order — and Cini predicts how much you’ll like what you
       haven’t seen yet.</p>
     </div>
@@ -69,10 +123,10 @@
   <p class="sub">Everything you’d want from a film diary, kept simple.</p>
   <div class="grid">
     <div class="card"><div class="ico">🎯</div><h3>Rec Scores</h3>
-      <p>Personal predictions for movies you haven’t seen, computed from the
-      taste your rankings reveal.</p></div>
+      <p>Personal predictions for movies and shows you haven’t seen, computed
+      from the taste your rankings reveal.</p></div>
     <div class="card"><div class="ico">👥</div><h3>Friends’ takes</h3>
-      <p>See what friends scored a movie before you commit a Friday night to it —
+      <p>See what friends scored a title before you commit a Friday night to it —
       and what everyone else thought, spoilers safely blurred.</p></div>
     <div class="card"><div class="ico">📥</div><h3>Letterboxd import</h3>
       <p>Bring your whole history — watched films, ratings, watchlist, and
@@ -87,6 +141,13 @@
       <p>Race your friends on films watched, influence, and notes written.
       Taste is a competitive sport.</p></div>
   </div>
+</section>
+
+<section class="closer">
+  <h2 class="serif">Your taste deserves better than five stars.</h2>
+  <p>Start ranking the movies and shows that made you — and find the next one.</p>
+  <a class="cta" href="mailto:jtsilver123@gmail.com?subject=Cini%20beta">Request beta access</a>
+  <p class="ticket">🎟 ADMIT ONE · CINI</p>
 </section>
 
 <footer>
