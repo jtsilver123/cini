@@ -238,9 +238,51 @@ private struct AppPreferencesScreen: View {
 // MARK: - Help
 
 private struct HelpScreen: View {
+    private struct QA: Identifiable { let id = UUID(); let q: String; let a: String }
+
+    // Real questions about how Cini actually works — kept accurate to the app.
+    private let faqs: [QA] = [
+        QA(q: "How does ranking work?",
+           a: "Instead of star ratings, Cini asks “which did you like more?” between two titles you've seen. A few quick comparisons slot the new one exactly where it belongs, and its spot in your list becomes a score out of 10."),
+        QA(q: "Where do the scores come from?",
+           a: "A title's score reflects where it sits in your own ranked list — not an absolute rating. As you rank more, scores settle into place. The same title can score differently for you and a friend."),
+        QA(q: "Are movies and TV ranked together?",
+           a: "No — movies and shows are ranked in separate lists, so a film never has to compete head-to-head with a series."),
+        QA(q: "What's a Rec Score?",
+           a: "It's our prediction of how much you'll like something you haven't seen yet, based on the taste your rankings reveal. It needs a handful of ranked titles to get accurate."),
+        QA(q: "Why can't I see the average score on a movie?",
+           a: "Cini hides the crowd average until you've ranked a title yourself, so it can't sway your own take. Full average scores are an unlockable feature — invite a friend to unlock it."),
+        QA(q: "How do I make my account private?",
+           a: "Settings → Privacy → Private account. After that, people send a follow request you can approve or decline, and only approved followers see your activity."),
+        QA(q: "How do I find friends?",
+           a: "Search for usernames, or tap Invite friends to match your contacts. We only ever store one-way hashes of phone numbers — never names or readable numbers — and you can remove them anytime in Privacy."),
+        QA(q: "Can I bring my Letterboxd history?",
+           a: "Yes. Open Import (from your profile menu), drag in your Letterboxd export, and we'll queue your films and lists for you to rank."),
+        QA(q: "How do streaks work?",
+           a: "Rank at least one title during a week to keep your streak going. Miss a week and it resets — we'll nudge you before it lapses."),
+        QA(q: "How do I delete my account?",
+           a: "Settings → Manage account → Delete account. It permanently removes your rankings, Want to Watch, and followers — there's no undo."),
+    ]
+
     var body: some View {
         Form {
-            Section {
+            Section("Frequently asked") {
+                ForEach(faqs) { item in
+                    DisclosureGroup {
+                        Text(item.a)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .padding(.vertical, 4)
+                    } label: {
+                        Text(item.q)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.marquee)
+                }
+            }
+
+            Section("Still need help?") {
                 Link(destination: URL(string: "mailto:jtsilver123@gmail.com?subject=Cini%20support")!) {
                     Label("Contact support", systemImage: "envelope")
                 }
