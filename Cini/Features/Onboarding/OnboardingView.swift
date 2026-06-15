@@ -99,9 +99,9 @@ struct OnboardingView: View {
         .sheet(isPresented: $showImport, onDismiss: { advance() }) {
             LetterboxdImportView(startWithPaste: importStartsWithPaste)
         }
-        .fullScreenCover(item: $logMovie, onDismiss: {
-            if store.watchedCount > 0 { onFinished() }
-        }) { movie in
+        // Don't auto-finish after one rank — return to the grid so they can
+        // rank as many as they like. The "Done" button below ends onboarding.
+        .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
         }
         .swipeDismissesKeyboard()
@@ -244,7 +244,8 @@ struct OnboardingView: View {
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
         .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
-            InviteSheet()
+            // Pull the contact list up immediately instead of showing a button.
+            InviteSheet(autoFindContacts: true)
         }
         // Beli-style nudge: one more chance to invite before skipping.
         .confirmationDialog("Cini is so much better with friends",
@@ -318,6 +319,7 @@ struct OnboardingView: View {
                 HStack(spacing: 4) {
                     Text("@").foregroundStyle(Theme.gray)
                     TextField("username", text: $username)
+                        .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onChange(of: username) { _, new in
@@ -653,10 +655,18 @@ struct OnboardingView: View {
                 }
             }
 
-            Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { onFinished() }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-                .padding(.bottom, 24)
+            // Once they've ranked at least one, a clear "Done" finishes; until
+            // then it's a low-key skip so the grid stays the focus.
+            if store.watchedCount > 0 {
+                PillButton(title: "Done — \(store.watchedCount) ranked", style: .filled) { onFinished() }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 24)
+            } else {
+                Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { onFinished() }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(.bottom, 24)
+            }
         }
     }
 }

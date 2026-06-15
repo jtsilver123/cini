@@ -26,7 +26,6 @@ struct EnrichmentCard: View {
     @Binding var activeRow: Row?
 
     @State private var friendsCache = FriendsCache.shared
-    @State private var friendScores: [FriendScoreRow] = []
 
     private var friends: [ProfileRow] { friendsCache.following }
 
@@ -56,11 +55,6 @@ struct EnrichmentCard: View {
                 stealthRow
             }
 
-            if !friendScores.isEmpty {
-                divider
-                friendsSection
-            }
-
             if !isLocked && showsOkay {
                 Button {
                     onOkay()
@@ -81,7 +75,6 @@ struct EnrichmentCard: View {
         .floatingCard()
         .task {
             friendsCache.refreshIfStale()   // chips render from cache instantly
-            friendScores = (try? await supabase.friendScores(movieID: movie.tmdbID)) ?? []
         }
         // Opening the date editor makes the date theirs — stop managing it.
         .onChange(of: activeRow) { _, row in
@@ -235,18 +228,6 @@ struct EnrichmentCard: View {
                 .disabled(isLocked)
         }
         .padding(.vertical, 8)
-    }
-
-    private var friendsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("What your friends think")
-                .font(.headline)
-                .padding(.top, 12)
-            ForEach(friendScores.prefix(3)) { friend in
-                FriendThinkRow(friend: friend)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
 }
