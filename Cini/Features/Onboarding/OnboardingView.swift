@@ -224,9 +224,18 @@ struct OnboardingView: View {
                 .font(.system(size: 54)).foregroundStyle(Theme.marquee)
             Text("Find your friends")
                 .font(Theme.serif(32)).multilineTextAlignment(.center)
-            Text("Cini is better with friends — see their takes before you commit a night, compare taste, and trade recs. Every friend who joins also unlocks a feature for you.")
+            Text("Cini is better with friends. Every friend who joins also unlocks a feature for you.")
                 .font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 28)
+
+            VStack(alignment: .leading, spacing: 16) {
+                friendBenefit("eye.fill", "See their takes before you watch")
+                friendBenefit("percent", "Compare your taste, title by title")
+                friendBenefit("paperplane.fill", "Trade recommendations")
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 6)
+
             Spacer()
             PillButton(title: "Find friends", style: .filled) { showFindFriends = true }
                 .padding(.horizontal, 28)
@@ -235,6 +244,19 @@ struct OnboardingView: View {
         }
         .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
             InviteSheet()
+        }
+    }
+
+    private func friendBenefit(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .frame(width: 26)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(Theme.ink)
+            Spacer(minLength: 0)
         }
     }
 
