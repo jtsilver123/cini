@@ -64,17 +64,17 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             progressBar
-            TabView(selection: $step) {
-                usernameStep.tag(0)
-                photoStep.tag(1)
-                findFriendsStep.tag(2)
-                importStep.tag(3)
-                permissionsStep.tag(4)
-                firstRankStep.tag(5)
-            }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .animation(.snappy, value: step)
+            // A driven step switch (not a paged TabView): steps advance only via
+            // their buttons, so you can't swipe past a required one (username /
+            // photo) or jump ahead to content that isn't ready.
+            currentStep
+                .id(step)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                    removal: .move(edge: .leading).combined(with: .opacity)))
         }
+        .animation(.snappy, value: step)
         .background(Theme.background)
         // Full-screen cover sits above RootTabView's overlay, so onboarding
         // mounts its own toast surface.
@@ -117,6 +117,17 @@ struct OnboardingView: View {
 
     private func advance() {
         withAnimation(.snappy) { step = min(step + 1, 5) }
+    }
+
+    @ViewBuilder private var currentStep: some View {
+        switch step {
+        case 0: usernameStep
+        case 1: photoStep
+        case 2: findFriendsStep
+        case 3: importStep
+        case 4: permissionsStep
+        default: firstRankStep
+        }
     }
 
     // MARK: 3 — Find your friends (Beli puts this in onboarding)
@@ -459,28 +470,40 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
-            ScrollView(showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 14) {
-                    ForEach(starters) { movie in
-                        Button {
-                            logMovie = movie
-                        } label: {
-                            VStack(spacing: 6) {
-                                PosterView(url: movie.posterURL, width: 100)
-                                Text(movie.title)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Theme.ink)
-                                    .lineLimit(1)
+            if starters.isEmpty {
+                // Posters come from TMDB; if that didn't load (e.g. no network
+                // on first launch) don't show a blank grid — point them at search.
+                Spacer()
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 40)).foregroundStyle(Theme.gray)
+                Text("Search any title to rank it from the home screen — or jump in and explore first.")
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center).padding(.horizontal, 36)
+                Spacer()
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 14) {
+                        ForEach(starters) { movie in
+                            Button {
+                                logMovie = movie
+                            } label: {
+                                VStack(spacing: 6) {
+                                    PosterView(url: movie.posterURL, width: 100)
+                                    Text(movie.title)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(Theme.ink)
+                                        .lineLimit(1)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 6)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 6)
             }
 
-            Button("I'll explore first") { onFinished() }
+            Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { onFinished() }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.gray)
                 .padding(.bottom, 24)
