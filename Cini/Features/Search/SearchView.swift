@@ -330,19 +330,22 @@ struct SearchView: View {
 
     // MARK: Results
 
+    /// Remember a title you acted on from search (opened or ranked) so it
+    /// shows in Recents next time.
+    private func recordRecent(_ movie: Movie) {
+        recents.removeAll { $0.tmdbID == movie.tmdbID }
+        recents.insert(movie, at: 0)
+        recents = Array(recents.prefix(10))
+        RecentSearches.save(recents)
+    }
+
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(movieResults) { movie in
                 MovieSuggestionRow(
                     movie: movie,
-                    onRank: { logMovie = movie },
-                    onOpen: {
-                        recents.removeAll { $0.tmdbID == movie.tmdbID }
-                        recents.insert(movie, at: 0)
-                        recents = Array(recents.prefix(10))
-                        RecentSearches.save(recents)
-                        detailMovie = movie
-                    }
+                    onRank: { recordRecent(movie); logMovie = movie },
+                    onOpen: { recordRecent(movie); detailMovie = movie }
                 )
                 Divider()
             }
