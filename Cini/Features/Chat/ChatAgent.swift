@@ -602,7 +602,7 @@ struct FollowMemberTool: Tool {
             return "No member matched @\(arguments.username)."
         }
         do {
-            try await SupabaseService.shared.follow(member.id)
+            try await SupabaseService.shared.requestFollow(member.id)
         } catch {
             return "Couldn't follow @\(member.username) — connection trouble."
         }

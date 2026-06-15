@@ -21,6 +21,7 @@ struct ProfileScreen: View {
     @State private var followerCount = 0
     @State private var followingCount = 0
     @State private var following = false
+    @State private var requested = false   // pending follow request to a private account
     @State private var blocked = false
     @State private var reported = false
     @State private var showBlockConfirm = false
@@ -164,6 +165,7 @@ struct ProfileScreen: View {
             // None of these depend on the first batch — starting them
             // before awaiting it saves a full round-trip of latency.
             async let followingState = supabase.isFollowing(id)
+            async let pendingState = supabase.followRequestPending(id)
             async let match = supabase.tasteMatch(with: id)
             async let memberWatchlistTask = supabase.watchlist(userID: id)
             async let blockedTask = supabase.blockedIDs()
@@ -172,6 +174,7 @@ struct ProfileScreen: View {
             let rows = (try? await supabase.movies(ids: rankings.map(\.movieId))) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }
             following = await followingState
+            requested = await pendingState
             matchPct = await match
             blocked = await blockedTask.contains(id)
             let memberWatchlist = (try? await memberWatchlistTask) ?? []
@@ -452,20 +455,26 @@ struct ProfileScreen: View {
             }
         } else if let id = resolvedID {
             HStack(spacing: 12) {
-                PillButton(title: following ? "Following" : "Follow",
-                           style: following ? .outlined : .filled) {
+                PillButton(title: following ? "Following" : (requested ? "Requested" : "Follow"),
+                           style: (following || requested) ? .outlined : .filled) {
                     Task {
-                        let wasFollowing = following
-                        following.toggle()   // optimistic; reverted on failure
                         do {
-                            if wasFollowing {
+                            if following {
+                                following = false
                                 try await SupabaseService.shared.unfollow(id)
+                            } else if requested {
+                                // Tap "Requested" to withdraw the request.
+                                requested = false
+                                try await SupabaseService.shared.cancelFollowRequest(id)
                             } else {
-                                try await SupabaseService.shared.follow(id)
+                                // Public → follows instantly; private → pending request.
+                                let result = try await SupabaseService.shared.requestFollow(id)
+                                if result == "followed" { following = true }
+                                else if result == "requested" { requested = true }
                             }
                             await load()   // visibility may have changed
                         } catch {
-                            following = wasFollowing
+                            await load()   // resync to the true state on failure
                         }
                     }
                 }
@@ -569,7 +578,7 @@ struct ProfileScreen: View {
                                     catch { followedSuggested.insert(member.id); ToastCenter.shared.saveFailed() }
                                 } else {
                                     followedSuggested.insert(member.id)
-                                    do { try await SupabaseService.shared.follow(member.id) }
+                                    do { try await SupabaseService.shared.requestFollow(member.id) }
                                     catch { followedSuggested.remove(member.id); ToastCenter.shared.saveFailed() }
                                 }
                             }

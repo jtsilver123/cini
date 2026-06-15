@@ -128,7 +128,7 @@ struct FollowListScreen: View {
             catch { iFollow.insert(id); ToastCenter.shared.saveFailed() }
         } else {
             iFollow.insert(id)
-            do { try await SupabaseService.shared.follow(id) }
+            do { try await SupabaseService.shared.requestFollow(id) }
             catch { iFollow.remove(id); ToastCenter.shared.saveFailed() }
         }
     }

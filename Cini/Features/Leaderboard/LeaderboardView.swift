@@ -302,7 +302,7 @@ struct InviteSheet: View {
             try? await SupabaseService.shared.unfollow(id)
         } else {
             followed.insert(id)
-            do { try await SupabaseService.shared.follow(id) }
+            do { try await SupabaseService.shared.requestFollow(id) }
             catch { followed.remove(id); ToastCenter.shared.saveFailed() }
         }
     }

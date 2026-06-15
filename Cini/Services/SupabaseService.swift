@@ -1071,6 +1071,48 @@ final class SupabaseService {
             .execute()
     }
 
+    // MARK: Follow + approve (private accounts)
+
+    /// Follow a public account instantly, or request a private one. Returns
+    /// "followed", "requested", "blocked", or "self".
+    @discardableResult
+    func requestFollow(_ userID: UUID) async throws -> String {
+        struct Params: Encodable { let p_target: UUID }
+        return try await client.rpc("request_follow", params: Params(p_target: userID))
+            .execute().value
+    }
+
+    /// True if I have a pending follow request out to this (private) account.
+    func followRequestPending(_ userID: UUID) async -> Bool {
+        guard let me = currentUserID else { return false }
+        let response = try? await client.from("follow_requests")
+            .select("*", head: true, count: .exact)
+            .eq("requester_id", value: me).eq("target_id", value: userID)
+            .execute()
+        return (response?.count ?? 0) > 0
+    }
+
+    /// Cancel my outstanding follow request.
+    func cancelFollowRequest(_ userID: UUID) async throws {
+        guard let me = currentUserID else { return }
+        try await client.from("follow_requests")
+            .delete()
+            .eq("requester_id", value: me).eq("target_id", value: userID)
+            .execute()
+    }
+
+    /// Accept or decline a follow request someone sent me.
+    func respondFollowRequest(requester: UUID, accept: Bool) async throws {
+        struct Params: Encodable { let p_requester: UUID; let p_accept: Bool }
+        try await client.rpc("respond_follow_request",
+                             params: Params(p_requester: requester, p_accept: accept)).execute()
+    }
+
+    /// Pending follow requests sent to me.
+    func incomingFollowRequests() async -> [FollowRequester] {
+        (try? await client.rpc("incoming_follow_requests").execute().value) ?? []
+    }
+
     func feed(limit: Int = 50) async throws -> [FeedEventRow] {
         // Your feed is the people you follow (plus yourself) — RLS alone
         // only handles VISIBILITY, which would surface every public
@@ -1269,6 +1311,19 @@ extension ISO8601DateFormatter {
 }
 
 // MARK: - Row types (snake_case mirrors of the schema)
+
+/// Minimal requester info for the follow-request approval list.
+struct FollowRequester: Codable, Identifiable, Hashable {
+    let id: UUID
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
+    enum CodingKeys: String, CodingKey {
+        case id, username
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+    }
+}
 
 struct ProfileRow: Codable, Identifiable, Hashable {
     let id: UUID

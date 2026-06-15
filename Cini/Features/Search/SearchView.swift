@@ -723,7 +723,7 @@ struct SearchView: View {
         else { followedFromSearch.insert(memberID) }
         do {
             if wasFollowing { try await SupabaseService.shared.unfollow(memberID) }
-            else { try await SupabaseService.shared.follow(memberID) }
+            else { try await SupabaseService.shared.requestFollow(memberID) }
         } catch {
             if wasFollowing { followedFromSearch.insert(memberID) }
             else { followedFromSearch.remove(memberID) }

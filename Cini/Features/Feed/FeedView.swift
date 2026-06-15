@@ -967,6 +967,13 @@ struct NotificationsView: View {
     @State private var showImport = false
     @State private var showRankSheet = false
     @State private var showRespondRecs = false
+    @State private var resolvedFollowReqs: [UUID: Bool] = [:]   // actorId → accepted
+
+    private func respondFollow(_ requester: UUID, accept: Bool) {
+        Haptics.tap()
+        resolvedFollowReqs[requester] = accept
+        Task { try? await SupabaseService.shared.respondFollowRequest(requester: requester, accept: accept) }
+    }
 
     var body: some View {
         List {
@@ -1006,11 +1013,28 @@ struct NotificationsView: View {
                             .foregroundStyle(Theme.gray)
                     }
                     Spacer()
-                    if let path = row.movies?.posterPath {
-                        PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
-                    }
-                    if row.readAt == nil {
-                        Circle().fill(Theme.marquee).frame(width: 8, height: 8)
+                    if row.kind == "follow_request", let actorId = row.actorId {
+                        if let accepted = resolvedFollowReqs[actorId] {
+                            Text(accepted ? "Accepted" : "Declined")
+                                .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                        } else {
+                            HStack(spacing: 8) {
+                                Button("Accept") { respondFollow(actorId, accept: true) }
+                                    .font(.caption.weight(.bold)).foregroundStyle(.white)
+                                    .padding(.horizontal, 12).padding(.vertical, 6)
+                                    .background(Capsule().fill(Theme.velvet))
+                                Button("Decline") { respondFollow(actorId, accept: false) }
+                                    .font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    } else {
+                        if let path = row.movies?.posterPath {
+                            PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
+                        }
+                        if row.readAt == nil {
+                            Circle().fill(Theme.marquee).frame(width: 8, height: 8)
+                        }
                     }
                 }
                 .padding(.vertical, 4)
@@ -1076,6 +1100,8 @@ struct NotificationsView: View {
         case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
+        case "follow_request": text = "**\(who)** asked to follow you"
+        case "follow_request_approved": text = "**\(who)** accepted your follow request"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it ⭐️"
