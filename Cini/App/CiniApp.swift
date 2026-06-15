@@ -38,12 +38,18 @@ struct CiniApp: App {
     /// (already has rankings) → mark done and go straight to the app.
     private func evaluateOnboarding() async {
         guard let uid = SupabaseService.shared.currentUserID?.uuidString,
-              !isOnboarded(uid),
               session.rankingStore.isLoaded else { return }
-        if session.rankingStore.watchedCount == 0 {
-            withAnimation { showOnboarding = true }
-        } else {
-            markOnboarded(uid)
+        if !isOnboarded(uid) {
+            if session.rankingStore.watchedCount == 0 {
+                withAnimation { showOnboarding = true }
+                return                       // tour runs after onboarding finishes
+            }
+            markOnboarded(uid)               // returning user on a fresh device
+        }
+        // Onboarded (now or already) — run the one-time tour if this account
+        // hasn't seen it yet. Per account, exactly once.
+        if !isToured(uid) && !showOnboarding {
+            withAnimation { showTour = true }
         }
     }
     /// "dark" · "light" · "system" (default — follows the device).
