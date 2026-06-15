@@ -11,6 +11,8 @@ struct NotificationPreferencesView: View {
         ("comment", "Comments", "A friend comments on your activity"),
         ("friend_ranked_watchlist_movie", "Want to Watch ranked by a friend",
          "A friend ranks a movie on your Want to Watch list"),
+        ("friend_loved", "Friend rated a favorite",
+         "A friend rates a movie or show you love"),
         ("watchlist_showing", "Playing near you",
          "A Want to Watch movie hits theaters near your saved zipcode"),
         ("invite_joined", "Invites accepted",
