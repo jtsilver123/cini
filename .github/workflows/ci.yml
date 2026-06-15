@@ -25,6 +25,7 @@ jobs:
   ios-build:
     name: iOS app build (Xcode)
     runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -43,12 +44,19 @@ jobs:
       - name: Build app + run app tests on simulator
         run: |
           set -o pipefail
-          DEVICE=$(xcrun simctl list devices available | grep -m1 -oE "iPhone [0-9][^(]*" | head -1 | xargs)
-          echo "Using simulator: $DEVICE"
+          # Address the simulator by UDID, not name: on macos-26 a name like
+          # "iPhone 17 Pro" matches two destinations (arm64 + x86_64) that share
+          # one UDID, and xcodebuild can stall resolving the pair. We also boot
+          # it explicitly and wait, so `xcodebuild test` never hangs on a cold
+          # simulator.
+          UDID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          echo "Using simulator UDID: $UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b || true
           xcodebuild test \
             -project Cini.xcodeproj \
             -scheme Cini \
-            -destination "platform=iOS Simulator,name=$DEVICE" \
+            -destination "id=$UDID" \
             CODE_SIGNING_ALLOWED=NO \
             | tail -300
 
