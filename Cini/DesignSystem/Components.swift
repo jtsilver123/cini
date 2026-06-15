@@ -415,6 +415,7 @@ struct SaveToListSheet: View {
     let movie: Movie
 
     @Environment(RankingStore.self) private var store
+    @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     @State private var newName = ""
     @State private var category: MediaCategory
@@ -423,6 +424,7 @@ struct SaveToListSheet: View {
     @State private var revertingToggle = false
     @State private var noteText = ""
     @State private var hiddenFromFeed = false
+    @State private var showUnlocks = false
     @State private var watchByOn = false
     @State private var watchByDate = Calendar.current.date(byAdding: .day, value: 14, to: .now) ?? .now
 
@@ -630,30 +632,38 @@ struct SaveToListSheet: View {
 
                 Button {
                     interacted = true
+                    // Stealth Mode is a referral-unlock — locked taps go to the
+                    // unlock screen instead of hiding.
+                    if !session.isUnlocked("stealth_mode") { showUnlocks = true; return }
                     guard !hiddenFromFeed else { return }
                     hiddenFromFeed = true
                     Task { await SupabaseService.shared.hideWatchlistEvent(movieID: movie.tmdbID) }
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: hiddenFromFeed ? "eye.slash.fill" : "eye.slash")
+                        Image(systemName: !session.isUnlocked("stealth_mode") ? "lock.fill"
+                              : (hiddenFromFeed ? "eye.slash.fill" : "eye.slash"))
                             .foregroundStyle(hiddenFromFeed ? Theme.gray : Theme.marquee)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(hiddenFromFeed ? "Hidden from feed" : "Hide from feed")
+                            Text(!session.isUnlocked("stealth_mode") ? "Stealth Mode (locked)"
+                                 : (hiddenFromFeed ? "Hidden from feed" : "Hide from feed"))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(hiddenFromFeed ? Theme.gray : Theme.ink)
-                            Text("Friends won't see this save")
+                            Text(!session.isUnlocked("stealth_mode") ? "Invite a friend to unlock"
+                                 : "Friends won't see this save")
                                 .font(.caption)
                                 .foregroundStyle(Theme.gray)
                         }
                         Spacer()
-                        if hiddenFromFeed {
+                        if !session.isUnlocked("stealth_mode") {
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                        } else if hiddenFromFeed {
                             Image(systemName: "checkmark").font(.caption).foregroundStyle(Theme.gray)
                         }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(hiddenFromFeed)
+                .disabled(hiddenFromFeed && session.isUnlocked("stealth_mode"))
                 .listRowBackground(Theme.background)
             }
             .onDisappear {
@@ -668,6 +678,7 @@ struct SaveToListSheet: View {
             .simultaneousGesture(DragGesture(minimumDistance: 5)
                 .onChanged { _ in interacted = true })
             .background(Theme.background)
+            .sheet(isPresented: $showUnlocks) { UnlocksView() }
             .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -7,9 +7,11 @@ struct EditProfileView: View {
     var onSaved: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppSession.self) private var session
     @State private var avatarURL: URL?
     @State private var isUploadingPhoto = false
     @State private var showCropPicker = false
+    @State private var showUnlocks = false
 
     @State private var displayName: String
     @State private var username: String
@@ -112,10 +114,30 @@ struct EditProfileView: View {
                 }
 
                 Section {
-                    socialField("Instagram", text: $instagram)
-                    socialField("TikTok", text: $tiktok)
-                    socialField("X", text: $x)
-                    socialField("Letterboxd", text: $letterboxd)
+                    if session.isUnlocked("social_links") {
+                        socialField("Instagram", text: $instagram)
+                        socialField("TikTok", text: $tiktok)
+                        socialField("X", text: $x)
+                        socialField("Letterboxd", text: $letterboxd)
+                    } else {
+                        Button {
+                            Haptics.tap()
+                            showUnlocks = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "lock.fill").foregroundStyle(Theme.marquee)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Social links are locked")
+                                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    Text("Invite a friend to unlock — then add Instagram, TikTok, X & Letterboxd.")
+                                        .font(.caption).foregroundStyle(Theme.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                 } header: {
                     Text("Socials")
                 } footer: {
@@ -149,6 +171,7 @@ struct EditProfileView: View {
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
+            .sheet(isPresented: $showUnlocks) { UnlocksView() }
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
