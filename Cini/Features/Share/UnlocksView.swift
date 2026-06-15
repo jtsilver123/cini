@@ -8,18 +8,23 @@ struct UnlockFeature: Identifiable {
     let title: String
     let blurb: String
     let icon: String
+    /// The fuller explanation shown when you tap the feature.
+    let detail: String
 }
 
 let unlockCatalog: [UnlockFeature] = [
     UnlockFeature(id: "aggregate_scores", title: "Average Scores",
                   blurb: "See what all of Cini thinks of a movie or show — even after you rank it.",
-                  icon: "chart.bar.fill"),
+                  icon: "chart.bar.fill",
+                  detail: "Cini hides the crowd's average until you've ranked a title yourself, so it never sways your own take. Unlock this to reveal the average score from everyone on Cini on every movie and show — including after you rank. Titles with only a few ratings are pulled gently toward the middle so one stranger can't define a movie."),
     UnlockFeature(id: "social_links", title: "Social Links",
                   blurb: "Add Instagram, TikTok, X and Letterboxd links to your profile.",
-                  icon: "link"),
+                  icon: "link",
+                  detail: "Add your Instagram, TikTok, X, and Letterboxd handles to your profile so friends can find you everywhere else too. They appear as tappable icons at the top of your profile — and you can edit or remove them any time."),
     UnlockFeature(id: "stealth_mode", title: "Stealth Mode",
                   blurb: "Hide specific activity from your friends' feeds.",
-                  icon: "eye.slash.fill"),
+                  icon: "eye.slash.fill",
+                  detail: "Rank or save a title without it showing up in your friends' feeds — perfect for a guilty-pleasure watch. You choose stealth per title at the moment you log it; it still counts in your own lists, scores, and stats, it's just kept off the social feed."),
 ]
 
 /// Beli-style feed card: progress through the unlockable features + an invite
@@ -80,12 +85,16 @@ struct UnlocksView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showInvite = false
     @State private var working: String?
+    @State private var detailFeature: UnlockFeature?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     creditsBanner
+                    Text("Tap a feature to learn more.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(unlockCatalog) { feature in
                         featureCard(feature)
                     }
@@ -99,7 +108,31 @@ struct UnlocksView: View {
             .sheet(isPresented: $showInvite) {
                 InviteSheet().presentationDetents([.large])
             }
+            .sheet(item: $detailFeature) { feature in
+                FeatureDetailSheet(
+                    feature: feature,
+                    unlocked: session.isUnlocked(feature.id),
+                    canUnlock: session.availableUnlocks > 0,
+                    onUnlock: { unlock(feature) },
+                    onInvite: { showInvite = true }
+                )
+            }
             .task { await session.loadProfile() }
+        }
+    }
+
+    private func unlock(_ feature: UnlockFeature) {
+        Task {
+            Haptics.tap()
+            working = feature.id
+            let ok = await SupabaseService.shared.unlockFeature(feature.id)
+            if ok {
+                await session.loadProfile()
+                ToastCenter.shared.show("\(feature.title) unlocked 🎉")
+            } else {
+                ToastCenter.shared.saveFailed()
+            }
+            working = nil
         }
     }
 
@@ -156,6 +189,9 @@ struct UnlocksView: View {
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
+        // Tap the row (anywhere but the Unlock button) for the full description.
+        .contentShape(Rectangle())
+        .onTapGesture { Haptics.tap(); detailFeature = feature }
     }
 
     @ViewBuilder
@@ -169,18 +205,7 @@ struct UnlocksView: View {
             ProgressView()
         } else if canUnlock {
             Button {
-                Task {
-                    Haptics.tap()
-                    working = feature.id
-                    let ok = await SupabaseService.shared.unlockFeature(feature.id)
-                    if ok {
-                        await session.loadProfile()
-                        ToastCenter.shared.show("\(feature.title) unlocked 🎉")
-                    } else {
-                        ToastCenter.shared.saveFailed()
-                    }
-                    working = nil
-                }
+                unlock(feature)
             } label: {
                 Text("Unlock")
                     .font(.caption.weight(.bold))
@@ -194,5 +219,44 @@ struct UnlocksView: View {
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
         }
+    }
+}
+
+/// The "learn more" sheet shown when a feature row is tapped.
+private struct FeatureDetailSheet: View {
+    let feature: UnlockFeature
+    let unlocked: Bool
+    let canUnlock: Bool
+    var onUnlock: () -> Void
+    var onInvite: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: feature.icon)
+                .font(.largeTitle)
+                .foregroundStyle(unlocked ? Theme.scoreGreen : Theme.marquee)
+                .frame(width: 68, height: 68)
+                .background(Circle().fill(unlocked ? Theme.scoreGreen.opacity(0.15) : Theme.marqueeSoft))
+                .padding(.top, 12)
+            Text(feature.title).font(Theme.serif(26)).foregroundStyle(Theme.ink)
+            Text(feature.detail)
+                .font(.subheadline).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+            Spacer(minLength: 8)
+            if unlocked {
+                Label("Unlocked", systemImage: "checkmark.seal.fill")
+                    .font(.headline).foregroundStyle(Theme.scoreGreen)
+            } else {
+                PillButton(title: canUnlock ? "Unlock now" : "Invite a friend to unlock", style: .filled) {
+                    dismiss()
+                    if canUnlock { onUnlock() } else { onInvite() }
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
     }
 }
