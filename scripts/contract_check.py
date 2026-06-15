@@ -145,6 +145,9 @@ RPCS = [
     ("my_phone", {}),
     # Signup checks a number's uniqueness before creating the account.
     ("phone_available", {"p_phone": "+15550000000"}),
+    # Featured-card engagement log. A non-real action exercises the signature
+    # without writing analytics noise (invalid actions are ignored server-side).
+    ("log_featured_event", {"p_movie_id": 27205, "p_action": "contract_check"}),
     ("members_from_phones", {"p_phones": []}),
     # No follower rates movie 2 highly → no-op insert.
     ("notify_friends_of_rating", {"p_movie_id": 2}),

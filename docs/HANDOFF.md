@@ -5,8 +5,8 @@
 > is the design system. This file is the running status log + build history.
 
 **STATUS (2026-06-15): live on the App Store, iterating on UX polish.**
-Migrations through **0060** applied to prod and mirrored in
-`supabase/migrations/` (latest: `0060_phone_available.sql`). Edge functions
+Migrations through **0061** applied to prod and mirrored in
+`supabase/migrations/` (latest: `0061_featured_engagement.sql`). Edge functions
 deployed + mirrored: `send-push`, `import-upload`, `availability-alerts`,
 `showtime-alerts`, `phone-login`. The marketing site + prototype now live on
 the custom apex domain **trycini.com** (CNAME in repo root, shipped in the
@@ -50,6 +50,15 @@ A user-requested build was last triggered off `claude/ecstatic-cori-k7s2n0`
   rows / rec-friend rows / profile display name. Account deletion, legal/support
   links (all trycini.com), Info.plist usage strings, and Sign-in-with-Apple
   (not required — email/phone auth) all verified compliant.
+
+- **Featured release goes in-feed + first-party engagement (migration 0061).**
+  `PromotedReleaseCard` now flows into the feed Instagram-style (after the 4th
+  post, not pinned on top), mirrored in the prototype. Engagement is logged
+  first-party only — `featured_events` table + `log_featured_event` RPC
+  (impression/open/add); read aggregates via `featured_engagement_stats()`
+  (service-role only, run from the Supabase SQL editor). No IDFA, no third
+  party, so it's not Apple "tracking" — no ATT prompt. Privacy policy updated
+  to disclose it and soften the "no ads" wording to "no third-party ads."
 
 **Recent UX/data work (2026-06-14 session):**
 - **Avatar fix + crop.** Root cause of "profile photo won't update" was a

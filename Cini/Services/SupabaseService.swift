@@ -337,6 +337,18 @@ final class SupabaseService {
         (try? await client.rpc("my_phone").execute().value)
     }
 
+    /// First-party engagement log for the in-feed Featured release card (our
+    /// data only — never shared, no IDFA). Fire-and-forget; failures are
+    /// swallowed so analytics can never disrupt the UI. action ∈
+    /// "impression" | "open" | "add".
+    func logFeaturedEvent(movieID: Int, action: String) {
+        struct Params: Encodable { let p_movie_id: Int; let p_action: String }
+        Task {
+            _ = try? await client.rpc("log_featured_event",
+                                      params: Params(p_movie_id: movieID, p_action: action)).execute()
+        }
+    }
+
     /// Whether a phone number is free (not already on another account). Callable
     /// before the account exists (anon), so signup can catch a duplicate on the
     /// phone step rather than after creating the account. Fails open on a network

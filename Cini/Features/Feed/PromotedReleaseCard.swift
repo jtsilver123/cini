@@ -1,14 +1,19 @@
 import SwiftUI
 
 /// A first-party "promoted release" card for the feed: a new/upcoming film
-/// chosen from the user's OWN taste (their most-ranked genre) — no tracking,
-/// no third-party ad SDK, no IDFA. It reuses the standard artwork quick
-/// actions so the (+)/bookmark sit exactly where they do everywhere else.
+/// chosen from the user's OWN taste (their most-ranked genre) — no third-party
+/// ad SDK, no IDFA, no cross-app tracking. We do log first-party engagement
+/// (impression/open/add, our data only) via `log_featured_event` to measure
+/// performance. It reuses the standard artwork quick actions so the
+/// (+)/bookmark sit exactly where they do everywhere else.
 struct PromotedReleaseCard: View {
     let movie: Movie
     var reason: String?
     var onOpen: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
+
+    // One impression per card lifetime (onAppear can fire repeatedly).
+    @State private var loggedImpression = false
 
     private var releaseTag: String? {
         if movie.isReleased { return "In theaters now" }
@@ -18,7 +23,10 @@ struct PromotedReleaseCard: View {
     }
 
     var body: some View {
-        Button { onOpen(movie) } label: {
+        Button {
+            SupabaseService.shared.logFeaturedEvent(movieID: movie.tmdbID, action: "open")
+            onOpen(movie)
+        } label: {
             ZStack(alignment: .bottomLeading) {
                 CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
                     image.resizable().scaledToFill()
@@ -71,8 +79,17 @@ struct PromotedReleaseCard: View {
         .buttonStyle(.plain)
         // Same scrimmed (+)/bookmark corner as every other piece of artwork.
         .overlay(alignment: .bottomTrailing) {
-            ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
-                .padding(12)
+            ArtworkQuickActions(movie: movie, onLog: { m in
+                SupabaseService.shared.logFeaturedEvent(movieID: m.tmdbID, action: "add")
+                onQuickAdd(m)
+            })
+            .padding(12)
+        }
+        // First-party impression count (our data only — see log_featured_event).
+        .onAppear {
+            guard !loggedImpression else { return }
+            loggedImpression = true
+            SupabaseService.shared.logFeaturedEvent(movieID: movie.tmdbID, action: "impression")
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Featured release: \(movie.title)")

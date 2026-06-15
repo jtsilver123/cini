@@ -91,6 +91,15 @@ v1 recs = TMDB similar-titles seeded by the user's top-ranked movie, filtered
 to unwatched. The intended v2 blend (friends' high rankings weighted by match
 %) has its data model in place: `rankings` × `follows` × `taste_matches`.
 
+**Featured release.** The feed's `PromotedReleaseCard` is a first-party
+discovery/ad surface: a new release picked from the user's most-ranked genre,
+placed inline (Instagram-style) rather than pinned. Engagement is logged
+first-party only — `featured_events` (impression/open/add) via
+`log_featured_event`; aggregates read with `featured_engagement_stats()`
+(service-role only). No IDFA / no third party, so it's not ATT "tracking".
+This is the seam for paid promoted placements later (which would need a
+"Sponsored" label + the standard ad disclosures).
+
 ## iOS 26/27 design adoption
 
 Liquid Glass is mandatory in iOS 27, so glass is centralized in the design
