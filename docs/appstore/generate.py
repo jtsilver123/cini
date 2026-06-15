@@ -78,26 +78,28 @@ def wrap(d, t, f, maxw):
 
 # Per-screen branded backdrops — distinct warm cinema tones (top), settling
 # into the house-lights-down charcoal. Cohesive with the marquee palette.
+# Rich warm tops; the base stays a tinted dark of the SAME hue (never pure
+# black) so the app's near-black UI separates cleanly against it.
 BACKDROPS = {
-    "velvet": (0x3a, 0x16, 0x12),
-    "gold":   (0x39, 0x2b, 0x10),
-    "plum":   (0x2c, 0x16, 0x30),
-    "bronze": (0x33, 0x24, 0x12),
-    "ember":  (0x3a, 0x1d, 0x10),
+    "velvet": (0x6e, 0x27, 0x20),
+    "gold":   (0x6c, 0x4e, 0x1d),
+    "plum":   (0x45, 0x23, 0x4d),
+    "bronze": (0x61, 0x43, 0x20),
+    "ember":  (0x6e, 0x32, 0x1a),
 }
 def bg(accent="gold"):
     top = BACKDROPS.get(accent, BACKDROPS["gold"])
-    base = (0x13, 0x10, 0x11)
+    base = tuple(int(c*0.30)+7 for c in top)   # darker, same hue — not black
     img = Image.new("RGB",(W,H))
     d = ImageDraw.Draw(img)
     for y in range(H):
-        t = min(y/(H*0.62), 1.0)        # fade the tint out by ~60% down
+        t = y/H
         r=int(top[0]+(base[0]-top[0])*t); g=int(top[1]+(base[1]-top[1])*t); b=int(top[2]+(base[2]-top[2])*t)
         d.line([(0,y),(W,y)], fill=(r,g,b))
-    # soft marquee-gold glow up top, the brand signature
+    # soft warm glow up top, the brand signature
     glow = Image.new("RGBA",(W,H),(0,0,0,0))
-    ImageDraw.Draw(glow).ellipse([W/2-620,-420,W/2+620,460], fill=(232,182,76,40))
-    glow=glow.filter(ImageFilter.GaussianBlur(150))
+    ImageDraw.Draw(glow).ellipse([W/2-W*0.55,-H*0.14,W/2+W*0.55,H*0.16], fill=(255,205,120,44))
+    glow=glow.filter(ImageFilter.GaussianBlur(int(W*0.12)))
     img.paste(Image.alpha_composite(img.convert("RGBA"),glow).convert("RGB"),(0,0))
     return img
 
@@ -109,17 +111,19 @@ def bulbs(d, y, n=17):
         d.ellipse([x-3,y-3,x+3,y+3], fill="#fff7e0")
 
 def caption(d, headline, sub):
-    # Clean one-word header (no marquee bulbs — they read as clutter); scales
-    # with the canvas so iPad headers stay proportional.
+    # Small gold wordmark (brand signature, clean — no bulbs), then a big
+    # one-word header + a clear benefit subline. Scales with the canvas.
     k = W / 1290
-    y = int(150 * k)
-    hf = sf(int(96 * k))
-    for ln in wrap(d, headline, hf, W - int(150 * k)):
-        ctext(d, W/2, y, ln, hf, INK); y += int(110 * k)
-    y += int(12 * k)
-    sfont = sa(int(40 * k))
-    for ln in wrap(d, sub, sfont, W - int(200 * k)):
-        ctext(d, W/2, y, ln, sfont, GRAY); y += int(54 * k)
+    wm = disp(int(40 * k)); ww = d.textlength("cini", font=wm)
+    d.text((W/2 - ww/2, int(60 * k)), "cini", font=wm, fill=MARQUEE)
+    y = int(166 * k)
+    hf = sf(int(116 * k))
+    for ln in wrap(d, headline, hf, W - int(130 * k)):
+        ctext(d, W/2, y, ln, hf, INK); y += int(128 * k)
+    y += int(4 * k)
+    sfont = sa(int(42 * k))
+    for ln in wrap(d, sub, sfont, W - int(170 * k)):
+        ctext(d, W/2, y, ln, sfont, GRAY); y += int(56 * k)
     return y
 
 SCREEN = None  # set by phone(); poster() pastes onto this
@@ -138,8 +142,8 @@ def phone(top, draw_screen):
     BASE.paste(Image.alpha_composite(BASE.convert("RGBA"),sh).convert("RGB"),(0,0))
     d = ImageDraw.Draw(BASE)
     d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, fill="#0a0809")
-    # marquee-gold frame echoing the app icon's border
-    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, outline=MARQUEE, width=7)
+    # thin marquee-gold rim — a brand accent, not a heavy frame (Beli-clean)
+    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, outline=MARQUEE, width=4)
     # Render the screen on a 1180-wide logical canvas, then scale to device width.
     lw = 1180; lh = int(lw * ph / pw)
     screen = Image.new("RGB",(lw,lh),BG); SCREEN = screen
@@ -261,7 +265,7 @@ def s_compare(d, pw, ph):
         bx=cx-170+k*170; by=py+pwid*3//2+110
         d.ellipse([bx-38,by,bx+38,by+76], fill=c)
     ctext(d, cx, py+pwid*3//2+240, "A few quick taps — no scores to overthink.", sa(30), GRAY)
-SHOTS.append(("01-rank", "Rank", "No star ratings — answer one question and Cini orders everything you've seen.", s_compare, "velvet"))
+SHOTS.append(("01-rank", "Rank", "No star ratings — answer one question and Cini ranks everything you watch.", s_compare, "velvet"))
 
 # 3 — YOUR LISTS (segmented tabs + filter chips + ranked rows)
 def s_list(d, pw, ph):
@@ -290,7 +294,7 @@ def s_list(d, pw, ph):
         d.text((262, y+108), str(yr), font=sa(24), fill=GRAY)
         score_badge(d, pw-118, y+75, sc)
         y+=166
-SHOTS.append(("02-taste", "Taste", "Every title scored out of 10 — by you, not strangers.", s_list, "bronze"))
+SHOTS.append(("02-scored", "Scored", "Every title gets a 1–10 score from your own taste — not strangers.", s_list, "bronze"))
 
 # 4 — FEED (cini header, search, pills, friend cards)
 def s_feed(d, pw, ph):
