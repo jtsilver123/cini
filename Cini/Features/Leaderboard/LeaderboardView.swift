@@ -171,7 +171,9 @@ struct InviteSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                // Lazy so a large address book doesn't render every row at once
+                // (that's what made this screen feel glitchy while scrolling).
+                LazyVStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Inviting friends has perks")
                             .font(Theme.serif(30)).foregroundStyle(Theme.ink)
@@ -308,8 +310,9 @@ struct InviteSheet: View {
     private func inviteContact(_ contact: PhoneContact) {
         Haptics.tap()
         let digits = contact.phone.filter { $0.isNumber || $0 == "+" }
-        let body = inviteText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        if let url = URL(string: "sms:\(digits)&body=\(body)") { openURL(url) }
+        // urlQueryValueEncoded escapes the "&" in "movie & show" — otherwise it
+        // truncates the SMS body and drops the invite link.
+        if let url = URL(string: "sms:\(digits)&body=\(inviteText.urlQueryValueEncoded)") { openURL(url) }
     }
 
     private func initials(_ name: String) -> String {

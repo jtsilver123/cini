@@ -425,9 +425,8 @@ struct LetterboxdImportView: View {
         let name = session.profile.map {
             $0.displayName.split(separator: " ").first.map(String.init) ?? $0.username
         }
-        if let name, !name.isEmpty,
-           let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            link += "&name=\(encoded)"
+        if let name, !name.isEmpty {
+            link += "&name=\(name.urlQueryValueEncoded)"
         }
         return link
     }

@@ -85,7 +85,7 @@ struct WhereToWatchSheet: View {
     /// case-insensitive provider-name fragments since TMDB names vary
     /// ("Amazon Video", "Amazon Prime Video", "Max", "HBO Max"…).
     static func deepLink(provider: String, title: String) -> URL? {
-        let query = title.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? title
+        let query = title.urlQueryValueEncoded   // escapes "&" in e.g. "Fast & Furious"
         let name = provider.lowercased()
         let template: String? = switch true {
         case name.contains("netflix"): "https://www.netflix.com/search?q=\(query)"

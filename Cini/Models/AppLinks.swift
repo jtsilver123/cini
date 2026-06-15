@@ -12,3 +12,15 @@ enum AppLinks {
         "https://jtsilver123.github.io/cini/i/?u=\(username)"
     }
 }
+
+extension String {
+    /// Percent-encode for use as a URL query VALUE. `.urlQueryAllowed` leaves
+    /// the sub-delimiters "&?=+;/" intact, so a value containing "&" (an SMS
+    /// invite body, or a title like "Fast & Furious") gets truncated at the
+    /// "&". Removing them from the allowed set escapes them properly.
+    var urlQueryValueEncoded: String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&?=+;/")
+        return addingPercentEncoding(withAllowedCharacters: allowed) ?? self
+    }
+}

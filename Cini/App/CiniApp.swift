@@ -4,8 +4,18 @@ import SwiftUI
 struct CiniApp: App {
     @UIApplicationDelegateAdaptor(PushManager.self) private var pushManager
     @State private var session = AppSession()
-    @AppStorage("cini.hasOnboarded") private var hasOnboarded = false
+    /// User ids that have finished onboarding on this device (comma-joined).
+    /// Per-account so a new signup on a shared phone still onboards.
+    @AppStorage("cini.onboardedUserIDs") private var onboardedUserIDsRaw = ""
     @State private var showOnboarding = false
+
+    private func isOnboarded(_ uid: String) -> Bool {
+        onboardedUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
+    }
+    private func markOnboarded(_ uid: String) {
+        guard !isOnboarded(uid) else { return }
+        onboardedUserIDsRaw += onboardedUserIDsRaw.isEmpty ? uid : ",\(uid)"
+    }
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
     /// Carried in from a friend's invite link (`cini://invite?u=…`) so
@@ -75,23 +85,28 @@ struct CiniApp: App {
                     RootTabView()
                         .fullScreenCover(isPresented: $showOnboarding) {
                             OnboardingView {
-                                hasOnboarded = true
+                                if let uid = SupabaseService.shared.currentUserID?.uuidString {
+                                    markOnboarded(uid)
+                                }
                                 showOnboarding = false
                             }
                         }
-                        // First run: authenticated, never onboarded on this
-                        // device, and the account has no rankings (an
-                        // existing user on a new phone skips). Presented
-                        // AFTER the Auth→Root transition settles: a cover
-                        // requested mid-swap is silently dropped and leaves
-                        // a dead, untouchable layer (seen with fast email
-                        // sign-ins, where the store loads during the swap).
+                        // First run for THIS account: onboarding is tracked per
+                        // user id (not a device-wide flag), so a second account
+                        // signing up on the same phone still onboards. An
+                        // existing user on a new phone has rankings, so the
+                        // watchedCount==0 guard skips them. Presented AFTER the
+                        // Auth→Root transition settles: a cover requested
+                        // mid-swap is silently dropped and leaves a dead layer.
                         .task(id: session.rankingStore.isLoaded) {
-                            guard !hasOnboarded,
+                            guard let uid = SupabaseService.shared.currentUserID?.uuidString,
+                                  !isOnboarded(uid),
                                   session.rankingStore.isLoaded,
                                   session.rankingStore.watchedCount == 0 else { return }
                             try? await Task.sleep(for: .milliseconds(600))
-                            guard !hasOnboarded, session.isAuthenticated else { return }
+                            guard session.isAuthenticated,
+                                  let uid = SupabaseService.shared.currentUserID?.uuidString,
+                                  !isOnboarded(uid) else { return }
                             showOnboarding = true
                         }
                 } else {
