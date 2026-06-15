@@ -57,7 +57,7 @@ body::before{content:""; position:fixed; inset:0; z-index:-1; pointer-events:non
 
 /* Phone mockup */
 .hero-device{display:flex; justify-content:center;}
-.device{width:288px; border-radius:42px; padding:11px;
+.device{width:min(288px, calc(100vw - 64px)); border-radius:42px; padding:11px;
   background:linear-gradient(160deg,#2A2326,#15110F);
   border:1px solid rgba(255,255,255,.10);
   box-shadow:0 40px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4) inset;}
@@ -121,6 +121,12 @@ body::before{content:""; position:fixed; inset:0; z-index:-1; pointer-events:non
   .hero p.lede{margin-left:auto; margin-right:auto;}
   .dots{justify-content:center;}
   .hero-device{order:2;}
+  /* Bigger touch targets for thumbs (vertical padding only, so the
+     header/footer never widen or wrap). */
+  .nav nav a{display:inline-block; padding:11px 0;}
+  .foot{gap:4px 22px;}
+  .foot a{display:inline-block; padding:9px 0;}
+  .closer{padding:44px 22px;}
 }
 
 /* Legal pages */
