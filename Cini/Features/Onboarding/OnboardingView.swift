@@ -18,6 +18,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var phone = ""
     @State private var savingPhone = false
+    @State private var showFindFriends = false
     @State private var username = ""
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
@@ -64,11 +65,12 @@ struct OnboardingView: View {
             progressBar
             TabView(selection: $step) {
                 welcomeStep.tag(0)
-                usernameStep.tag(1)
-                phoneStep.tag(2)
-                importStep.tag(3)
-                permissionsStep.tag(4)
-                firstRankStep.tag(5)
+                phoneStep.tag(1)
+                usernameStep.tag(2)
+                findFriendsStep.tag(3)
+                importStep.tag(4)
+                permissionsStep.tag(5)
+                firstRankStep.tag(6)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.snappy, value: step)
@@ -102,7 +104,7 @@ struct OnboardingView: View {
 
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(0..<6, id: \.self) { index in
+            ForEach(0..<7, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -114,7 +116,30 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 5) }
+        withAnimation(.snappy) { step = min(step + 1, 6) }
+    }
+
+    // MARK: 4 — Find your friends (Beli puts this in onboarding)
+
+    private var findFriendsStep: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            Image(systemName: "person.2.fill")
+                .font(.system(size: 54)).foregroundStyle(Theme.marquee)
+            Text("Find your friends")
+                .font(Theme.serif(32)).multilineTextAlignment(.center)
+            Text("Cini is better with friends — see their takes before you commit a night, compare taste, and trade recs. Every friend who joins also unlocks a feature for you.")
+                .font(.subheadline).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center).padding(.horizontal, 28)
+            Spacer()
+            PillButton(title: "Find friends", style: .filled) { showFindFriends = true }
+                .padding(.horizontal, 28)
+            Button("Maybe later") { advance() }
+                .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
+        }
+        .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
+            InviteSheet()
+        }
     }
 
     // MARK: 2.5 — Phone (required, like Beli — powers find-your-friends)
