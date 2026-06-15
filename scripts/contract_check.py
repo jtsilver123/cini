@@ -138,7 +138,10 @@ RPCS = [
     ("set_watch_by", {"p_movie_id": 2, "p_watch_by": None}),
     ("referral_count", {}),
     ("unlocked_features", {}),
-    ("set_phone", {"p_phone": ""}),          # <10 digits → no-op
+    # Pass the demo's own number, not "" — set_phone('') means "clear my
+    # number" and would DELETE the demo's user_phones row on every run,
+    # breaking App Review's "log in with phone". This input is idempotent.
+    ("set_phone", {"p_phone": "+15551234567"}),
     ("my_phone", {}),
     ("members_from_phones", {"p_phones": []}),
     # No follower rates movie 2 highly → no-op insert.
