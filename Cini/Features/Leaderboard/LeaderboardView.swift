@@ -163,12 +163,27 @@ struct InviteSheet: View {
     @State private var followed: Set<UUID> = []
     @State private var query = ""
     @State private var showShare = false
+    /// Phone digits we've already texted an invite to — persisted so a contact
+    /// who never joined shows "Remind" (and a gentler nudge) on a later visit.
+    @AppStorage("cini.invitedPhones") private var invitedPhonesRaw = ""
 
     private var inviteURL: String {
         AppLinks.invite(session.profile?.username ?? "")
     }
     private var inviteText: String {
         "Join me on Cini — we rank every movie & show head-to-head 🎬\n\(inviteURL)"
+    }
+    private var reminderText: String {
+        "Still want in on Cini? Here's my invite 🎬\n\(inviteURL)"
+    }
+    private func phoneDigits(_ p: String) -> String { p.filter(\.isNumber) }
+    private func isInvited(_ contact: PhoneContact) -> Bool {
+        invitedPhonesRaw.split(separator: ",").map(String.init).contains(phoneDigits(contact.phone))
+    }
+    private func markInvited(_ contact: PhoneContact) {
+        let d = phoneDigits(contact.phone)
+        guard !d.isEmpty, !isInvited(contact) else { return }
+        invitedPhonesRaw += invitedPhonesRaw.isEmpty ? d : ",\(d)"
     }
     private var filteredContacts: [PhoneContact] {
         query.isEmpty ? contacts
@@ -294,7 +309,9 @@ struct InviteSheet: View {
                 .overlay(Text(initials(contact.name)).font(.subheadline.weight(.bold)).foregroundStyle(Theme.gray))
             Text(contact.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
             Spacer()
-            PillButton(title: "Invite", style: .filled) { inviteContact(contact) }
+            let invited = isInvited(contact)
+            PillButton(title: invited ? "Remind" : "Invite",
+                       style: invited ? .outlined : .filled) { inviteContact(contact) }
         }
     }
 
@@ -329,9 +346,12 @@ struct InviteSheet: View {
     private func inviteContact(_ contact: PhoneContact) {
         Haptics.tap()
         let digits = contact.phone.filter { $0.isNumber || $0 == "+" }
+        // Already texted once → send the gentler reminder copy instead.
+        let body = isInvited(contact) ? reminderText : inviteText
         // urlQueryValueEncoded escapes the "&" in "movie & show" — otherwise it
         // truncates the SMS body and drops the invite link.
-        if let url = URL(string: "sms:\(digits)&body=\(inviteText.urlQueryValueEncoded)") { openURL(url) }
+        if let url = URL(string: "sms:\(digits)&body=\(body.urlQueryValueEncoded)") { openURL(url) }
+        markInvited(contact)
     }
 
     private func initials(_ name: String) -> String {

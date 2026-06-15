@@ -22,6 +22,7 @@ struct OnboardingView: View {
 
     @State private var step = 0
     @State private var showFindFriends = false
+    @State private var showSkipFriendsNudge = false
     @State private var username = ""
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
@@ -239,11 +240,19 @@ struct OnboardingView: View {
             Spacer()
             PillButton(title: "Find friends", style: .filled) { showFindFriends = true }
                 .padding(.horizontal, 28)
-            Button("Maybe later") { advance() }
+            Button("Maybe later") { showSkipFriendsNudge = true }
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
         .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
             InviteSheet()
+        }
+        // Beli-style nudge: one more chance to invite before skipping.
+        .confirmationDialog("Cini is so much better with friends",
+                            isPresented: $showSkipFriendsNudge, titleVisibility: .visible) {
+            Button("Invite friends") { showFindFriends = true }
+            Button("Skip for now", role: .cancel) { advance() }
+        } message: {
+            Text("Invite one friend to unlock a feature — and your feed comes alive with their takes the moment they join.")
         }
     }
 
