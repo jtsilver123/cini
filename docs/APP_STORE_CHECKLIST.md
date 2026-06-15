@@ -16,7 +16,7 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 - ✅ TestFlight pipeline automated: GitHub Actions archive → cloud-sign →
   entitlement check → upload (`testflight.yml`, manual trigger only)
 - ✅ App icon (1024×1024, asset catalog)
-- ✅ Website live at https://jtsilver123.github.io/cini/ — landing page,
+- ✅ Website live at https://trycini.com/ — landing page,
   privacy.html, terms.html; linked from Settings and the sign-in screen
 - ✅ Support contact everywhere: jtsilver123@gmail.com (in-app, site, legal)
 - ✅ Account deletion in-app (Settings → Delete account, server-side cascade)
@@ -36,9 +36,9 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 ## App Store Connect submission (👤 with my step-by-step help when ready)
 
 - App record: bundle ID `app.cini.ios`, name "Cini"
-- Marketing URL: https://jtsilver123.github.io/cini/
-- Support URL: https://jtsilver123.github.io/cini/ (or mailto)
-- Privacy Policy URL: https://jtsilver123.github.io/cini/privacy.html
+- Marketing URL: https://trycini.com/
+- Support URL: https://trycini.com/ (or mailto)
+- Privacy Policy URL: https://trycini.com/privacy.html
 - App privacy questionnaire: collects email, username, user content,
   contacts (matched once, not stored, not linked); no tracking, no ads
 - Age rating questionnaire (12+ suggested: infrequent mature movie themes

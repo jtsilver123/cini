@@ -7,7 +7,7 @@ import RankingEngine
 // and avatars are pre-fetched as UIImage first) and handed to a ShareLink.
 // Every card carries the cini wordmark + site link so a post drives installs.
 
-private let ciniSiteLine = "jtsilver123.github.io/cini"
+private let ciniSiteLine = "trycini.com"
 
 // MARK: - Top 5 card
 

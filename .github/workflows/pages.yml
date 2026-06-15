@@ -22,9 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble site (same URLs as before)
+      - name: Assemble site (served from the trycini.com custom domain)
         run: |
           mkdir -p _site/prototype
+          # Custom apex domain — must ship in the Pages artifact.
+          cp CNAME _site/CNAME
           cp prototype/index.html _site/prototype/index.html
           cp prototype/favicon.png _site/prototype/favicon.png
           # Marketing site at the root: landing + legal pages.

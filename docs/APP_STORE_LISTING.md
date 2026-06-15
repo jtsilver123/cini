@@ -49,9 +49,9 @@ or certified by TMDB.
 movies,movie tracker,letterboxd,film diary,watchlist,rank,ratings,tv shows,recommendations,cinema
 
 ## URLs
-- Marketing: https://jtsilver123.github.io/cini/
-- Support: https://jtsilver123.github.io/cini/
-- Privacy Policy: https://jtsilver123.github.io/cini/privacy.html
+- Marketing: https://trycini.com/
+- Support: https://trycini.com/
+- Privacy Policy: https://trycini.com/privacy.html
 
 ## Category
 Primary: Entertainment · Secondary: Social Networking

@@ -331,7 +331,7 @@ struct LetterboxdImportView: View {
 
     // MARK: Desktop transfer - export on a computer, beam it here
 
-    private var importPageURL: String { "https://jtsilver123.github.io/cini/import/" }
+    private var importPageURL: String { "https://trycini.com/import/" }
 
     @ViewBuilder
     private var desktopCard: some View {

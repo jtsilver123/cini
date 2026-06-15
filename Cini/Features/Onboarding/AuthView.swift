@@ -240,8 +240,8 @@ struct AuthView: View {
 
     private var legal: some View {
         HStack(spacing: 14) {
-            Link("Terms of Use", destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!)
-            Link("Privacy Policy", destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!)
+            Link("Terms of Use", destination: URL(string: "https://trycini.com/terms.html")!)
+            Link("Privacy Policy", destination: URL(string: "https://trycini.com/privacy.html")!)
         }
         .font(.caption2).foregroundStyle(Theme.gray)
     }

@@ -66,7 +66,7 @@ JSON — clean. Swallowed errors in hot paths now log via OSLog
 (`SupabaseService.logSwallowed`). watch_date/watched_on MUST stay String
 (date-only columns can't decode as Date — comments in code explain).
 
-**Marketing site is live**: https://jtsilver123.github.io/cini/ (landing
+**Marketing site is live**: https://trycini.com/ (landing
 + terms.html + privacy.html, brand-matched; pages.yml publishes them).
 Support email everywhere: jtsilver123@gmail.com (NOTHING bettercampus).
 Paste-ready App Store metadata: docs/APP_STORE_LISTING.md.
@@ -245,7 +245,7 @@ and shipped on request only — Apple caps uploads per app per day
   prompt); open-style intents reuse TabRouter's push deep-link plumbing.
 - CI (`ci.yml`): engine tests (39) + app build/tests on simulator + the
   live Supabase contract check — green through 46e2e6d-era commits
-- Live prototype: https://jtsilver123.github.io/cini/prototype/ — deploys
+- Live prototype: https://trycini.com/prototype/ — deploys
   via `pages.yml` on push, alongside the marketing site at the root
 - Legal pages: …/cini/privacy.html and …/cini/terms.html (linked from
   Settings and the sign-in screen)

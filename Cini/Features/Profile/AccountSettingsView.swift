@@ -189,7 +189,7 @@ private struct PrivacyScreen: View {
                 Text("If you used Find Friends, we keep one-way hashes of your contacts' numbers (never names) to tell you when one joins. Remove them any time — and they're deleted with your account.")
             }
             Section {
-                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
+                Link(destination: URL(string: "https://trycini.com/privacy.html")!) {
                     Label("Privacy Policy", systemImage: "hand.raised")
                 }
             }
@@ -244,10 +244,10 @@ private struct HelpScreen: View {
                 Link(destination: URL(string: "mailto:jtsilver123@gmail.com?subject=Cini%20support")!) {
                     Label("Contact support", systemImage: "envelope")
                 }
-                Link(destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!) {
+                Link(destination: URL(string: "https://trycini.com/terms.html")!) {
                     Label("Terms of Use", systemImage: "doc.text")
                 }
-                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
+                Link(destination: URL(string: "https://trycini.com/privacy.html")!) {
                     Label("Privacy Policy", systemImage: "hand.raised")
                 }
                 Link(destination: URL(string: "https://www.themoviedb.org")!) {

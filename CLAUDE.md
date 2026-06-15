@@ -41,7 +41,7 @@ These are standing user directives. They override convenience every time.
    bookmark quick actions are scrimmed circles bottom-right on artwork via
    `ArtworkQuickActions`; scores are a trailing `ScoreBadge`; etc.
 4. **Mirror meaningful features in the web prototype** (`prototype/index.html`,
-   live at jtsilver123.github.io/cini/prototype/). If a change alters app
+   live at trycini.com/prototype/). If a change alters app
    behavior or UX a user would notice, reflect it in the prototype too.
 5. **The repo is PUBLIC.** Never commit secrets. The TMDB key in
    `Cini/Resources/Secrets.xcconfig` is a *client* key and is intentionally
