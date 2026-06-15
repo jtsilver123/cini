@@ -1089,6 +1089,10 @@ struct NotificationsView: View {
 
     private func headline(_ row: NotificationRow) -> AttributedString {
         let who = "@\(row.actor?.username ?? "someone")"
+        // Prefer the joiner's real profile name for "a contact joined" — it
+        // reads like a person you know, not a handle. (We don't store the name
+        // you saved them under, only a hash of their number.)
+        let name = (row.actor?.displayName).flatMap { $0.isEmpty ? nil : $0 } ?? who
         let movie = row.movies?.title ?? "a movie"
         let text: String
         switch row.kind {
@@ -1102,7 +1106,7 @@ struct NotificationsView: View {
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
         case "follow_request": text = "**\(who)** asked to follow you"
         case "follow_request_approved": text = "**\(who)** accepted your follow request"
-        case "contact_joined": text = "**\(who)** from your contacts just joined Cini 🎬"
+        case "contact_joined": text = "**\(name)** from your contacts just joined Cini 🎬"
         case "saved_your_rank": text = "**\(who)** saved **\(movie)** — you ranked it 🔖"
         case "streak_reminder": text = "Your streak ends Sunday — rank one title to keep it alive 🔥"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"

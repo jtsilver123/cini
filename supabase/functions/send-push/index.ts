@@ -72,7 +72,9 @@ async function apnsJWT(): Promise<string> {
 }
 
 // ---- Notification copy (mirrors NotificationsView.headline) ----
-function headline(kind: string, actor: string, movie: string | null): string {
+// `actor` is the @handle; `name` is the joiner's profile name (or the handle
+// if they have none) — used where a real name reads better.
+function headline(kind: string, actor: string, name: string, movie: string | null): string {
   switch (kind) {
     case "new_follower": return `@${actor} started following you`;
     case "like": return `@${actor} liked your activity on ${movie ?? "a movie"}`;
@@ -87,6 +89,16 @@ function headline(kind: string, actor: string, movie: string | null): string {
       return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
     case "rec_request":
       return `@${actor} wants a rec from you — send one 🎬`;
+    case "follow_request":
+      return `@${actor} asked to follow you`;
+    case "follow_request_approved":
+      return `@${actor} accepted your follow request`;
+    case "contact_joined":
+      return `${name} from your contacts just joined Cini 🎬`;
+    case "saved_your_rank":
+      return `@${actor} saved ${movie ?? "a title"} — you ranked it 🔖`;
+    case "streak_reminder":
+      return `Your streak ends Sunday — rank one title to keep it alive 🔥`;
     case "streaming_now":
       return `${movie ?? "A title you saved"} is streaming now 🍿`;
     case "season_premiere":
@@ -108,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: n } = await supabase
       .from("notifications")
-      .select("id, recipient_id, kind, movie_id, actor_id, actor:profiles!notifications_actor_id_fkey(username), movies(title)")
+      .select("id, recipient_id, kind, movie_id, actor_id, actor:profiles!notifications_actor_id_fkey(username, display_name), movies(title)")
       .eq("id", notification_id)
       .maybeSingle();
     if (!n) return new Response("unknown notification", { status: 404 });
@@ -127,11 +139,14 @@ Deno.serve(async (req: Request) => {
 
     // kind/movie_id/actor_* ride along so tapping the push deep-links:
     // movie pushes open the movie page, follower pushes the profile.
+    const uname = (n.actor as any)?.username ?? "someone";
+    const dname = (n.actor as any)?.display_name;
+    const name = (dname && dname.length) ? dname : `@${uname}`;
     const body = {
       aps: {
         alert: {
           title: "Cini",
-          body: headline(n.kind, (n.actor as any)?.username ?? "someone", (n.movies as any)?.title ?? null),
+          body: headline(n.kind, uname, name, (n.movies as any)?.title ?? null),
         },
         badge: count ?? 1,
         sound: "default",
