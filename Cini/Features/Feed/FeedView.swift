@@ -733,6 +733,7 @@ struct CommentsSheet: View {
     @State private var draft = ""
     @State private var loaded = false
     @State private var blockCandidate: CommentRow?
+    @State private var memberTarget: MemberRef?
 
     var body: some View {
         NavigationStack {
@@ -750,9 +751,12 @@ struct CommentsSheet: View {
                 } else {
                     List(comments) { comment in
                         HStack(alignment: .top, spacing: 12) {
-                            NavigationLink {
-                                MemberProfileView(userID: comment.userId,
-                                                  username: comment.profiles?.username ?? "member")
+                            // A plain Button (not a List NavigationLink, which
+                            // injects a disclosure chevron and breaks the row
+                            // layout) — navigate programmatically instead.
+                            Button {
+                                memberTarget = MemberRef(id: comment.userId,
+                                                         username: comment.profiles?.username ?? "member")
                             } label: {
                                 AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
                                            name: preferredName(comment.profiles?.displayName, comment.profiles?.username))
@@ -768,6 +772,7 @@ struct CommentsSheet: View {
                                 }
                                 Text(comment.body).font(.subheadline)
                             }
+                            Spacer(minLength: 0)
                         }
                         .listRowBackground(Theme.background)
                         // Long-press: delete your own, moderate others'.
@@ -838,6 +843,9 @@ struct CommentsSheet: View {
             .background(Theme.background)
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $memberTarget) { ref in
+                MemberProfileView(userID: ref.id, username: ref.username)
+            }
         }
         // Blocking is heavy — always confirm before mutual invisibility.
         .confirmationDialog(
