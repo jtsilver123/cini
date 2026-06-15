@@ -126,7 +126,10 @@ struct AccountSettingsView: View {
         do {
             try await SupabaseService.shared.deleteAccount()
         } catch {
-            errorMessage = "Couldn't delete the account — try again or contact us."
+            let detail = "\(error)".lowercased()
+            errorMessage = (detail.contains("network") || detail.contains("offline") || detail.contains("timed out"))
+                ? "Couldn't delete your account — you're offline. Check your connection and try again."
+                : "Couldn't delete your account — try again, or email jtsilver123@gmail.com and we'll remove it."
         }
     }
 }
@@ -256,14 +259,32 @@ private struct ChangePasswordScreen: View {
     @State private var confirmPassword = ""
     @State private var message: String?
     @State private var errorMessage: String?
+    @State private var reveal = false
 
     private var valid: Bool { PasswordPolicy.isValid(newPassword) && newPassword == confirmPassword }
 
     var body: some View {
         Form {
             Section {
-                SecureField("New password", text: $newPassword)
-                SecureField("Confirm new password", text: $confirmPassword)
+                HStack {
+                    Group {
+                        if reveal { TextField("New password", text: $newPassword) }
+                        else { SecureField("New password", text: $newPassword) }
+                    }
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    Button { reveal.toggle() } label: {
+                        Image(systemName: reveal ? "eye.slash" : "eye").foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(reveal ? "Hide password" : "Show password")
+                }
+                Group {
+                    if reveal { TextField("Confirm new password", text: $confirmPassword) }
+                    else { SecureField("Confirm new password", text: $confirmPassword) }
+                }
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
                 // Same rules as sign-up, shown live.
                 ruleRow(PasswordPolicy.lengthRule, PasswordPolicy.hasLength(newPassword))
                 ruleRow(PasswordPolicy.mixRule, PasswordPolicy.hasMix(newPassword))

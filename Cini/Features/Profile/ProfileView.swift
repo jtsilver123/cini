@@ -17,6 +17,7 @@ struct ProfileScreen: View {
     @State private var rankings: [RankingRow] = []
     @State private var movies: [Int: Movie] = [:]
     @State private var events: [FeedEventRow] = []
+    @State private var showAllActivity = false
     @State private var followerCount = 0
     @State private var followingCount = 0
     @State private var following = false
@@ -809,7 +810,7 @@ struct ProfileScreen: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
         }
-        ForEach(events.prefix(12)) { event in
+        ForEach(showAllActivity ? events : Array(events.prefix(12))) { event in
             let movie = event.movies?.asMovie
             HStack(spacing: 12) {
                 if let movie {
@@ -827,6 +828,15 @@ struct ProfileScreen: View {
             .contentShape(Rectangle())
             .onTapGesture { if let movie { detailMovie = movie } }
             Divider()
+        }
+        if !showAllActivity && events.count > 12 {
+            Button("See all \(events.count) updates") {
+                withAnimation(.snappy) { showAllActivity = true }
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.marquee)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
         }
     }
 

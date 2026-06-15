@@ -15,6 +15,7 @@ struct AuthView: View {
     @State private var password = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var revealPassword = false
     @FocusState private var focused: Bool
 
     init(startInSignUp: Bool = false) {
@@ -182,19 +183,35 @@ struct AuthView: View {
 
     private func authField(_ placeholder: String, text: Binding<String>,
                            secure: Bool = false, keyboard: UIKeyboardType = .default) -> some View {
-        Group {
+        HStack(spacing: 8) {
+            Group {
+                if secure && !revealPassword {
+                    SecureField(placeholder, text: text)
+                        .textContentType(isSigningUp ? .newPassword : .password)
+                } else if secure {
+                    // Revealed: a plain field so the typed password is visible.
+                    TextField(placeholder, text: text)
+                        .textContentType(isSigningUp ? .newPassword : .password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } else {
+                    TextField(placeholder, text: text)
+                        .keyboardType(keyboard)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.emailAddress)
+                }
+            }
+            .focused($focused)
             if secure {
-                SecureField(placeholder, text: text)
-                    .textContentType(isSigningUp ? .newPassword : .password)
-            } else {
-                TextField(placeholder, text: text)
-                    .keyboardType(keyboard)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .textContentType(.emailAddress)
+                Button { revealPassword.toggle() } label: {
+                    Image(systemName: revealPassword ? "eye.slash" : "eye")
+                        .foregroundStyle(Theme.gray)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(revealPassword ? "Hide password" : "Show password")
             }
         }
-        .focused($focused)
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
     }
@@ -289,7 +306,13 @@ struct AuthView: View {
         if text.contains("validate email") || text.contains("invalid format") {
             return "That doesn't look like an email address — check for typos."
         }
-        if text.contains("already registered") { return "That email already has an account — sign in instead." }
+        if text.contains("already") && text.contains("regist") {
+            return "That email already has an account — sign in instead."
+        }
+        if text.contains("rate limit") || text.contains("for security purposes")
+            || (text.contains("after") && text.contains("seconds")) {
+            return "Too many tries just now — wait a minute, then try again."
+        }
         if text.contains("network") || text.contains("offline") || text.contains("timed out") {
             return "No connection — check your internet and try again."
         }
