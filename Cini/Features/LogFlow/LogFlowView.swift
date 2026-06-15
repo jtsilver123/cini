@@ -568,7 +568,7 @@ struct LogFlowView: View {
                     } else {
                         // Card image didn't render — share text so the button
                         // is never silently missing.
-                        ShareLink(item: "\(movie.title) — ranked #\(scored.rank) on Cini 🎬") {
+                        ShareLink(item: "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.appStore)") {
                             shareLabel
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 9)

@@ -633,7 +633,7 @@ struct FeedCard: View {
                     Image(systemName: "bubble.right")
                 }
                 if let movie {
-                    ShareLink(item: "\(movie.title) — on Cini 🎬") {
+                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
                         Image(systemName: "paperplane")
                             .foregroundStyle(Theme.ink)
                     }

@@ -470,7 +470,8 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("sho
 function buzz(){ if(navigator.vibrate) navigator.vibrate(8); }
 function esc(s){ return s.replace(/"/g,"&quot;"); }
 async function share(text){
-  if(navigator.share){ try{ await navigator.share({title:"Cini", text, url:"https://jtsilver123.github.io/cini/prototype/"}); }catch(e){} }
+  var url="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898";
+  if(navigator.share){ try{ await navigator.share({title:"Cini", text, url}); }catch(e){} }
   else toast("Link copied");
 }
 function deepLink(provider, title){

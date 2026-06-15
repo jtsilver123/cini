@@ -198,7 +198,7 @@ struct ProfileScreen: View {
                 .font(.title2.weight(.bold))
             Spacer()
             HStack(spacing: 18) {
-                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 https://jtsilver123.github.io/cini/i/?u=\(profile?.username ?? "")") {
+                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
                         .frame(width: 40, height: 40)
                         .contentShape(Rectangle())

@@ -248,7 +248,7 @@ struct YourListsView: View {
            let list = customLists.first(where: { $0.id == selectedListID }) {
             return listShareText(name: list.name, movies: customListMovies)
         }
-        return "My movie rankings live on Cini 🎬"
+        return "My movie rankings live on Cini 🎬\n\(AppLinks.appStore)"
     }
 
     /// Plain HStack with generous tap targets — the old overlay-based

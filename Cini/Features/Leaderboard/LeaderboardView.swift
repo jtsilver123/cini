@@ -158,7 +158,7 @@ struct InviteSheet: View {
     @State private var showShare = false
 
     private var inviteURL: String {
-        "https://jtsilver123.github.io/cini/i/?u=\(session.profile?.username ?? "")"
+        AppLinks.invite(session.profile?.username ?? "")
     }
     private var inviteText: String {
         "Join me on Cini — we rank every movie & show head-to-head 🎬\n\(inviteURL)"

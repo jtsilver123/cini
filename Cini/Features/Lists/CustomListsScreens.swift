@@ -399,5 +399,6 @@ func listShareText(name: String, movies: [Movie]) -> String {
     if movies.count > 10 {
         lines.append("…and \(movies.count - 10) more")
     }
+    lines.append(AppLinks.appStore)
     return lines.joined(separator: "\n")
 }
