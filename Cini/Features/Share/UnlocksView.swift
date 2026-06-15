@@ -22,6 +22,57 @@ let unlockCatalog: [UnlockFeature] = [
                   icon: "eye.slash.fill"),
 ]
 
+/// Beli-style feed card: progress through the unlockable features + an invite
+/// CTA. Shown near the top of the feed until everything is unlocked.
+struct FeedUnlockCard: View {
+    @Environment(AppSession.self) private var session
+    var onTap: () -> Void
+
+    var body: some View {
+        let unlockedCount = unlockCatalog.filter { session.isUnlocked($0.id) }.count
+        let credits = session.availableUnlocks
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(credits > 0 ? "\(credits) unlock\(credits == 1 ? "" : "s") ready!" : "Unlock more of Cini")
+                        .font(.headline).foregroundStyle(Theme.ink)
+                    Text("Unlock features as friends join (\(unlockedCount)/\(unlockCatalog.count))")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                HStack(spacing: 8) {
+                    ForEach(unlockCatalog) { feature in
+                        let unlocked = session.isUnlocked(feature.id)
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(unlocked ? Theme.scoreGreen.opacity(0.16) : Theme.surface2)
+                                    .frame(width: 46, height: 46)
+                                Image(systemName: unlocked ? "checkmark" : feature.icon)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(unlocked ? Theme.scoreGreen : Theme.marquee)
+                            }
+                            Text(feature.title)
+                                .font(.caption2).foregroundStyle(Theme.gray)
+                                .lineLimit(1).minimumScaleFactor(0.7)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                Text(credits > 0 ? "Choose a feature to unlock" : "Invite friends")
+                    .font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(Capsule().fill(Theme.velvet))
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 18).fill(Theme.surface)
+                    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Theme.hairline, lineWidth: 1))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// "Invite friends → choose what to unlock." Shows how many unlock credits the
 /// user has earned and lets them spend one on any locked feature.
 struct UnlocksView: View {
