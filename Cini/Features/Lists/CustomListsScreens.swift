@@ -141,6 +141,7 @@ struct CustomListScreen: View {
     let isSelf: Bool
 
     @Environment(RankingStore.self) private var store
+    @Environment(AppSession.self) private var session
 
     @State private var movieIDs: [Int] = []
     @State private var movies: [Int: Movie] = [:]
@@ -149,6 +150,12 @@ struct CustomListScreen: View {
     @State private var logMovie: Movie?
     @State private var reported = false
     @State private var showBlockConfirm = false
+    // Beli-style sharing: whole list vs. pick specific titles.
+    @State private var showShareOptions = false
+    @State private var showPickTitles = false
+    @State private var sharePayload: SharePayload?
+
+    private var listMovies: [Movie] { movieIDs.compactMap { movies[$0] ?? store.movie($0) } }
 
     var body: some View {
         List {
@@ -185,9 +192,10 @@ struct CustomListScreen: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: shareText) {
+                Button { showShareOptions = true } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
+                .accessibilityLabel("Share list")
             }
             // Public lists are UGC — moderation lives here like everywhere.
             if !isSelf {
@@ -238,6 +246,23 @@ struct CustomListScreen: View {
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
         }
+        // Beli-style: share the whole list, or pick specific titles.
+        .confirmationDialog("How do you want to share?",
+                            isPresented: $showShareOptions, titleVisibility: .visible) {
+            Button("Share the whole list") {
+                sharePayload = SharePayload(text: shareText(for: listMovies, whole: true))
+            }
+            Button("Pick titles to share") { showPickTitles = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showPickTitles) {
+            PickTitlesToShareSheet(listName: list.name, movies: listMovies) { picked in
+                shareText(for: picked, whole: false)
+            }
+        }
+        .sheet(item: $sharePayload) { payload in
+            ActivityShareSheet(items: [payload.text])
+        }
         .task {
             movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? []
             let rows = (try? await SupabaseService.shared.movies(ids: movieIDs)) ?? []
@@ -246,9 +271,20 @@ struct CustomListScreen: View {
         }
     }
 
-    private var shareText: String {
-        listShareText(name: list.name,
-                      movies: movieIDs.compactMap { movies[$0] ?? store.movie($0) })
+    /// Beli-style share text — lists the titles (whole list or a picked subset)
+    /// and ends with a personal invite link so it doubles as a referral.
+    private func shareText(for movies: [Movie], whole: Bool) -> String {
+        var lines = [whole ? "\(list.name) — my list on Cini 🎬"
+                           : "A few picks from my Cini list “\(list.name)” 🎬"]
+        for (index, movie) in movies.prefix(50).enumerated() {
+            let year = movie.releaseYear.map { " (\($0))" } ?? ""
+            lines.append("\(index + 1). \(movie.title)\(year)")
+        }
+        let username = session.profile?.username ?? ""
+        lines.append("")
+        lines.append(username.isEmpty ? AppLinks.appStore
+                                      : "Find me on Cini at \(AppLinks.invite(username))")
+        return lines.joined(separator: "\n")
     }
 
     private func removeItems(at offsets: IndexSet) {
@@ -401,4 +437,77 @@ func listShareText(name: String, movies: [Movie]) -> String {
     }
     lines.append(AppLinks.appStore)
     return lines.joined(separator: "\n")
+}
+
+/// Carries the text to hand to the iOS share sheet.
+struct SharePayload: Identifiable {
+    let id = UUID()
+    let text: String
+}
+
+/// Beli's "Select places to share": a checklist of the list's titles → Share
+/// only the ones you picked (as text) via the native share sheet.
+private struct PickTitlesToShareSheet: View {
+    let listName: String
+    let movies: [Movie]
+    /// Builds the share text from the picked movies.
+    let buildText: ([Movie]) -> String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected: Set<Int> = []
+    @State private var payload: SharePayload?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(movies) { movie in
+                    let on = selected.contains(movie.tmdbID)
+                    Button {
+                        if on { selected.remove(movie.tmdbID) } else { selected.insert(movie.tmdbID) }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(on ? Theme.marquee : Theme.gray)
+                            PosterView(url: movie.posterURL, width: 40)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(movie.title)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.ink).lineLimit(1)
+                                if let year = movie.releaseYear {
+                                    Text(String(year)).font(.caption).foregroundStyle(Theme.gray)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Theme.background)
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Pick titles to share")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarLeading) { Button("Cancel") { dismiss() } } }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    payload = SharePayload(text: buildText(movies.filter { selected.contains($0.tmdbID) }))
+                } label: {
+                    Text(selected.isEmpty ? "Select titles to share"
+                         : "Share \(selected.count) title\(selected.count == 1 ? "" : "s")")
+                        .font(.headline).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).padding(.vertical, 15)
+                        .background(Capsule().fill(selected.isEmpty ? Theme.gray.opacity(0.4) : Theme.velvet))
+                }
+                .buttonStyle(.plain)
+                .disabled(selected.isEmpty)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+            }
+            .sheet(item: $payload) { p in ActivityShareSheet(items: [p.text]) }
+        }
+    }
 }
