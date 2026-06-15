@@ -2287,7 +2287,7 @@ function obPwLen(){ return obPw.length>=8 && obPw.length<=20; }
 function obPwMix(){ return /[a-zA-Z]/.test(obPw) && /[0-9]/.test(obPw) && /[^a-zA-Z0-9\s]/.test(obPw); }
 function obPwValid(){ return obPwLen() && obPwMix(); }
 function renderOnboarding(){
-  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8].map(i=>
+  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
   let body="";
   if(obStep===0) body=`
@@ -2335,6 +2335,17 @@ function renderOnboarding(){
       <button id="obPwGo" class="pill" style="justify-content:center; padding:13px; opacity:${obPwValid()?1:.5};" onclick="if(obPwValid())obNext(); else toast('Meet the password requirements first')">Create account</button>
     </div>`;
   else if(obStep===4) body=`
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; padding:0 32px; text-align:center;">
+      <div class="serif" style="font-size:38px; font-weight:700;">You're in!</div>
+      <div class="avatar av1" style="width:120px; height:120px; font-size:42px;">J</div>
+      <div>
+        <div style="font-size:18px; font-weight:700;">Jake thinks you have great taste</div>
+        <button style="background:none;border:none;color:var(--marquee);font:inherit;font-weight:600;cursor:pointer;margin-top:6px;" onclick="toast('Jake founded Cini and lives for movies — everyone starts following him so your feed has great picks. Unfollow any time.')">Who's Jake?</button>
+      </div>
+      <button class="pill" style="justify-content:center; padding:13px; margin-top:8px; width:100%; max-width:320px;" onclick="obNext()">Get started</button>
+      <button style="background:none;border:none;color:var(--gray);font:inherit;font-weight:600;cursor:pointer;" onclick="toast('Enter their @username on the next screen and you’ll follow each other')">Invited by someone else?</button>
+    </div>`;
+  else if(obStep===5) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
       <div class="serif" style="font-size:32px; font-weight:700;">Claim your @</div>
       <div class="sub">This is how friends find and follow you.</div>
@@ -2353,7 +2364,7 @@ function renderOnboarding(){
       <div class="sub" style="font-size:11.5px;">At least 3 characters — lowercase letters, numbers, underscores.</div>
       <button id="obGo" class="pill" style="justify-content:center; padding:13px; opacity:${obValid()?1:.5};" onclick="if(obValid())obNext(); else toast('Pick a valid username first')">That's me</button>
     </div>`;
-  else if(obStep===5) body=`
+  else if(obStep===6) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; padding:0 32px; text-align:center;">
       <div class="serif" style="font-size:30px; font-weight:700;">Add a profile photo</div>
       <div class="sub" style="line-height:1.5;">Show the face behind the reviews. Skip it — your initials stand in until you do.</div>
@@ -2362,7 +2373,7 @@ function renderOnboarding(){
       <button class="pill" style="justify-content:center; padding:13px;" onclick="obNext()">Add a photo</button>
       <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Not now</button>
     </div>`;
-  else if(obStep===6) body=`
+  else if(obStep===7) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 32px; text-align:center;">
       <div style="font-size:48px;">👥</div>
       <div class="serif" style="font-size:30px; font-weight:700;">Find your friends</div>
@@ -2370,7 +2381,7 @@ function renderOnboarding(){
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px;" onclick="toast('Contacts permission + invite list opens here'); obNext();">Find friends</button>
       <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Maybe later</button>
     </div>`;
-  else if(obStep===7) body=`
+  else if(obStep===8) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
       <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
         <div style="display:flex; padding:11px 13px; background:#1A2128; border-radius:14px;">
@@ -2402,7 +2413,7 @@ function renderOnboarding(){
     </div>`;
   $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
 }
-function obNext(){ buzz(); obStep++; if(obStep>8){ finishOnboarding(); return; } renderOnboarding(); }
+function obNext(){ buzz(); obStep++; if(obStep>9){ finishOnboarding(); return; } renderOnboarding(); }
 function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
 
 /* =================== BOOT =================== */
