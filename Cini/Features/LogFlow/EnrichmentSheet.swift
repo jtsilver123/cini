@@ -18,8 +18,6 @@ struct EnrichmentCard: View {
     var showsWatchedWith = true
     var onOkay: () -> Void
 
-    private let supabase = SupabaseService.shared
-
     /// Which editor is open — owned by LogFlowView, which presents the
     /// sheet at the top of the hierarchy (sheets attached deep inside the
     /// clear-background cover silently fail to present on device).
