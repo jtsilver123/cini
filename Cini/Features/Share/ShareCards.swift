@@ -203,6 +203,7 @@ private func initials(_ name: String) -> String {
 /// Pre-fetches the bitmaps a card needs, renders it to an image, and offers a
 /// one-tap ShareLink. Used by both card types via a closure that builds the
 /// concrete card from the fetched images.
+@MainActor
 private func renderCard<V: View>(_ view: V) -> Image? {
     let renderer = ImageRenderer(content: view)
     renderer.scale = 3

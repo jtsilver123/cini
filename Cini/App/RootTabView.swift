@@ -93,13 +93,25 @@ struct RootTabView: View {
         case feed, lists, search, leaderboard, profile
     }
 
-    /// The center Search action, Beli-style: a filled marquee disc with a
-    /// plus, sitting inline in the bar (not a floating FAB) and always in the
-    /// accent color regardless of selection.
-    private static let searchTabIcon: UIImage? = UIImage(
-        systemName: "plus.circle.fill",
-        withConfiguration: UIImage.SymbolConfiguration(pointSize: 30, weight: .semibold)
-    )?.withTintColor(UIColor(Theme.marquee), renderingMode: .alwaysOriginal)
+    /// The center Search action, Beli-style: a solid marquee disc with a clean
+    /// WHITE plus, sitting inline in the bar (not a floating FAB) and always in
+    /// the accent color regardless of selection. Drawn by hand rather than
+    /// `plus.circle.fill` (whose plus is a see-through cutout that reads thin
+    /// and dark on the opaque bar).
+    private static let searchTabIcon: UIImage = {
+        let d: CGFloat = 29
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: d, height: d))
+        return renderer.image { _ in
+            UIColor(Theme.marquee).setFill()
+            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: d, height: d)).fill()
+            UIColor.white.setFill()
+            let c = d / 2, arm = d * 0.28, thick = d * 0.11
+            UIBezierPath(roundedRect: CGRect(x: c - thick / 2, y: c - arm, width: thick, height: arm * 2),
+                         cornerRadius: thick / 2).fill()
+            UIBezierPath(roundedRect: CGRect(x: c - arm, y: c - thick / 2, width: arm * 2, height: thick),
+                         cornerRadius: thick / 2).fill()
+        }.withRenderingMode(.alwaysOriginal)
+    }()
 
     var body: some View {
         beliTabs
@@ -189,13 +201,11 @@ struct RootTabView: View {
 
             SearchView()
                 .tabItem {
-                    if let icon = Self.searchTabIcon {
-                        // .original so the disc stays marquee gold even when
-                        // unselected — the center action always reads as "the"
-                        // primary button, Beli-style.
-                        Label { Text("Search") } icon: { Image(uiImage: icon).renderingMode(.original) }
-                    } else {
-                        Label("Search", systemImage: "plus.circle.fill")
+                    // .original so the disc stays marquee gold + white plus even
+                    // when unselected — the center action always reads as "the"
+                    // primary button, Beli-style.
+                    Label { Text("Search") } icon: {
+                        Image(uiImage: Self.searchTabIcon).renderingMode(.original)
                     }
                 }
                 .tag(Tab.search)
