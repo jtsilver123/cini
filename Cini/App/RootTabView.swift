@@ -1,11 +1,13 @@
 import SwiftUI
+import UIKit
 
 /// 5-tab bar identical to Beli's IA:
-/// Feed · Your Lists · Search (raised teal +) · Leaderboard · Profile
+/// Feed · Your Lists · Search (filled center `+`) · Leaderboard · Profile
 ///
 /// Solid Beli-style bar on every OS — an opaque background with a top
-/// hairline and a raised center `+`, NOT iOS 26's floating Liquid Glass
-/// (`CiniApp` configures `UITabBarAppearance` to stay opaque).
+/// hairline and a filled marquee `+` disc inline at center, NOT iOS 26's
+/// floating Liquid Glass (`CiniApp` configures `UITabBarAppearance` to stay
+/// opaque). The Profile tab shows the signed-in user's own avatar.
 /// Lets any screen jump tabs (the feed's search bar opens the Search tab,
 /// so every entry point lands on ONE search interface).
 @Observable
@@ -78,13 +80,26 @@ final class TabRouter {
 }
 
 struct RootTabView: View {
+    @Environment(AppSession.self) private var session
     @State private var router = TabRouter.shared
     @State private var network = NetworkMonitor.shared
     @State private var showChat = false
+    /// The signed-in user's avatar, rendered circular for the Profile tab —
+    /// like Beli, your own photo IS the Profile tab icon. Reloads whenever
+    /// the avatar URL changes (URLs are cache-busted on a photo change).
+    @State private var profileTabIcon: UIImage?
 
     enum Tab: Hashable {
         case feed, lists, search, leaderboard, profile
     }
+
+    /// The center Search action, Beli-style: a filled marquee disc with a
+    /// plus, sitting inline in the bar (not a floating FAB) and always in the
+    /// accent color regardless of selection.
+    private static let searchTabIcon: UIImage? = UIImage(
+        systemName: "plus.circle.fill",
+        withConfiguration: UIImage.SymbolConfiguration(pointSize: 30, weight: .semibold)
+    )?.withTintColor(UIColor(Theme.marquee), renderingMode: .alwaysOriginal)
 
     var body: some View {
         beliTabs
@@ -148,10 +163,11 @@ struct RootTabView: View {
         }
     }
 
-    /// Beli's bar: a solid, opaque bottom bar with a top hairline, labeled
-    /// icons, and a raised teal `+` in the center for Search. Opaque on every
-    /// OS — `CiniApp` configures `UITabBarAppearance` so iOS 26 doesn't turn
-    /// it into floating Liquid Glass.
+    /// Beli's bar: a solid, opaque bottom bar with a top hairline and labeled
+    /// icons. The center Search tab is a filled marquee disc (inline, not a
+    /// floating FAB), and the Profile tab shows the user's own photo. Opaque
+    /// on every OS — `CiniApp` configures `UITabBarAppearance` so iOS 26
+    /// doesn't turn it into floating Liquid Glass.
     private var beliTabs: some View {
         // Custom binding so tapping the already-active tab is detected
         // (scroll-to-top) — the plain $selection binding can't see a re-tap.
@@ -172,7 +188,16 @@ struct RootTabView: View {
                 .tag(Tab.lists)
 
             SearchView()
-                .tabItem { Label("Search", systemImage: "plus.circle.fill") }
+                .tabItem {
+                    if let icon = Self.searchTabIcon {
+                        // .original so the disc stays marquee gold even when
+                        // unselected — the center action always reads as "the"
+                        // primary button, Beli-style.
+                        Label { Text("Search") } icon: { Image(uiImage: icon).renderingMode(.original) }
+                    } else {
+                        Label("Search", systemImage: "plus.circle.fill")
+                    }
+                }
                 .tag(Tab.search)
 
             LeaderboardView()
@@ -180,32 +205,39 @@ struct RootTabView: View {
                 .tag(Tab.leaderboard)
 
             ProfileView()
-                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                .tabItem {
+                    if let profileTabIcon {
+                        Label { Text("Profile") } icon: { Image(uiImage: profileTabIcon).renderingMode(.original) }
+                    } else {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
+                }
                 .tag(Tab.profile)
         }
-        .overlay(alignment: .bottom) {
-            RaisedSearchButton { router.selection = .search }
-                .allowsHitTesting(router.selection != .search)
-                .opacity(router.selection == .search ? 0 : 1)
-        }
+        // Keep the Profile tab icon in sync with the user's avatar.
+        .task(id: session.profile?.avatarURL) { await loadProfileTabIcon() }
     }
-}
 
-private struct RaisedSearchButton: View {
-    var action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "plus")
-                .font(.title2.weight(.bold))
-                .foregroundStyle(Theme.background)
-                .frame(width: 56, height: 56)
-                .background(Circle().fill(Theme.marquee))
-                .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+    private func loadProfileTabIcon() async {
+        guard let url = session.profile?.avatarURL else {
+            profileTabIcon = nil
+            return
         }
-        .buttonStyle(.plain)
-        .offset(y: -14)
-        .accessibilityLabel("Search and log a movie")
+        guard let image = await ImageLoader.shared.image(for: url) else { return }
+        profileTabIcon = Self.circularTabIcon(image)
+    }
+
+    /// Center-crop an avatar into a circle sized for the tab bar. Returns an
+    /// `.alwaysOriginal` image so the photo shows in full color (the tab bar
+    /// won't tint or clip it for us).
+    private static func circularTabIcon(_ image: UIImage, size: CGFloat = 29) -> UIImage {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: size, height: size))
+        return renderer.image { _ in
+            UIBezierPath(ovalIn: CGRect(x: 0, y: 0, width: size, height: size)).addClip()
+            let scale = max(size / image.size.width, size / image.size.height)
+            let w = image.size.width * scale, h = image.size.height * scale
+            image.draw(in: CGRect(x: (size - w) / 2, y: (size - h) / 2, width: w, height: h))
+        }.withRenderingMode(.alwaysOriginal)
     }
 }
 
