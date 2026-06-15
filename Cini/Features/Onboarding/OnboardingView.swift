@@ -5,14 +5,15 @@ import SwiftUI
 /// onboarding picks up at the welcome:
 ///
 ///   0. You're in! — meet Jake, the friend everyone starts following
-///   1. Claim your @ — name, username (and who invited you)
-///   2. Add a profile photo — its own screen, skippable
-///   3. Find your friends — contacts + invite
-///   4. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
-///   5. Stay in the loop — enable notifications + theater alerts
-///   6. Rank your first movie — a poster grid of recognizable titles
+///   1. What's your name? — first + last (how friends see you)
+///   2. Your username — the @handle (and who invited you)
+///   3. Add a profile photo — its own screen, skippable
+///   4. Find your friends — contacts + invite
+///   5. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
+///   6. Stay in the loop — enable notifications + theater alerts
+///   7. Rank your first movie — a poster grid of iconic titles
 ///
-/// Shown once (per device) when an authenticated user has zero rankings.
+/// Shown once (per account) when an authenticated user has zero rankings.
 struct OnboardingView: View {
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
@@ -25,7 +26,8 @@ struct OnboardingView: View {
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
     @AppStorage("cini.pendingInviter") private var pendingInviter = ""
-    @State private var displayName = ""
+    @State private var firstName = ""
+    @State private var lastName = ""
     @State private var usernameError: String?
     @State private var saving = false
     @State private var avatarURL: URL?
@@ -47,6 +49,12 @@ struct OnboardingView: View {
 
     private var usernameValid: Bool {
         username.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
+    }
+
+    /// First + last combined into the single display name we store.
+    private var fullName: String {
+        [firstName, lastName].map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     private enum Availability { case unknown, checking, available, taken }
@@ -99,10 +107,28 @@ struct OnboardingView: View {
         .task {
             username = session.profile?.username.hasPrefix("user_") == false
                 ? (session.profile?.username ?? "") : ""
-            displayName = session.profile?.displayName ?? ""
-            starters = ((try? await TMDBService.shared.popular()) ?? [])
-                .filter { $0.posterPath != nil }
-                .prefix(12).map { $0 }
+            // Pre-fill first/last from any existing display name.
+            let dn = (session.profile?.displayName ?? "").trimmingCharacters(in: .whitespaces)
+            if !dn.isEmpty {
+                let parts = dn.split(separator: " ", maxSplits: 1).map(String.init)
+                firstName = parts.first ?? ""
+                lastName = parts.count > 1 ? parts[1] : ""
+            }
+            // Iconic, instantly-recognizable films so the first rank is easy —
+            // Godfather, Star Wars, Avengers, etc. (curated TMDB ids, fetched +
+            // validated in parallel) rather than whatever's merely trending.
+            let iconicIDs = [238, 278, 155, 680, 11, 27205, 603, 13, 157336,
+                             597, 329, 120, 24428, 550, 496243, 98]
+            let fetched = await withTaskGroup(of: Movie?.self) { group in
+                for id in iconicIDs {
+                    group.addTask { try? await TMDBService.shared.details(for: id) }
+                }
+                var out: [Movie] = []
+                for await m in group where (m?.posterPath != nil) { if let m { out.append(m) } }
+                return out
+            }
+            let order = Dictionary(uniqueKeysWithValues: iconicIDs.enumerated().map { ($1, $0) })
+            starters = fetched.sorted { (order[$0.tmdbID] ?? 99) < (order[$1.tmdbID] ?? 99) }
             for movie in starters { store.cache(movie) }
             // Reflect any permissions already granted (re-entering onboarding).
             notifsEnabled = await PushManager.isAuthorized()
@@ -114,7 +140,7 @@ struct OnboardingView: View {
     /// Six segments for the six data steps (1–6); the welcome screen has none.
     private var progressBar: some View {
         HStack(spacing: 6) {
-            ForEach(1..<7, id: \.self) { index in
+            ForEach(1..<8, id: \.self) { index in
                 Capsule()
                     .fill(index <= step ? Theme.gold : Theme.fill)
                     .frame(height: 4)
@@ -126,17 +152,18 @@ struct OnboardingView: View {
     }
 
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 6) }
+        withAnimation(.snappy) { step = min(step + 1, 7) }
     }
 
     @ViewBuilder private var currentStep: some View {
         switch step {
         case 0: youreInStep
-        case 1: usernameStep
-        case 2: photoStep
-        case 3: findFriendsStep
-        case 4: importStep
-        case 5: permissionsStep
+        case 1: nameStep
+        case 2: usernameStep
+        case 3: photoStep
+        case 4: findFriendsStep
+        case 5: importStep
+        case 6: permissionsStep
         default: firstRankStep
         }
     }
@@ -211,24 +238,52 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 1 — Claim username (name + handle; photo is its own step)
+    // MARK: 1 — What's your name? (first + last, like Beli)
 
-    private var usernameStep: some View {
+    private var nameStep: some View {
         VStack(spacing: 18) {
             Spacer()
-            Text("Claim your @")
+            Text("What's your name?")
                 .font(Theme.serif(34))
-            Text("This is how friends find and follow you.")
+            Text("This is how friends will see you.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
 
             VStack(spacing: 10) {
-                TextField("Your name", text: $displayName)
-                    .textContentType(.name)
+                TextField("First name", text: $firstName)
+                    .textContentType(.givenName)
                     .textInputAutocapitalization(.words)
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                TextField("Last name", text: $lastName)
+                    .textContentType(.familyName)
+                    .textInputAutocapitalization(.words)
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+            }
+            .padding(.horizontal, 28)
 
+            Spacer()
+            PillButton(title: "Continue") { advance() }
+                .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty)
+                .padding(.bottom, 36)
+        }
+    }
+
+    // MARK: 2 — Your username (its own screen, like Beli)
+
+    private var usernameStep: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Text("Your username")
+                .font(Theme.serif(34))
+            Text("How friends find and follow you — you can change it later.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+
+            VStack(spacing: 10) {
                 HStack(spacing: 4) {
                     Text("@").foregroundStyle(Theme.gray)
                     TextField("username", text: $username)
@@ -286,7 +341,7 @@ struct OnboardingView: View {
                 .foregroundStyle(usernameHintColor)
 
             Spacer()
-            PillButton(title: saving ? "Saving…" : "That's me") {
+            PillButton(title: saving ? "Saving…" : "Continue") {
                 Task { await saveUsername() }
             }
             .disabled(!usernameValid || availability == .taken || saving)
@@ -328,7 +383,7 @@ struct OnboardingView: View {
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 132,
-                               name: displayName.isEmpty ? username : displayName)
+                               name: fullName.isEmpty ? username : fullName)
                     Image(systemName: "plus.circle.fill")
                         .font(.title)
                         .foregroundStyle(Theme.marquee)
@@ -379,7 +434,7 @@ struct OnboardingView: View {
         do {
             try await SupabaseService.shared.updateProfile(
                 ProfileUpdate(username: username,
-                              display_name: displayName.isEmpty ? nil : displayName))
+                              display_name: fullName.isEmpty ? nil : fullName))
             // Invited by a friend (typed, or carried in from their link):
             // follow each other automatically.
             // Strip a leading "@" — the field prompts "their @username", so many

@@ -16,6 +16,14 @@ final class LocationZip: NSObject, CLLocationManagerDelegate {
     private var continuation: CheckedContinuation<CLLocation, Error>?
     private var awaitingAuthorization = false
 
+    override init() {
+        super.init()
+        // A zipcode only needs coarse accuracy. Asking for kilometer accuracy
+        // (not the default "best") returns a fix in a second or two instead of
+        // waiting for GPS to converge — theater alerts felt slow to enable.
+        manager.desiredAccuracy = kCLLocationAccuracyKilometer
+    }
+
     func currentZip() async throws -> String {
         let location = try await currentLocation()
         guard let zip = try await CLGeocoder()
