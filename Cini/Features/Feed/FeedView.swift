@@ -23,6 +23,8 @@ struct FeedView: View {
     @State private var showAskRecs = false
     @State private var showRespondRecs = false
     @State private var pendingAsks: [RecRequestRow] = []
+    @State private var promoted: Movie?
+    @State private var promotedReason: String?
 
     var body: some View {
         NavigationStack {
@@ -52,6 +54,7 @@ struct FeedView: View {
             }
             .background(Theme.background)
             .task { await loadFeed() }
+            .task(id: store.isLoaded) { await loadPromoted() }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
             .onAppear { consumePush() }
@@ -322,6 +325,17 @@ struct FeedView: View {
 
             askForRecsRow
 
+            // A new release picked from the user's own most-ranked genre
+            // (first-party, no tracking). Sits high but below the ask row.
+            if let promoted {
+                PromotedReleaseCard(
+                    movie: promoted,
+                    reason: promotedReason,
+                    onOpen: { detailMovie = $0 },
+                    onQuickAdd: { logMovie = $0 }
+                )
+            }
+
             // One contextual banner at a time — never a stack of them.
             if !pendingAsks.isEmpty {
                 pendingAsksBanner
@@ -438,6 +452,38 @@ struct FeedView: View {
             tabRouter.pendingPushMember = nil
             memberTarget = member
         }
+    }
+
+    /// The genre the user ranks most (favorites weigh more) — drives the
+    /// promoted release pick. Nil until they've ranked something.
+    private func topGenre() -> String? {
+        guard store.isLoaded else { return nil }
+        var counts: [String: Double] = [:]
+        for item in store.watchedItems {
+            guard let movie = store.movie(item.id) else { continue }
+            let weight = max(0.5, item.score / 5)   // higher-scored picks count more
+            for genre in movie.genres { counts[genre, default: 0] += weight }
+        }
+        return counts.max { $0.value < $1.value }?.key
+    }
+
+    /// Pick one upcoming/new release to feature, biased to the user's taste
+    /// and excluding anything they've already ranked or saved.
+    private func loadPromoted() async {
+        guard promoted == nil,
+              let upcoming = try? await TMDBService.shared.upcoming(), !upcoming.isEmpty
+        else { return }
+        let seen = Set(store.watchedItems.map(\.id)).union(store.watchlist.map(\.movieID))
+        let fresh = upcoming.filter { !seen.contains($0.tmdbID) && $0.posterPath != nil }
+        guard !fresh.isEmpty else { return }
+        if let genre = topGenre(), let match = fresh.first(where: { $0.genres.contains(genre) }) {
+            promotedReason = "Because you like \(genre.lowercased())"
+            promoted = match
+        } else {
+            promotedReason = "New this season"
+            promoted = fresh.first
+        }
+        if let promoted { store.cache(promoted) }
     }
 
     private func loadFeed() async {

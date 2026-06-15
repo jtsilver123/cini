@@ -611,6 +611,26 @@ function renderFeed(){
     </div>`;
   }).join("");
 
+  // First-party "promoted release" — a new film picked from your taste.
+  const pk = Object.keys(MOVIES).find(k=>MOVIES[k].bd) || Object.keys(MOVIES)[0];
+  const pm = MOVIES[pk];
+  const promoRanked = !!myEntry(pk);
+  const promo = `
+    <div style="cursor:pointer; margin:14px 14px 0; position:relative; border-radius:16px; overflow:hidden; height:200px;
+        background:linear-gradient(180deg, rgba(0,0,0,.1) 30%, rgba(0,0,0,.85)), url('${IMG(pm.bd||pm.p)}') center/cover no-repeat;"
+        onclick="if(!event.target.closest('button'))openDetail('${pk}')">
+      <span style="position:absolute; top:12px; left:12px; background:rgba(0,0,0,.45); color:#fff; font-size:10px; font-weight:700; letter-spacing:1.5px; padding:4px 8px; border-radius:999px;">FEATURED</span>
+      <div style="position:absolute; left:14px; bottom:14px; max-width:200px;">
+        <div style="color:var(--marquee); font-size:11px; font-weight:700;">In theaters now</div>
+        <div class="serif" style="color:#fff; font-size:22px; line-height:1.12;">${pm.t}</div>
+        <div style="color:rgba(255,255,255,.85); font-size:12px; margin-top:2px;">Because you like ${(pm.g[0]||'film').toLowerCase()}</div>
+      </div>
+      <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${promoRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${pk}')">${promoRanked?I("check",18):I("plus",18)}</button>
+        ${promoRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${pk}')">${bmIcon(pk)}</button>`}
+      </div>
+    </div>`;
+
   $("screen-feed").innerHTML = `
     <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
       <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
@@ -644,6 +664,7 @@ function renderFeed(){
       <div class="avatar" style="width:44px;height:44px;" onclick="go('profile')">J</div>
       <div style="flex:1; background:rgba(255,255,255,.07); border-radius:999px; padding:13px 17px; color:var(--gray); font-size:14px; cursor:pointer;" onclick="openAskRecs()">Ask your friends for recs</div>
     </div>
+    ${promo}
     <div style="margin-top:14px;">${cards}</div>`;
 }
 
