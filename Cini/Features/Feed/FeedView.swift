@@ -715,7 +715,16 @@ struct CommentsSheet: View {
                                     Task {
                                         do {
                                             try await SupabaseService.shared.deleteComment(id: comment.id)
-                                            ToastCenter.shared.show("Comment deleted")
+                                            // Offer Undo (re-post) — matches the
+                                            // app's other destructive removals.
+                                            let body = comment.body
+                                            let eid = eventID
+                                            ToastCenter.shared.showUndo("Comment deleted") {
+                                                Task {
+                                                    try? await SupabaseService.shared.comment(eventID: eid, body: body)
+                                                    await reload()
+                                                }
+                                            }
                                             await reload()
                                         } catch {
                                             ToastCenter.shared.saveFailed()

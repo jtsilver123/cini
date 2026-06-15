@@ -630,7 +630,7 @@ struct ImportHandoffBadge: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(red: 0.10, green: 0.13, blue: 0.16)))
+                    .fill(Theme.surface))
 
             Image(systemName: "arrow.right")
                 .font(.headline.weight(.bold))
@@ -643,7 +643,7 @@ struct ImportHandoffBadge: View {
                 .padding(.vertical, 7)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color(red: 0.07, green: 0.06, blue: 0.07))
+                        .fill(Theme.surface)
                         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .strokeBorder(Theme.marquee.opacity(0.55), lineWidth: 1)))
         }

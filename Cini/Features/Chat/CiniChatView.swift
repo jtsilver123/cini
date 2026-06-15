@@ -180,9 +180,16 @@ struct CiniChatAvailableView: View {
                             withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                         }
                     }
+                    // Pin the concierge bar + composer above the keyboard, and
+                    // inset the transcript so the last bubble clears them.
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        VStack(spacing: 0) {
+                            conciergeBar
+                            composer
+                        }
+                        .background(Theme.background)
+                    }
                 }
-                conciergeBar
-                composer
             }
         }
         .background(Theme.background)

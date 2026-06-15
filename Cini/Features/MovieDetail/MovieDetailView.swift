@@ -243,6 +243,7 @@ struct MovieDetailView: View {
                     .font(Theme.detailTitle)
                     .foregroundStyle(Theme.ink)
                     .lineLimit(3)
+                    .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
 

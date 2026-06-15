@@ -95,6 +95,7 @@ struct SendRecSheet: View {
                     }
                     .padding(.horizontal, 16)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
 
             // Note + send pinned at the bottom
