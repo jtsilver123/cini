@@ -97,7 +97,7 @@ struct UnlocksView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $showInvite) {
-                InviteSheet().presentationDetents([.medium])
+                InviteSheet().presentationDetents([.large])
             }
             .task { await session.loadProfile() }
         }

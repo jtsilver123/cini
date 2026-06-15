@@ -18,3 +18,33 @@ enum ContactsEmails {
         return Array(Set(emails)).filter { $0.contains("@") }
     }
 }
+
+/// A contact with a name + phone, for the Beli-style "invite your contacts"
+/// list (tap Invite → a prefilled text message). Read once, never stored.
+struct PhoneContact: Identifiable, Hashable {
+    let id = UUID()
+    let name: String
+    let phone: String
+}
+
+enum ContactsList {
+    static func fetch() async -> [PhoneContact] {
+        let store = CNContactStore()
+        let granted = (try? await store.requestAccess(for: .contacts)) ?? false
+        guard granted else { return [] }
+        let keys = [CNContactGivenNameKey, CNContactFamilyNameKey,
+                    CNContactPhoneNumbersKey] as [CNKeyDescriptor]
+        let request = CNContactFetchRequest(keysToFetch: keys)
+        var out: [PhoneContact] = []
+        var seen = Set<String>()
+        try? store.enumerateContacts(with: request) { contact, _ in
+            let name = [contact.givenName, contact.familyName]
+                .filter { !$0.isEmpty }.joined(separator: " ")
+            guard !name.isEmpty, let phone = contact.phoneNumbers.first?.value.stringValue,
+                  seen.insert(name.lowercased()).inserted else { return }
+            out.append(PhoneContact(name: name, phone: phone))
+        }
+        return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}
+

@@ -74,7 +74,7 @@ struct FeedView: View {
             }
             .sheet(isPresented: $showInviteSheet) {
                 InviteSheet()
-                    .presentationDetents([.medium])
+                    .presentationDetents([.large])
             }
             .sheet(isPresented: $showUnlocks) {
                 UnlocksView()

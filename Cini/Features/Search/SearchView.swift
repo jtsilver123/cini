@@ -434,7 +434,7 @@ struct SearchView: View {
         }
         .sheet(isPresented: $showInvite) {
             InviteSheet()
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
         }
         .task {
             if suggested.isEmpty {

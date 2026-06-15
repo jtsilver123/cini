@@ -107,7 +107,7 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showInviteSheet) {
             InviteSheet()
-                .presentationDetents([.medium])
+                .presentationDetents([.large])
         }
         .sheet(isPresented: $showTop5Share) {
             TopFiveShareSheet(

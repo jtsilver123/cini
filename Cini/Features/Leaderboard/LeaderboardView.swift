@@ -48,7 +48,7 @@ struct LeaderboardView: View {
             .task { await load() }
             .sheet(isPresented: $showInvite) {
                 InviteSheet()
-                    .presentationDetents([.height(280)])
+                    .presentationDetents([.large])
             }
         }
     }
@@ -146,6 +146,16 @@ struct LeaderboardView: View {
 
 struct InviteSheet: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    @State private var contacts: [PhoneContact] = []
+    @State private var contactMembers: [SuggestedMember] = []
+    @State private var contactsChecked = false
+    @State private var loadingContacts = false
+    @State private var followed: Set<UUID> = []
+    @State private var query = ""
+    @State private var showShare = false
 
     private var inviteURL: String {
         "https://jtsilver123.github.io/cini/i/?u=\(session.profile?.username ?? "")"
@@ -153,27 +163,153 @@ struct InviteSheet: View {
     private var inviteText: String {
         "Join me on Cini — we rank every movie & show head-to-head 🎬\n\(inviteURL)"
     }
+    private var filteredContacts: [PhoneContact] {
+        query.isEmpty ? contacts
+            : contacts.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
 
     var body: some View {
-        VStack(spacing: 18) {
-            Text("Invite friends to Cini")
-                .font(Theme.serif(26))
-            Text("Compare taste, race the leaderboard, and swap recs. Friends who tap your link follow you automatically — and each friend who joins earns you a feature unlock.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-            ShareLink(item: inviteText) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                    Text("Share invite link").font(.subheadline.weight(.semibold))
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Inviting friends has perks")
+                            .font(Theme.serif(30)).foregroundStyle(Theme.ink)
+                        Text("Every friend who joins with your link earns you a credit to unlock a feature — Average Scores, Social Links, or Stealth Mode. You'll follow each other automatically.")
+                            .font(.subheadline).foregroundStyle(Theme.gray)
+                    }
+
+                    shareLinkRow
+
+                    if !contacts.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                            TextField("Search your contacts", text: $query)
+                                .autocorrectionDisabled()
+                        }
+                        .padding(12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
+                    }
+
+                    if !contactMembers.isEmpty {
+                        sectionHeader("ALREADY ON CINI")
+                        ForEach(contactMembers) { member in memberRow(member) }
+                    }
+
+                    if contactsChecked {
+                        if !filteredContacts.isEmpty {
+                            sectionHeader("INVITE YOUR CONTACTS")
+                            ForEach(filteredContacts) { contact in contactRow(contact) }
+                        } else if contactMembers.isEmpty {
+                            Text("No contacts to show.")
+                                .font(.subheadline).foregroundStyle(Theme.gray)
+                        }
+                    } else {
+                        findContactsButton
+                    }
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Capsule().fill(Theme.velvet))
+                .padding(20)
+            }
+            .background(Theme.background)
+            .navigationTitle("Invite friends")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .sheet(isPresented: $showShare) { ActivityShareSheet(items: [inviteText]) }
+        }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text).font(.caption.weight(.semibold)).foregroundStyle(Theme.gray).padding(.top, 4)
+    }
+
+    private var shareLinkRow: some View {
+        Button { showShare = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.and.arrow.up").font(.title3).foregroundStyle(Theme.background)
+                    .frame(width: 40, height: 40).background(Circle().fill(Theme.marquee))
+                Text("Share your invite link").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var findContactsButton: some View {
+        Button { Task { await loadContacts() } } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill").font(.title3).foregroundStyle(Theme.marquee)
+                Text(loadingContacts ? "Finding friends…" : "Find friends from your contacts")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Spacer()
+                if loadingContacts { ProgressView() }
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Theme.surface))
+        }
+        .buttonStyle(.plain)
+        .disabled(loadingContacts)
+    }
+
+    private func memberRow(_ member: SuggestedMember) -> some View {
+        HStack(spacing: 12) {
+            AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 44,
+                       name: member.displayName.isEmpty ? member.username : member.displayName)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(member.displayName.isEmpty ? member.username : member.displayName)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+                Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+            }
+            Spacer()
+            PillButton(title: followed.contains(member.id) ? "Following" : "Follow",
+                       style: followed.contains(member.id) ? .outlined : .filled) {
+                Task { await toggleFollow(member.id) }
             }
         }
-        .padding(24)
+    }
+
+    private func contactRow(_ contact: PhoneContact) -> some View {
+        HStack(spacing: 12) {
+            Circle().fill(Theme.surface2).frame(width: 44, height: 44)
+                .overlay(Text(initials(contact.name)).font(.subheadline.weight(.bold)).foregroundStyle(Theme.gray))
+            Text(contact.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+            Spacer()
+            PillButton(title: "Invite", style: .filled) { inviteContact(contact) }
+        }
+    }
+
+    private func loadContacts() async {
+        loadingContacts = true
+        async let people = ContactsList.fetch()
+        async let emails = ContactsEmails.fetch()
+        contactMembers = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
+        contacts = await people
+        contactsChecked = true
+        loadingContacts = false
+    }
+
+    private func toggleFollow(_ id: UUID) async {
+        if followed.contains(id) {
+            followed.remove(id)
+            try? await SupabaseService.shared.unfollow(id)
+        } else {
+            followed.insert(id)
+            do { try await SupabaseService.shared.follow(id) }
+            catch { followed.remove(id); ToastCenter.shared.saveFailed() }
+        }
+    }
+
+    private func inviteContact(_ contact: PhoneContact) {
+        Haptics.tap()
+        let digits = contact.phone.filter { $0.isNumber || $0 == "+" }
+        let body = inviteText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        if let url = URL(string: "sms:\(digits)&body=\(body)") { openURL(url) }
+    }
+
+    private func initials(_ name: String) -> String {
+        name.split(separator: " ").prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
     }
 }
 
