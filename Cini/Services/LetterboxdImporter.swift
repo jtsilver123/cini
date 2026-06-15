@@ -27,6 +27,9 @@ enum LetterboxdImporter {
         /// EVERY watch date seen across the export (diary rewatches are
         /// separate rows) — each becomes its own diary entry.
         var watchDates: Set<String> = []
+        /// Marked in likes/films.csv (a Letterboxd favorite) — sorts to the
+        /// front of the ranking queue so favorites get ranked first.
+        var liked: Bool = false
     }
 
     struct MatchedTitle: Identifiable, Hashable {
@@ -229,6 +232,28 @@ enum LetterboxdImporter {
             }
         }
 
+        // Letterboxd "likes" (favorites) live in likes/films.csv — fold them
+        // in so they're never lost: films already known get a "liked" boost to
+        // the front of the queue, and any liked film watched.csv missed joins
+        // the queue too (you can only like what you've watched).
+        if let entry = entries.first(where: { $0.name.lowercased().hasSuffix("likes/films.csv") }),
+           let bytes = try? ZipReader.extract(entry, from: data),
+           let text = String(data: bytes, encoding: .utf8) {
+            let liked = parse(csv: text)
+            let likedKeys = Set(liked.map(key))
+            titles = titles.map { t in
+                var c = t
+                if likedKeys.contains(key(t)) { c.liked = true }
+                return c
+            }
+            let known = Set(titles.map(key))
+            for l in liked where !known.contains(key(l)) {
+                var c = l
+                c.liked = true
+                titles.append(c)
+            }
+        }
+
         // Custom lists ride in a lists/ folder, one CSV each.
         var lists: [(name: String, titles: [ImportedTitle])] = []
         for entry in entries
@@ -289,6 +314,7 @@ enum LetterboxdImporter {
                 if result[index].review == nil { result[index].review = title.review }
                 if result[index].watchedOn == nil { result[index].watchedOn = title.watchedOn }
                 result[index].watchDates.formUnion(title.watchDates)
+                if title.liked { result[index].liked = true }
             } else {
                 indexByKey[key(title)] = result.count
                 result.append(title)
@@ -472,10 +498,10 @@ enum LetterboxdImporter {
             }
         }
 
-        // Favorites first: queue ordered by their old rating, then recency.
+        // Favorites first: liked films lead, then by old rating, then recency.
         result.watched.sort {
-            ($0.imported.rating ?? -1, $0.movie.releaseYear ?? 0)
-                > ($1.imported.rating ?? -1, $1.movie.releaseYear ?? 0)
+            ($0.imported.liked ? 1 : 0, $0.imported.rating ?? -1, $0.movie.releaseYear ?? 0)
+                > ($1.imported.liked ? 1 : 0, $1.imported.rating ?? -1, $1.movie.releaseYear ?? 0)
         }
         return result
     }
