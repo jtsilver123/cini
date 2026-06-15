@@ -610,6 +610,23 @@ struct OnboardingView: View {
 
     // MARK: 6 — Rank your first movie
 
+    /// Overlaid on a poster once it's been ranked — dims it and stamps "RANKED".
+    private var rankedStamp: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+            VStack(spacing: 4) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.title2)
+                    .foregroundStyle(Theme.scoreGreen)
+                Text("RANKED")
+                    .font(.system(size: 11, weight: .heavy))
+                    .tracking(1.5)
+                    .foregroundStyle(.white)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
     private var firstRankStep: some View {
         VStack(spacing: 14) {
             Text("Rank your first movie or show")
@@ -636,18 +653,22 @@ struct OnboardingView: View {
                 ScrollView(showsIndicators: false) {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 14) {
                         ForEach(starters) { movie in
+                            let ranked = store.isWatched(movie.tmdbID)
                             Button {
                                 logMovie = movie
                             } label: {
                                 VStack(spacing: 6) {
                                     PosterView(url: movie.posterURL, width: 100)
+                                        .overlay { if ranked { rankedStamp } }
                                     Text(movie.title)
                                         .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(Theme.ink)
+                                        .foregroundStyle(ranked ? Theme.scoreGreen : Theme.ink)
                                         .lineLimit(1)
                                 }
                             }
                             .buttonStyle(.plain)
+                            // Already ranked → can't re-rank from here.
+                            .disabled(ranked)
                         }
                     }
                     .padding(.horizontal, 24)
