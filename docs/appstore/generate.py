@@ -6,7 +6,9 @@ movie posters fetched from TMDB. Marketing frames = headline + phone mockup."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os, json, urllib.request, urllib.parse
 
+# Device + canvas are set per pass in render_all(); these are defaults.
 W, H = 1290, 2796
+DEVICE = "iphone"; ISLAND = True
 BG="#131011"; BG2="#1b1614"; SURF="#1D1719"; SURF2="#281F20"; FILL="#2a2526"
 INK="#F5EEDF"; GRAY="#A69C91"; MARQUEE="#E8B64C"; VELVET="#A8352A"; GOLD="#D9A93C"
 GREEN="#2FBF71"; LOVE="#53B17C"; FINE="#F4C95C"; DIS="#EE9E9E"
@@ -42,9 +44,9 @@ def poster_img(query, year=None):
         data = json.load(urllib.request.urlopen(u, timeout=25))
         path = (data.get("results") or [{}])[0].get("poster_path")
         if not path: _pc[query] = None; return None
-        fp = os.path.join(CACHE, path.lstrip("/"))
+        fp = os.path.join(CACHE, "w780_" + path.lstrip("/"))
         if not os.path.exists(fp):
-            urllib.request.urlretrieve(f"https://image.tmdb.org/t/p/w500{path}", fp)
+            urllib.request.urlretrieve(f"https://image.tmdb.org/t/p/w780{path}", fp)
         im = Image.open(fp).convert("RGB"); _pc[query] = im; return im
     except Exception as e:
         print("  poster miss:", query, e); _pc[query] = None; return None
@@ -107,35 +109,44 @@ def bulbs(d, y, n=17):
         d.ellipse([x-3,y-3,x+3,y+3], fill="#fff7e0")
 
 def caption(d, headline, sub):
-    bulbs(d, 86)              # marquee trim across the very top
-    y=160
-    for ln in wrap(d, headline, sf(86), W-150):
-        ctext(d, W/2, y, ln, sf(86), INK); y+=100
-    y+=14
-    for ln in wrap(d, sub, sa(40), W-200):
-        ctext(d, W/2, y, ln, sa(40), GRAY); y+=54
+    # Clean one-word header (no marquee bulbs — they read as clutter); scales
+    # with the canvas so iPad headers stay proportional.
+    k = W / 1290
+    y = int(150 * k)
+    hf = sf(int(96 * k))
+    for ln in wrap(d, headline, hf, W - int(150 * k)):
+        ctext(d, W/2, y, ln, hf, INK); y += int(110 * k)
+    y += int(12 * k)
+    sfont = sa(int(40 * k))
+    for ln in wrap(d, sub, sfont, W - int(200 * k)):
+        ctext(d, W/2, y, ln, sfont, GRAY); y += int(54 * k)
     return y
 
 SCREEN = None  # set by phone(); poster() pastes onto this
 def phone(top, draw_screen):
-    """Big, close phone cropped at the bottom (Beli-style), gold marquee frame."""
+    """Big, close device cropped at the bottom (Beli-style), gold marquee frame.
+    The screen content is drawn on a 1180-wide logical canvas and resized to the
+    device width, so the same draw code renders sharp on both iPhone and iPad."""
     global SCREEN
-    pw = 1180
-    x0=(W-pw)//2; y0=top
-    ph = H - y0 + 220        # extend past the bottom edge → close + cropped
-    sh=Image.new("RGBA",(W,H),(0,0,0,0))
-    ImageDraw.Draw(sh).rounded_rectangle([x0-14,y0+16,x0+pw+14,y0+ph], radius=104, fill=(0,0,0,160))
-    sh=sh.filter(ImageFilter.GaussianBlur(48))
+    pw = 1180 if DEVICE == "iphone" else 1880    # on-canvas device width
+    corner = 100 if DEVICE == "iphone" else 64
+    x0 = (W - pw) // 2; y0 = top
+    ph = H - y0 + 220                             # extend past the bottom → cropped
+    sh = Image.new("RGBA",(W,H),(0,0,0,0))
+    ImageDraw.Draw(sh).rounded_rectangle([x0-14,y0+16,x0+pw+14,y0+ph], radius=corner+4, fill=(0,0,0,160))
+    sh = sh.filter(ImageFilter.GaussianBlur(48))
     BASE.paste(Image.alpha_composite(BASE.convert("RGBA"),sh).convert("RGB"),(0,0))
-    d=ImageDraw.Draw(BASE)
-    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=100, fill="#0a0809")
+    d = ImageDraw.Draw(BASE)
+    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, fill="#0a0809")
     # marquee-gold frame echoing the app icon's border
-    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=100, outline=MARQUEE, width=6)
-    screen=Image.new("RGB",(pw,ph),BG); SCREEN=screen
-    sd=ImageDraw.Draw(screen)
-    draw_screen(sd, pw, ph)
-    mask=Image.new("L",(pw,ph),0)
-    ImageDraw.Draw(mask).rounded_rectangle([0,0,pw-1,ph-1], radius=84, fill=255)
+    d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, outline=MARQUEE, width=7)
+    # Render the screen on a 1180-wide logical canvas, then scale to device width.
+    lw = 1180; lh = int(lw * ph / pw)
+    screen = Image.new("RGB",(lw,lh),BG); SCREEN = screen
+    draw_screen(ImageDraw.Draw(screen), lw, lh)
+    if pw != lw: screen = screen.resize((pw, ph))
+    mask = Image.new("L",(pw,ph),0)
+    ImageDraw.Draw(mask).rounded_rectangle([0,0,pw-1,ph-1], radius=corner-16, fill=255)
     BASE.paste(screen,(x0,y0),mask)
 
 def score_badge(d, cx, cy, val, r=44, color=None):
@@ -170,9 +181,10 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
 SHOTS=[]
 
 def status_bar(d, pw):
-    # Dynamic Island
-    iw=300; ih=78; ix=(pw-iw)//2; iy=30
-    d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=39, fill="#000000")
+    # Dynamic Island — iPhone only (iPad has no island).
+    if ISLAND:
+        iw=300; ih=78; ix=(pw-iw)//2; iy=30
+        d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=39, fill="#000000")
     # time (left)
     d.text((58, 40), "9:41", font=sb(38), fill=INK)
     # right cluster: signal bars, wifi fan, battery
@@ -231,7 +243,7 @@ def s_hero(d, pw, ph):
         bx=cx-320+k*320
         d.ellipse([bx-66,1360,bx+66,1492], fill=c)
         ww=d.textlength(lbl,font=sa(30)); d.text((bx-ww/2, 1520), lbl, font=sa(30), fill=GRAY)
-SHOTS.append(("01-hero", "Rank", "No star ratings — just your taste, in perfect order.", s_hero, "gold"))
+# (brand-only hero dropped — every screenshot now shows the product.)
 
 # 2 — COMPARE (the ranking modal)
 def s_compare(d, pw, ph):
@@ -249,7 +261,7 @@ def s_compare(d, pw, ph):
         bx=cx-170+k*170; by=py+pwid*3//2+110
         d.ellipse([bx-38,by,bx+38,by+76], fill=c)
     ctext(d, cx, py+pwid*3//2+240, "A few quick taps — no scores to overthink.", sa(30), GRAY)
-SHOTS.append(("02-no-star-ratings", "Compare", "Answer one question and Cini orders everything you've seen.", s_compare, "velvet"))
+SHOTS.append(("01-rank", "Rank", "No star ratings — answer one question and Cini orders everything you've seen.", s_compare, "velvet"))
 
 # 3 — YOUR LISTS (segmented tabs + filter chips + ranked rows)
 def s_list(d, pw, ph):
@@ -278,7 +290,7 @@ def s_list(d, pw, ph):
         d.text((262, y+108), str(yr), font=sa(24), fill=GRAY)
         score_badge(d, pw-118, y+75, sc)
         y+=166
-SHOTS.append(("03-ranked-list", "Taste", "Every title scored out of 10 — by you, not strangers.", s_list, "bronze"))
+SHOTS.append(("02-taste", "Taste", "Every title scored out of 10 — by you, not strangers.", s_list, "bronze"))
 
 # 4 — FEED (cini header, search, pills, friend cards)
 def s_feed(d, pw, ph):
@@ -304,7 +316,7 @@ def s_feed(d, pw, ph):
             d.text((254, y+170+j*48), ln, font=sf(40), fill=INK)
         if sc is not None: score_badge(d, pw-150, y+220, sc, r=50)
         y+=386
-SHOTS.append(("04-friends", "Friends", "See what friends scored before you spend a night on it.", s_feed, "plum"))
+SHOTS.append(("03-friends", "Friends", "See what friends scored before you spend a night on it.", s_feed, "plum"))
 
 # 5 — WANT TO WATCH, sorted by Rec Score
 def s_recs(d, pw, ph):
@@ -325,14 +337,25 @@ def s_recs(d, pw, ph):
         d.text((pw-292, y+62), "REC", font=sb(22), fill=GRAY)
         score_badge(d, pw-118, y+77, sc, r=42)
         y+=164
-SHOTS.append(("05-rec-scores", "Discover", "Rec Scores predict how much you'll like what you haven't seen.", s_recs, "ember"))
+SHOTS.append(("04-discover", "Discover", "Rec Scores predict how much you'll like what you haven't seen.", s_recs, "ember"))
 
-os.makedirs(OUT, exist_ok=True)
-for name, headline, sub, fn, accent in SHOTS:
-    BASE = bg(accent)
-    d = ImageDraw.Draw(BASE)
-    ph_top = caption(d, headline, sub) + 30
-    phone(int(ph_top), fn)
-    BASE.save(os.path.join(OUT, f"{name}.png"))
-    print("saved", name)
+def render_all(device):
+    global W, H, DEVICE, ISLAND, BASE
+    DEVICE = device
+    if device == "iphone":
+        W, H, ISLAND = 1290, 2796, True       # 6.7" iPhone
+    else:
+        W, H, ISLAND = 2048, 2732, False      # 12.9" iPad
+    out = os.path.join(OUT, device)
+    os.makedirs(out, exist_ok=True)
+    for name, headline, sub, fn, accent in SHOTS:
+        BASE = bg(accent)
+        d = ImageDraw.Draw(BASE)
+        ph_top = caption(d, headline, sub) + int(34 * W / 1290)
+        phone(int(ph_top), fn)
+        BASE.save(os.path.join(out, f"{name}.png"))
+        print(device, "saved", name)
+
+for dev in ("iphone", "ipad"):
+    render_all(dev)
 print("DONE")
