@@ -33,6 +33,8 @@ jobs:
           cp index.html _site/index.html
           cp site.css _site/site.css
           cp favicon.png _site/favicon.png
+          # High-res social/link-preview image (crisp in iMessage link previews).
+          cp og.png _site/og.png
           cp privacy.html _site/privacy.html
           cp terms.html _site/terms.html
           mkdir -p _site/import
