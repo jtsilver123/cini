@@ -117,7 +117,9 @@ struct LogFlowView: View {
                     withAnimation(.snappy) {
                         if newPhase == .enrich { proxy.scrollTo("enrich", anchor: .bottom) }
                         if newPhase == .comparing { proxy.scrollTo("compare", anchor: .bottom) }
-                        if newPhase == .result { proxy.scrollTo("result", anchor: .bottom) }
+                        // Center it — anchoring .bottom shoved the Share/Done
+                        // buttons down onto the (still-visible) tab bar.
+                        if newPhase == .result { proxy.scrollTo("result", anchor: .center) }
                     }
                 }
             }
@@ -560,9 +562,12 @@ struct LogFlowView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    PillButton(title: "Done") { dismiss() }
+                    // Outlined so it's a clear secondary to the gold Share —
+                    // not two competing filled buttons.
+                    PillButton(title: "Done", style: .outlined) { dismiss() }
                 }
                 .frame(maxWidth: .infinity)
+                .padding(.bottom, 24)
                 .transition(.opacity)
             }
         }
