@@ -1,20 +1,17 @@
 import SwiftUI
 
 /// Beli-style auth: one thing per screen. Sign-in is a single screen (email
-/// OR phone + password). Sign-up is a short sequence — email → password →
-/// "check your email" — then onboarding collects the rest (phone first).
+/// OR phone + password). Sign-up is email → password, then straight into
+/// onboarding (email confirmation is off, so signup returns a live session).
 struct AuthView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var isSigningUp: Bool
-    @State private var signupStep = 0   // 0 = email, 1 = password, 2 = confirm
+    @State private var signupStep = 0   // 0 = email, 1 = password
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
     @State private var errorMessage: String?
-    @State private var infoMessage: String?
-    @State private var awaitingConfirmation = false
-    @State private var resentJustNow = false
     @FocusState private var focused: Bool
 
     init(startInSignUp: Bool = false) {
@@ -72,9 +69,8 @@ struct AuthView: View {
 
     @ViewBuilder private var signUpFlow: some View {
         VStack(spacing: 18) {
-            switch signupStep {
-            case 0:
-                header("What's your email?", "We'll send a link to confirm it.")
+            if signupStep == 0 {
+                header("What's your email?", "We'll use it to keep your account safe.")
                 authField("Email", text: $email, keyboard: .emailAddress)
                 primaryButton("Continue", disabled: !email.contains("@")) {
                     focused = false
@@ -82,7 +78,7 @@ struct AuthView: View {
                 }
                 Button("Have an account? Sign in") { switchMode(toSignUp: false) }
                     .font(.subheadline).foregroundStyle(Theme.marquee)
-            case 1:
+            } else {
                 header("Create a password", "At least 6 characters.")
                 authField("Password", text: $password, secure: true)
                 primaryButton("Create account", loading: isWorking,
@@ -90,29 +86,9 @@ struct AuthView: View {
                     Task { await signUp() }
                 }
                 messages
-            default:
-                confirmScreen
             }
             Spacer(minLength: 20)
             legal
-        }
-    }
-
-    private var confirmScreen: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "envelope.badge").font(.system(size: 54)).foregroundStyle(Theme.marquee)
-            Text("Check your email").font(Theme.serif(30)).foregroundStyle(Theme.ink)
-            Text("We sent a confirmation link to \(email). Tap it, then come back and sign in.")
-                .font(.subheadline).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 16)
-            Button(resentJustNow ? "Sent — check spam too" : "Resend email") {
-                Task { await resend() }
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(resentJustNow ? Theme.gray : Theme.marquee)
-            .disabled(resentJustNow)
-            primaryButton("Back to sign in", disabled: false) { switchMode(toSignUp: false) }
-            messages
         }
     }
 
@@ -166,8 +142,6 @@ struct AuthView: View {
     @ViewBuilder private var messages: some View {
         if let errorMessage {
             Text(errorMessage).font(.caption).foregroundStyle(Theme.scoreRed).multilineTextAlignment(.center)
-        } else if let infoMessage {
-            Text(infoMessage).font(.caption).foregroundStyle(Theme.scoreGreen).multilineTextAlignment(.center)
         }
     }
 
@@ -185,14 +159,12 @@ struct AuthView: View {
         isSigningUp = toSignUp
         signupStep = 0
         errorMessage = nil
-        infoMessage = nil
-        awaitingConfirmation = false
         password = ""
     }
 
     private func signIn() async {
         let id = email.trimmingCharacters(in: .whitespaces).lowercased()
-        errorMessage = nil; infoMessage = nil
+        errorMessage = nil
         isWorking = true
         defer { isWorking = false }
         do {
@@ -208,27 +180,15 @@ struct AuthView: View {
 
     private func signUp() async {
         email = email.trimmingCharacters(in: .whitespaces).lowercased()
-        errorMessage = nil; infoMessage = nil
+        errorMessage = nil
         isWorking = true
         defer { isWorking = false }
         do {
             try await SupabaseService.shared.signUp(
                 email: email, password: password,
                 username: "user_\(UUID().uuidString.prefix(8).lowercased())")
-            awaitingConfirmation = true
-            resentJustNow = false
-            withAnimation { signupStep = 2 }
-        } catch {
-            errorMessage = friendly(error)
-        }
-    }
-
-    private func resend() async {
-        errorMessage = nil
-        do {
-            try await SupabaseService.shared.resendConfirmation(email: email)
-            resentJustNow = true
-            infoMessage = "New confirmation email sent to \(email)."
+            // Email confirmation is off, so signUp returns a live session — the
+            // auth state flips and onboarding takes over automatically.
         } catch {
             errorMessage = friendly(error)
         }
@@ -244,7 +204,6 @@ struct AuthView: View {
             return "That doesn't look like an email address — check for typos."
         }
         if text.contains("already registered") { return "That email already has an account — sign in instead." }
-        if text.contains("email not confirmed") { return "Confirm your email first — check your inbox." }
         if text.contains("network") || text.contains("offline") || text.contains("timed out") {
             return "No connection — check your internet and try again."
         }
