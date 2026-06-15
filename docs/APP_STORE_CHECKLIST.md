@@ -22,7 +22,8 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 - ✅ Account deletion in-app (Settings → Delete account, server-side cascade)
 - ✅ UGC moderation: report + block (with confirmation) on notes, comments,
   and profiles; spoiler blurring; zero-tolerance clause in terms.html
-- ✅ Sign in with Apple primary, email fallback
+- ✅ Email + phone auth (no third-party/social login, so Sign in with Apple is
+  not required)
 - ✅ Demo account for App Review: appreview@cini-demo.com / CiniReview2026!
 
 ## Accounts & keys (👤 only Jake can do these)

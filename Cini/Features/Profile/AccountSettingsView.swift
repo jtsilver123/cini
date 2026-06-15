@@ -158,6 +158,7 @@ private struct PrivacyScreen: View {
     @State private var isPrivate = false
     @State private var loaded = false
     @State private var forgotContacts = false
+    @State private var revertingPrivate = false
 
     var body: some View {
         Form {
@@ -166,9 +167,18 @@ private struct PrivacyScreen: View {
                     .tint(Theme.velvet)
                     .onChange(of: isPrivate) { _, newValue in
                         guard loaded else { return }   // ignore the initial load assignment
+                        if revertingPrivate { revertingPrivate = false; return }
                         Task {
-                            try? await SupabaseService.shared.updateProfile(ProfileUpdate(is_private: newValue))
-                            await session.loadProfile()
+                            do {
+                                try await SupabaseService.shared.updateProfile(ProfileUpdate(is_private: newValue))
+                                await session.loadProfile()
+                            } catch {
+                                // A privacy toggle that LOOKS changed but didn't
+                                // save is dangerous — surface it and revert.
+                                ToastCenter.shared.saveFailed()
+                                revertingPrivate = true
+                                isPrivate = !newValue
+                            }
                         }
                     }
             } footer: {

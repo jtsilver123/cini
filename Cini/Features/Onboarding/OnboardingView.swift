@@ -138,7 +138,7 @@ struct OnboardingView: View {
         }
     }
 
-    /// Six segments for the six data steps (1–6); the welcome screen has none.
+    /// Seven segments for the seven data steps (1–7); the welcome screen has none.
     private var progressBar: some View {
         HStack(spacing: 6) {
             ForEach(1..<8, id: \.self) { index in
@@ -216,7 +216,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 3 — Find your friends (Beli puts this in onboarding)
+    // MARK: 4 — Find your friends (Beli puts this in onboarding)
 
     private var findFriendsStep: some View {
         VStack(spacing: 22) {
