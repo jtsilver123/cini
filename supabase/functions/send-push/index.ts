@@ -93,6 +93,8 @@ function headline(kind: string, actor: string, movie: string | null): string {
       return `New season incoming — ${movie ?? "a show you ranked"} returns this week 🎬`;
     case "rate_nudge":
       return `Seen ${movie ?? "that movie you saved"} yet? Tap to rank it ⭐️`;
+    case "friend_loved":
+      return `@${actor} just rated ${movie ?? "a movie"} — one of your favorites 🍿`;
     default: return `@${actor} did something new on Cini`;
   }
 }

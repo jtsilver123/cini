@@ -231,6 +231,9 @@ final class RankingStore {
                 return nil
             }
         }
+        // Tell friends who already love this title that you just rated it.
+        let ratedID = session.newItemID
+        Task { await supabase.notifyFriendsOfRating(movieID: ratedID) }
         return scored
     }
 

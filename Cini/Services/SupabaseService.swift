@@ -361,6 +361,17 @@ final class SupabaseService {
         }
     }
 
+    /// After you rank a title, notify the people who follow you and already
+    /// rate that same title highly ("a friend rated one of your favorites").
+    func notifyFriendsOfRating(movieID: Int) async {
+        struct Params: Encodable { let p_movie_id: Int }
+        do {
+            _ = try await client.rpc("notify_friends_of_rating", params: Params(p_movie_id: movieID)).execute()
+        } catch {
+            Self.logSwallowed("notify_friends_of_rating", error)
+        }
+    }
+
     /// Rec Scores ("how much we think you'll like it") for specific
     /// titles — powers the Want to Watch list badges.
     func predictedScores(movieIDs: [Int]) async -> [Int: Double] {
