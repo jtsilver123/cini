@@ -47,10 +47,14 @@ struct PromotedReleaseCard: View {
                         Text(reason)
                             .font(.caption)
                             .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
                     }
                 }
                 .padding(14)
-                .frame(maxWidth: 200, alignment: .leading)   // leave room for the quick actions
+                // Keep text off the (+)/bookmark corner, and legible over a
+                // bright backdrop.
+                .frame(maxWidth: 210, alignment: .leading)
+                .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
             }
             .frame(height: 200)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

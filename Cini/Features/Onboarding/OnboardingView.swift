@@ -327,8 +327,9 @@ struct OnboardingView: View {
             let typed = inviterUsername.trimmingCharacters(in: .whitespaces)
             let inviter = (typed.isEmpty ? pendingInviter : typed).trimmingCharacters(in: .whitespaces)
             if !inviter.isEmpty {
-                await SupabaseService.shared.redeemInvite(from: inviter)
+                let followed = await SupabaseService.shared.redeemInvite(from: inviter)
                 pendingInviter = ""
+                if followed { ToastCenter.shared.show("You're now following @\(inviter) 🎬") }
             }
             await session.loadProfile()
             advance()
