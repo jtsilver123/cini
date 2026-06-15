@@ -1102,6 +1102,8 @@ struct NotificationsView: View {
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
         case "follow_request": text = "**\(who)** asked to follow you"
         case "follow_request_approved": text = "**\(who)** accepted your follow request"
+        case "saved_your_rank": text = "**\(who)** saved **\(movie)** — you ranked it 🔖"
+        case "streak_reminder": text = "Your streak ends Sunday — rank one title to keep it alive 🔥"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it ⭐️"
