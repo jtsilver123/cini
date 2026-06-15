@@ -1,22 +1,74 @@
 import SwiftUI
 
-/// "Manage account" (Beli-style): a clean list of tap-through rows — change
-/// email / phone / password, preferences, data, then the red zone (log out,
-/// delete). Each editor is its own focused screen so this list stays simple.
+/// Beli-style two-level settings. This top screen is the menu — Your account,
+/// Notifications, Privacy, Your app, Help — plus Log out. Each row opens a
+/// focused sub-screen so nothing here feels crowded.
 struct AccountSettingsView: View {
     @Environment(AppSession.self) private var session
-
-    @State private var currentPhone = ""
-    @State private var loaded = false
-    @State private var showDeleteConfirm = false
     @State private var showLogoutConfirm = false
-    @State private var isDeleting = false
-    @State private var errorMessage: String?
-    @AppStorage("cini.appearance") private var appearance = "system"
 
     var body: some View {
         Form {
-            Section("Account") {
+            Section {
+                settingsRow("person.crop.circle", "Your account",
+                            "Change your email, phone, or password") { ManageAccountScreen() }
+                settingsRow("bell.badge", "Notifications",
+                            "Choose which notifications you get") { NotificationPreferencesView() }
+                settingsRow("lock", "Privacy",
+                            "Control who can see and follow you") { PrivacyScreen() }
+                settingsRow("iphone", "Your app",
+                            "Appearance, theater alerts, your data") { AppPreferencesScreen() }
+                settingsRow("questionmark.circle", "Help",
+                            "FAQ, support, and legal") { HelpScreen() }
+            }
+
+            Section {
+                Button("Log out", role: .destructive) { showLogoutConfirm = true }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Log out of Cini?",
+                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+            Button("Log out", role: .destructive) { Task { await session.signOut() } }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Icon + title + descriptive subtitle, tappable through to a sub-screen.
+    private func settingsRow<Destination: View>(_ icon: String, _ title: String, _ subtitle: String,
+                                                @ViewBuilder destination: () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.title3).foregroundStyle(Theme.marquee)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.headline).foregroundStyle(Theme.ink)
+                    Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - Manage account (the account-specific editors + delete)
+
+private struct ManageAccountScreen: View {
+    @State private var currentPhone = ""
+    @State private var loaded = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Form {
+            Section {
                 navRow("Change email", systemImage: "envelope",
                        value: SupabaseService.shared.currentEmail) { ChangeEmailScreen() }
                 navRow("Change phone number", systemImage: "phone",
@@ -26,46 +78,16 @@ struct AccountSettingsView: View {
                 navRow("Change password", systemImage: "lock") { ChangePasswordScreen() }
             }
 
-            Section("Preferences") {
-                NavigationLink {
-                    NotificationPreferencesView()
-                } label: { Label("Notifications", systemImage: "bell.badge") }
-                NavigationLink {
-                    TheaterAlertsScreen()
-                } label: { Label("Theater alerts", systemImage: "popcorn") }
-                Picker(selection: $appearance) {
-                    Text("Dark").tag("dark")
-                    Text("Light").tag("light")
-                    Text("Match device").tag("system")
-                } label: { Label("Appearance", systemImage: "circle.lefthalf.filled") }
-            }
-
-            Section("Your data") {
-                ExportRow()
-            }
-
-            Section("About") {
-                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
-                    Label("Privacy Policy", systemImage: "hand.raised")
-                }
-                Link(destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!) {
-                    Label("Terms of Use", systemImage: "doc.text")
-                }
-                Link(destination: URL(string: "mailto:jtsilver123@gmail.com?subject=Cini%20support")!) {
-                    Label("Contact Support", systemImage: "envelope")
-                }
-                Link(destination: URL(string: "https://www.themoviedb.org")!) {
-                    Label("Movie data by TMDB", systemImage: "film")
-                }
-            }
-
             Section {
-                Button("Log out", role: .destructive) { showLogoutConfirm = true }
                 Button(role: .destructive) {
                     showDeleteConfirm = true
                 } label: {
                     HStack {
-                        Text(isDeleting ? "Deleting…" : "Delete my account")
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(isDeleting ? "Deleting…" : "Delete my account")
+                            Text("Permanently delete your account")
+                                .font(.caption).foregroundStyle(Theme.gray)
+                        }
                         if isDeleting { Spacer(); ProgressView() }
                     }
                 }
@@ -82,11 +104,6 @@ struct AccountSettingsView: View {
         .background(Theme.background)
         .navigationTitle("Manage account")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Log out of Cini?",
-                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
-            Button("Log out", role: .destructive) { Task { await session.signOut() } }
-            Button("Cancel", role: .cancel) {}
-        }
         .confirmationDialog("Delete your account forever?",
                             isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
@@ -131,6 +148,102 @@ struct AccountSettingsView: View {
                 ? "Couldn't delete your account — you're offline. Check your connection and try again."
                 : "Couldn't delete your account — try again, or email jtsilver123@gmail.com and we'll remove it."
         }
+    }
+}
+
+// MARK: - Privacy
+
+private struct PrivacyScreen: View {
+    @Environment(AppSession.self) private var session
+    @State private var isPrivate = false
+    @State private var loaded = false
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Private account", isOn: $isPrivate)
+                    .tint(Theme.velvet)
+                    .onChange(of: isPrivate) { _, newValue in
+                        guard loaded else { return }   // ignore the initial load assignment
+                        Task {
+                            try? await SupabaseService.shared.updateProfile(ProfileUpdate(is_private: newValue))
+                            await session.loadProfile()
+                        }
+                    }
+            } footer: {
+                Text("When on, only approved followers see your rankings and activity — everyone else has to send a follow request you approve.")
+            }
+            Section {
+                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
+                    Label("Privacy Policy", systemImage: "hand.raised")
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle("Privacy")
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            isPrivate = session.profile?.isPrivate ?? false
+            loaded = true
+        }
+    }
+}
+
+// MARK: - Your app (preferences)
+
+private struct AppPreferencesScreen: View {
+    @AppStorage("cini.appearance") private var appearance = "system"
+
+    var body: some View {
+        Form {
+            Section("Appearance") {
+                Picker(selection: $appearance) {
+                    Text("Dark").tag("dark")
+                    Text("Light").tag("light")
+                    Text("Match device").tag("system")
+                } label: { Label("Theme", systemImage: "circle.lefthalf.filled") }
+            }
+            Section {
+                NavigationLink {
+                    TheaterAlertsScreen()
+                } label: { Label("Theater alerts", systemImage: "popcorn") }
+            }
+            Section("Your data") {
+                ExportRow()
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle("Your app")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Help
+
+private struct HelpScreen: View {
+    var body: some View {
+        Form {
+            Section {
+                Link(destination: URL(string: "mailto:jtsilver123@gmail.com?subject=Cini%20support")!) {
+                    Label("Contact support", systemImage: "envelope")
+                }
+                Link(destination: URL(string: "https://jtsilver123.github.io/cini/terms.html")!) {
+                    Label("Terms of Use", systemImage: "doc.text")
+                }
+                Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {
+                    Label("Privacy Policy", systemImage: "hand.raised")
+                }
+                Link(destination: URL(string: "https://www.themoviedb.org")!) {
+                    Label("Movie data by TMDB", systemImage: "film")
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle("Help")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
