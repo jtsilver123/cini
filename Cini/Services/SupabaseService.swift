@@ -316,6 +316,25 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Save the user's (optional, unverified) phone number for contact matching.
+    func setPhone(_ phone: String) async {
+        struct Params: Encodable { let p_phone: String }
+        do { _ = try await client.rpc("set_phone", params: Params(p_phone: phone)).execute() }
+        catch { Self.logSwallowed("set_phone", error) }
+    }
+
+    /// The user's stored phone (for the settings field), or nil.
+    func myPhone() async -> String? {
+        (try? await client.rpc("my_phone").execute().value)
+    }
+
+    /// Which contact phone numbers belong to Cini members.
+    func membersFromPhones(_ phones: [String]) async throws -> [SuggestedMember] {
+        struct Params: Encodable { let p_phones: [String] }
+        return try await client.rpc("members_from_phones", params: Params(p_phones: phones))
+            .execute().value
+    }
+
     func membersFromEmails(_ emails: [String]) async throws -> [SuggestedMember] {
         struct Params: Encodable { let p_emails: [String] }
         return try await client.rpc("members_from_emails", params: Params(p_emails: emails))

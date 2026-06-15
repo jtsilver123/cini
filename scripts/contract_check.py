@@ -138,6 +138,9 @@ RPCS = [
     ("set_watch_by", {"p_movie_id": 2, "p_watch_by": None}),
     ("referral_count", {}),
     ("unlocked_features", {}),
+    ("set_phone", {"p_phone": ""}),          # <10 digits → no-op
+    ("my_phone", {}),
+    ("members_from_phones", {"p_phones": []}),
     # No follower rates movie 2 highly → no-op insert.
     ("notify_friends_of_rating", {"p_movie_id": 2}),
     # Unknown feature key → returns false without writing (exercises signature).

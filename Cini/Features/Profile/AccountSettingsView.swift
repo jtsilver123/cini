@@ -18,6 +18,8 @@ struct AccountSettingsView: View {
     @State private var isDeleting = false
     @State private var homeZip: String?
     @State private var loadedZip = false
+    @State private var phone = ""
+    @State private var phoneSaved = false
     @State private var detectingZip = false
     @State private var zipMessage: String?
     @AppStorage("cini.appearance") private var appearance = "system"
@@ -48,6 +50,25 @@ struct AccountSettingsView: View {
             }
 
             ChangePasswordSection()
+
+            Section {
+                TextField("Phone number", text: $phone)
+                    .keyboardType(.phonePad)
+                    .textContentType(.telephoneNumber)
+                    .onChange(of: phone) { _, _ in phoneSaved = false }
+                Button("Save number") {
+                    Task { await SupabaseService.shared.setPhone(phone); phoneSaved = true }
+                }
+                .disabled(phone.filter(\.isNumber).count < 10)
+                if phoneSaved {
+                    Label("Saved", systemImage: "checkmark.circle.fill")
+                        .font(.caption).foregroundStyle(Theme.scoreGreen)
+                }
+            } header: {
+                Text("Phone")
+            } footer: {
+                Text("Optional. Used only to help friends from your contacts find you on Cini — never shown on your profile or shared. Standard rates may apply if a friend texts you an invite.")
+            }
 
             Section {
                 NavigationLink {
@@ -211,6 +232,7 @@ struct AccountSettingsView: View {
             guard !loadedZip else { return }
             loadedZip = true
             homeZip = await SupabaseService.shared.homeZip()
+            phone = await SupabaseService.shared.myPhone() ?? ""
         }
     }
 

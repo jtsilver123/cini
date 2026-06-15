@@ -282,10 +282,14 @@ struct InviteSheet: View {
 
     private func loadContacts() async {
         loadingContacts = true
-        async let people = ContactsList.fetch()
-        async let emails = ContactsEmails.fetch()
-        contactMembers = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
-        contacts = await people
+        let people = await ContactsList.fetch()
+        let emails = await ContactsEmails.fetch()
+        // Match on both email and phone, then de-dupe by member id.
+        let byEmail = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
+        let byPhone = (try? await SupabaseService.shared.membersFromPhones(people.map(\.phone))) ?? []
+        var seen = Set<UUID>()
+        contactMembers = (byEmail + byPhone).filter { seen.insert($0.id).inserted }
+        contacts = people
         contactsChecked = true
         loadingContacts = false
     }
