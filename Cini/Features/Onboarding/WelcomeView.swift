@@ -134,23 +134,47 @@ private struct PhoneMockup<Content: View>: View {
     }
 }
 
-/// A poster stand-in: a two-tone gradient with the title, like the marketing site.
+/// A real movie poster (from TMDB, the app's image source), with a two-tone
+/// gradient + title as the offline/loading fallback.
 private struct MockPoster: View {
     let title: String
+    let path: String
     let c1: Color
     let c2: Color
     var height: CGFloat = 116
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .frame(height: height)
-            .overlay(alignment: .bottomLeading) {
-                Text(title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(8)
-            }
+        CachedAsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w342\(path)")) { img in
+            img.resizable().scaledToFill()
+        } placeholder: {
+            LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .overlay(alignment: .bottomLeading) {
+                    Text(title)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(8)
+                }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// Small real poster used in the ranked-list mock row.
+private struct MiniPoster: View {
+    let path: String
+    let c1: Color
+    let c2: Color
+
+    var body: some View {
+        CachedAsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w185\(path)")) { img in
+            img.resizable().scaledToFill()
+        } placeholder: {
+            LinearGradient(colors: [c1, c2], startPoint: .top, endPoint: .bottom)
+        }
+        .frame(width: 26, height: 36)
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
     }
 }
 
@@ -173,10 +197,12 @@ private struct CompareMock: View {
                 .font(Theme.serif(18))
                 .foregroundStyle(Theme.ink)
             HStack(spacing: 10) {
-                MockPoster(title: "Whiplash", c1: Color(red: 0.12, green: 0.43, blue: 0.42),
+                MockPoster(title: "Whiplash", path: "/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
+                           c1: Color(red: 0.12, green: 0.43, blue: 0.42),
                            c2: Color(red: 0.05, green: 0.16, blue: 0.23))
                 Text("vs").font(.caption.weight(.heavy)).foregroundStyle(Theme.gray)
-                MockPoster(title: "Interstellar", c1: Theme.velvet,
+                MockPoster(title: "Interstellar", path: "/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
+                           c1: Theme.velvet,
                            c2: Color(red: 0.91, green: 0.71, blue: 0.30))
             }
             HStack(spacing: 6) {
@@ -192,17 +218,16 @@ private struct CompareMock: View {
 
 /// Slide 2 — the ranked list with scores.
 private struct RankedListMock: View {
-    private let rows: [(String, String, String, Color)] = [
-        ("1", "Parasite", "9.4", Theme.scoreGreen),
-        ("2", "Whiplash", "8.8", Theme.scoreGreen),
-        ("3", "Interstellar", "7.1", Theme.scoreAmber),
-        ("4", "Dune", "6.5", Theme.scoreAmber),
-    ]
-    private let swatches: [(Color, Color)] = [
-        (Color(red: 0.23, green: 0.16, blue: 0.35), Theme.velvet),
-        (Color(red: 0.12, green: 0.43, blue: 0.42), Color(red: 0.05, green: 0.16, blue: 0.23)),
-        (Theme.velvet, Color(red: 0.91, green: 0.71, blue: 0.30)),
-        (Color(red: 0.30, green: 0.25, blue: 0.18), Color(red: 0.55, green: 0.42, blue: 0.20)),
+    // rank, title, poster path, score, color, fallback gradient
+    private let rows: [(String, String, String, String, Color, Color, Color)] = [
+        ("1", "Parasite", "/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", "9.4", Theme.scoreGreen,
+         Color(red: 0.23, green: 0.16, blue: 0.35), Theme.velvet),
+        ("2", "Whiplash", "/7fn624j5lj3xTme2SgiLCeuedmO.jpg", "8.8", Theme.scoreGreen,
+         Color(red: 0.12, green: 0.43, blue: 0.42), Color(red: 0.05, green: 0.16, blue: 0.23)),
+        ("3", "Interstellar", "/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg", "7.1", Theme.scoreAmber,
+         Theme.velvet, Color(red: 0.91, green: 0.71, blue: 0.30)),
+        ("4", "Dune", "/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg", "6.5", Theme.scoreAmber,
+         Color(red: 0.30, green: 0.25, blue: 0.18), Color(red: 0.55, green: 0.42, blue: 0.20)),
     ]
 
     var body: some View {
@@ -210,18 +235,15 @@ private struct RankedListMock: View {
             Text("YOUR RANKING")
                 .font(.system(size: 9, weight: .bold)).tracking(2)
                 .foregroundStyle(Theme.gray)
-            ForEach(Array(rows.enumerated()), id: \.offset) { i, row in
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 9) {
                     Text(row.0).font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
                         .frame(width: 12)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(LinearGradient(colors: [swatches[i].0, swatches[i].1],
-                                             startPoint: .top, endPoint: .bottom))
-                        .frame(width: 26, height: 36)
+                    MiniPoster(path: row.2, c1: row.5, c2: row.6)
                     Text(row.1).font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
                         .lineLimit(1)
                     Spacer(minLength: 4)
-                    mockBadge(row.2, row.3)
+                    mockBadge(row.3, row.4)
                 }
             }
         }

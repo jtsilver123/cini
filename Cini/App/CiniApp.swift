@@ -16,6 +16,26 @@ struct CiniApp: App {
         guard !isOnboarded(uid) else { return }
         onboardedUserIDsRaw += onboardedUserIDsRaw.isEmpty ? uid : ",\(uid)"
     }
+
+    /// Changes whenever the signed-in account or its load state changes, so the
+    /// onboarding check re-runs for a brand-new account (not just on first load).
+    private var onboardingKey: String {
+        "\(SupabaseService.shared.currentUserID?.uuidString ?? "none")-\(session.rankingStore.isLoaded)"
+    }
+
+    /// Decide whether THIS account needs onboarding, once its rankings resolve.
+    /// New account (0 watched) → onboard. Returning user on a fresh device
+    /// (already has rankings) → mark done and go straight to the app.
+    private func evaluateOnboarding() async {
+        guard let uid = SupabaseService.shared.currentUserID?.uuidString,
+              !isOnboarded(uid),
+              session.rankingStore.isLoaded else { return }
+        if session.rankingStore.watchedCount == 0 {
+            withAnimation { showOnboarding = true }
+        } else {
+            markOnboarded(uid)
+        }
+    }
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
     /// Carried in from a friend's invite link (`cini://invite?u=…`) so
@@ -82,33 +102,27 @@ struct CiniApp: App {
                 if !session.didResolveAuth {
                     LaunchView()
                 } else if session.isAuthenticated {
-                    RootTabView()
-                        .fullScreenCover(isPresented: $showOnboarding) {
+                    // Onboarding is a TOP-LEVEL branch, not a fullScreenCover.
+                    // A cover requested during the Auth→Root swap is silently
+                    // dropped (which left new accounts stuck past onboarding);
+                    // a branch can't be. Tracked per user id, so a second
+                    // account on a shared phone still onboards, while a
+                    // returning user (who already has rankings) skips it.
+                    Group {
+                        if showOnboarding {
                             OnboardingView {
                                 if let uid = SupabaseService.shared.currentUserID?.uuidString {
                                     markOnboarded(uid)
                                 }
-                                showOnboarding = false
+                                withAnimation { showOnboarding = false }
                             }
+                        } else {
+                            RootTabView()
                         }
-                        // First run for THIS account: onboarding is tracked per
-                        // user id (not a device-wide flag), so a second account
-                        // signing up on the same phone still onboards. An
-                        // existing user on a new phone has rankings, so the
-                        // watchedCount==0 guard skips them. Presented AFTER the
-                        // Auth→Root transition settles: a cover requested
-                        // mid-swap is silently dropped and leaves a dead layer.
-                        .task(id: session.rankingStore.isLoaded) {
-                            guard let uid = SupabaseService.shared.currentUserID?.uuidString,
-                                  !isOnboarded(uid),
-                                  session.rankingStore.isLoaded,
-                                  session.rankingStore.watchedCount == 0 else { return }
-                            try? await Task.sleep(for: .milliseconds(600))
-                            guard session.isAuthenticated,
-                                  let uid = SupabaseService.shared.currentUserID?.uuidString,
-                                  !isOnboarded(uid) else { return }
-                            showOnboarding = true
-                        }
+                    }
+                    // Keyed on the user id so it re-evaluates for a new account
+                    // even if the ranking store was already loaded.
+                    .task(id: onboardingKey) { await evaluateOnboarding() }
                 } else {
                     WelcomeView()
                 }
