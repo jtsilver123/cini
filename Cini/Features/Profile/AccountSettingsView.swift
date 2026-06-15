@@ -157,6 +157,7 @@ private struct PrivacyScreen: View {
     @Environment(AppSession.self) private var session
     @State private var isPrivate = false
     @State private var loaded = false
+    @State private var forgotContacts = false
 
     var body: some View {
         Form {
@@ -172,6 +173,20 @@ private struct PrivacyScreen: View {
                     }
             } footer: {
                 Text("When on, only approved followers see your rankings and activity — everyone else has to send a follow request you approve.")
+            }
+            Section {
+                Button {
+                    Task {
+                        await SupabaseService.shared.forgetContacts()
+                        forgotContacts = true
+                    }
+                } label: {
+                    Label(forgotContacts ? "Synced contacts removed" : "Remove synced contacts",
+                          systemImage: forgotContacts ? "checkmark.circle.fill" : "person.crop.circle.badge.xmark")
+                }
+                .disabled(forgotContacts)
+            } footer: {
+                Text("If you used Find Friends, we keep one-way hashes of your contacts' numbers (never names) to tell you when one joins. Remove them any time — and they're deleted with your account.")
             }
             Section {
                 Link(destination: URL(string: "https://jtsilver123.github.io/cini/privacy.html")!) {

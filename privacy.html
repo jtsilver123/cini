@@ -39,10 +39,14 @@ policy explains what we collect, why, and the control you have over it.</p>
   your queue. Files uploaded through the computer-transfer page are stored
   privately for your account only and expire within a day.</li>
   <li><b>Contacts, only if you ask</b> — the “find friends from contacts”
-  feature reads email addresses from your address book on-device and sends
-  them to our server once, solely to check which belong to existing Cini
-  accounts; it shows you the matches and discards the rest.
-  <b>Your contacts are never stored on our servers.</b></li>
+  feature reads your address book on-device and sends the entries to our
+  server to check which belong to existing Cini accounts and show you the
+  matches. To let you know when a contact later joins, we keep a
+  <b>one-way cryptographic hash</b> of your contacts’ phone numbers — we do
+  <b>not</b> store names or readable phone numbers, and the hashes can’t be
+  reversed back into numbers. You can delete these hashes any time in
+  Settings → Privacy → “Remove synced contacts,” and they’re deleted with
+  your account.</li>
   <li><b>Approximate location, only if you ask</b> — Showtimes can use your
   location once (with your permission) to find your zipcode, or you can type
   one. If you turn on <b>theater alerts</b>, we save that zipcode so we can
@@ -66,8 +70,9 @@ policy explains what we collect, why, and the control you have over it.</p>
   <li>We don’t sell your data.</li>
   <li>We don’t show ads or share your activity with advertisers.</li>
   <li>We don’t read your contacts or device location unless you explicitly
-  use the features above. Contacts are never stored; location is only ever
-  turned into a zipcode (saved only if you turn on theater alerts).</li>
+  use the features above. From contacts we keep only un-reversible hashes of
+  phone numbers (no names) and only if you use Find Friends; location is only
+  ever turned into a zipcode (saved only if you turn on theater alerts).</li>
 </ul>
 
 <h2>Service providers</h2>

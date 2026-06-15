@@ -344,6 +344,20 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Persist the caller's contacts as one-way hashes (the server hashes the
+    /// normalized numbers — raw numbers and names are never stored) so we can
+    /// notify them when one of those contacts later joins Cini.
+    func storeContacts(_ phones: [String]) async {
+        guard !phones.isEmpty else { return }
+        struct Params: Encodable { let p_phones: [String] }
+        _ = try? await client.rpc("store_contacts", params: Params(p_phones: phones)).execute()
+    }
+
+    /// Wipe the caller's stored contact hashes.
+    func forgetContacts() async {
+        _ = try? await client.rpc("forget_contacts").execute()
+    }
+
     func membersFromEmails(_ emails: [String]) async throws -> [SuggestedMember] {
         struct Params: Encodable { let p_emails: [String] }
         return try await client.rpc("members_from_emails", params: Params(p_emails: emails))

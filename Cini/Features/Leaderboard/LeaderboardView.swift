@@ -289,6 +289,9 @@ struct InviteSheet: View {
         // Match on both email and phone, then de-dupe by member id.
         let byEmail = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
         let byPhone = (try? await SupabaseService.shared.membersFromPhones(people.map(\.phone))) ?? []
+        // Remember these contacts (as hashes only) so the user gets pinged when
+        // one of them joins Cini later.
+        await SupabaseService.shared.storeContacts(people.map(\.phone))
         var seen = Set<UUID>()
         contactMembers = (byEmail + byPhone).filter { seen.insert($0.id).inserted }
         contacts = people

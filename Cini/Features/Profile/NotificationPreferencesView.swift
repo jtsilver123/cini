@@ -16,6 +16,7 @@ struct NotificationPreferencesView: View {
         ]),
         ("People", [
             ("new_follower", "New followers", "Someone starts following you"),
+            ("contact_joined", "Contacts joining", "Someone from your contacts joins Cini"),
             ("invite_joined", "Invites accepted", "Someone joins Cini with your username"),
             ("friend_loved", "Friend rated a favorite", "A friend rates a movie or show you love"),
         ]),

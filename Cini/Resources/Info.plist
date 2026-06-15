@@ -26,7 +26,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to pick a profile photo. Your library is never scanned or uploaded.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>Used once to find which of your contacts are already on Cini. Contacts are never stored.</string>
+	<string>Cini matches your contacts to find friends already here and to let you know when one joins. We store only one-way hashes of their phone numbers — never names, and you can remove them any time in Settings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Used once to find your zipcode when you search nearby showtimes.</string>
 	<key>UIAppFonts</key>
