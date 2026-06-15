@@ -95,7 +95,7 @@ struct CiniApp: App {
                             showOnboarding = true
                         }
                 } else {
-                    AuthView()
+                    WelcomeView()
                 }
             }
             .environment(session)

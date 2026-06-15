@@ -14,8 +14,13 @@ struct AuthView: View {
     @State private var awaitingConfirmation = false
     @State private var resentJustNow = false
     @FocusState private var focusedField: Field?
+    @Environment(\.dismiss) private var dismiss
 
     private enum Field { case email, password }
+
+    init(startInSignUp: Bool = false) {
+        _isSigningUp = State(initialValue: startInSignUp)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -32,6 +37,15 @@ struct AuthView: View {
                 .onTapGesture { focusedField = nil }
                 .ignoresSafeArea()
         )
+        .overlay(alignment: .topLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .padding(12)
+            }
+            .accessibilityLabel("Back")
+        }
         .swipeDismissesKeyboard()
     }
 
