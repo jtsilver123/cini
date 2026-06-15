@@ -135,9 +135,30 @@ struct SearchView: View {
                 } else if query.isEmpty {
                     // Arriving via the + tab with nothing typed: keyboard
                     // up, ready to log a movie.
-                    searchFocused = true
+                    focusSearchSoon()
                 }
             }
+            // The Search tab stays alive in the TabView, so onAppear won't
+            // fire on re-selection — focus whenever we (re)enter Search.
+            .onChange(of: tabRouter.selection) { _, sel in
+                if sel == .search { focusSearchSoon() }
+            }
+            .onChange(of: tabRouter.retap[.search, default: 0]) { _, _ in
+                focusSearchSoon()
+            }
+        }
+    }
+
+    /// Land in Search with the keyboard up, ready to type — unless we arrived
+    /// to browse or already have a query. The short delay lets the view be in
+    /// the window so the focus actually takes (setting it too early no-ops).
+    private func focusSearchSoon() {
+        guard query.isEmpty, browse == nil,
+              tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard tabRouter.selection == .search, query.isEmpty else { return }
+            searchFocused = true
         }
     }
 
