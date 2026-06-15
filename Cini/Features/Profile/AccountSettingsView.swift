@@ -230,19 +230,21 @@ private struct ChangePasswordScreen: View {
     @State private var message: String?
     @State private var errorMessage: String?
 
-    private var valid: Bool { newPassword.count >= 6 && newPassword == confirmPassword }
+    private var valid: Bool { PasswordPolicy.isValid(newPassword) && newPassword == confirmPassword }
 
     var body: some View {
         Form {
             Section {
                 SecureField("New password", text: $newPassword)
                 SecureField("Confirm new password", text: $confirmPassword)
+                // Same rules as sign-up, shown live.
+                ruleRow(PasswordPolicy.lengthRule, PasswordPolicy.hasLength(newPassword))
+                ruleRow(PasswordPolicy.mixRule, PasswordPolicy.hasMix(newPassword))
+                if !confirmPassword.isEmpty && newPassword != confirmPassword {
+                    ruleRow("Passwords match", false)
+                }
                 Button("Change password") { Task { await change() } }
                     .disabled(!valid)
-                if !newPassword.isEmpty && !valid {
-                    Text(newPassword.count < 6 ? "At least 6 characters." : "Passwords don't match.")
-                        .font(.caption).foregroundStyle(Theme.scoreRed)
-                }
                 if let message { Text(message).font(.caption).foregroundStyle(Theme.scoreGreen) }
                 if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(Theme.scoreRed) }
             }
@@ -253,11 +255,20 @@ private struct ChangePasswordScreen: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    private func ruleRow(_ text: String, _ met: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: met ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(met ? Theme.scoreGreen : Theme.gray)
+            Text(text).foregroundStyle(met ? Theme.ink : Theme.gray)
+        }
+        .font(.caption)
+    }
+
     private func change() async {
         message = nil; errorMessage = nil
         do {
             try await SupabaseService.shared.updatePassword(newPassword)
-            message = "Password updated."
+            message = "Password updated — you're still signed in."
             newPassword = ""; confirmPassword = ""
         } catch {
             errorMessage = "Couldn't change the password — try again."

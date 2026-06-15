@@ -21,15 +21,20 @@ struct AuthView: View {
         _isSigningUp = State(initialValue: startInSignUp)
     }
 
-    // Password policy (shown live as a checklist on the create-password screen).
-    private var pwHasLength: Bool { (8...20).contains(password.count) }
-    private var pwHasMix: Bool {
-        let letter = password.contains { $0.isLetter }
-        let number = password.contains { $0.isNumber }
-        let special = password.contains { !$0.isLetter && !$0.isNumber && !$0.isWhitespace }
-        return letter && number && special
+    // Password policy lives in PasswordPolicy so this and the settings
+    // "change password" screen share one rule set (shown live as a checklist).
+    private var pwHasLength: Bool { PasswordPolicy.hasLength(password) }
+    private var pwHasMix: Bool { PasswordPolicy.hasMix(password) }
+    private var passwordValid: Bool { PasswordPolicy.isValid(password) }
+
+    /// A light sanity check so "x@y" or "x@.com" don't pass the email step
+    /// (the server validates for real; this just catches obvious typos).
+    private var emailLooksValid: Bool {
+        let e = email.trimmingCharacters(in: .whitespaces)
+        guard let at = e.firstIndex(of: "@") else { return false }
+        let local = e[..<at], domain = e[e.index(after: at)...]
+        return !local.isEmpty && domain.contains(".") && !domain.hasPrefix(".") && !domain.hasSuffix(".")
     }
-    private var passwordValid: Bool { pwHasLength && pwHasMix }
 
     var body: some View {
         ZStack {
@@ -107,7 +112,7 @@ struct AuthView: View {
             case 1:
                 header("What's your email?", "We'll use it to keep your account safe.")
                 authField("Email", text: $email, keyboard: .emailAddress)
-                primaryButton("Continue", disabled: !email.contains("@")) {
+                primaryButton("Continue", disabled: !emailLooksValid) {
                     focused = false
                     withAnimation { signupStep = 2 }
                 }
@@ -144,8 +149,8 @@ struct AuthView: View {
 
     private var passwordRules: some View {
         VStack(alignment: .leading, spacing: 8) {
-            passwordRule("8–20 characters", pwHasLength)
-            passwordRule("Letters, numbers, and a special character", pwHasMix)
+            passwordRule(PasswordPolicy.lengthRule, pwHasLength)
+            passwordRule(PasswordPolicy.mixRule, pwHasMix)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
