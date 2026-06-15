@@ -34,12 +34,6 @@ final class SupabaseService {
 
     // MARK: - Auth
 
-    func signInWithApple(idToken: String, nonce: String) async throws {
-        try await client.auth.signInWithIdToken(
-            credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
-        )
-    }
-
     func signIn(email: String, password: String) async throws {
         try await client.auth.signIn(email: email, password: password)
     }
@@ -316,11 +310,13 @@ final class SupabaseService {
             .execute().value
     }
 
-    /// Save the user's (optional, unverified) phone number for contact matching.
-    func setPhone(_ phone: String) async {
+    /// Save the user's (optional, unverified) phone number for contact
+    /// matching. Returns false on failure so a required save can be retried.
+    @discardableResult
+    func setPhone(_ phone: String) async -> Bool {
         struct Params: Encodable { let p_phone: String }
-        do { _ = try await client.rpc("set_phone", params: Params(p_phone: phone)).execute() }
-        catch { Self.logSwallowed("set_phone", error) }
+        do { _ = try await client.rpc("set_phone", params: Params(p_phone: phone)).execute(); return true }
+        catch { Self.logSwallowed("set_phone", error); return false }
     }
 
     /// The user's stored phone (for the settings field), or nil.

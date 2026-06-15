@@ -57,7 +57,10 @@ struct AccountSettingsView: View {
                     .textContentType(.telephoneNumber)
                     .onChange(of: phone) { _, _ in phoneSaved = false }
                 Button("Save number") {
-                    Task { await SupabaseService.shared.setPhone(phone); phoneSaved = true }
+                    Task {
+                        if await SupabaseService.shared.setPhone(phone) { phoneSaved = true }
+                        else { ToastCenter.shared.saveFailed() }
+                    }
                 }
                 .disabled(phone.filter(\.isNumber).count < 10)
                 if phoneSaved {

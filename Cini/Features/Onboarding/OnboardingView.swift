@@ -145,9 +145,9 @@ struct OnboardingView: View {
             PillButton(title: savingPhone ? "Saving…" : "Continue", style: .filled) {
                 Task {
                     savingPhone = true
-                    await SupabaseService.shared.setPhone(phone)
+                    let ok = await SupabaseService.shared.setPhone(phone)
                     savingPhone = false
-                    advance()
+                    if ok { advance() } else { ToastCenter.shared.saveFailed() }
                 }
             }
             .disabled(phone.filter(\.isNumber).count < 10 || savingPhone)
