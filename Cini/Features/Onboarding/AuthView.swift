@@ -11,6 +11,7 @@ struct AuthView: View {
     @State private var isSigningUp: Bool
     @State private var signupStep = 0   // 0 = phone, 1 = email, 2 = password
     @State private var phone = ""
+    @State private var country = CountryCode.usDefault
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
@@ -71,6 +72,11 @@ struct AuthView: View {
         VStack(spacing: 18) {
             header("Welcome back", "Sign in to pick up your rankings.")
             authField("Email or phone", text: $email, keyboard: .emailAddress)
+            // Non-US numbers need their country code, e.g. +44…
+            Text("Signing in with a phone? Include your country code (e.g. +1).")
+                .font(.caption2).foregroundStyle(Theme.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4).padding(.top, -8)
             authField("Password", text: $password, secure: true)
             primaryButton("Sign in", loading: isWorking,
                           disabled: email.isEmpty || password.count < 6) {
@@ -96,7 +102,7 @@ struct AuthView: View {
                 header("First, what's your number?",
                        "So friends from your contacts can find you. It's never shown on your profile.")
                 phoneField
-                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
+                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone, dial: country.dial) {
                     Text("That doesn't look like a valid number — check for typos.")
                         .font(.caption).foregroundStyle(Theme.scoreRed)
                         .multilineTextAlignment(.center)
@@ -105,7 +111,8 @@ struct AuthView: View {
                     .font(.caption2).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
                 messages
-                primaryButton("Continue", loading: isWorking, disabled: !PhoneNumber.isValid(phone)) {
+                primaryButton("Continue", loading: isWorking,
+                              disabled: !PhoneNumber.isValid(phone, dial: country.dial)) {
                     Task { await continueFromPhone() }
                 }
                 Button("Have an account? Sign in") { switchMode(toSignUp: false) }
@@ -133,21 +140,51 @@ struct AuthView: View {
     }
 
     private var phoneField: some View {
-        HStack(spacing: 6) {
-            Text("+1").foregroundStyle(Theme.gray)
+        HStack(spacing: 8) {
+            // Country code picker — Beli lets you change it for non-US numbers.
+            Menu {
+                ForEach(CountryCode.common) { c in
+                    Button("\(c.flag)  \(c.name)  \(c.dial)") {
+                        country = c
+                        reformatPhone()
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(country.flag)
+                    Text(country.dial).foregroundStyle(Theme.ink)
+                    Image(systemName: "chevron.down").font(.caption2).foregroundStyle(Theme.gray)
+                }
+            }
+            Divider().frame(height: 22)
             TextField("Phone number", text: $phone)
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
                 .focused($focused)
                 .onChange(of: phone) { _, new in
-                    let formatted = PhoneNumber.formattedLive(new)
-                    if formatted != phone { phone = formatted }
+                    reformatPhone(new)
                     errorMessage = nil
                 }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
     }
+
+    /// US gets the "(555) 123-4567" formatting; other countries just keep the
+    /// digits (no reliable single format), capped at a sane length.
+    private func reformatPhone(_ new: String? = nil) {
+        let raw = new ?? phone
+        if country.dial == "+1" {
+            let f = PhoneNumber.formattedLive(raw)
+            if f != phone { phone = f }
+        } else {
+            let d = String(PhoneNumber.digits(raw).prefix(14))
+            if d != phone { phone = d }
+        }
+    }
+
+    /// Full E.164-ish number (country code + digits) sent to the server.
+    private var e164Phone: String { country.dial + PhoneNumber.digits(phone) }
 
     private var passwordRules: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -265,7 +302,9 @@ struct AuthView: View {
             if id.contains("@") {
                 try await SupabaseService.shared.signIn(email: id, password: password)
             } else {
-                guard PhoneNumber.isValid(id) else {
+                // Phone login matches on the last 10 digits server-side, so any
+                // plausible number works — non-US users include their "+" code.
+                guard PhoneNumber.digits(id).count >= 7 else {
                     errorMessage = "Enter a valid email or phone number."
                     return
                 }
@@ -282,7 +321,7 @@ struct AuthView: View {
         errorMessage = nil
         isWorking = true
         defer { isWorking = false }
-        if await SupabaseService.shared.phoneAvailable(phone) {
+        if await SupabaseService.shared.phoneAvailable(e164Phone) {
             focused = false
             withAnimation { signupStep = 1 }
         } else {
@@ -303,7 +342,7 @@ struct AuthView: View {
             // auth state flips and onboarding takes over automatically. Save the
             // number we collected up front (phone-first signup); if it's already
             // on Cini, they can change it later in Settings.
-            let saved = await SupabaseService.shared.setPhone(phone)
+            let saved = await SupabaseService.shared.setPhone(e164Phone)
             if !saved {
                 ToastCenter.shared.show("That number's already on Cini — you can update it in Settings.")
             }
