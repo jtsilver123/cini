@@ -176,8 +176,13 @@ struct OnboardingView: View {
         .alert("Who invited you?", isPresented: $showInviterEntry) {
             TextField("their @username", text: $inviterUsername)
                 .textInputAutocapitalization(.never)
-            Button("Save") {}
-            Button("Cancel", role: .cancel) {}
+            // Keep the handle (normalized) — it's redeemed when onboarding finishes.
+            Button("Save") {
+                inviterUsername = inviterUsername
+                    .trimmingCharacters(in: .whitespaces)
+                    .replacingOccurrences(of: "@", with: "")
+            }
+            Button("Cancel", role: .cancel) { inviterUsername = "" }
         } message: {
             Text("Enter their username and you'll follow each other automatically once you finish.")
         }
@@ -377,8 +382,13 @@ struct OnboardingView: View {
                               display_name: displayName.isEmpty ? nil : displayName))
             // Invited by a friend (typed, or carried in from their link):
             // follow each other automatically.
+            // Strip a leading "@" — the field prompts "their @username", so many
+            // people type it, and the server matches the bare handle.
             let typed = inviterUsername.trimmingCharacters(in: .whitespaces)
-            let inviter = (typed.isEmpty ? pendingInviter : typed).trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: "@", with: "")
+            let inviter = (typed.isEmpty ? pendingInviter : typed)
+                .trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: "@", with: "")
             if !inviter.isEmpty {
                 let followed = await SupabaseService.shared.redeemInvite(from: inviter)
                 pendingInviter = ""

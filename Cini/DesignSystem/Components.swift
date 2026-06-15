@@ -576,13 +576,15 @@ struct SaveToListSheet: View {
                         guard !name.isEmpty else { return }
                         let saved = effectiveMovie
                         Task {
-                            if let list = try? await SupabaseService.shared.createList(
-                                name: name, mediaKind: saved.mediaKind) {
+                            do {
+                                let list = try await SupabaseService.shared.createList(
+                                    name: name, mediaKind: saved.mediaKind)
                                 try? await SupabaseService.shared.cacheMovie(saved)
-                                try? await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                // Surface a real add failure — don't claim success.
+                                try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
                                 await store.refreshCustomLists()
                                 ToastCenter.shared.show("Added to \(list.name)")
-                            } else {
+                            } catch {
                                 ToastCenter.shared.saveFailed()
                             }
                         }
@@ -731,11 +733,13 @@ struct MemberRow<Accessory: View>: View {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(subtitleColor)
+                    .lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 8)
             accessory
         }
         .padding(.vertical, 8)

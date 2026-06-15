@@ -4,12 +4,52 @@
 > manual (golden rules, repo map, workflow, build policy). `docs/DESIGN.md`
 > is the design system. This file is the running status log + build history.
 
-**STATUS (2026-06-14): on TestFlight, iterating on UX polish.** Migrations
-through **0044** applied to prod and mirrored in `supabase/migrations/`
-(latest: `0044_security_hardening.sql`). Edge functions deployed +
-mirrored: `send-push`, `import-upload`, `availability-alerts`,
-`showtime-alerts`. A user-requested build was triggered 2026-06-14 off
-`claude/ecstatic-cori-k7s2n0` (CI green on the head commit).
+**STATUS (2026-06-15): live on the App Store, iterating on UX polish.**
+Migrations through **0060** applied to prod and mirrored in
+`supabase/migrations/` (latest: `0060_phone_available.sql`). Edge functions
+deployed + mirrored: `send-push`, `import-upload`, `availability-alerts`,
+`showtime-alerts`, `phone-login`. The marketing site + prototype now live on
+the custom apex domain **trycini.com** (CNAME in repo root, shipped in the
+Pages artifact); App Store Connect URLs + trycini.com DNS are user-side steps.
+A user-requested build was last triggered off `claude/ecstatic-cori-k7s2n0`
+(CI green on the head commit).
+
+**Recent work (2026-06-15 session):**
+- **Domain → trycini.com.** Every in-app/on-site link (invite `/i/`, import
+  `/import/`, legal pages, share-card site line) repointed to the apex domain;
+  `CNAME` added and copied into `_site/` by `pages.yml`. Marketing site's
+  closing CTA changed from "request beta access" to App Store download.
+- **Phone-first signup hardened.** Phone step now catches an already-registered
+  number *before* email/password via `phone_available` RPC (migration 0060,
+  callable by `anon`); friendly "already on Cini — sign in" message.
+- **Onboarding fixes.** "You're in!" Beli-style welcome step (auto-followed
+  founder); the "Invited by someone else?" alert's **Save** button now actually
+  normalizes/keeps the handle (was a no-op), **Cancel** discards, and the
+  inviter handle is `@`-stripped before `redeem_invite_from` (silent no-match
+  bug). Per-account onboarding gating via `cini.onboardedUserIDs`.
+- **Welcome carousel** (`WelcomeView`): three slides now show in-app mockups
+  (compare / ranked list / friends) instead of lone icons; custom page dots
+  from adaptive `Theme` tokens (the default UIPageControl dots washed out in
+  light mode).
+- **Invite/unlock flow:** the feed's `FeedUnlockCard` feature circles each open
+  a `FeatureDetailSheet` explainer (and unlock when a credit is ready); the
+  button opens `InviteSheet(autoFindContacts: true)` with contacts pre-loaded —
+  the separate "Unlock Features" screen is gone from that path.
+- **Follow + approve** (private accounts, migration 0057): `request_follow` /
+  `respond_follow_request` / `incoming_follow_requests`; followers and
+  following can differ. **Founder auto-follow** on signup (0056). **New
+  notifications** (0058–0059): saved-from-your-taste, weekly streak push, and a
+  hashed/opt-in/removable **contact_joined** ("X just joined") that names the
+  joiner. `send-push` (v12) has copy for every new kind.
+- **Settings rebuilt** Beli-style two-level (`AccountSettingsView` →
+  Your account / Notifications / Privacy / Your app / Help); notification prefs
+  sectioned. Private-account toggle + "Remove synced contacts" in Privacy.
+- **App Store audit pass (this session):** fixed the dead onboarding Save
+  button + inviter `@` normalization; "Create & add" list quick-action no longer
+  shows a false success toast when the add fails; added `lineLimit(1)` to member
+  rows / rec-friend rows / profile display name. Account deletion, legal/support
+  links (all trycini.com), Info.plist usage strings, and Sign-in-with-Apple
+  (not required — email/phone auth) all verified compliant.
 
 **Recent UX/data work (2026-06-14 session):**
 - **Avatar fix + crop.** Root cause of "profile photo won't update" was a

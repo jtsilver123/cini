@@ -72,6 +72,9 @@ Rule of thumb: **Limelight = signage, DM Serif = titles, SF = everything else.**
 - **`HairlineCard`** — a bordered card for list-style content (hairline stroke,
   no heavy shadow).
 - Borders are always `Theme.hairline`; shadows always `Theme.cardShadow`.
+- **Corner-radius scale** (`Theme.rControl` 12 / `rCard` 16 / `rHero` 22) — one
+  set instead of ad-hoc 10/14/18 sprinkled around: fields & chips use `rControl`,
+  cards & rows use `rCard`, sheets & floating hero cards use `rHero`.
 - Loading never shows blank: **`SkeletonPulse` / `FeedSkeleton`** show the
   *shape* of what's coming.
 

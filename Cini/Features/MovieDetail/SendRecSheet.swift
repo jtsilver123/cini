@@ -142,7 +142,9 @@ struct SendRecSheet: View {
                     Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
                     Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                        .lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: selected?.id == friend.id ? "checkmark.circle.fill" : "circle")

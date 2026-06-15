@@ -200,6 +200,7 @@ struct ProfileScreen: View {
         HStack {
             Text(profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? "Profile")
                 .font(.title2.weight(.bold))
+                .lineLimit(1)
             Spacer()
             HStack(spacing: 18) {
                 ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {

@@ -48,6 +48,36 @@ follower of a private account. Private notes are owner-only regardless.
 Taste matches are written by the nightly job (service role) and readable
 only by their endpoints.
 
+## Auth & social graph
+
+**Auth** is email **or** phone + password (no third-party/social login, so
+Sign in with Apple isn't required). Phone is collected first at signup
+(Beli-style) and is a login key: `user_phones` has a unique index on
+`phone_key` (normalized). Login-by-phone resolves the number → user id via the
+`phone-login` edge function (service-role; never exposed to clients, so no
+email leak). Signup checks `phone_available(p_phone)` (SECURITY DEFINER,
+granted to `anon`, returns a bare boolean) so a duplicate number is caught on
+the phone step before the account is created; `set_phone` still enforces
+uniqueness at save time.
+
+**Follow + approve.** Public accounts follow instantly; private accounts use
+`request_follow` → a pending row → `respond_follow_request` (approve/decline) →
+`incoming_follow_requests` powers the requests inbox. Followers and following
+are independent (asymmetric, like Beli/Twitter). Every new account
+auto-follows the **founder** on signup (`follow_founder_on_signup`, migration
+0056 — Beli's "Judy" pattern) so the feed has picks from day one;
+`notify_on_follow` skips the founder so it isn't spammed.
+
+**contact_joined.** Find-friends stores contacts as **one-way SHA-256 hashes**
+only (`contact_phone_hashes`, via `store_contacts`; raw numbers/names never
+stored, wipeable via `forget_contacts`). When someone later joins and verifies
+that number, `notify_contact_joined` pings the people who had them — naming the
+joiner. Opt-in (tied to the Find Friends action) and disclosed in the privacy
+policy + `NSContactsUsageDescription`.
+
+All of the above flow through the `notifications` table, so the BEFORE-INSERT
+mute filter and AFTER-INSERT push trigger (`send-push` → APNs) apply uniformly.
+
 ## Taste match
 
 Spearman rank correlation over commonly-ranked titles (PG's `corr` over
