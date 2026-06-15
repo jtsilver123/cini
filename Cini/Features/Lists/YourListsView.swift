@@ -27,6 +27,7 @@ struct YourListsView: View {
     @State private var showListSearch = false
     @State private var listQuery = ""
     @State private var reorderMode = false
+    @State private var pendingDeleteRating: Movie?
     @State private var showAllPending = false
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
@@ -768,7 +769,10 @@ struct YourListsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture { if !reorderMode { detailMovie = movie } }
                         .listRowBackground(Theme.background)
-                        .swipeActions(edge: .trailing) {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                pendingDeleteRating = movie
+                            } label: { Label("Delete", systemImage: "trash") }
                             Button {
                                 Haptics.tap()
                                 logMovie = movie
@@ -783,6 +787,22 @@ struct YourListsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
+        .confirmationDialog("Delete this rating?",
+                            isPresented: Binding(get: { pendingDeleteRating != nil },
+                                                 set: { if !$0 { pendingDeleteRating = nil } }),
+                            presenting: pendingDeleteRating) { movie in
+            Button("Delete rating", role: .destructive) {
+                Task {
+                    if await store.removeRanking(movieID: movie.tmdbID) == false {
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+                pendingDeleteRating = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDeleteRating = nil }
+        } message: { movie in
+            Text("“\(movie.title)” will be removed from your ranking. This can't be undone.")
+        }
         .overlay {
             if store.watchedItems.isEmpty && pendingEntries.isEmpty {
                 emptyList("Rank your first movie or show and your list starts here.",
