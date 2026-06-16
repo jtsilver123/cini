@@ -279,10 +279,16 @@ struct CustomListScreen: View {
             let year = movie.releaseYear.map { " (\($0))" } ?? ""
             lines.append("\(index + 1). \(movie.title)\(year)")
         }
-        // The list link opens this exact list in the app (App Store otherwise).
         lines.append("")
-        lines.append((whole ? "Open it in Cini: " : "See the full list in Cini: ")
-                     + AppLinks.listLink(list.id))
+        // A private list can't be opened by others (RLS), so don't hand out a
+        // dead link — share the titles + the App Store. Public lists get a link
+        // that opens this exact list in the app.
+        if list.isPrivate {
+            lines.append(AppLinks.appStore)
+        } else {
+            lines.append((whole ? "Open it in Cini: " : "See the full list in Cini: ")
+                         + AppLinks.listLink(list.id))
+        }
         return lines.joined(separator: "\n")
     }
 
