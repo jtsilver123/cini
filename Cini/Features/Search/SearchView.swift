@@ -156,16 +156,26 @@ struct SearchView: View {
         guard query.isEmpty, browse == nil,
               tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch else { return }
         Task { @MainActor in
-            // Clear any focus the field quietly kept from a prior visit so the
-            // off→on transition reliably raises the keyboard.
-            searchFocused = false
-            // Re-assert across a few delays: focusing before the field is in the
-            // window is a no-op, and the tab-transition time varies by device —
-            // a single attempt was flaky (took two taps, or failed entirely).
-            for ms in [300, 220, 220] {
-                try? await Task.sleep(for: .milliseconds(ms))
+            // The tab-switch transition has to finish before the field can
+            // become first responder, and how long that takes varies by device.
+            // Make a few attempts — but crucially toggle OFF→ON each time so
+            // every attempt is a real focus *edge*. Re-setting an already-true
+            // @FocusState is a no-op, so a keyboard the transition dropped never
+            // gets re-raised (that's why switching INTO Search failed while a
+            // retap, where the view is already settled, worked).
+            for attempt in 0..<4 {
+                try? await Task.sleep(for: .milliseconds(attempt == 0 ? 350 : 250))
+                guard tabRouter.selection == .search, query.isEmpty,
+                      browse == nil, !tabRouter.openMembersSearch else { return }
+                searchFocused = false
+                try? await Task.sleep(for: .milliseconds(20))
                 guard tabRouter.selection == .search, query.isEmpty else { return }
                 searchFocused = true
+                // Let the responder settle; if focus stuck, we're done. If the
+                // transition rejected it (binding syncs back to false), loop and
+                // drive a fresh edge.
+                try? await Task.sleep(for: .milliseconds(140))
+                if searchFocused { return }
             }
         }
     }
