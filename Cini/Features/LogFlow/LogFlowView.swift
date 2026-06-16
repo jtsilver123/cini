@@ -623,8 +623,10 @@ struct LogFlowView: View {
         let count = store.watchedCount
         let newStreak = appSession.profile?.streakWeeks ?? 0
         let celebration: Celebration?
+        var isRankMilestone = false
         if CelebrationCenter.rankMilestones.contains(count) {
             celebration = .rankMilestone(count)
+            isRankMilestone = true
         } else if newStreak >= 2 && newStreak > priorStreak {
             celebration = .streak(newStreak)
         } else {
@@ -634,6 +636,12 @@ struct LogFlowView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(700))
             CelebrationCenter.shared.fire(celebration)
+            // A ranked-count milestone is peak delight — once the confetti has
+            // played, ask for an App Store review (gated so it stays rare).
+            if isRankMilestone {
+                try? await Task.sleep(for: .milliseconds(1900))
+                ReviewPrompt.askAfterDelight()
+            }
         }
     }
 
