@@ -6,7 +6,7 @@ renders a clean app mockup behind a polished gold-rimmed frame with a clearly
 iOS status bar (9:41, Dynamic Island on iPhone, Wi-Fi + battery) — addressing
 App Review's note about non-iOS status bars. Posters are real (TMDB)."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import os, json, urllib.request, urllib.parse
+import os, json, urllib.request, urllib.parse, math
 
 # Device + canvas are set per pass in render_all(); these are defaults.
 W, H = 1284, 2778
@@ -177,22 +177,19 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
     for j,ln in enumerate(wrap(d, title, sb(26), w-24)):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
-INK_RGB = (245, 238, 223, 255)
-def _wifi(cx, cy, R3):
-    """The iOS Wi-Fi glyph: a SOLID filled fan — a small apex wedge plus two
-    filled arc bands — built on an overlay (carved with transparency) and
-    composited onto the screen. `(cx, cy)` is the apex at the bottom."""
-    if SCREEN is None: return
-    pad = R3 + 6
-    lay = Image.new("RGBA", (pad*2, pad*2), (0,0,0,0))
-    ld = ImageDraw.Draw(lay); ox = oy = pad
-    a0, a1 = 221, 319                              # ±49° around straight up
-    def sect(rad, col): ld.pieslice([ox-rad, oy-rad, ox+rad, oy+rad], a0, a1, fill=col)
-    t = max(3, int(R3*0.27)); g = max(2, int(R3*0.20))
-    sect(R3, INK_RGB); sect(R3-t, (0,0,0,0))                       # outer band
-    sect(R3-t-g, INK_RGB); sect(R3-t-g-t, (0,0,0,0))              # inner band
-    sect(max(3, int(R3*0.16)), INK_RGB)                           # apex wedge
-    SCREEN.paste(lay, (int(cx-ox), int(cy-oy)), lay)
+def _wifi(d, cx, cy, h):
+    """The iOS Wi-Fi glyph exactly as Apple draws it: a small apex dot plus
+    three concentric arcs that fan upward, each stroked with ROUNDED caps.
+    `(cx, cy)` is the apex (bottom center); `h` is the glyph height."""
+    a0, a1 = 217, 323                                  # ±53° around straight up (270)
+    w = max(3, round(h*0.15))                          # arc stroke thickness
+    for r in (round(h*0.34), round(h*0.65), round(h*0.96)):
+        d.arc([cx-r, cy-r, cx+r, cy+r], a0, a1, fill=INK, width=w)
+        for ang in (a0, a1):                           # round the arc ends with end-caps
+            ex = cx + r*math.cos(math.radians(ang)); ey = cy + r*math.sin(math.radians(ang))
+            d.ellipse([ex-w/2, ey-w/2, ex+w/2, ey+w/2], fill=INK)
+    dr = max(2, round(h*0.085))                        # apex dot
+    d.ellipse([cx-dr, cy-dr, cx+dr, cy+dr], fill=INK)
 
 def status_bar(d, pw):
     """A pixel-accurate iOS status bar at real iPhone 15 Pro @3x proportions
@@ -218,8 +215,8 @@ def status_bar(d, pw):
         pf = stf(R(40)); pt="100%"; tw=d.textlength(pt,font=pf); a2,de2=pf.getmetrics()
         d.text((bx0-R(16)-tw, mid-(a2+de2)//2+R(2)), pt, font=pf, fill=INK); left = bx0-R(16)-tw
     # Wi-Fi (filled fan), left of the battery/percentage
-    gap=R(28); R3=R(34); half=int(R3*0.75)
-    wx = left - gap - half; _wifi(wx, bot, R3)
+    gap=R(28); R3=R(34); half=int(R3*0.78)
+    wx = left - gap - half; _wifi(d, wx, bot, R3)
     if ISLAND:                                     # cellular — 4 ascending bars
         bar_w=R(8); step=R(13); cw=step*3+bar_w
         cx = (wx-half) - gap - cw
