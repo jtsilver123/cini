@@ -97,6 +97,7 @@ struct SearchView: View {
                 }
                 .scrollDismissesKeyboard(.immediately)
             }
+            .nativeContentWidth()
             .background(Theme.background)
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)

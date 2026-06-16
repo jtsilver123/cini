@@ -75,6 +75,7 @@ struct CustomListsScreen: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         // A whole list is hours of curation — deleting one confirms.
         .alert(
@@ -185,6 +186,7 @@ struct CustomListScreen: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle(list.name)
         .navigationBarTitleDisplayMode(.inline)

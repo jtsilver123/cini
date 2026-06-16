@@ -78,6 +78,7 @@ struct NotificationPreferencesView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)

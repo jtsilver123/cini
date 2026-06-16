@@ -106,6 +106,7 @@ struct MovieDetailView: View {
             }
             .padding(.bottom, 32)
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .ignoresSafeArea(edges: .top)
         .toolbar {

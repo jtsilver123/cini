@@ -40,6 +40,24 @@ extension View {
     }
 }
 
+// MARK: - iPad native width
+
+extension View {
+    /// Makes an iPhone-shaped layout feel native on iPad instead of stretched:
+    /// caps the content to a comfortable reading width and centres it, so rows,
+    /// switchers, headers, and text stop running edge-to-edge on the larger
+    /// canvas. A no-op on iPhone — the screen is already narrower than the cap,
+    /// so the inner frame just takes the full width and nothing moves.
+    ///
+    /// Apply this to a screen's content and keep the screen background OUTSIDE
+    /// it (i.e. add `.background(Theme.background)` AFTER this modifier) so the
+    /// gutters either side of the centred column fill on iPad.
+    func nativeContentWidth(_ maxWidth: CGFloat = 720) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
+    }
+}
+
 // MARK: - Pill buttons
 
 /// Fully-rounded pill button. Filled velvet = primary, outlined/glass =

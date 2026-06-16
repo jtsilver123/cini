@@ -101,6 +101,7 @@ struct YourListsView: View {
                 }
                 listContent
             }
+            .nativeContentWidth()
             .background(Theme.background)
             .sheet(isPresented: $showCategorySheet) {
                 CategorySheet(selection: $category)

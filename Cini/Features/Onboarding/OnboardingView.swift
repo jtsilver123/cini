@@ -98,6 +98,7 @@ struct OnboardingView: View {
                     removal: .move(edge: .leading).combined(with: .opacity)))
         }
         .animation(.snappy, value: step)
+        .nativeContentWidth()
         .background(Theme.background)
         // Full-screen cover sits above RootTabView's overlay, so onboarding
         // mounts its own toast surface.

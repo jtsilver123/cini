@@ -115,6 +115,9 @@ struct LogFlowView: View {
                     .padding(.horizontal, 14)
                     .padding(.top, 10)
                     .padding(.bottom, 40)
+                    // Keep the rank cards card-shaped and centred on iPad
+                    // instead of stretching across the full screen.
+                    .nativeContentWidth(560)
                 }
                 .onChange(of: phase) { _, newPhase in
                     withAnimation(.snappy) {

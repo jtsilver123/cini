@@ -69,6 +69,7 @@ struct FollowListScreen: View {
             }
             .padding(16)
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)

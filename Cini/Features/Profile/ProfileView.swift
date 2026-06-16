@@ -89,6 +89,7 @@ struct ProfileScreen: View {
             }
             .refreshable { await load() }
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .sheet(isPresented: $showAskRec) {
             RequestRecsSheet(recipientID: resolvedID,
@@ -1269,6 +1270,7 @@ struct RankedListScreen: View {
             .padding(16)
         }
         .scrollDismissesKeyboard(.immediately)
+        .nativeContentWidth()
         .background(Theme.background)
         .onAppear {
             // Open on the kind that actually has titles (e.g. a TV-only list
@@ -1368,6 +1370,7 @@ struct WatchlistScreen: View {
             }
             .padding(16)
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .task {
             if !isSelf, let userID {
@@ -1434,6 +1437,7 @@ struct BothWantToWatchScreen: View {
             }
             .padding(16)
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("You Both Want to Watch")
         .navigationBarTitleDisplayMode(.inline)
@@ -1505,6 +1509,7 @@ struct WatchingListScreen: View {
             }
         }
         .listStyle(.plain)
+        .nativeContentWidth()
         .background(Theme.background)
     }
 
@@ -1582,6 +1587,7 @@ struct MemberListsView: View {
                                    openDetail: { detailMovie = $0 })
             }
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)

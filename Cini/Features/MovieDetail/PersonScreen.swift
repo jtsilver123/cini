@@ -67,6 +67,7 @@ struct PersonScreen: View {
             }
             .padding(16)
         }
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle(member.name)
         .navigationBarTitleDisplayMode(.inline)

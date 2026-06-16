@@ -48,6 +48,7 @@ struct LeaderboardView: View {
                 }
                 .refreshable { await load() }
             }
+            .nativeContentWidth()
             .background(Theme.background)
             .task { await load() }
             .sheet(isPresented: $showInvite) {

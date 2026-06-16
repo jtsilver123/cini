@@ -49,6 +49,8 @@ struct AuthView: View {
                     .padding(.horizontal, 28)
                     .padding(.top, 60)
                     .padding(.bottom, 28)
+                    // Keep the auth form a comfortable column on iPad.
+                    .nativeContentWidth(480)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollDismissesKeyboard(.interactively)

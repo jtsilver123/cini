@@ -56,6 +56,7 @@ struct FeedView: View {
                     }
                 }
             }
+            .nativeContentWidth()
             .background(Theme.background)
             .task { await loadFeed() }
             .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
@@ -1145,6 +1146,7 @@ struct ReleaseCalendarView: View {
             .listRowBackground(Theme.background)
         }
         .listStyle(.plain)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Release Calendar")
         .navigationBarTitleDisplayMode(.inline)

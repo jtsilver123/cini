@@ -27,6 +27,7 @@ struct AccountSettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
@@ -100,6 +101,7 @@ private struct ManageAccountScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Manage account")
         .navigationBarTitleDisplayMode(.inline)
@@ -203,6 +205,7 @@ private struct PrivacyScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
@@ -244,6 +247,7 @@ private struct AppPreferencesScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Your app")
         .navigationBarTitleDisplayMode(.inline)
@@ -313,6 +317,7 @@ private struct HelpScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Help")
         .navigationBarTitleDisplayMode(.inline)
@@ -358,6 +363,7 @@ private struct ChangeEmailScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Change email")
         .navigationBarTitleDisplayMode(.inline)
@@ -420,6 +426,7 @@ private struct ChangePhoneScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Phone number")
         .navigationBarTitleDisplayMode(.inline)
@@ -483,6 +490,7 @@ private struct ChangePasswordScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Change password")
         .navigationBarTitleDisplayMode(.inline)
@@ -558,6 +566,7 @@ private struct TheaterAlertsScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .nativeContentWidth()
         .background(Theme.background)
         .navigationTitle("Theater alerts")
         .navigationBarTitleDisplayMode(.inline)
