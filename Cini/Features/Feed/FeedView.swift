@@ -84,6 +84,13 @@ struct FeedView: View {
                                 movieID: r.showId,
                                 friend: MemberRef(id: r.userId, username: r.username))
                         }
+                    },
+                    onOpenProfile: { r in
+                        // Sheet dismisses itself first; push the profile after.
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            memberTarget = MemberRef(id: r.userId, username: r.username)
+                        }
                     }
                 )
             }

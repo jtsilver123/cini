@@ -1193,13 +1193,21 @@ struct MovieDetailView: View {
             List {
                 ForEach(watchlistFriends) { friend in
                     HStack(spacing: 12) {
-                        AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
-                                   name: preferredName(friend.displayName, friend.username))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                            Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                        Button {
+                            openMember(friend.userId, friend.username, from: $showWantSheet)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
+                                           name: preferredName(friend.displayName, friend.username))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         Spacer()
                         let state = planButtonState(for: friend.userId)
                         Button {
@@ -1231,15 +1239,23 @@ struct MovieDetailView: View {
             List {
                 ForEach(watchingFriends) { friend in
                     HStack(spacing: 12) {
-                        AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
-                                   name: preferredName(friend.displayName, friend.username))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                            Text(friend.caughtUp ? "All caught up"
-                                 : (episodeLabel(season: friend.season, episode: friend.episode) ?? "Watching now"))
-                                .font(.caption).foregroundStyle(friend.caughtUp ? Theme.scoreGreen : Theme.gray)
+                        Button {
+                            openMember(friend.userId, friend.username, from: $showWatchingSheet)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
+                                           name: preferredName(friend.displayName, friend.username))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    Text(friend.caughtUp ? "All caught up"
+                                         : (episodeLabel(season: friend.season, episode: friend.episode) ?? "Watching now"))
+                                        .font(.caption).foregroundStyle(friend.caughtUp ? Theme.scoreGreen : Theme.gray)
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         Spacer()
                         let state = planButtonState(for: friend.userId)
                         Button {
@@ -1271,6 +1287,16 @@ struct MovieDetailView: View {
             try? await Task.sleep(for: .milliseconds(350))
             planContext = WatchPlanContext(movieID: movie.tmdbID,
                                            friend: MemberRef(id: friendID, username: username))
+        }
+    }
+
+    /// Dismiss the list popup, then push that friend's profile.
+    private func openMember(_ id: UUID, _ username: String, from flag: Binding<Bool>) {
+        Haptics.tap()
+        flag.wrappedValue = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            memberTarget = MemberRef(id: id, username: username)
         }
     }
 

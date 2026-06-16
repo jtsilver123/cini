@@ -74,6 +74,7 @@ struct WatchingStorySheet: View {
     let row: FriendWatchingRow
     var onOpenShow: (Int) -> Void = { _ in }
     var onPlanTogether: (FriendWatchingRow) -> Void = { _ in }
+    var onOpenProfile: (FriendWatchingRow) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
 
@@ -87,11 +88,17 @@ struct WatchingStorySheet: View {
                     .overlay(Color.black.opacity(0.35))
                 LinearGradient(colors: [.clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
                 VStack(spacing: 10) {
-                    AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 72,
-                               name: preferredName(row.displayName, row.username))
-                        .overlay(Circle().strokeBorder(ringStyle, lineWidth: 3).padding(-4))
-                    Text("@\(row.username) is watching")
-                        .font(.subheadline).foregroundStyle(.white.opacity(0.9))
+                    Button { dismiss(); onOpenProfile(row) } label: {
+                        AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 72,
+                                   name: preferredName(row.displayName, row.username))
+                            .overlay(Circle().strokeBorder(ringStyle, lineWidth: 3).padding(-4))
+                    }
+                    .buttonStyle(.plain)
+                    Button { dismiss(); onOpenProfile(row) } label: {
+                        Text("@\(row.username) is watching")
+                            .font(.subheadline).foregroundStyle(.white.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
                     Text(row.title)
                         .font(Theme.serif(26)).foregroundStyle(.white)
                         .multilineTextAlignment(.center).lineLimit(2)
