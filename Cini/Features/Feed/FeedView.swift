@@ -29,6 +29,7 @@ struct FeedView: View {
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
+    @State private var watchingStory: FriendWatchingRow?
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
 
     var body: some View {
@@ -69,6 +70,17 @@ struct FeedView: View {
             .sheet(item: $watchPlanContext) { ctx in
                 PlanWatchSheet(context: ctx)
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(item: $watchingStory) { row in
+                WatchingStorySheet(
+                    row: row,
+                    onOpenShow: { openShow($0) },
+                    onPlanTogether: { r in
+                        watchPlanContext = WatchPlanContext(
+                            movieID: r.showId,
+                            friend: MemberRef(id: r.userId, username: r.username))
+                    }
+                )
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -330,7 +342,7 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: 16) {
             // What friends are binging right now — story circles at the top.
             if !hideWatchingStories {
-                FriendsWatchingShelf(rows: friendsWatchingRows, onOpen: { openShow($0) })
+                FriendsWatchingShelf(rows: friendsWatchingRows, onTap: { watchingStory = $0 })
                     .padding(.top, 6)
             }
 

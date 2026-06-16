@@ -16,14 +16,14 @@ func episodeLabel(season: Int?, episode: Int?) -> String? {
 /// the feed. A gold ring means mid-binge; a green ring + check means caught up.
 struct FriendsWatchingShelf: View {
     let rows: [FriendWatchingRow]
-    var onOpen: (Int) -> Void          // show_id
+    var onTap: (FriendWatchingRow) -> Void
 
     var body: some View {
         if !rows.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(rows) { row in
-                        Button { onOpen(row.showId) } label: { story(row) }
+                        Button { onTap(row) } label: { story(row) }
                             .buttonStyle(.plain)
                     }
                 }
@@ -62,6 +62,84 @@ struct FriendsWatchingShelf: View {
                 .frame(width: 74)
         }
         .frame(width: 74)
+    }
+}
+
+/// The "story" that opens when you tap a watching circle — the friend, the
+/// show, how far they are, when they started, and what to do next.
+struct WatchingStorySheet: View {
+    let row: FriendWatchingRow
+    var onOpenShow: (Int) -> Void = { _ in }
+    var onPlanTogether: (FriendWatchingRow) -> Void = { _ in }
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottom) {
+                CachedAsyncImage(url: posterURL) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: { Theme.surface }
+                    .frame(height: 260).frame(maxWidth: .infinity).clipped()
+                    .overlay(Color.black.opacity(0.35))
+                LinearGradient(colors: [.clear, .black.opacity(0.9)], startPoint: .top, endPoint: .bottom)
+                VStack(spacing: 10) {
+                    AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 72,
+                               name: preferredName(row.displayName, row.username))
+                        .overlay(Circle().strokeBorder(ringStyle, lineWidth: 3).padding(-4))
+                    Text("@\(row.username) is watching")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.9))
+                    Text(row.title)
+                        .font(Theme.serif(26)).foregroundStyle(.white)
+                        .multilineTextAlignment(.center).lineLimit(2)
+                }
+                .padding(.bottom, 18).padding(.horizontal, 24)
+            }
+            .frame(height: 260)
+
+            VStack(spacing: 14) {
+                // Where they are.
+                HStack(spacing: 8) {
+                    if row.caughtUp {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                        Text("All caught up").font(.headline).foregroundStyle(Theme.ink)
+                    } else if let label = episodeLabel(season: row.season, episode: row.episode) {
+                        Image(systemName: "play.tv.fill").foregroundStyle(Theme.marquee)
+                        Text(label).font(.headline).foregroundStyle(Theme.ink)
+                    } else {
+                        Image(systemName: "play.tv.fill").foregroundStyle(Theme.marquee)
+                        Text("Watching now").font(.headline).foregroundStyle(Theme.ink)
+                    }
+                }
+                if let started = row.startedAt {
+                    Label("Started \(started.formatted(.relative(presentation: .named)))",
+                          systemImage: "calendar")
+                        .font(.subheadline).foregroundStyle(Theme.gray)
+                }
+                HStack(spacing: 10) {
+                    PillButton(title: "View show") { dismiss(); onOpenShow(row.showId) }
+                    PillButton(title: "Watch together", style: .outlined) { dismiss(); onPlanTogether(row) }
+                }
+                .padding(.top, 4)
+            }
+            .padding(20)
+            Spacer(minLength: 0)
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private var ringStyle: AnyShapeStyle {
+        row.caughtUp
+            ? AnyShapeStyle(Theme.scoreGreen)
+            : AnyShapeStyle(LinearGradient(colors: [Theme.marquee, Theme.velvet],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    private var posterURL: URL? {
+        guard let path = row.posterPath, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
     }
 }
 

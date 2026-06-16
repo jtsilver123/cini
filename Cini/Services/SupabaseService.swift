@@ -1999,6 +1999,7 @@ struct FriendWatchingRow: Codable, Identifiable, Hashable {
     let season: Int?
     let episode: Int?
     var caughtUp: Bool = false
+    var startedAt: Date?
     let updatedAt: Date
 
     var id: String { "\(userId.uuidString)-\(showId)" }
@@ -2011,6 +2012,7 @@ struct FriendWatchingRow: Codable, Identifiable, Hashable {
         case showId = "show_id"
         case posterPath = "poster_path"
         case caughtUp = "caught_up"
+        case startedAt = "started_at"
         case updatedAt = "updated_at"
     }
 }
