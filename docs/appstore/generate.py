@@ -178,28 +178,42 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
 def status_bar(d, pw):
-    """A clearly-iOS status bar: 9:41 in an SF-like face, Dynamic Island +
-    cellular (iPhone only), the iOS Wi-Fi glyph (dot + radiating arcs), and the
-    iOS battery."""
-    base = 80                                              # common baseline for the glyphs
+    """A pixel-accurate iOS status bar. The iPhone screen renders at ~1180px
+    (≈ iPhone 15 Pro's 1179px @3x), so these use real device proportions: a
+    Dynamic Island, SF-like 9:41, the iOS Wi-Fi glyph (apex dot + 3 arcs), and
+    the iOS battery — all on one vertical midline. iPad is scaled down (its bar
+    is proportionally smaller) and drops the island + cellular."""
+    s = 1.0 if DEVICE == "iphone" else 0.64
+    R = lambda v: round(v * s)
+    mid = R(88)                                   # vertical center of the bar content
+    h = R(34)                                     # right-icon height
+    top, bot = mid - h//2, mid + h//2
+    # Dynamic Island (iPhone only) — 125pt × 37pt @3x.
     if ISLAND:
-        iw=300; ih=78; ix=(pw-iw)//2; iy=30
-        d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=39, fill="#000000")
-    d.text((58, 38), "9:41", font=stf(42), fill=INK)
-    if ISLAND:  # cellular signal — 4 ascending bars, phones only
+        iw=R(376); ih=R(112); ix=(pw-iw)//2; iy=mid-ih//2
+        d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=ih//2, fill="#000000")
+    # Time — SF-like, vertically centered (SF Pro 17pt → ~51px @3x).
+    tf = stf(R(52)); asc,desc = tf.getmetrics()
+    d.text((R(60), mid - (asc+desc)//2 + R(2)), "9:41", font=tf, fill=INK)
+    # iOS battery (right-most).
+    nub_w=R(7); nub_h=R(15); bw=R(70)
+    bx1 = pw - R(58) - nub_w; bx0 = bx1 - bw
+    d.rounded_rectangle([bx0, top, bx1, bot], radius=R(11), outline=INK, width=max(2,R(4)))
+    d.rounded_rectangle([bx0+R(6), top+R(6), bx1-R(8), bot-R(6)], radius=R(5), fill=INK)
+    d.rounded_rectangle([bx1, mid-nub_h//2, bx1+nub_w, mid+nub_h//2], radius=R(3), fill=INK)
+    # Wi-Fi (left of battery) — apex dot with three radiating arcs.
+    gap=R(26); r3=R(33); half=int(r3*0.82); wd=max(2,R(6))
+    wx = bx0 - gap - half; wy = bot            # apex at the bottom of the band
+    for rr in (R(12), R(22), r3):
+        d.arc([wx-rr, wy-rr, wx+rr, wy+rr], 218, 322, fill=INK, width=wd)
+    dot=R(5); d.ellipse([wx-dot,wy-dot,wx+dot,wy+dot], fill=INK)
+    # Cellular (iPhone only) — 4 ascending bars sharing the bottom line.
+    if ISLAND:
+        bar_w=R(8); step=R(13); cw=step*3+bar_w
+        cx = wx - half - gap - cw
         for i in range(4):
-            h=18+i*11; x=pw-268+i*20
-            d.rounded_rectangle([x, base-h, x+13, base], radius=3, fill=INK)
-    # Wi-Fi — the iOS glyph: an apex dot with three concentric arcs above it.
-    wx=pw-150; wy=base
-    for rr,wd in [(16,7),(29,7),(42,7)]:
-        d.arc([wx-rr, wy-rr, wx+rr, wy+rr], 214, 326, fill=INK, width=wd)
-    d.ellipse([wx-6, wy-6, wx+6, wy+6], fill=INK)
-    # iOS battery
-    bx=pw-96
-    d.rounded_rectangle([bx, base-36, bx+58, base], radius=9, outline=INK, width=3)
-    d.rounded_rectangle([bx+5, base-31, bx+44, base-5], radius=4, fill=INK)
-    d.rounded_rectangle([bx+58, base-26, bx+66, base-10], radius=3, fill=INK)
+            bh=R(11+i*7); x=cx+i*step
+            d.rounded_rectangle([x, bot-bh, x+bar_w, bot], radius=R(2), fill=INK)
 
 def chip(d, x, y, text, active=False):
     f=sa(26); w=d.textlength(text,font=f); cw=w+44; ch=58
