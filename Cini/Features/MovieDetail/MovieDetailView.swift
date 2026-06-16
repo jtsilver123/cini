@@ -1133,8 +1133,6 @@ struct MovieDetailView: View {
         return "Next episode airs \(when)"
     }
 
-    /// Friends who also want to watch this — invite one to plan a time together.
-    @ViewBuilder
     // MARK: Beli-style "friends interested" rows + popups
 
     /// Compact rows high on the page: overlapping avatars + "N friends are

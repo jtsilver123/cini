@@ -49,7 +49,7 @@ struct FeedView: View {
                             .padding(.horizontal, 16)
                             .id("feedTop")
                     }
-                    .refreshable { await loadFeed() }
+                    .refreshable { await loadFeed(); await loadTonightStack(force: true) }
                     // Tapping the Feed tab while on Feed jumps back to the top.
                     .onChange(of: tabRouter.retap[.feed]) { _, _ in
                         withAnimation(.snappy) { proxy.scrollTo("feedTop", anchor: .top) }
@@ -550,8 +550,10 @@ struct FeedView: View {
     /// Load several Tonight's Pick candidates and keep up to three that are
     /// actually streamable (with the service to show on the card). Skips picks
     /// already dismissed today.
-    private func loadTonightStack() async {
-        guard tonightCards.isEmpty,
+    private func loadTonightStack(force: Bool = false) async {
+        // Lazy on the .task path; a manual pull-to-refresh forces a rebuild so
+        // dismissing all picks isn't permanent until an app relaunch.
+        guard force || tonightCards.isEmpty,
               let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty
         else { return }
         let skip = dismissedTonightToday()
@@ -1043,9 +1045,18 @@ struct CommentsSheet: View {
 struct ReleaseCalendarView: View {
     @Environment(RankingStore.self) private var store
     @State private var upcoming: [Movie] = []
-    @State private var ticketsMovie: Movie?
     @State private var detailMovie: Movie?
-    @State private var saveMovie: Movie?
+    // One sheet slot so tickets-vs-save can't race two presentations at once.
+    private enum ActiveSheet: Identifiable {
+        case tickets(Movie), save(Movie)
+        var id: String {
+            switch self {
+            case .tickets(let m): return "t\(m.tmdbID)"
+            case .save(let m): return "s\(m.tmdbID)"
+            }
+        }
+    }
+    @State private var activeSheet: ActiveSheet?
 
     private func releaseDate(_ movie: Movie) -> Date? {
         movie.releaseDateFull.flatMap { DateFormatter.posixDay.date(from: $0) }
@@ -1075,10 +1086,10 @@ struct ReleaseCalendarView: View {
                 // bookmark lives in on every other card.
                 VStack(alignment: .trailing, spacing: 10) {
                     PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                        ticketsMovie = movie
+                        activeSheet = .tickets(movie)
                     }
                     Button {
-                        bookmarkTapped(movie: movie, store: store) { saveMovie = movie }
+                        bookmarkTapped(movie: movie, store: store) { activeSheet = .save(movie) }
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                             .font(.title3)
@@ -1099,14 +1110,16 @@ struct ReleaseCalendarView: View {
         .background(Theme.background)
         .navigationTitle("Release Calendar")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $ticketsMovie) { movie in
-            // Pre-aimed at release day so presale showtimes appear.
-            ShowtimesSheet(movie: movie, initialDate: releaseDate(movie))
-        }
-        .sheet(item: $saveMovie) { movie in
-            SaveToListSheet(movie: movie)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .tickets(let movie):
+                // Pre-aimed at release day so presale showtimes appear.
+                ShowtimesSheet(movie: movie, initialDate: releaseDate(movie))
+            case .save(let movie):
+                SaveToListSheet(movie: movie)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
