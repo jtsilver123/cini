@@ -750,14 +750,17 @@ struct CommentsSheet: View {
         NavigationStack {
             Group {
                 if !loaded {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
+                    ScrollView {
+                        ListSkeleton(rows: 6)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                    }
                 } else if comments.isEmpty {
                     Spacer()
-                    Text("No comments yet — say something nice.")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.gray)
+                    EmptyStateView(
+                        icon: "bubble.left.and.bubble.right",
+                        title: "Be the first",
+                        message: "No comments yet — say something nice.")
                     Spacer()
                 } else {
                     List(comments) { comment in

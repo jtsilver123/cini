@@ -116,6 +116,11 @@ struct RootTabView: View {
     var body: some View {
         beliTabs
         .environment(router)
+        // Movie-palace atmosphere, app-wide and barely-there: a faint film
+        // grain and a soft projector-beam vignette. Both sit beneath the
+        // banners/toasts/celebrations added below, so those stay crisp.
+        .filmGrain()
+        .vignette()
         // Ask Cini floats bottom-right on every page — but only where the
         // on-device model can exist (iOS 26+/27 on Apple Intelligence
         // hardware). Older OSes and never-eligible devices shouldn't see
@@ -162,6 +167,9 @@ struct RootTabView: View {
         .animation(.snappy, value: network.isOnline)
         // Write failures and confirmations surface here, app-wide.
         .overlay { ToastOverlay() }
+        // Milestones, streaks, and other payoff moments rain confetti here —
+        // above everything, never catching a touch.
+        .overlay { CelebrationOverlay() }
         .sheet(isPresented: $showChat) {
             NavigationStack {
                 CiniChatView()
@@ -186,7 +194,11 @@ struct RootTabView: View {
         let selection = Binding<Tab>(
             get: { router.selection },
             set: { newValue in
-                if newValue == router.selection { router.tappedActiveTab(newValue) }
+                if newValue == router.selection {
+                    router.tappedActiveTab(newValue)
+                } else {
+                    Haptics.tap()   // a soft tick on every tab change
+                }
                 router.selection = newValue
             }
         )

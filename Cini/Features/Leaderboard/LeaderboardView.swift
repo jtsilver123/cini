@@ -113,24 +113,14 @@ struct LeaderboardView: View {
 
             if rows.isEmpty {
                 if !loaded {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
+                    ListSkeleton(rows: 8)
+                        .padding(.top, 8)
                 } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "trophy")
-                            .font(.title2)
-                            .foregroundStyle(Theme.gray)
-                        Text("No rankings yet — invite friends to start the race.")
-                            .font(.subheadline)
-                            .foregroundStyle(Theme.gray)
-                            .multilineTextAlignment(.center)
-                        PillButton(title: "Invite friends", systemImage: "person.badge.plus") {
-                            showInvite = true
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 24)
+                    EmptyStateView(
+                        icon: "trophy.fill",
+                        title: "Start the race",
+                        message: "No rankings yet — invite friends and see whose taste wins.",
+                        actionTitle: "Invite friends") { showInvite = true }
                 }
             }
         }

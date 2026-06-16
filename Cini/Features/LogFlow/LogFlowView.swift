@@ -52,6 +52,9 @@ struct LogFlowView: View {
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
     @State private var showDiscardConfirm = false
+    /// The streak before this rank committed — lets the reveal tell a streak
+    /// that just *advanced* from one that merely held.
+    @State private var priorStreak = 0
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -143,6 +146,9 @@ struct LogFlowView: View {
                 }
             }
         }
+        // The flow is a clear cover over the app, so milestone confetti needs
+        // its own overlay here to land over the result ticket.
+        .overlay { CelebrationOverlay() }
         .task {
             movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
         }
@@ -462,6 +468,7 @@ struct LogFlowView: View {
                 return
             }
             await persistDraft()
+            priorStreak = appSession.profile?.streakWeeks ?? 0
             await appSession.loadProfile()    // streak may have just grown
             withAnimation(.snappy) {
                 session = nil
@@ -531,6 +538,8 @@ struct LogFlowView: View {
                     if scoreRevealed {
                         ScoreBadge(score: scored.score, size: 64)
                             .overlay { ScoreRevealRing(size: 64) }
+                            // A 9+ earns the full marquee treatment.
+                            .overlay { if scored.score >= 9.0 { MarqueeBulbRing(diameter: 96) } }
                             .transition(.scale(scale: 0.4).combined(with: .opacity))
                     } else {
                         // Calculates on its own, then springs in — no tap.
@@ -603,6 +612,28 @@ struct LogFlowView: View {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) {
             scoreRevealed = true
+        }
+        celebrateIfMilestone()
+    }
+
+    /// The rank has committed, so the store's total and the reloaded streak are
+    /// current. A round-number milestone wins over a streak bump; either way we
+    /// wait a beat so the score's own ripple lands first, then the big payoff.
+    private func celebrateIfMilestone() {
+        let count = store.watchedCount
+        let newStreak = appSession.profile?.streakWeeks ?? 0
+        let celebration: Celebration?
+        if CelebrationCenter.rankMilestones.contains(count) {
+            celebration = .rankMilestone(count)
+        } else if newStreak >= 2 && newStreak > priorStreak {
+            celebration = .streak(newStreak)
+        } else {
+            celebration = nil
+        }
+        guard let celebration else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            CelebrationCenter.shared.fire(celebration)
         }
     }
 

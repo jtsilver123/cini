@@ -813,12 +813,24 @@ struct ProfileScreen: View {
     @ViewBuilder
     private var activityContent: some View {
         if events.isEmpty && loaded {
-            Text(lockedHint ?? (isSelf ? "Rank or save a movie and it shows up here."
-                                       : "No activity visible yet."))
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+            if let lockedHint {
+                Text(lockedHint)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if isSelf {
+                EmptyStateView(
+                    icon: "film.stack",
+                    title: "Your reel starts here",
+                    message: "Rank or save something and it lands on your profile.")
+            } else {
+                Text("No activity visible yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            }
         }
         ForEach(showAllActivity ? events : Array(events.prefix(12))) { event in
             let movie = event.movies?.asMovie
@@ -870,11 +882,19 @@ struct ProfileScreen: View {
     @ViewBuilder
     private var tasteContent: some View {
         if rankings.isEmpty {
-            Text(lockedHint ?? "Rank a few movies and the taste profile appears here.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+            if let lockedHint {
+                Text(lockedHint)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else {
+                EmptyStateView(
+                    icon: "chart.pie.fill",
+                    title: "Your taste, decoded",
+                    message: isSelf ? "Rank a few films and your taste profile appears here."
+                                    : "Nothing to show here yet.")
+            }
         } else {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 0) {

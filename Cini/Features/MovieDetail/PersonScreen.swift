@@ -40,9 +40,13 @@ struct PersonScreen: View {
                 Text("Known for").font(.title3.weight(.bold))
 
                 if !loaded {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                        ForEach(0..<6, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 10).fill(Theme.fill)
+                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
+                        }
+                    }
+                    .modifier(SkeletonPulse())
                 } else if filmography.isEmpty {
                     Text("No titles found.")
                         .font(.subheadline)

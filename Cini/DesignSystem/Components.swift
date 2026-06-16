@@ -360,6 +360,74 @@ struct ProfileSkeleton: View {
     }
 }
 
+/// One member/row placeholder — avatar + two text lines. The building block
+/// for any list that loads (followers, leaderboard, friend pickers), so a
+/// loading list shows its *shape* instead of a lonely spinner.
+struct RowSkeleton: View {
+    var showsLeading = true
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if showsLeading {
+                Circle().fill(Theme.fill).frame(width: 46, height: 46)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                RoundedRectangle(cornerRadius: 4).fill(Theme.fill).frame(width: 150, height: 12)
+                RoundedRectangle(cornerRadius: 4).fill(Theme.fill).frame(width: 90, height: 9)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+/// A stack of row skeletons for a loading list.
+struct ListSkeleton: View {
+    var rows = 6
+    var showsLeading = true
+
+    var body: some View {
+        VStack(spacing: 4) {
+            ForEach(0..<rows, id: \.self) { _ in RowSkeleton(showsLeading: showsLeading) }
+        }
+        .modifier(SkeletonPulse())
+    }
+}
+
+/// The one empty-state look: a gold glyph, a serif line with personality, a
+/// plain-language nudge, and an optional CTA. Wherever a screen has nothing to
+/// show, it should still feel like Cini — not a flat gray sentence.
+struct EmptyStateView: View {
+    let icon: String
+    let title: String
+    let message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 34))
+                .foregroundStyle(Theme.marquee)
+            Text(title)
+                .font(Theme.serif(22))
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+            if let actionTitle, let action {
+                PillButton(title: actionTitle, action: action)
+                    .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 28)
+    }
+}
+
 // MARK: - Category chips (Movies · TV Shows — the only two)
 
 /// The one category selector: identical capsule chips wherever a

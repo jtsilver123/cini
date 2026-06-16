@@ -305,7 +305,8 @@ struct LaunchView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
+                MarqueeBulbStrip(count: 11, bulb: 6)
                 Text("cini")
                     .font(Theme.display(64))
                     .foregroundStyle(Theme.marquee)
@@ -314,8 +315,10 @@ struct LaunchView: View {
                     .font(.caption2.weight(.bold))
                     .tracking(4)
                     .foregroundStyle(Theme.gray)
+                MarqueeBulbStrip(count: 11, bulb: 6)
             }
         }
+        .filmGrain(0.05)
         .onAppear {
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
                 glow = true

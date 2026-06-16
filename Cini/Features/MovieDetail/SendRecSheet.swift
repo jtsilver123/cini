@@ -64,9 +64,8 @@ struct SendRecSheet: View {
             Divider()
 
             if !loaded && friends.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 40)
+                ListSkeleton(rows: 5)
+                    .padding(16)
             } else if friends.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "person.2").font(.title).foregroundStyle(Theme.gray)

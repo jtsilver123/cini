@@ -31,6 +31,8 @@ struct SearchView: View {
     @State private var browseResults: [Movie] = []
     @State private var browseLoaded = false
     @FocusState private var searchFocused: Bool
+    /// Drives the poster→detail zoom push (iOS 18+); a plain push below it.
+    @Namespace private var posterZoom
 
     /// One-tap browsing for people who don't want to type.
     enum BrowseKind: String, CaseIterable {
@@ -104,6 +106,7 @@ struct SearchView: View {
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
+                    .zoomDestination(id: movie.tmdbID, in: posterZoom)
             }
             .task { await loadSuggestions() }
             // The system search tab keeps this view alive, so onAppear
@@ -317,7 +320,8 @@ struct SearchView: View {
                     MovieSuggestionRow(
                         movie: movie,
                         onRank: { logMovie = movie },
-                        onOpen: { detailMovie = movie }
+                        onOpen: { detailMovie = movie },
+                        zoomNamespace: posterZoom
                     )
                     Divider()
                 }
@@ -363,7 +367,8 @@ struct SearchView: View {
                 MovieSuggestionRow(
                     movie: movie,
                     onRank: { recordRecent(movie); logMovie = movie },
-                    onOpen: { recordRecent(movie); detailMovie = movie }
+                    onOpen: { recordRecent(movie); detailMovie = movie },
+                    zoomNamespace: posterZoom
                 )
                 Divider()
             }
@@ -594,7 +599,8 @@ struct SearchView: View {
                     movie: movie,
                     onRank: { logMovie = movie },
                     onOpen: { detailMovie = movie },
-                    onDismiss: { dismissedMaybeSeen.insert(movie.tmdbID) }
+                    onDismiss: { dismissedMaybeSeen.insert(movie.tmdbID) },
+                    zoomNamespace: posterZoom
                 )
                 Divider()
             }
@@ -751,6 +757,8 @@ struct MovieSuggestionRow: View {
     var onRank: () -> Void = {}
     var onOpen: () -> Void = {}
     var onDismiss: (() -> Void)?
+    /// When set, the poster becomes the source of a zoom push into the detail.
+    var zoomNamespace: Namespace.ID? = nil
 
     @Environment(RankingStore.self) private var store
     @State private var showSaveSheet = false
@@ -758,6 +766,7 @@ struct MovieSuggestionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             PosterView(url: movie.posterURL, width: 40)
+                .zoomSource(id: movie.tmdbID, in: zoomNamespace)
             VStack(alignment: .leading, spacing: 2) {
                 Text(movie.title).font(.subheadline.weight(.semibold))
                 Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)

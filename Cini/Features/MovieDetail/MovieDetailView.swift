@@ -456,6 +456,7 @@ struct MovieDetailView: View {
                         .lineLimit(summaryExpanded ? nil : 4)
                     if overview.count > 220 {
                         Button(summaryExpanded ? "Less" : "More") {
+                            Haptics.tap()
                             withAnimation(.snappy) { summaryExpanded.toggle() }
                         }
                         .font(.subheadline.weight(.semibold))
@@ -490,6 +491,7 @@ struct MovieDetailView: View {
         if !cast.isEmpty || extended != nil {
             VStack(alignment: .leading, spacing: 18) {
                 Button {
+                    Haptics.tap()
                     withAnimation(.snappy) { showMoreInfo.toggle() }
                 } label: {
                     HStack {
@@ -556,6 +558,7 @@ struct MovieDetailView: View {
                 }
                 if cast.count > 6 {
                     Button {
+                        Haptics.tap()
                         withAnimation(.snappy) { showAllCast.toggle() }
                     } label: {
                         HStack(spacing: 4) {
@@ -863,9 +866,8 @@ struct MovieDetailView: View {
                             .foregroundStyle(Theme.gray)
                             .padding(.vertical, 8)
                     } else {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
+                        ListSkeleton(rows: 3)
+                            .padding(.vertical, 8)
                     }
                 }
                 ForEach(publicNotes) { row in
@@ -927,6 +929,7 @@ struct MovieDetailView: View {
 
             if row.containsSpoilers == true && !revealedSpoilers.contains(row.id) {
                 Button {
+                    Haptics.tap()
                     withAnimation(.snappy) { _ = revealedSpoilers.insert(row.id) }
                 } label: {
                     HStack(spacing: 8) {

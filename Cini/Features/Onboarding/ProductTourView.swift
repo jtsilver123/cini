@@ -107,5 +107,7 @@ struct ProductTourView: View {
         Haptics.tap()
         TabRouter.shared.selection = .feed       // leave them on the feed
         onDone()
+        // They've arrived — rain a little welcome confetti over the feed.
+        CelebrationCenter.shared.fire(.onboarding)
     }
 }

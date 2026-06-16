@@ -45,9 +45,8 @@ struct FollowListScreen: View {
                 .padding(.bottom, 12)
 
                 if !loaded {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
+                    ListSkeleton(rows: 7)
+                        .padding(.top, 8)
                 }
                 if members.isEmpty && loaded {
                     VStack(spacing: 8) {
