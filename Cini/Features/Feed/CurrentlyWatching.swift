@@ -27,7 +27,10 @@ struct FriendsWatchingShelf: View {
                             .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 2).padding(.vertical, 2)
+                // Vertical room so the ring (drawn 4pt outside the avatar) and the
+                // caught-up badge aren't clipped; 16pt ends so circles sit inset at
+                // rest but scroll cleanly to the screen edges.
+                .padding(.horizontal, 16).padding(.vertical, 8)
             }
         }
     }

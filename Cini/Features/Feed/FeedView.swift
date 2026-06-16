@@ -349,6 +349,9 @@ struct FeedView: View {
             if !hideWatchingStories {
                 FriendsWatchingShelf(rows: friendsWatchingRows, onTap: { watchingStory = $0 })
                     .padding(.top, 6)
+                    // Break out of the feed's 16pt inset so the stories scroll
+                    // edge-to-edge (Instagram-style) instead of clipping at the margin.
+                    .padding(.horizontal, -16)
             }
 
             // Anything that needs you first — one banner at a time, never a stack.
