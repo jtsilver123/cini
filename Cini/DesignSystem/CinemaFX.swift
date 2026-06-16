@@ -243,9 +243,13 @@ struct CelebrationOverlay: View {
     var body: some View {
         ZStack {
             if let celebration = center.active {
+                // Confetti fills the whole screen, under the status bar.
                 ConfettiBurst()
                     .id(celebration.id)            // restart the burst per event
+                    .ignoresSafeArea()
                     .transition(.opacity)
+                // The banner stays INSIDE the safe area so it never tucks under
+                // the notch / Dynamic Island.
                 VStack {
                     banner(celebration)
                         .id(celebration.id)
@@ -256,7 +260,6 @@ struct CelebrationOverlay: View {
             }
         }
         .allowsHitTesting(false)
-        .ignoresSafeArea()
     }
 
     private func banner(_ c: Celebration) -> some View {
