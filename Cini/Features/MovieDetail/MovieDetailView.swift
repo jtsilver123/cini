@@ -1,5 +1,6 @@
 import SwiftUI
 import RankingEngine
+import UserNotifications
 
 /// Movie detail — mirrors Beli's restaurant page: backdrop hero, serif title,
 /// community score, "Rank again", tags, metadata, social proof, action pills,
@@ -51,6 +52,7 @@ struct MovieDetailView: View {
     @State private var commentsTarget: CommentsTarget?
     @State private var watchlistFriends: [WatchlistFriendRow] = []
     @State private var planContext: WatchPlanContext?
+    @State private var premiereReminderOn = false
 
     enum PeopleTab: String, CaseIterable {
         case friends = "Friends"
@@ -1035,8 +1037,57 @@ struct MovieDetailView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                 Spacer()
+                Button {
+                    Task { await togglePremiereReminder(date: date, label: nextEpisodeText(ext, date)) }
+                } label: {
+                    Label(premiereReminderOn ? "Reminder on" : "Remind me",
+                          systemImage: premiereReminderOn ? "bell.fill" : "bell")
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
+            .task(id: movie.tmdbID) { premiereReminderOn = await hasPremiereReminder() }
+        }
+    }
+
+    private func reminderID() -> String { "premiere-\(movie.tmdbID)" }
+
+    private func hasPremiereReminder() async -> Bool {
+        let pending = await UNUserNotificationCenter.current().pendingNotificationRequests()
+        return pending.contains { $0.identifier == reminderID() }
+    }
+
+    /// Schedule (or cancel) a local notification on the morning the next
+    /// episode/season airs — no server needed.
+    private func togglePremiereReminder(date: Date, label: String) async {
+        let center = UNUserNotificationCenter.current()
+        if premiereReminderOn {
+            center.removePendingNotificationRequests(withIdentifiers: [reminderID()])
+            premiereReminderOn = false
+            ToastCenter.shared.show("Reminder removed")
+            return
+        }
+        guard await PushManager.request() else {
+            ToastCenter.shared.show("Turn on notifications in Settings to get reminders.")
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = movie.title
+        content.body = "\(label) today 📺"
+        content.sound = .default
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        comps.hour = 9
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        do {
+            try await center.add(UNNotificationRequest(identifier: reminderID(),
+                                                       content: content, trigger: trigger))
+            premiereReminderOn = true
+            ToastCenter.shared.show("Reminder set for \(date.formatted(.dateTime.month(.abbreviated).day()))")
+        } catch {
+            ToastCenter.shared.saveFailed()
         }
     }
 
