@@ -1345,6 +1345,8 @@ struct NotificationsView: View {
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
+        case "friend_watching": text = "**\(who)** started watching **\(movie)** — you're watching it too 📺"
+        case "caught_up": text = "**\(who)** is all caught up on **\(movie)** 🎉"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)

@@ -110,9 +110,13 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "season_premiere":
       return `New season incoming — ${movie ?? "a show you ranked"} returns this week 🎬`;
     case "rate_nudge":
-      return `Seen ${movie ?? "that movie you saved"} yet? Tap to rank it ⭐️`;
+      return `Seen ${movie ?? "that movie you saved"} yet? Tap to rank it 🎬`;
     case "friend_loved":
-      return `@${actor} just rated ${movie ?? "a movie"} — one of your favorites 🍿`;
+      return `@${actor} just ranked ${movie ?? "a movie"} — one of your favorites 🍿`;
+    case "friend_watching":
+      return `@${actor} started watching ${movie ?? "a show"} — you're watching it too 📺`;
+    case "caught_up":
+      return `@${actor} is all caught up on ${movie ?? "a show you're watching"} 🎉`;
     default: return `@${actor} did something new on Cini`;
   }
 }
