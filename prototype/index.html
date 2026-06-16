@@ -1483,6 +1483,26 @@ const PUBLIC_NOTES = {
 };
 let detailPeopleTab="friends", detailMoreOpen=false;
 function planWatch(u){ toast(`Invite sent to @${u} — they'll get a nudge to pick a time 🎬`); }
+/* Beli-style compact row: overlapping avatars + "N friends …", tappable to a popup. */
+function interestRow(avs, label, type){
+  const stack = avs.map((a,i)=>`<span class="avatar ${a[1]}" style="width:30px;height:30px;font-size:13px;box-shadow:0 0 0 2px var(--bg);${i?`margin-left:-10px;`:""}">${a[0]}</span>`).join("");
+  return `<button style="display:flex;align-items:center;gap:10px;background:none;border:none;padding:0;cursor:pointer;width:100%;" onclick="friendsInterest(${type})">
+    <span style="display:flex;">${stack}</span>
+    <span style="font-weight:600;font-size:14.5px;color:var(--ink);">${label}</span>
+    <span style="color:var(--gray);">${I("chevR",14)}</span></button>`;
+}
+function friendsInterest(type){
+  const watching = type==="watching";
+  const people = watching
+    ? [["maddy","maddyc","av1","S2 · E4"],["Jordan","jordanwatches","av3","All caught up"]]
+    : [["maddy","maddyc","av1",""]];
+  memberSheet(watching?"Watching now":"Want to watch", ()=>
+    people.map(([n,u,av,sub])=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hair);">
+      <span class="avatar ${av}" style="width:40px;height:40px;font-size:16px;">${n[0].toUpperCase()}</span>
+      <div style="flex:1;"><b>${n}</b><div class="sub" style="${sub==='All caught up'?'color:var(--scoregreen,#4ade80);':''}">${sub||'@'+u}</div></div>
+      <button class="pill" onclick="closeOverlay(); planWatch('${u}')">Invite</button>
+    </div>`).join(""));
+}
 
 function renderDetail(){
   const k=detailKey, m=MOVIES[k];
@@ -1539,14 +1559,9 @@ function renderDetail(){
         <button class="lnk" onclick="toast('Reminder set for Jun 20 🔔')">${I("bell",15)} Remind me</button>
       </div>
     </div>
-    <div class="pad" style="margin-top:14px;">
-      <div style="font-weight:800; font-size:16px;">A friend also wants to watch this</div>
-      <div class="sub" style="margin-top:2px;">Invite one to watch together — pick a time and we'll nudge them.</div>
-      <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
-        <span class="avatar av1" style="width:40px;height:40px;font-size:16px;">M</span>
-        <div style="flex:1;"><b>maddy</b><div class="sub">@maddyc</div></div>
-        <button class="pill" onclick="planWatch('maddyc')">Invite</button>
-      </div>
+    <div class="pad" style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
+      ${interestRow([["M","av1"],["J","av3"]], "2 friends are watching", "'watching'")}
+      ${interestRow([["M","av1"]], "1 friend wants to watch", "'want'")}
     </div>
     <div class="row-scroll" style="margin-top:12px;">
       <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Where to Watch</button>

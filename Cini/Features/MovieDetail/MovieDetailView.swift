@@ -51,7 +51,10 @@ struct MovieDetailView: View {
     @State private var heartsInFlight: Set<UUID> = []
     @State private var commentsTarget: CommentsTarget?
     @State private var watchlistFriends: [WatchlistFriendRow] = []
+    @State private var watchingFriends: [WatchingFriendRow] = []
     @State private var planContext: WatchPlanContext?
+    @State private var showWantSheet = false
+    @State private var showWatchingSheet = false
     @State private var premiereReminderOn = false
     /// Latest plan per friend for this title, to label the invite buttons.
     @State private var watchPlansByFriend: [UUID: WatchPlanRow] = [:]
@@ -79,6 +82,7 @@ struct MovieDetailView: View {
                 hero
                 tagRow
                 metadataBlock
+                friendsInterestRow
                 summarySection
                 actionPills
                 // "Is it good?" leads, right after the act-now pills.
@@ -90,7 +94,6 @@ struct MovieDetailView: View {
                 yourDetailsSection
                 moreInfoSection
                 performancesSection
-                watchTogetherSection
                 peopleSection
             }
             // Ask Cini opens context-aware: the page you're on is the
@@ -129,6 +132,8 @@ struct MovieDetailView: View {
             PlanWatchSheet(context: ctx)
                 .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showWantSheet) { wantToWatchSheet }
+        .sheet(isPresented: $showWatchingSheet) { watchingSheet }
         .sheet(isPresented: $showUnlocks) {
             UnlocksView()
         }
@@ -1129,36 +1134,72 @@ struct MovieDetailView: View {
 
     /// Friends who also want to watch this — invite one to plan a time together.
     @ViewBuilder
-    private var watchTogetherSection: some View {
-        if !watchlistFriends.isEmpty {
+    // MARK: Beli-style "friends interested" rows + popups
+
+    /// Compact rows high on the page: overlapping avatars + "N friends are
+    /// watching" / "N friends want to watch", each tappable to a popup list.
+    @ViewBuilder
+    private var friendsInterestRow: some View {
+        if !watchlistFriends.isEmpty || !watchingFriends.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
-                Text(watchlistFriends.count == 1
-                     ? "A friend also wants to watch this"
-                     : "\(watchlistFriends.count) friends also want to watch this")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(Theme.ink)
-                Text("Invite one to watch together — pick a time and we'll nudge them.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
+                if !watchingFriends.isEmpty {
+                    interestButton(
+                        avatars: watchingFriends.map { ($0.avatarUrl, preferredName($0.displayName, $0.username) ?? $0.username) },
+                        text: countText(watchingFriends.count, "is watching", "are watching")
+                    ) { showWatchingSheet = true }
+                }
+                if !watchlistFriends.isEmpty {
+                    interestButton(
+                        avatars: watchlistFriends.map { ($0.avatarUrl, preferredName($0.displayName, $0.username) ?? $0.username) },
+                        text: countText(watchlistFriends.count, "wants to watch", "want to watch")
+                    ) { showWantSheet = true }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func countText(_ n: Int, _ singularVerb: String, _ pluralVerb: String) -> String {
+        "\(n) \(n == 1 ? "friend \(singularVerb)" : "friends \(pluralVerb)")"
+    }
+
+    private func interestButton(avatars: [(String?, String)], text: String,
+                                action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                HStack(spacing: -10) {
+                    ForEach(Array(avatars.prefix(3).enumerated()), id: \.offset) { _, a in
+                        AvatarView(url: a.0.flatMap { URL(string: $0) }, size: 28, name: a.1)
+                            .overlay(Circle().strokeBorder(Theme.background, lineWidth: 2))
+                    }
+                }
+                Text(text).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                Image(systemName: "chevron.right").font(.caption2).foregroundStyle(Theme.gray)
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Popup: friends who want to watch — invite one to watch together.
+    private var wantToWatchSheet: some View {
+        NavigationStack {
+            List {
                 ForEach(watchlistFriends) { friend in
                     HStack(spacing: 12) {
                         AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
                                    name: preferredName(friend.displayName, friend.username))
                         VStack(alignment: .leading, spacing: 1) {
                             Text(preferredName(friend.displayName, friend.username) ?? friend.username)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.ink)
-                            Text("@\(friend.username)")
-                                .font(.caption)
-                                .foregroundStyle(Theme.gray)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
                         }
                         Spacer()
                         let state = planButtonState(for: friend.userId)
                         Button {
                             Haptics.tap()
-                            planContext = WatchPlanContext(
-                                movieID: movie.tmdbID,
-                                friend: MemberRef(id: friend.userId, username: friend.username))
+                            openPlan(with: friend.userId, username: friend.username, from: $showWantSheet)
                         } label: {
                             Text(state.label)
                                 .font(.subheadline.weight(.semibold))
@@ -1168,11 +1209,61 @@ struct MovieDetailView: View {
                                 .overlay(Capsule().strokeBorder(state.filled ? .clear : Theme.marquee.opacity(0.6)))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(state.label) — \(friend.username), watch together")
                     }
+                    .listRowBackground(Theme.background)
                 }
             }
-            .padding(.horizontal, 16)
+            .listStyle(.plain).background(Theme.background)
+            .navigationTitle("Want to watch").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showWantSheet = false } } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    /// Popup: friends currently watching — their progress, invite to watch together.
+    private var watchingSheet: some View {
+        NavigationStack {
+            List {
+                ForEach(watchingFriends) { friend in
+                    HStack(spacing: 12) {
+                        AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
+                                   name: preferredName(friend.displayName, friend.username))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                            Text(friend.caughtUp ? "All caught up"
+                                 : (episodeLabel(season: friend.season, episode: friend.episode) ?? "Watching now"))
+                                .font(.caption).foregroundStyle(friend.caughtUp ? Theme.scoreGreen : Theme.gray)
+                        }
+                        Spacer()
+                        Button {
+                            Haptics.tap()
+                            openPlan(with: friend.userId, username: friend.username, from: $showWatchingSheet)
+                        } label: {
+                            Text("Invite").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.background)
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .background(Capsule().fill(Theme.marquee))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listRowBackground(Theme.background)
+                }
+            }
+            .listStyle(.plain).background(Theme.background)
+            .navigationTitle("Watching now").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showWatchingSheet = false } } }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    /// Dismiss the list popup, then open the plan sheet (avoids two sheets racing).
+    private func openPlan(with friendID: UUID, username: String, from flag: Binding<Bool>) {
+        flag.wrappedValue = false
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            planContext = WatchPlanContext(movieID: movie.tmdbID,
+                                           friend: MemberRef(id: friendID, username: username))
         }
     }
 
@@ -1212,6 +1303,7 @@ struct MovieDetailView: View {
         community = stats?.community
         friends = (try? await friendsTask) ?? []
         watchlistFriends = (try? await SupabaseService.shared.watchlistFriends(movieID: pid)) ?? []
+        watchingFriends = await SupabaseService.shared.watchingFriends(movieID: pid)
         await loadWatchPlans(pid)
         histogram = stats?.histogram ?? []
         performances = SupabaseService.tallyPerformances(stats?.performances ?? [])

@@ -1295,6 +1295,13 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Friends currently watching a given show (with their progress).
+    func watchingFriends(movieID: Int) async -> [WatchingFriendRow] {
+        struct Params: Encodable { let p_movie_id: Int }
+        return (try? await client.rpc("movie_watching_friends", params: Params(p_movie_id: movieID))
+            .execute().value) ?? []
+    }
+
     /// Propose watching a title together at a time; notifies the invitee.
     @discardableResult
     func proposeWatchPlan(movieID: Int, inviteeID: UUID, proposedAt: Date?) async throws -> UUID {
@@ -1967,6 +1974,27 @@ struct RecRow: Codable, Identifiable, Hashable {
         case recScore = "rec_score"
         case friendCount = "friend_count"
         case topFriendUsername = "top_friend_username"
+    }
+}
+
+/// A friend currently watching a show (movie page "N are watching" popup).
+struct WatchingFriendRow: Codable, Identifiable, Hashable {
+    let userId: UUID
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
+    let season: Int?
+    let episode: Int?
+    var caughtUp: Bool = false
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case username, season, episode
+        case userId = "user_id"
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case caughtUp = "caught_up"
     }
 }
 
