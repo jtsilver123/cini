@@ -732,18 +732,27 @@ final class SupabaseService {
         }
     }
 
-    func report(kind: String, subjectID: String, reason: String? = nil) async {
-        guard let me = currentUserID else { return }
+    /// Returns true only if the report was actually recorded, so the UI can
+    /// avoid telling the user "Reported" when nothing was written.
+    @discardableResult
+    func report(kind: String, subjectID: String, reason: String? = nil) async -> Bool {
+        guard let me = currentUserID else { return false }
         struct Row: Encodable {
             let reporter_id: UUID
             let subject_kind: String
             let subject_id: String
             let reason: String?
         }
-        _ = try? await client.from("reports")
-            .insert(Row(reporter_id: me, subject_kind: kind,
-                        subject_id: subjectID, reason: reason))
-            .execute()
+        do {
+            _ = try await client.from("reports")
+                .insert(Row(reporter_id: me, subject_kind: kind,
+                            subject_id: subjectID, reason: reason))
+                .execute()
+            return true
+        } catch {
+            SupabaseService.logSwallowed("report", error)
+            return false
+        }
     }
 
     // MARK: - Custom lists

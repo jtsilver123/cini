@@ -926,9 +926,10 @@ struct MovieDetailView: View {
                 Menu {
                     Button(role: .destructive) {
                         Task {
-                            await SupabaseService.shared.report(
+                            let ok = await SupabaseService.shared.report(
                                 kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)")
-                            ToastCenter.shared.show("Reported — we'll review it")
+                            if ok { ToastCenter.shared.show("Reported — we'll review it") }
+                            else { ToastCenter.shared.saveFailed() }
                         }
                     } label: {
                         Label("Report this note", systemImage: "flag")
@@ -1448,30 +1449,51 @@ struct EditDetailsSheet: View {
         defer { saving = false }
         let supabase = SupabaseService.shared
         let body = draft.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Track whether ANY write failed so we don't report false success and
+        // silently lose the user's edits (the "silent contract drift" enemy).
+        var failed = false
+        func attempt(_ label: String, _ op: () async throws -> Void) async {
+            do { try await op() }
+            catch { failed = true; SupabaseService.logSwallowed(label, error) }
+        }
         if body.isEmpty {
             if details?.note != nil {
-                try? await supabase.deleteNote(movieID: movie.tmdbID, isPrivate: false)
+                await attempt("edit_details.deleteNote") {
+                    try await supabase.deleteNote(movieID: movie.tmdbID, isPrivate: false)
+                }
             }
         } else {
-            try? await supabase.upsertNote(movieID: movie.tmdbID, body: body,
-                                           isPrivate: false,
-                                           containsSpoilers: draft.notesContainSpoilers)
+            await attempt("edit_details.upsertNote") {
+                try await supabase.upsertNote(movieID: movie.tmdbID, body: body,
+                                              isPrivate: false,
+                                              containsSpoilers: draft.notesContainSpoilers)
+            }
         }
         if isRanked {
-            try? await supabase.updateRanking(movieID: movie.tmdbID,
-                                              watchedWith: Array(draft.watchedWith),
-                                              watchDate: draft.watchDate,
-                                              watchedWhere: draft.watchedWhere)
+            await attempt("edit_details.updateRanking") {
+                try await supabase.updateRanking(movieID: movie.tmdbID,
+                                                 watchedWith: Array(draft.watchedWith),
+                                                 watchDate: draft.watchDate,
+                                                 watchedWhere: draft.watchedWhere)
+            }
         } else if let date = draft.watchDate, date != seededDate {
             // No ranking row to hang the date on — it becomes a diary
             // entry instead (only when actually changed, no dupes).
-            try? await supabase.cacheMovie(movie)
-            try? await supabase.logWatch(movieID: movie.tmdbID, on: date,
-                                         where: draft.watchedWhere)
+            await attempt("edit_details.logWatch") {
+                try await supabase.cacheMovie(movie)
+                try await supabase.logWatch(movieID: movie.tmdbID, on: date,
+                                            where: draft.watchedWhere)
+            }
         }
-        try? await supabase.setPerformances(movieID: movie.tmdbID,
-                                            cast: Array(draft.cast))
+        await attempt("edit_details.setPerformances") {
+            try await supabase.setPerformances(movieID: movie.tmdbID, cast: Array(draft.cast))
+        }
         FriendsCache.shared.warm()   // tag frequencies may have changed
+        if failed {
+            // Keep the sheet open so the edit isn't lost to a tap.
+            ToastCenter.shared.saveFailed()
+            return
+        }
         Haptics.success()
         onSaved()
         dismiss()

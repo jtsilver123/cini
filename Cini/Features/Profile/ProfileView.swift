@@ -563,10 +563,12 @@ struct ProfileScreen: View {
                 Menu {
                     Button(role: .destructive) {
                         Task {
-                            await SupabaseService.shared.report(
+                            let ok = await SupabaseService.shared.report(
                                 kind: "member", subjectID: id.uuidString)
-                            reported = true
-                            ToastCenter.shared.show("Reported — we'll review it")
+                            if ok {
+                                reported = true
+                                ToastCenter.shared.show("Reported — we'll review it")
+                            } else { ToastCenter.shared.saveFailed() }
                         }
                     } label: {
                         Label(reported ? "Reported" : "Report member", systemImage: "flag")
@@ -894,10 +896,11 @@ struct ProfileScreen: View {
             } else if isSelf {
                 EmptyStateView(
                     icon: "film.stack",
-                    title: "Nothing here yet",
-                    message: "Rank or save a movie and it shows up here.")
+                    title: "Build your taste",
+                    message: "Rank your first movie and your stats, top films, and activity fill in right here.",
+                    actionTitle: "Rank a movie") { tabRouter.selection = .search }
             } else {
-                Text("No activity visible yet.")
+                Text(username.map { "@\($0) hasn't ranked anything yet." } ?? "Nothing here yet.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .frame(maxWidth: .infinity)

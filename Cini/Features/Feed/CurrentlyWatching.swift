@@ -235,7 +235,16 @@ struct WatchingControl: View {
             Button {
                 Haptics.tap()
                 withAnimation(.snappy) { watching = false }
-                Task { try? await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID) }
+                Task {
+                    do {
+                        try await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID)
+                    } catch {
+                        // Don't leave the UI saying "removed" if the server still
+                        // has it — put the controls back and say so.
+                        withAnimation(.snappy) { watching = true }
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
             } label: {
                 Label("Remove from Currently Watching", systemImage: "xmark.circle")
                     .font(.subheadline.weight(.semibold))
@@ -271,6 +280,9 @@ struct WatchingControl: View {
                 try await SupabaseService.shared.cacheMovie(movie)   // FK needs the show cached
                 try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID, season: s,
                                                                  episode: e, caughtUp: caughtUp)
+                // The RPC drops the Want to Watch row — keep the shared cache in
+                // step so the bookmark/list don't show it as still saved.
+                store.watchlistSuperseded(movieID: movie.tmdbID)
             } catch {
                 ToastCenter.shared.saveFailed()
             }

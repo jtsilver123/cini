@@ -354,6 +354,14 @@ final class RankingStore {
         }
     }
 
+    /// Marking a show as "currently watching" supersedes Want to Watch — the
+    /// `set_show_progress` RPC drops the watchlist row server-side. Mirror that
+    /// in the shared cache so the bookmark and the Want to Watch list don't go
+    /// stale. No network call: the RPC already did the delete.
+    func watchlistSuperseded(movieID: Int) {
+        watchlist.removeAll { $0.movieID == movieID }
+    }
+
     // MARK: - Metadata
 
     func cache(_ movie: Movie) {

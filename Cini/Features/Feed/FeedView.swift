@@ -259,6 +259,7 @@ struct FeedView: View {
                 Text("Still meaning to watch \(movie.title)?")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(2)
                 Text("It's been on your list a while — tonight's the night?")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
@@ -1133,7 +1134,15 @@ struct NotificationsView: View {
     private func respondFollow(_ requester: UUID, accept: Bool) {
         Haptics.tap()
         resolvedFollowReqs[requester] = accept
-        Task { try? await SupabaseService.shared.respondFollowRequest(requester: requester, accept: accept) }
+        Task {
+            do {
+                try await SupabaseService.shared.respondFollowRequest(requester: requester, accept: accept)
+            } catch {
+                // Don't leave the row showing "Accepted" if nothing happened.
+                resolvedFollowReqs[requester] = nil
+                ToastCenter.shared.saveFailed()
+            }
+        }
     }
 
     var body: some View {

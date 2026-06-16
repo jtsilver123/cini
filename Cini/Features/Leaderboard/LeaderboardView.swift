@@ -12,13 +12,16 @@ struct LeaderboardView: View {
     @State private var showInvite = false
     @State private var loaded = false
 
-    private let metrics = ["Watched", "Influence", "Notes"]
-    private let metricKeys = ["watched", "influence", "notes"]
-    private let metricCopy = [
-        "Number of movies on your watched list",
-        "How often your rankings convert to friends' watchlist adds",
-        "Number of public notes you've written",
+    // One row per metric so the label, query key, and caption can never drift
+    // out of sync (a mismatched parallel array would crash on index).
+    private struct Metric { let name: String; let key: String; let copy: String }
+    private let metricDefs: [Metric] = [
+        Metric(name: "Watched", key: "watched", copy: "Number of movies on your watched list"),
+        Metric(name: "Influence", key: "influence", copy: "How often your rankings convert to friends' watchlist adds"),
+        Metric(name: "Notes", key: "notes", copy: "Number of public notes you've written"),
     ]
+    private var metrics: [String] { metricDefs.map(\.name) }
+    private var currentMetric: Metric { metricDefs[min(metric, metricDefs.count - 1)] }
 
     var body: some View {
         NavigationStack {
@@ -29,7 +32,7 @@ struct LeaderboardView: View {
                     SegmentedPillControl(segments: metrics, selection: $metric)
                         .onChange(of: metric) { _, _ in Task { await load() } }
 
-                    Text(metricCopy[metric])
+                    Text(currentMetric.copy)
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
 
@@ -128,7 +131,7 @@ struct LeaderboardView: View {
 
     private func load() async {
         rows = (try? await SupabaseService.shared.leaderboard(
-            metric: metricKeys[metric], genre: genre)) ?? []
+            metric: currentMetric.key, genre: genre)) ?? []
         loaded = true
     }
 }
