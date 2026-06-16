@@ -46,6 +46,12 @@ struct OnboardingView: View {
     @State private var founder: Profile?
     @State private var showFounderInfo = false
     @State private var showInviterEntry = false
+    @State private var inviterDraft = ""
+    /// Which text field owns the keyboard — lets us raise it as a text step
+    /// appears and lower it cleanly *before* a transition (instead of letting
+    /// the keyboard collapse mid-slide, which felt abrupt).
+    private enum Field: Hashable { case firstName, lastName, username }
+    @FocusState private var focus: Field?
     private static let founderID = UUID(uuidString: "c8a4e18e-7b5b-405d-bb74-6e1e79702f60")!
 
     private var usernameValid: Bool {
@@ -80,7 +86,7 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             // The "You're in!" welcome (step 0) is a clean moment — no bar.
-            if step > 0 { progressBar }
+            if step > 0 { topBar }
             // A driven step switch (not a paged TabView): steps advance only via
             // their buttons, so you can't swipe past a required one (username /
             // photo) or jump ahead to content that isn't ready.
@@ -138,22 +144,60 @@ struct OnboardingView: View {
         }
     }
 
-    /// Seven segments for the seven data steps (1–7); the welcome screen has none.
-    private var progressBar: some View {
-        HStack(spacing: 6) {
-            ForEach(1..<8, id: \.self) { index in
-                Capsule()
-                    .fill(index <= step ? Theme.gold : Theme.fill)
-                    .frame(height: 4)
+    /// A back chevron (so a typo'd name/username is fixable) above seven
+    /// progress segments for the seven data steps (1–7).
+    private var topBar: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Button { goBack() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Back")
+                Spacer()
             }
+            .padding(.horizontal, 12)
+            HStack(spacing: 6) {
+                ForEach(1..<8, id: \.self) { index in
+                    Capsule()
+                        .fill(index <= step ? Theme.gold : Theme.fill)
+                        .frame(height: 4)
+                }
+            }
+            .padding(.horizontal, 28)
+            .animation(.snappy, value: step)
         }
-        .padding(.horizontal, 28)
-        .padding(.top, 18)
-        .animation(.snappy, value: step)
+        .padding(.top, 8)
     }
 
+    /// Advance a step. If the keyboard is up, lower it first and let it settle
+    /// before the slide so the two animations don't fight (the "abrupt" feel).
     private func advance() {
-        withAnimation(.snappy) { step = min(step + 1, 7) }
+        guard focus != nil else {
+            withAnimation(.snappy) { step = min(step + 1, 7) }
+            return
+        }
+        focus = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(260))
+            withAnimation(.snappy) { step = min(step + 1, 7) }
+        }
+    }
+
+    private func goBack() {
+        focus = nil
+        withAnimation(.snappy) { step = max(step - 1, 0) }
+    }
+
+    /// Raise the keyboard for a text step once its slide-in has settled.
+    private func focusAfterTransition(_ field: Field) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(380))
+            focus = field
+        }
     }
 
     @ViewBuilder private var currentStep: some View {
@@ -193,26 +237,37 @@ struct OnboardingView: View {
             Spacer()
             PillButton(title: "Get started") { advance() }
                 .padding(.horizontal, 28)
-            Button("Invited by someone else?") { showInviterEntry = true }
+            Button("Invited by someone else?") { inviterDraft = inviterUsername; showInviterEntry = true }
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
-        .alert("Who's \(founderFirstName)?", isPresented: $showFounderInfo) {
-            Button("Got it", role: .cancel) {}
-        } message: {
-            Text("\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.")
-        }
-        .alert("Who invited you?", isPresented: $showInviterEntry) {
-            TextField("their @username", text: $inviterUsername)
-                .textInputAutocapitalization(.never)
-            // Keep the handle (normalized) — it's redeemed when onboarding finishes.
-            Button("Save") {
-                inviterUsername = inviterUsername
-                    .trimmingCharacters(in: .whitespaces)
-                    .replacingOccurrences(of: "@", with: "")
+        // Branded bottom sheets — system alerts/dialogs were rendering as a
+        // top-anchored popover bubble overlapping the screen.
+        .sheet(isPresented: $showFounderInfo) {
+            OnboardingSheet(title: "Who's \(founderFirstName)?",
+                            message: "\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.") {
+                PillButton(title: "Got it") { showFounderInfo = false }
             }
-            Button("Cancel", role: .cancel) { inviterUsername = "" }
-        } message: {
-            Text("Enter their username and you'll follow each other automatically once you finish.")
+            .presentationDetents([.height(300)])
+        }
+        .sheet(isPresented: $showInviterEntry, onDismiss: { inviterDraft = "" }) {
+            OnboardingSheet(title: "Who invited you?",
+                            message: "Enter their username and you'll follow each other automatically once you finish.") {
+                HStack(spacing: 4) {
+                    Text("@").foregroundStyle(Theme.gray)
+                    TextField("their username", text: $inviterDraft)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                PillButton(title: "Save") {
+                    inviterUsername = inviterDraft
+                        .trimmingCharacters(in: .whitespaces)
+                        .replacingOccurrences(of: "@", with: "")
+                    showInviterEntry = false
+                }
+            }
+            .presentationDetents([.height(320)])
         }
     }
 
@@ -247,13 +302,24 @@ struct OnboardingView: View {
             // Pull the contact list up immediately instead of showing a button.
             InviteSheet(autoFindContacts: true)
         }
-        // Beli-style nudge: one more chance to invite before skipping.
-        .confirmationDialog("Cini is so much better with friends",
-                            isPresented: $showSkipFriendsNudge, titleVisibility: .visible) {
-            Button("Invite friends") { showFindFriends = true }
-            Button("Skip for now", role: .cancel) { advance() }
-        } message: {
-            Text("Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.")
+        // Beli-style nudge: one more chance to invite before skipping. A branded
+        // bottom sheet — the system confirmationDialog was rendering as a
+        // misplaced top popover.
+        .sheet(isPresented: $showSkipFriendsNudge) {
+            OnboardingSheet(title: "Cini is so much better with friends",
+                            message: "Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.") {
+                PillButton(title: "Invite friends") {
+                    showSkipFriendsNudge = false
+                    // Let this sheet dismiss before presenting the next one.
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(350))
+                        showFindFriends = true
+                    }
+                }
+                Button("Skip for now") { showSkipFriendsNudge = false; advance() }
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.gray)
+            }
+            .presentationDetents([.height(300)])
         }
     }
 
@@ -285,11 +351,16 @@ struct OnboardingView: View {
                 TextField("First name", text: $firstName)
                     .textContentType(.givenName)
                     .textInputAutocapitalization(.words)
+                    .submitLabel(.next)
+                    .focused($focus, equals: .firstName)
+                    .onSubmit { focus = .lastName }
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
                 TextField("Last name", text: $lastName)
                     .textContentType(.familyName)
                     .textInputAutocapitalization(.words)
+                    .submitLabel(.done)
+                    .focused($focus, equals: .lastName)
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
             }
@@ -300,6 +371,7 @@ struct OnboardingView: View {
                 .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty)
                 .padding(.bottom, 36)
         }
+        .onAppear { focusAfterTransition(.firstName) }
     }
 
     // MARK: 2 — Your username (its own screen, like Beli)
@@ -322,6 +394,7 @@ struct OnboardingView: View {
                         .textContentType(.username)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .focused($focus, equals: .username)
                         .onChange(of: username) { _, new in
                             username = new.lowercased().filter { $0.isLowercase || $0.isNumber || $0 == "_" }
                             usernameError = nil
@@ -380,6 +453,7 @@ struct OnboardingView: View {
             .disabled(!usernameValid || availability == .taken || saving)
             .padding(.bottom, 36)
         }
+        .onAppear { focusAfterTransition(.username) }
     }
 
     private var usernameHint: String {
@@ -689,5 +763,36 @@ struct OnboardingView: View {
                     .padding(.bottom, 24)
             }
         }
+    }
+}
+
+/// A small branded confirmation anchored at the bottom — replaces system
+/// alerts/dialogs in onboarding, which were rendering as a misplaced popover.
+private struct OnboardingSheet<Actions: View>: View {
+    let title: String
+    let message: String
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Capsule().fill(Theme.fill).frame(width: 38, height: 5)
+                .padding(.top, 10)
+            Spacer(minLength: 0)
+            Text(title)
+                .font(Theme.serif(24))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.ink)
+            Text(message)
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.gray)
+            actions
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 16)
+        .background(Theme.background)
+        .presentationDragIndicator(.hidden)
     }
 }
