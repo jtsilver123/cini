@@ -99,6 +99,8 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `@${actor} saved ${movie ?? "a title"} — you ranked it 🔖`;
     case "streak_reminder":
       return `Your streak ends Sunday — rank one title to keep it alive 🔥`;
+    case "tonight_pick":
+      return `Tonight's pick: ${movie ?? "a film for you"} 🍿`;
     case "streaming_now":
       return `${movie ?? "A title you saved"} is streaming now 🍿`;
     case "season_premiere":

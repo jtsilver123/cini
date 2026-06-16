@@ -286,6 +286,9 @@ final class AppSession {
         async let referrals = supabase.referralCount()
         async let unlocked = supabase.unlockedFeatures()
         await rankingStore.load()
+        // Keep the server's idea of our timezone current for the evening
+        // Tonight's Pick push (sent at ~7pm local).
+        Task { await supabase.setTimezone(TimeZone.current.identifier) }
         profile = try? await profileRow.asProfile
         globalRank = try? await rank
         referralCount = await referrals

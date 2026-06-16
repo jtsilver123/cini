@@ -173,6 +173,13 @@ final class SupabaseService {
         _ = try? await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
     }
 
+    /// Store the device's IANA timezone so the nightly job can send Tonight's
+    /// Pick at ~7pm in the user's local time. Best-effort; called on launch.
+    func setTimezone(_ identifier: String) async {
+        struct Params: Encodable { let p_tz: String }
+        _ = try? await client.rpc("set_timezone", params: Params(p_tz: identifier)).execute()
+    }
+
     /// The user's saved theater-alert ZIP, if any (owner-only read).
     func homeZip() async -> String? {
         struct Row: Decodable { let home_zip: String? }

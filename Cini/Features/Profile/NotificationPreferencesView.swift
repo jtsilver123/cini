@@ -21,6 +21,7 @@ struct NotificationPreferencesView: View {
             ("friend_loved", "Friend rated a favorite", "A friend rates a movie or show you love"),
         ]),
         ("Recommendations", [
+            ("tonight_pick", "Tonight's Pick", "A daily pick to watch, sent each evening"),
             ("direct_rec", "Recs from friends", "A friend recommends a movie directly to you"),
             ("rec_request", "Rec requests", "A friend asks you to recommend them something"),
         ]),
