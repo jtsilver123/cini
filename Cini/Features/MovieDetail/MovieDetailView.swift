@@ -53,6 +53,8 @@ struct MovieDetailView: View {
     @State private var watchlistFriends: [WatchlistFriendRow] = []
     @State private var planContext: WatchPlanContext?
     @State private var premiereReminderOn = false
+    /// Latest plan per friend for this title, to label the invite buttons.
+    @State private var watchPlansByFriend: [UUID: WatchPlanRow] = [:]
 
     enum PeopleTab: String, CaseIterable {
         case friends = "Friends"
@@ -1023,6 +1025,28 @@ struct MovieDetailView: View {
 
     // MARK: Data
 
+    private func loadWatchPlans(_ movieID: Int) async {
+        let plans = await SupabaseService.shared.watchPlans(movieID: movieID)
+        let me = SupabaseService.shared.currentUserID
+        var map: [UUID: WatchPlanRow] = [:]
+        for plan in plans {   // newest-first, so first seen per friend wins
+            let other = plan.proposerId == me ? plan.inviteeId : plan.proposerId
+            if map[other] == nil { map[other] = plan }
+        }
+        watchPlansByFriend = map
+    }
+
+    /// The invite button's label/style for a friend, given any existing plan.
+    private func planButtonState(for friendID: UUID) -> (label: String, filled: Bool) {
+        guard let plan = watchPlansByFriend[friendID] else { return ("Invite", true) }
+        let me = SupabaseService.shared.currentUserID
+        switch plan.status {
+        case "accepted": return ("Planned ✓", false)
+        case "proposed": return plan.proposerId == me ? ("Pending", false) : ("Respond", true)
+        default:         return ("Invite", true)   // declined → can re-invite
+        }
+    }
+
     /// For ongoing shows: when the next episode (or season premiere) airs.
     @ViewBuilder
     private var nextEpisodeRow: some View {
@@ -1128,20 +1152,22 @@ struct MovieDetailView: View {
                                 .foregroundStyle(Theme.gray)
                         }
                         Spacer()
+                        let state = planButtonState(for: friend.userId)
                         Button {
                             Haptics.tap()
                             planContext = WatchPlanContext(
                                 movieID: movie.tmdbID,
                                 friend: MemberRef(id: friend.userId, username: friend.username))
                         } label: {
-                            Text("Invite")
+                            Text(state.label)
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.background)
+                                .foregroundStyle(state.filled ? Theme.background : Theme.marquee)
                                 .padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(Capsule().fill(Theme.marquee))
+                                .background(Capsule().fill(state.filled ? Theme.marquee : .clear))
+                                .overlay(Capsule().strokeBorder(state.filled ? .clear : Theme.marquee.opacity(0.6)))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Invite \(friend.username) to watch together")
+                        .accessibilityLabel("\(state.label) — \(friend.username), watch together")
                     }
                 }
             }
@@ -1185,6 +1211,7 @@ struct MovieDetailView: View {
         community = stats?.community
         friends = (try? await friendsTask) ?? []
         watchlistFriends = (try? await SupabaseService.shared.watchlistFriends(movieID: pid)) ?? []
+        await loadWatchPlans(pid)
         histogram = stats?.histogram ?? []
         performances = SupabaseService.tallyPerformances(stats?.performances ?? [])
         cast = (try? await castTask) ?? []

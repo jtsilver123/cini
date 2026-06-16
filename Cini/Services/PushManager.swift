@@ -59,10 +59,12 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
         // Simulator or entitlement issues — in-app notifications still work.
     }
 
-    /// Show banners even when the app is open.
+    /// Show banners even when the app is open — and `.list` so a notification
+    /// that arrives in the foreground still lands in the iOS Notification
+    /// Center (without it, foreground pushes vanish after the banner).
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .badge]
+        [.banner, .list, .sound, .badge]
     }
 
     /// Tapping a notification lands on its content: the movie page for

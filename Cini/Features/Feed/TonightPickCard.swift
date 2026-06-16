@@ -117,14 +117,13 @@ struct TonightStack: View {
     let items: [TonightCardItem]
     var onOpen: (Movie) -> Void = { _ in }
     var onRank: (Movie) -> Void = { _ in }
+    /// Reported up so the feed can persist the dismissal (so it stays gone).
+    var onDismiss: (Int) -> Void = { _ in }
 
-    @State private var dismissed: Set<Int> = []
     @State private var drag: CGSize = .zero
 
-    private var visible: [TonightCardItem] { items.filter { !dismissed.contains($0.id) } }
-
     var body: some View {
-        let cards = Array(visible.prefix(3))
+        let cards = Array(items.prefix(3))
         if !cards.isEmpty {
             ZStack {
                 ForEach(Array(cards.enumerated()).reversed(), id: \.element.id) { pair in
@@ -142,7 +141,7 @@ struct TonightStack: View {
                     .zIndex(Double(cards.count - idx))
                     .gesture(idx == 0 ? swipe(item) : nil)
                     .animation(.snappy, value: drag)
-                    .animation(.snappy, value: visible.count)
+                    .animation(.snappy, value: items.count)
                 }
             }
             // Reserve the card height plus the stack's peek offset.
@@ -160,7 +159,10 @@ struct TonightStack: View {
                         drag = CGSize(width: value.translation.width > 0 ? 700 : -700,
                                       height: value.translation.height)
                     }
-                    Task { try? await Task.sleep(for: .milliseconds(160)); dismissTop(item) }
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(160))
+                        dismissTop(item)
+                    }
                 } else {
                     withAnimation(.snappy) { drag = .zero }
                 }
@@ -168,7 +170,7 @@ struct TonightStack: View {
     }
 
     private func dismissTop(_ item: TonightCardItem) {
-        dismissed.insert(item.id)
         drag = .zero
+        onDismiss(item.id)   // the feed removes it from `items` and remembers it
     }
 }

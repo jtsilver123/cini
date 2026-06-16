@@ -1335,6 +1335,16 @@ final class SupabaseService {
         return rows.first { $0.proposerId == withUser || $0.inviteeId == withUser }
     }
 
+    /// All my plans for a title (RLS scopes to plans I'm part of), so the movie
+    /// page can label each friend's button (Invite / Pending / Respond / Planned).
+    func watchPlans(movieID: Int) async -> [WatchPlanRow] {
+        (try? await client.from("watch_plans")
+            .select()
+            .eq("movie_id", value: movieID)
+            .order("created_at", ascending: false)
+            .execute().value) ?? []
+    }
+
     // MARK: - Currently Watching (binging signal)
 
     /// Mark/update where I am in a show (season/episode optional). Starting to

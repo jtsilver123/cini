@@ -24,6 +24,9 @@ struct FeedView: View {
     @State private var promoted: Movie?
     @State private var promotedReason: String?
     @State private var tonightCards: [TonightCardItem] = []
+    // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
+    @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
+    @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
 
@@ -323,7 +326,8 @@ struct FeedView: View {
                 TonightStack(
                     items: tonightCards,
                     onOpen: { detailMovie = $0 },
-                    onRank: { logMovie = $0 }
+                    onRank: { logMovie = $0 },
+                    onDismiss: { dismissTonight($0) }
                 )
                 .padding(.top, 6)
             }
@@ -531,17 +535,20 @@ struct FeedView: View {
     }
 
     /// Load several Tonight's Pick candidates and keep up to three that are
-    /// actually streamable (with the service to show on the card).
+    /// actually streamable (with the service to show on the card). Skips picks
+    /// already dismissed today.
     private func loadTonightStack() async {
         guard tonightCards.isEmpty,
-              let picks = try? await SupabaseService.shared.tonightPicks(limit: 8), !picks.isEmpty
+              let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty
         else { return }
+        let skip = dismissedTonightToday()
         let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
         var byID: [Int: Movie] = [:]
         for row in rows { byID[row.tmdbId] = row.asMovie }
         var cards: [TonightCardItem] = []
         for pick in picks {
             if cards.count >= 3 { break }
+            if skip.contains(pick.movieId) { continue }
             guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                   movie.posterPath != nil else { continue }
             // Must be streamable — keep only picks on a streaming service.
@@ -553,6 +560,22 @@ struct FeedView: View {
                                          service: service))
         }
         tonightCards = cards
+    }
+
+    private func todayKey() -> String { DateFormatter.posixDay.string(from: Date()) }
+
+    /// Picks the user dismissed today (reset automatically on a new day).
+    private func dismissedTonightToday() -> Set<Int> {
+        guard tonightDismissedDate == todayKey() else { return [] }
+        return Set(tonightDismissedIDs.split(separator: ",").compactMap { Int($0) })
+    }
+
+    private func dismissTonight(_ id: Int) {
+        var set = dismissedTonightToday()
+        set.insert(id)
+        tonightDismissedDate = todayKey()
+        tonightDismissedIDs = set.map(String.init).joined(separator: ",")
+        withAnimation(.snappy) { tonightCards.removeAll { $0.id == id } }
     }
 
     /// A reason that never overstates confidence. Lead with friends when they

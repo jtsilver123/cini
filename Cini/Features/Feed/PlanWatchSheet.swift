@@ -11,8 +11,9 @@ struct PlanWatchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var movie: Movie?
-    /// A proposal the friend already sent ME (so I can Accept instead of re-ask).
-    @State private var incomingPlan: WatchPlanRow?
+    /// The latest plan between us for this title (any direction), or nil.
+    @State private var plan: WatchPlanRow?
+    @State private var showTimePicker = false   // "suggest/change a time"
     @State private var when: Date = PlanWatchSheet.defaultTime()
     @State private var sending = false
     @State private var done = false
@@ -20,23 +21,14 @@ struct PlanWatchSheet: View {
     @State private var showMessages = false
 
     private var friend: MemberRef { context.friend }
+    private var myID: UUID? { SupabaseService.shared.currentUserID }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    if done {
-                        doneCard
-                    } else {
-                        if let incomingPlan, let at = incomingPlan.proposedAt {
-                            incomingProposal(incomingPlan, at)
-                            Text("…or suggest a different time")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Theme.gray)
-                        }
-                        planControls
-                    }
+                    if done { doneCard } else { stateContent }
                 }
                 .padding(20)
             }
@@ -75,22 +67,109 @@ struct PlanWatchSheet: View {
         }
     }
 
-    private func incomingProposal(_ plan: WatchPlanRow, _ at: Date) -> some View {
-        HairlineCard {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("@\(friend.username) suggested \(at.formatted(.dateTime.weekday(.wide).hour().minute()))")
-                    .font(.subheadline.weight(.semibold))
-                PillButton(title: "That works — accept") { accept(plan) }
+    /// Show the right thing for the plan's state — never "Invite" when we're
+    /// actually responding to one, or when a plan already exists.
+    @ViewBuilder
+    private var stateContent: some View {
+        if let plan, plan.status == "accepted" {
+            acceptedState(plan)
+        } else if let plan, plan.status == "proposed", plan.proposerId == friend.id {
+            respondState(plan)            // they invited me
+        } else if let plan, plan.status == "proposed", plan.proposerId == myID {
+            waitingState(plan)            // I invited them
+        } else {
+            planControls                  // no plan (or declined) → fresh invite
+        }
+    }
+
+    /// They invited me — accept their time, suggest another, or pass.
+    private func respondState(_ plan: WatchPlanRow) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HairlineCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let at = plan.proposedAt {
+                        Text("@\(friend.username) suggested \(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))")
+                            .font(.subheadline.weight(.semibold))
+                    } else {
+                        Text("@\(friend.username) wants to watch this together")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    PillButton(title: "Accept", systemImage: "checkmark") { accept(plan) }
+                }
             }
+            Button { withAnimation(.snappy) { showTimePicker.toggle() } } label: {
+                Label(showTimePicker ? "Hide" : "Suggest a different time", systemImage: "clock.arrow.circlepath")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+            if showTimePicker { timeControls(send: { sendNewTime(plan) }, label: "Send new time") }
+            Button("Can't make it", role: .destructive) { decline(plan) }
+                .font(.subheadline).foregroundStyle(Theme.gray)
+            draftTextButton
+        }
+    }
+
+    /// I invited them — waiting; let me change the time.
+    private func waitingState(_ plan: WatchPlanRow) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HairlineCard {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock.badge.checkmark").foregroundStyle(Theme.marquee)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Invite sent to @\(friend.username)").font(.subheadline.weight(.semibold))
+                        if let at = plan.proposedAt {
+                            Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                                .font(.caption).foregroundStyle(Theme.gray)
+                        }
+                        Text("Waiting for them to confirm").font(.caption).foregroundStyle(Theme.gray)
+                    }
+                    Spacer()
+                }
+            }
+            Button { withAnimation(.snappy) { showTimePicker.toggle() } } label: {
+                Label(showTimePicker ? "Hide" : "Change the time", systemImage: "clock.arrow.circlepath")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+            if showTimePicker { timeControls(send: { sendNewTime(plan) }, label: "Update time") }
+            draftTextButton
+        }
+    }
+
+    /// We're set.
+    private func acceptedState(_ plan: WatchPlanRow) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HairlineCard {
+                HStack(spacing: 10) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("You're watching with @\(friend.username)").font(.subheadline.weight(.semibold))
+                        if let at = plan.proposedAt {
+                            Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                                .font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                    Spacer()
+                }
+            }
+            draftTextButton
         }
     }
 
     private var planControls: some View {
         VStack(alignment: .leading, spacing: 14) {
+            timeControls(send: { sendInvite() },
+                         label: "Send invite to @\(friend.username)")
+            draftTextButton
+        }
+    }
+
+    /// Time presets + picker + a primary send button (reused by every state).
+    private func timeControls(send: @escaping () -> Void, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text("When works?")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.ink)
-            // Quick presets, then a precise picker.
             HStack(spacing: 8) {
                 quickChip("Tonight", Self.at(20, daysFromNow: 0))
                 quickChip("Tomorrow", Self.at(20, daysFromNow: 1))
@@ -100,28 +179,27 @@ struct PlanWatchSheet: View {
                        displayedComponents: [.date, .hourAndMinute])
                 .labelsHidden()
                 .datePickerStyle(.compact)
-
-            PillButton(title: sending ? "Sending…" : "Send invite to @\(friend.username)",
-                       systemImage: "paperplane.fill") { sendInvite() }
+            PillButton(title: sending ? "Sending…" : label, systemImage: "paperplane.fill") { send() }
                 .disabled(sending)
-
-            // Optional: pull the friend in over text too.
-            Button {
-                if MFMessageComposeViewController.canSendText() {
-                    showMessages = true
-                } else {
-                    ToastCenter.shared.show("Texting isn't available on this device.")
-                }
-            } label: {
-                Label("Draft a text", systemImage: "message.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-                    .overlay(Capsule().strokeBorder(Theme.marquee.opacity(0.5)))
-            }
-            .buttonStyle(.plain)
         }
+    }
+
+    private var draftTextButton: some View {
+        Button {
+            if MFMessageComposeViewController.canSendText() {
+                showMessages = true
+            } else {
+                ToastCenter.shared.show("Texting isn't available on this device.")
+            }
+        } label: {
+            Label("Draft a text", systemImage: "message.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .overlay(Capsule().strokeBorder(Theme.marquee.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
     }
 
     private var doneCard: some View {
@@ -158,10 +236,29 @@ struct PlanWatchSheet: View {
         if let m = (try? await SupabaseService.shared.movies(ids: [context.movieID]))?.first?.asMovie {
             movie = m
         }
-        // Show "Accept" only when THEY proposed to ME and it's still open.
-        if let plan = try? await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id),
-           plan.status == "proposed", plan.proposerId == friend.id {
-            incomingPlan = plan
+        // The latest plan in either direction drives which UI we show.
+        plan = try? await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id)
+        if let at = plan?.proposedAt, at > Date() { when = at }
+    }
+
+    private func sendNewTime(_ plan: WatchPlanRow) {
+        sending = true
+        Task {
+            do {
+                try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: true, newTime: when)
+                Haptics.success()
+                doneMessage = "New time sent to @\(friend.username)."
+                withAnimation(.snappy) { done = true }
+            } catch { ToastCenter.shared.saveFailed() }
+            sending = false
+        }
+    }
+
+    private func decline(_ plan: WatchPlanRow) {
+        Task {
+            try? await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
+            Haptics.tap()
+            dismiss()
         }
     }
 
