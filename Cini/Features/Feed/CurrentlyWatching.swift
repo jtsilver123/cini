@@ -165,9 +165,21 @@ struct WatchingControl: View {
     @State private var watching = false
     @State private var season = 1
     @State private var episode = 1
-    // Title + synopsis of the episode you're on (a little recap).
-    @State private var epName: String?
+    // "Previously on…" recap of the episode BEFORE the one you're on, so it
+    // refreshes you without spoiling the current episode.
+    @State private var epHeader: String?
     @State private var epOverview: String?
+
+    /// The episode before the current position: the prior episode, or the
+    /// previous season's finale when you're on episode 1. nil at the very start
+    /// (S1·E1) or before the structure loads.
+    private var previousEpisode: (season: Int, episode: Int)? {
+        if episode > 1 { return (season, episode - 1) }
+        if season > 1, let count = info?.seasonEpisodeCounts[season - 1], count > 0 {
+            return (season - 1, count)
+        }
+        return nil
+    }
 
     /// A finished/cancelled show — "caught up" means you've completed it.
     private var isEnded: Bool {
@@ -258,11 +270,12 @@ struct WatchingControl: View {
                 episode = min(max(1, $0), maxEpisode(season))
                 save()
             }
-            // A short recap of the episode you're on (skipped for an unaired
-            // "waiting for next" position, where TMDB has no synopsis yet).
-            if let epOverview, !epOverview.isEmpty {
+            // A "previously on" recap of the prior episode — refreshes you
+            // without spoiling the episode you're on. Skipped at S1·E1 or when
+            // TMDB has no synopsis.
+            if let epHeader, let epOverview, !epOverview.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(epName.map { "S\(season) · E\(episode) · \($0)" } ?? "S\(season) · E\(episode)")
+                    Text(epHeader)
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
                     Text(epOverview)
                         .font(.caption).foregroundStyle(Theme.gray).lineLimit(3)
@@ -328,12 +341,14 @@ struct WatchingControl: View {
         }
         // Refresh the recap whenever the episode you're on changes.
         .task(id: [season, episode]) {
-            epName = nil; epOverview = nil
-            guard movie.mediaKind == "tv" else { return }
+            epHeader = nil; epOverview = nil
+            guard movie.mediaKind == "tv", let prev = previousEpisode else { return }
             let s = season, e = episode
-            if let ep = try? await TMDBService.shared.episode(showID: movie.tmdbID, season: s, episode: e),
+            if let ep = try? await TMDBService.shared.episode(showID: movie.tmdbID,
+                                                              season: prev.season, episode: prev.episode),
                s == season, e == episode {
-                epName = ep.name
+                epHeader = ep.name.map { "Previously on · S\(prev.season) · E\(prev.episode) · \($0)" }
+                    ?? "Previously on · S\(prev.season) · E\(prev.episode)"
                 epOverview = ep.overview
             }
         }
