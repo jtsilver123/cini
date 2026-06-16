@@ -8,98 +8,145 @@ struct TonightPickCard: View {
     let movie: Movie
     var reason: String?
     var service: String?               // streaming service it's on, e.g. "Netflix"
+    var serviceLogo: URL?              // that service's logo (TMDB), shown in the badge
+    /// Live horizontal drag of the top card, so the swipe stamps fade in.
+    var dragX: CGFloat = 0
     var onOpen: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
     var onDismiss: (() -> Void)?
 
     var body: some View {
-        Button {
-            onOpen(movie)
-        } label: {
-            ZStack(alignment: .bottomLeading) {
-                CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Theme.surface
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 220)
-                .clipped()
-
-                LinearGradient(colors: [.clear, .black.opacity(0.25), .black.opacity(0.88)],
-                               startPoint: .top, endPoint: .bottom)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    if let service {
-                        Text("ON \(service.uppercased())")
-                            .font(.system(size: 10, weight: .heavy)).tracking(0.5)
-                            .foregroundStyle(Theme.background)
-                            .padding(.horizontal, 7).padding(.vertical, 3)
-                            .background(Capsule().fill(.white.opacity(0.92)))
-                    }
-                    Text(movie.title)
-                        .font(Theme.serif(24))
-                        .foregroundStyle(.white)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                    if let reason {
-                        Text(reason)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineLimit(2)
-                    }
-                }
-                .padding(14)
-                // Keep text clear of the (+)/bookmark corner and legible.
-                .frame(maxWidth: 220, alignment: .leading)
-                .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
+        ZStack(alignment: .bottomLeading) {
+            CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                Theme.surface
             }
+            .frame(maxWidth: .infinity)
             .frame(height: 220)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous))
-            // A thin marquee rim so the daily pick reads as the premium,
-            // special surface it is.
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                    .strokeBorder(Theme.marquee.opacity(0.45), lineWidth: 1)
-            )
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: 5) {
-                    Image(systemName: "moon.stars.fill")
-                    Text("TONIGHT'S PICK").tracking(1.5)
+            .clipped()
+
+            LinearGradient(colors: [.clear, .black.opacity(0.25), .black.opacity(0.88)],
+                           startPoint: .top, endPoint: .bottom)
+
+            VStack(alignment: .leading, spacing: 4) {
+                serviceBadge
+                Text(movie.title)
+                    .font(Theme.serif(24))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                if let reason {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.88))
+                        .lineLimit(2)
                 }
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(Theme.background)
-                .padding(.horizontal, 9).padding(.vertical, 5)
-                .background(Capsule().fill(Theme.marquee))
-                .padding(12)
             }
-            // Not feeling it tonight — dismiss for now.
-            .overlay(alignment: .topTrailing) {
-                if let onDismiss {
-                    Button {
-                        Haptics.tap()
-                        onDismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(.white)
-                            .padding(7)
-                            .background(Circle().fill(.black.opacity(0.45)))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(12)
-                    .accessibilityLabel("Not tonight")
+            .padding(14)
+            // Keep text clear of the (+)/bookmark corner and legible.
+            .frame(maxWidth: 220, alignment: .leading)
+            .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
+        }
+        .frame(height: 220)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous))
+        // A thin marquee rim so the daily pick reads as the premium,
+        // special surface it is.
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
+                .strokeBorder(Theme.marquee.opacity(0.45), lineWidth: 1)
+        )
+        .overlay(alignment: .topLeading) {
+            HStack(spacing: 5) {
+                Image(systemName: "moon.stars.fill")
+                Text("TONIGHT'S PICK").tracking(1.5)
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(Theme.background)
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(Capsule().fill(Theme.marquee))
+            .padding(12)
+        }
+        // Not feeling it tonight — dismiss for now.
+        .overlay(alignment: .topTrailing) {
+            if let onDismiss {
+                Button {
+                    Haptics.tap()
+                    onDismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(7)
+                        .background(Circle().fill(.black.opacity(0.45)))
                 }
+                .buttonStyle(.plain)
+                .padding(12)
+                .accessibilityLabel("Not tonight")
             }
         }
-        .buttonStyle(.plain)
         // Same scrimmed (+)/bookmark corner as every other piece of artwork.
         .overlay(alignment: .bottomTrailing) {
             ArtworkQuickActions(movie: movie, onLog: { onQuickAdd($0) })
                 .padding(12)
         }
+        // Tinder-style stamps: drag right to save, left to dismiss.
+        .overlay { swipeStamps }
+        // A plain tappable surface (not a Button) so the deck's drag gesture
+        // and tap-to-open don't fight — the corner buttons still take their taps.
+        .contentShape(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous))
+        .onTapGesture { onOpen(movie) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tonight's pick: \(movie.title). \(reason ?? "")")
+    }
+
+    @ViewBuilder private var serviceBadge: some View {
+        if let service {
+            HStack(spacing: 5) {
+                if let serviceLogo {
+                    CachedAsyncImage(url: serviceLogo) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.clear
+                    }
+                    .frame(width: 15, height: 15)
+                    .clipShape(RoundedRectangle(cornerRadius: 3.5))
+                }
+                Text("ON \(service.uppercased())")
+                    .font(.system(size: 10, weight: .heavy)).tracking(0.5)
+                    .foregroundStyle(Theme.background)
+            }
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Capsule().fill(.white.opacity(0.92)))
+        }
+    }
+
+    @ViewBuilder private var swipeStamps: some View {
+        let save = max(0, min(dragX / 90, 1))
+        let dismiss = max(0, min(-dragX / 90, 1))
+        ZStack {
+            RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
+                .strokeBorder(Theme.scoreGreen, lineWidth: 4).opacity(save)
+            RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
+                .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
+            stamp("Save", "bookmark.fill", Theme.scoreGreen)
+                .rotationEffect(.degrees(-10)).opacity(save)
+            stamp("Dismiss", "xmark", Theme.scoreRed)
+                .rotationEffect(.degrees(10)).opacity(dismiss)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func stamp(_ text: String, _ icon: String, _ color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+            Text(text).tracking(1)
+        }
+        .font(.headline.weight(.heavy))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16).padding(.vertical, 9)
+        .background(Capsule().fill(color))
+        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
     }
 }
 
@@ -108,6 +155,7 @@ struct TonightCardItem: Identifiable, Equatable {
     let movie: Movie
     let reason: String
     let service: String?
+    var serviceLogo: URL?
     var id: Int { movie.tmdbID }
 }
 
@@ -117,7 +165,9 @@ struct TonightStack: View {
     let items: [TonightCardItem]
     var onOpen: (Movie) -> Void = { _ in }
     var onRank: (Movie) -> Void = { _ in }
-    /// Reported up so the feed can persist the dismissal (so it stays gone).
+    /// Swipe right → save to Want to Watch.
+    var onSave: (TonightCardItem) -> Void = { _ in }
+    /// Swipe left / ✕ → dismiss. Reported up so the feed persists it (stays gone).
     var onDismiss: (Int) -> Void = { _ in }
 
     @State private var drag: CGSize = .zero
@@ -130,9 +180,11 @@ struct TonightStack: View {
                     let idx = pair.offset
                     let item = pair.element
                     TonightPickCard(
-                        movie: item.movie, reason: item.reason, service: item.service,
+                        movie: item.movie, reason: item.reason,
+                        service: item.service, serviceLogo: item.serviceLogo,
+                        dragX: idx == 0 ? drag.width : 0,
                         onOpen: onOpen, onQuickAdd: onRank,
-                        onDismiss: idx == 0 ? { dismissTop(item) } : nil
+                        onDismiss: idx == 0 ? { onDismiss(item.id) } : nil
                     )
                     .scaleEffect(1 - CGFloat(idx) * 0.04)
                     .offset(y: CGFloat(idx) * 10)
@@ -146,8 +198,8 @@ struct TonightStack: View {
             }
             // Reserve the card height plus the stack's peek offset.
             .frame(height: 240)
-            // Whenever the deck changes (a card dismissed), make sure the new
-            // top card isn't left carrying the previous card's drag offset.
+            // Whenever the deck changes (a card actioned), make sure the new top
+            // card isn't left carrying the previous card's drag offset.
             .onChange(of: items.count) { _, _ in drag = .zero }
         }
     }
@@ -156,24 +208,26 @@ struct TonightStack: View {
         DragGesture()
             .onChanged { drag = $0.translation }
             .onEnded { value in
-                if abs(value.translation.width) > 90 {
-                    Haptics.tap()
-                    withAnimation(.snappy) {
-                        drag = CGSize(width: value.translation.width > 0 ? 700 : -700,
-                                      height: value.translation.height)
-                    }
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(160))
-                        dismissTop(item)
-                    }
+                let w = value.translation.width
+                if w > 100 {            // right → save
+                    fly(item, toX: 700, height: value.translation.height, save: true)
+                } else if w < -100 {    // left → dismiss
+                    fly(item, toX: -700, height: value.translation.height, save: false)
                 } else {
                     withAnimation(.snappy) { drag = .zero }
                 }
             }
     }
 
-    private func dismissTop(_ item: TonightCardItem) {
-        drag = .zero
-        onDismiss(item.id)   // the feed removes it from `items` and remembers it
+    /// Send the top card off-screen, then fire the action. Don't reset `drag`
+    /// here — the deck shrinking triggers onChange, which resets it for the new
+    /// top card (resetting now would snap the flying card back for a frame).
+    private func fly(_ item: TonightCardItem, toX: CGFloat, height: CGFloat, save: Bool) {
+        if save { Haptics.success() } else { Haptics.tap() }
+        withAnimation(.snappy) { drag = CGSize(width: toX, height: height) }
+        Task {
+            try? await Task.sleep(for: .milliseconds(160))
+            if save { onSave(item) } else { onDismiss(item.id) }
+        }
     }
 }

@@ -367,6 +367,7 @@ struct FeedView: View {
                     items: tonightCards,
                     onOpen: { detailMovie = $0 },
                     onRank: { logMovie = $0 },
+                    onSave: { saveTonight($0) },
                     onDismiss: { dismissTonight($0) }
                 )
                 .padding(.top, 2)
@@ -571,13 +572,15 @@ struct FeedView: View {
             if skip.contains(pick.movieId) { continue }
             guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                   movie.posterPath != nil else { continue }
-            // Must be streamable — keep only picks on a streaming service.
+            // Must be streamable — keep only picks on a streaming service, and
+            // grab that service's logo for the badge.
             guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
-                  let service = providers.streamingNames.first else { continue }
+                  let provider = providers.flatrate?.first else { continue }
             store.cache(movie)
             cards.append(TonightCardItem(movie: movie,
                                          reason: Self.tonightReason(for: pick),
-                                         service: service))
+                                         service: provider.providerName,
+                                         serviceLogo: provider.logoURL))
         }
         tonightCards = cards
     }
@@ -590,12 +593,24 @@ struct FeedView: View {
         return Set(tonightDismissedIDs.split(separator: ",").compactMap { Int($0) })
     }
 
-    private func dismissTonight(_ id: Int) {
+    private func dismissTonight(_ id: Int, toast: Bool = true) {
         var set = dismissedTonightToday()
         set.insert(id)
         tonightDismissedDate = todayKey()
         tonightDismissedIDs = set.map(String.init).joined(separator: ",")
         withAnimation(.snappy) { tonightCards.removeAll { $0.id == id } }
+        if toast { ToastCenter.shared.show("Dismissed that rec") }
+    }
+
+    /// Swipe right on a Tonight's Pick → save it to Want to Watch and clear it
+    /// from the deck (remembered so it won't resurface as a pick today).
+    private func saveTonight(_ item: TonightCardItem) {
+        if !store.isOnWatchlist(item.movie.tmdbID) {
+            Task { await store.toggleWatchlist(movie: item.movie) }
+        }
+        Haptics.success()
+        ToastCenter.shared.show("Saved to Want to Watch")
+        dismissTonight(item.id, toast: false)
     }
 
     /// A reason that never overstates confidence. Lead with friends when they
