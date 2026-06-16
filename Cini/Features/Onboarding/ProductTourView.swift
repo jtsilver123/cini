@@ -1,122 +1,111 @@
 import SwiftUI
 
-/// A quick "how Cini works" tour shown once, right after onboarding finishes
-/// (Beli does the same). A paged card carousel over the app — kept short: four
-/// slides mapping to the four things people do here. Presented as an overlay
-/// (not a cover) so it can't be dropped during the onboarding→app transition.
+/// A short guided tour shown once after onboarding (Beli-style). Instead of a
+/// static carousel, it actually walks people around the app: each step switches
+/// the live tab so they see the real screen, with the content dimmed but the tab
+/// bar kept bright (the system already highlights the active tab in gold). The
+/// Search "+" step is described in place — switching to Search would raise the
+/// keyboard and cover the card.
 struct ProductTourView: View {
     var onDone: () -> Void
 
-    @State private var page = 0
+    @State private var step = 0
 
-    private struct Slide: Identifiable {
-        let id = UUID()
-        let icon: String
+    private struct Stop {
+        let tab: RootTabView.Tab
         let title: String
         let body: String
     }
 
-    private let slides: [Slide] = [
-        Slide(icon: "rectangle.on.rectangle.angled",
-              title: "Rank what you watch",
-              body: "Search any movie or show, tap how you felt, and a couple of quick “which did you like more?” taps slot it exactly where it belongs."),
-        Slide(icon: "list.number",
-              title: "Your taste, scored",
-              body: "Your Lists keeps everything you've ranked, each scored out of 10 — from your own order, not a crowd of strangers."),
-        Slide(icon: "person.2.fill",
-              title: "Better with friends",
-              body: "Your feed fills with friends' ranks and recs. Follow people, see their takes, and trade what to watch next."),
-        Slide(icon: "sparkles",
-              title: "Find your next watch",
-              body: "Rec Scores predict how much you'll like something you haven't seen, and the Leaderboard ranks the whole community."),
+    private let stops: [Stop] = [
+        Stop(tab: .feed, title: "Your feed",
+             body: "See what friends are ranking and get recs picked for your taste."),
+        Stop(tab: .feed, title: "Rank anything",
+             body: "Tap the gold + in the middle to find any movie or show and rank it — that's how Cini learns your taste."),
+        Stop(tab: .lists, title: "Your lists",
+             body: "Everything you've ranked, each scored 1–10, plus your Want to Watch."),
+        Stop(tab: .leaderboard, title: "Leaderboard",
+             body: "See how your taste and activity stack up against your friends."),
+        Stop(tab: .profile, title: "Your profile",
+             body: "Your stats, your top films, and your settings all live here."),
     ]
 
+    private var stop: Stop { stops[min(step, stops.count - 1)] }
+    private var isLast: Bool { step >= stops.count - 1 }
+
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.6).ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button("Skip") { finish() }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.gray)
+        GeometryReader { geo in
+            let tabBarH = geo.safeAreaInsets.bottom + 52
+            ZStack(alignment: .bottom) {
+                // Dim the content, but keep the tab bar bright so the gold
+                // active tab the tour is describing stands out.
+                VStack(spacing: 0) {
+                    Rectangle().fill(.black.opacity(0.6))
+                    Rectangle().fill(.black.opacity(0.05)).frame(height: tabBarH)
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 8)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { }   // block taps to the dimmed app
 
-                TabView(selection: $page) {
-                    ForEach(Array(slides.enumerated()), id: \.element.id) { i, slide in
-                        slideView(slide).tag(i)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .frame(height: 360)
-
-                pageDots.padding(.bottom, 22)
-
-                Button {
-                    if page < slides.count - 1 {
-                        withAnimation(.snappy) { page += 1 }
-                    } else {
-                        finish()
-                    }
-                } label: {
-                    Text(page < slides.count - 1 ? "Next" : "Start ranking")
-                        .font(.headline).foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 15)
-                        .background(Capsule().fill(Theme.velvet))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 28)
-                .padding(.bottom, 18)
+                card
+                    .frame(maxWidth: 520)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, tabBarH + 10)
+                    .transition(.opacity)
             }
-            .padding(.vertical, 22)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                    .fill(Theme.surface)
-                    .shadow(color: Theme.cardShadow, radius: 24, y: 10)
-            )
-            .padding(.horizontal, 22)
         }
+        .onAppear { TabRouter.shared.selection = stops[0].tab }
+        .animation(.snappy, value: step)
     }
 
-    private func slideView(_ slide: Slide) -> some View {
-        VStack(spacing: 18) {
-            ZStack {
-                Circle().fill(Theme.marqueeSoft).frame(width: 110, height: 110)
-                Image(systemName: slide.icon)
-                    .font(.system(size: 46))
-                    .foregroundStyle(Theme.marquee)
+    private var card: some View {
+        VStack(spacing: 14) {
+            HStack {
+                Text("\(step + 1) of \(stops.count)")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                Spacer()
+                Button("Skip") { finish() }
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.gray)
             }
-            Text(slide.title)
-                .font(Theme.serif(28))
-                .foregroundStyle(Theme.ink)
-                .multilineTextAlignment(.center)
-            Text(slide.body)
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 30)
-            Spacer(minLength: 0)
+            VStack(spacing: 6) {
+                Text(stop.title)
+                    .font(Theme.serif(26)).foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.center)
+                Text(stop.body)
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+            }
+            // Points at the tab bar below — the screen they're being shown.
+            Image(systemName: "arrow.down")
+                .font(.headline.weight(.bold)).foregroundStyle(Theme.marquee)
+
+            Button {
+                if isLast { finish() } else { advance() }
+            } label: {
+                Text(isLast ? "Start exploring" : "Next")
+                    .font(.headline).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity).padding(.vertical, 14)
+                    .background(Capsule().fill(Theme.velvet))
+            }
+            .buttonStyle(.plain)
         }
-        .padding(.top, 18)
-        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
+                .fill(Theme.surface)
+                .shadow(color: Theme.cardShadow, radius: 22, y: 8)
+        )
     }
 
-    private var pageDots: some View {
-        HStack(spacing: 8) {
-            ForEach(slides.indices, id: \.self) { i in
-                Capsule()
-                    .fill(i == page ? Theme.marquee : Theme.gray.opacity(0.4))
-                    .frame(width: i == page ? 22 : 7, height: 7)
-                    .animation(.snappy, value: page)
-            }
-        }
+    private func advance() {
+        Haptics.tap()
+        step += 1
+        TabRouter.shared.selection = stop.tab   // stop reflects the new step
     }
 
     private func finish() {
         Haptics.tap()
+        TabRouter.shared.selection = .feed       // leave them on the feed
         onDone()
     }
 }
