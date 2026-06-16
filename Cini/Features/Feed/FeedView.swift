@@ -26,6 +26,7 @@ struct FeedView: View {
     @State private var tonightMovie: Movie?
     @State private var tonightReason: String?
     @State private var watchPlanContext: WatchPlanContext?
+    @State private var friendsWatchingRows: [FriendWatchingRow] = []
 
     var body: some View {
         NavigationStack {
@@ -55,6 +56,7 @@ struct FeedView: View {
             }
             .background(Theme.background)
             .task { await loadFeed() }
+            .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
             .task(id: store.isLoaded) { await loadPromoted() }
             .task(id: store.isLoaded) { await loadTonightPick() }
             // Tapped push notifications land here (cold launch included) —
@@ -328,6 +330,9 @@ struct FeedView: View {
                 .padding(.top, 6)
             }
 
+            // What friends are binging right now — the high-frequency signal.
+            FriendsWatchingShelf(rows: friendsWatchingRows, onOpen: { openShow($0) })
+
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
                 FeedUnlockCard()
@@ -465,6 +470,16 @@ struct FeedView: View {
     }
 
     /// A tapped push left its target on the router — open it.
+    /// Open a show from the "Friends are watching" shelf (TV ids are negative).
+    private func openShow(_ showID: Int) {
+        Task {
+            if let movie = try? await TMDBService.shared.details(for: showID) {
+                store.cache(movie)
+                detailMovie = movie
+            }
+        }
+    }
+
     private func consumePush() {
         if let movieID = tabRouter.pendingPushMovieID {
             tabRouter.pendingPushMovieID = nil
@@ -565,6 +580,7 @@ struct FeedView: View {
         likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
         pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? []
+        friendsWatchingRows = await SupabaseService.shared.friendsWatching()
         feedLoaded = true
     }
 }

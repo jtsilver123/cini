@@ -40,6 +40,7 @@ struct ProfileScreen: View {
     @State private var suggested: [SuggestedMember] = []
     @State private var followedSuggested: Set<UUID> = []
     @State private var detailMovie: Movie?
+    @State private var watchingRows: [WatchingRow] = []
     @State private var loaded = false
     @State private var lastLoaded: Date = .distantPast
     @State private var showLogoutConfirm = false
@@ -69,6 +70,7 @@ struct ProfileScreen: View {
                 } else {
                     VStack(spacing: 18) {
                         identity
+                        watchingSection
                         topThree
                         if isSelf, !rankings.isEmpty { shareTopFiveButton }
                         if isSelf, session.availableUnlocks > 0 { unlockBanner }
@@ -145,9 +147,63 @@ struct ProfileScreen: View {
 
     /// Everything loads in parallel — serially this took over a second of
     /// visible stagger on device.
+    /// "Currently Watching" shelf — the shows this member is mid-binge on.
+    @ViewBuilder
+    private var watchingSection: some View {
+        if !watchingRows.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(isSelf ? "Currently Watching" : "\(profile?.username ?? "They")'s currently watching")
+                    .font(.headline)
+                    .foregroundStyle(Theme.ink)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(watchingRows) { row in
+                            Button { openShow(row.showId) } label: {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    ZStack(alignment: .bottomLeading) {
+                                        PosterView(url: tmdbPoster(row.posterPath), width: 96)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        if let label = episodeLabel(season: row.season, episode: row.episode) {
+                                            Text(label)
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 6).padding(.vertical, 3)
+                                                .background(Capsule().fill(.black.opacity(0.6)))
+                                                .padding(6)
+                                        }
+                                    }
+                                    Text(row.title)
+                                        .font(.caption2).foregroundStyle(Theme.gray)
+                                        .lineLimit(1).frame(width: 96, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func tmdbPoster(_ path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: "https://image.tmdb.org/t/p/w342\(path)")
+    }
+
+    private func openShow(_ showID: Int) {
+        Task {
+            if let movie = try? await TMDBService.shared.details(for: showID) {
+                store.cache(movie)
+                detailMovie = movie
+            }
+        }
+    }
+
     private func load() async {
         guard let id = resolvedID else { return }
         let supabase = SupabaseService.shared
+        Task { watchingRows = await supabase.watching(for: id) }
 
         async let profileTask = supabase.profile(id: id)
         async let rankingsTask = supabase.rankings(userID: id)

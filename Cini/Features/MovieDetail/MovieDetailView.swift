@@ -77,6 +77,8 @@ struct MovieDetailView: View {
                 metadataBlock
                 summarySection
                 actionPills
+                WatchingControl(movie: movie)
+                    .padding(.horizontal, 16)
                 scoresSection
                 histogramSection
                 yourDetailsSection

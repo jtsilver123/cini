@@ -1328,6 +1328,44 @@ final class SupabaseService {
         return rows.first { $0.proposerId == withUser || $0.inviteeId == withUser }
     }
 
+    // MARK: - Currently Watching (binging signal)
+
+    /// Mark/update where I am in a show (season/episode optional). Starting to
+    /// watch supersedes Want to Watch (server drops the watchlist row).
+    func setShowProgress(showID: Int, season: Int?, episode: Int?) async throws {
+        struct Params: Encodable { let p_show_id: Int; let p_season: Int?; let p_episode: Int? }
+        try await client.rpc("set_show_progress",
+            params: Params(p_show_id: showID, p_season: season, p_episode: episode)).execute()
+    }
+
+    func clearShowProgress(showID: Int) async throws {
+        struct Params: Encodable { let p_show_id: Int }
+        try await client.rpc("clear_show_progress", params: Params(p_show_id: showID)).execute()
+    }
+
+    /// Friends currently binging something — the "Friends are watching" shelf.
+    func friendsWatching() async -> [FriendWatchingRow] {
+        (try? await client.rpc("friends_watching").execute().value) ?? []
+    }
+
+    /// A member's current shows (mine, or a friend's if I can view them).
+    func watching(for userID: UUID) async -> [WatchingRow] {
+        struct Params: Encodable { let p_user: UUID }
+        return (try? await client.rpc("watching_for", params: Params(p_user: userID)).execute().value) ?? []
+    }
+
+    /// My progress on one show (nil = not currently marked watching).
+    func myShowProgress(showID: Int) async -> ShowProgressRow? {
+        guard let me = currentUserID else { return nil }
+        let rows: [ShowProgressRow] = (try? await client.from("show_progress")
+            .select("season, episode")
+            .eq("user_id", value: me)
+            .eq("show_id", value: showID)
+            .limit(1)
+            .execute().value) ?? []
+        return rows.first
+    }
+
     // MARK: - Shared watchlists
 
     // MARK: - Comments
@@ -1921,6 +1959,57 @@ struct WatchlistFriendRow: Codable, Identifiable, Hashable {
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
     }
+}
+
+/// A friend currently watching a show — the "Friends are watching" shelf.
+struct FriendWatchingRow: Codable, Identifiable, Hashable {
+    let userId: UUID
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
+    let showId: Int
+    let title: String
+    let posterPath: String?
+    let season: Int?
+    let episode: Int?
+    let updatedAt: Date
+
+    var id: String { "\(userId.uuidString)-\(showId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case username, title, season, episode
+        case userId = "user_id"
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+        case showId = "show_id"
+        case posterPath = "poster_path"
+        case updatedAt = "updated_at"
+    }
+}
+
+/// One of a member's currently-watching shows (profile shelf).
+struct WatchingRow: Codable, Identifiable, Hashable {
+    let showId: Int
+    let title: String
+    let posterPath: String?
+    let season: Int?
+    let episode: Int?
+    let updatedAt: Date
+
+    var id: Int { showId }
+
+    enum CodingKeys: String, CodingKey {
+        case title, season, episode
+        case showId = "show_id"
+        case posterPath = "poster_path"
+        case updatedAt = "updated_at"
+    }
+}
+
+/// My season/episode on a show (row present = currently watching).
+struct ShowProgressRow: Codable, Hashable {
+    let season: Int?
+    let episode: Int?
 }
 
 /// A watch-together plan between two friends.
