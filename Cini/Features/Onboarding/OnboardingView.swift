@@ -230,9 +230,9 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center).padding(.horizontal, 28)
 
             VStack(alignment: .leading, spacing: 16) {
-                friendBenefit("eye.fill", "See their takes before you watch")
-                friendBenefit("percent", "Compare your taste, title by title")
-                friendBenefit("paperplane.fill", "Trade recommendations")
+                friendBenefit("eye.fill", "See what they think before you watch")
+                friendBenefit("percent", "See how your taste matches theirs")
+                friendBenefit("paperplane.fill", "Swap movie picks")
             }
             .padding(.horizontal, 40)
             .padding(.top, 6)
@@ -253,7 +253,7 @@ struct OnboardingView: View {
             Button("Invite friends") { showFindFriends = true }
             Button("Skip for now", role: .cancel) { advance() }
         } message: {
-            Text("Invite one friend to unlock a feature — and your feed comes alive with their takes the moment they join.")
+            Text("Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.")
         }
     }
 
@@ -407,7 +407,7 @@ struct OnboardingView: View {
             Spacer()
             Text("Add a profile photo")
                 .font(Theme.serif(32)).multilineTextAlignment(.center)
-            Text("Show the face behind the reviews. You can skip it — your initials stand in until you do.")
+            Text("Add a photo so friends know it's you. You can skip it — we'll use your initials for now.")
                 .font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 32)
 
@@ -499,7 +499,7 @@ struct OnboardingView: View {
             ImportHandoffBadge()
             Text("Bring your history")
                 .font(Theme.serif(34))
-            Text("Already track movies somewhere? Cini queues your whole history so you can rank it — favorites first.")
+            Text("Track movies somewhere else? Bring your whole list over and rank it — favorites first.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -633,7 +633,7 @@ struct OnboardingView: View {
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 26)
-            Text("Pick anything you've seen — your first one takes zero comparisons.")
+            Text("Pick anything you've seen — the first one is quick and easy.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)

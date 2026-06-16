@@ -301,6 +301,7 @@ final class AppSession {
 /// returning user never sees the auth screen flash by.
 struct LaunchView: View {
     @State private var glow = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -320,6 +321,7 @@ struct LaunchView: View {
         }
         .filmGrain(0.05)
         .onAppear {
+            guard !reduceMotion else { return }   // hold a steady glow
             withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
                 glow = true
             }

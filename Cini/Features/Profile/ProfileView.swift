@@ -822,8 +822,8 @@ struct ProfileScreen: View {
             } else if isSelf {
                 EmptyStateView(
                     icon: "film.stack",
-                    title: "Your reel starts here",
-                    message: "Rank or save something and it lands on your profile.")
+                    title: "Nothing here yet",
+                    message: "Rank or save a movie and it shows up here.")
             } else {
                 Text("No activity visible yet.")
                     .font(.subheadline)
@@ -891,8 +891,8 @@ struct ProfileScreen: View {
             } else {
                 EmptyStateView(
                     icon: "chart.pie.fill",
-                    title: "Your taste, decoded",
-                    message: isSelf ? "Rank a few films and your taste profile appears here."
+                    title: "See what you like",
+                    message: isSelf ? "Rank a few movies and we'll show what you're into."
                                     : "Nothing to show here yet.")
             }
         } else {

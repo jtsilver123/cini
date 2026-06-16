@@ -117,6 +117,7 @@ struct ScoreRevealPlaceholder: View {
     var size: CGFloat = 64
     @State private var spin = false
     @State private var flicker = 5.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let tick = Timer.publish(every: 0.06, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -137,11 +138,14 @@ struct ScoreRevealPlaceholder: View {
                 .foregroundStyle(Theme.gray.opacity(0.7))
         }
         .onAppear {
+            guard !reduceMotion else { return }   // a still arc, no spin
             withAnimation(.linear(duration: 0.7).repeatForever(autoreverses: false)) {
                 spin = true
             }
         }
         .onReceive(tick) { _ in
+            // Don't strobe the number under Reduce Motion — hold it steady.
+            guard !reduceMotion else { return }
             flicker = Double.random(in: 1...9.9)
         }
     }

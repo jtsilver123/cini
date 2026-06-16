@@ -78,6 +78,7 @@ struct MarqueeBulbStrip: View {
     var count = 9
     var bulb: CGFloat = 5
     @State private var lit = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: bulb * 1.4) {
@@ -92,6 +93,7 @@ struct MarqueeBulbStrip: View {
             }
         }
         .onAppear {
+            guard !reduceMotion else { return }   // hold a steady glow instead
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 lit = true
             }
@@ -135,6 +137,7 @@ struct MarqueeBulbRing: View {
     var bulbs = 12
     var bulb: CGFloat = 5
     @State private var lit = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -151,6 +154,7 @@ struct MarqueeBulbRing: View {
         }
         .frame(width: diameter, height: diameter)
         .onAppear {
+            guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 lit = true
             }

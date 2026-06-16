@@ -403,7 +403,7 @@ struct FeedView: View {
                 Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gold)
                 Text("Your feed starts with you")
                     .font(Theme.serif(24))
-                Text("Rank one movie and Cini starts learning your taste. Friends' rankings land here as you follow them.")
+                Text("Rank one movie and Cini learns what you like. Follow friends to see their rankings here too.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)

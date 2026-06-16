@@ -760,6 +760,7 @@ struct ThinkingTicker: View {
     var steps: [ChatAgentBridge.ToolStep] = []
 
     @State private var phraseIndex = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let phrases = [
         "Rolling the projector…",
@@ -775,7 +776,8 @@ struct ThinkingTicker: View {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(Theme.marquee)
-                    .symbolEffect(.variableColor.iterative, options: .repeating)
+                    .symbolEffect(.variableColor.iterative,
+                                  options: reduceMotion ? .nonRepeating : .repeating)
                 Text(phrases[phraseIndex])
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.gray)
@@ -803,7 +805,8 @@ struct ThinkingTicker: View {
                             } else {
                                 Image(systemName: step.icon)
                                     .foregroundStyle(Theme.marquee)
-                                    .symbolEffect(.pulse, options: .repeating)
+                                    .symbolEffect(.pulse,
+                                                  options: reduceMotion ? .nonRepeating : .repeating)
                             }
                         }
                         .font(.caption)

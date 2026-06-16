@@ -196,7 +196,7 @@ private struct PrivacyScreen: View {
                 }
                 .disabled(forgotContacts)
             } footer: {
-                Text("If you used Find Friends, we keep one-way hashes of your contacts' numbers (never names) to tell you when one joins. Remove them any time — and they're deleted with your account.")
+                Text("If you used Find Friends, we keep a scrambled version of your contacts' phone numbers (never their names) so we can tell you when a friend joins. We never share them, you can remove them any time, and they're deleted if you delete your account.")
             }
             Section {
                 Link(destination: URL(string: "https://trycini.com/privacy.html")!) {
