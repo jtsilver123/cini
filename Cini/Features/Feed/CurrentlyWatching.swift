@@ -297,30 +297,34 @@ struct WatchingControl: View {
                     .buttonStyle(.plain)
                 }
             }
-            // A clearly-labeled remove (the old "Stop" was ambiguous).
-            Button {
-                Haptics.tap()
-                withAnimation(.snappy) { watching = false }
-                Task {
-                    do {
-                        try await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID)
-                    } catch {
-                        // Don't leave the UI saying "removed" if the server still
-                        // has it — put the controls back and say so.
-                        withAnimation(.snappy) { watching = true }
-                        ToastCenter.shared.saveFailed()
+            // A clearly-labeled remove (the old "Stop" was ambiguous). For an
+            // ended show, "I finished it" above already removes it — don't show
+            // two buttons that do the same thing.
+            if !(isEnded && ceiling != nil) {
+                Button {
+                    Haptics.tap()
+                    withAnimation(.snappy) { watching = false }
+                    Task {
+                        do {
+                            try await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID)
+                        } catch {
+                            // Don't leave the UI saying "removed" if the server still
+                            // has it — put the controls back and say so.
+                            withAnimation(.snappy) { watching = true }
+                            ToastCenter.shared.saveFailed()
+                        }
                     }
+                } label: {
+                    Label("Remove from Currently Watching", systemImage: "xmark.circle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .overlay(Capsule().strokeBorder(Theme.hairline))
                 }
-            } label: {
-                Label("Remove from Currently Watching", systemImage: "xmark.circle")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .overlay(Capsule().strokeBorder(Theme.hairline))
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             }
-            .buttonStyle(.plain)
-            .padding(.top, 2)
         }
         // Refresh the recap whenever the episode you're on changes.
         .task(id: [season, episode]) {
