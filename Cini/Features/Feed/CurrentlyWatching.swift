@@ -166,11 +166,34 @@ struct WatchingControl: View {
     @State private var season = 1
     @State private var episode = 1
 
-    // Until the season structure loads, cap at the current value so the steppers
-    // can't run away to a nonsense "S2 · E47" that friends would then see; once
-    // `info` arrives the real caps apply.
-    private var maxSeason: Int { info?.numberOfSeasons ?? season }
-    private func maxEpisode(_ s: Int) -> Int { info?.seasonEpisodeCounts[s] ?? episode }
+    /// A finished/cancelled show — "caught up" means you've completed it.
+    private var isEnded: Bool {
+        if let s = info?.status { return s == "Ended" || s == "Canceled" }
+        return false
+    }
+
+    /// The furthest you can be: for an ongoing show with a scheduled next
+    /// episode, that next episode (you're waiting on it — e.g. S4·E1); otherwise
+    /// the last episode that has aired (the finale, for an ended show). nil until
+    /// the structure loads.
+    private var ceiling: (season: Int, episode: Int)? {
+        if !isEnded, let s = info?.nextEpisodeSeason, let e = info?.nextEpisodeNumber {
+            return (s, e)
+        }
+        if let s = info?.lastAiredSeason, let e = info?.lastAiredEpisode {
+            return (s, e)
+        }
+        return nil
+    }
+
+    // Cap the steppers at the ceiling (you can't watch past what's aired / the
+    // next scheduled episode). Until the structure loads, cap at the current
+    // value so they can't run away to a nonsense "S2 · E47".
+    private var maxSeason: Int { ceiling?.season ?? info?.numberOfSeasons ?? season }
+    private func maxEpisode(_ s: Int) -> Int {
+        if let c = ceiling, s >= c.season { return c.episode }   // ceiling season → ceiling episode
+        return info?.seasonEpisodeCounts[s] ?? episode           // earlier seasons → full
+    }
 
     var body: some View {
         if movie.mediaKind == "tv" {
@@ -232,17 +255,32 @@ struct WatchingControl: View {
                 episode = min(max(1, $0), maxEpisode(season))
                 save()
             }
-            // Jump straight to the latest aired episode.
-            if let s = info?.lastAiredSeason, let e = info?.lastAiredEpisode,
-               !(season == s && episode == e) {
-                Button {
-                    Haptics.tap(); season = s; episode = e; save(caughtUp: true)
-                } label: {
-                    Label("I'm caught up (S\(s) · E\(e))", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
+            // "All caught up" means different things by show type.
+            if let c = ceiling {
+                if isEnded {
+                    // You finished a show that's over — it leaves Currently Watching.
+                    Button {
+                        Haptics.success(); finishShow()
+                    } label: {
+                        Label("I finished it", systemImage: "checkmark.seal.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                } else if !(season == c.season && episode == c.episode) {
+                    // Ongoing: jump to the next episode you're waiting on (the cap).
+                    let scheduledNext = info?.nextEpisodeNumber != nil
+                    Button {
+                        Haptics.tap(); season = c.season; episode = c.episode; save(caughtUp: true)
+                    } label: {
+                        Label(scheduledNext ? "I'm caught up — next is S\(c.season) · E\(c.episode)"
+                                            : "I'm caught up",
+                              systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
             // A clearly-labeled remove (the old "Stop" was ambiguous).
             Button {
@@ -297,6 +335,21 @@ struct WatchingControl: View {
                 // step so the bookmark/list don't show it as still saved.
                 store.watchlistSuperseded(movieID: movie.tmdbID)
             } catch {
+                ToastCenter.shared.saveFailed()
+            }
+        }
+    }
+
+    /// Finished an ended show — it can't be "currently watching" anymore, so
+    /// drop the progress (optimistically; revert if the write fails).
+    private func finishShow() {
+        withAnimation(.snappy) { watching = false }
+        Task {
+            do {
+                try await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID)
+                ToastCenter.shared.show("You finished \(movie.title) 🎬")
+            } catch {
+                withAnimation(.snappy) { watching = true }
                 ToastCenter.shared.saveFailed()
             }
         }

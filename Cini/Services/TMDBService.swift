@@ -149,6 +149,7 @@ final class TMDBService {
         var seasonEpisodeCounts: [Int: Int] = [:]   // season number → episode count
         var lastAiredSeason: Int?                    // latest episode that has aired
         var lastAiredEpisode: Int?
+        var status: String?                          // "Ended"/"Canceled" vs "Returning Series" etc.
     }
 
     func extendedDetails(for movieID: Int) async throws -> ExtendedDetails {
@@ -167,6 +168,7 @@ final class TMDBService {
             let lastEpisodeToAir: Ep?
             let numberOfSeasons: Int?
             let seasons: [SeasonDTO]?
+            let status: String?
         }
         let dto: DTO = try await get(Self.mediaPath(movieID))
         var studios = (dto.productionCompanies ?? []).map(\.name)
@@ -186,7 +188,8 @@ final class TMDBService {
             numberOfSeasons: dto.numberOfSeasons,
             seasonEpisodeCounts: counts,
             lastAiredSeason: dto.lastEpisodeToAir?.seasonNumber,
-            lastAiredEpisode: dto.lastEpisodeToAir?.episodeNumber
+            lastAiredEpisode: dto.lastEpisodeToAir?.episodeNumber,
+            status: dto.status
         )
     }
 
