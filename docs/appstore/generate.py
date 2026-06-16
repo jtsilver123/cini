@@ -21,10 +21,14 @@ DISPLAY = os.path.join(RES, "Limelight-Regular.ttf")        # marquee wordmark
 SERIF   = os.path.join(RES, "DMSerifDisplay-Regular.ttf")   # editorial headlines
 SANS  = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 SANSB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+# Closest freely-available match to Apple's SF Pro — used for the iOS status
+# bar time so it reads like a real device (SF Pro itself isn't redistributable).
+STATUSF = "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 def disp(p): return ImageFont.truetype(DISPLAY, p)
 def sf(p): return ImageFont.truetype(SERIF, p)
 def sa(p): return ImageFont.truetype(SANS, p)
 def sb(p): return ImageFont.truetype(SANSB, p)
+def stf(p): return ImageFont.truetype(STATUSF, p)
 
 OUT = os.path.join(ROOT, "docs", "appstore")
 
@@ -174,21 +178,28 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
 def status_bar(d, pw):
-    """A clearly-iOS status bar: 9:41, Dynamic Island (iPhone only), cellular
-    (iPhone only), Wi-Fi fan, and the iOS battery glyph."""
+    """A clearly-iOS status bar: 9:41 in an SF-like face, Dynamic Island +
+    cellular (iPhone only), the iOS Wi-Fi glyph (dot + radiating arcs), and the
+    iOS battery."""
+    base = 80                                              # common baseline for the glyphs
     if ISLAND:
         iw=300; ih=78; ix=(pw-iw)//2; iy=30
         d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=39, fill="#000000")
-    d.text((58, 40), "9:41", font=sb(38), fill=INK)
-    if ISLAND:  # cellular signal — phones only
+    d.text((58, 38), "9:41", font=stf(42), fill=INK)
+    if ISLAND:  # cellular signal — 4 ascending bars, phones only
         for i in range(4):
-            h=16+i*10; d.rounded_rectangle([pw-260+i*18, 76-h, pw-249+i*18, 76], radius=2, fill=INK)
-    wx=pw-176
-    d.pieslice([wx, 40, wx+56, 96], 212, 328, fill=INK)   # Wi-Fi fan
-    bx=pw-96                                               # iOS battery
-    d.rounded_rectangle([bx, 44, bx+58, 78], radius=8, outline=INK, width=3)
-    d.rounded_rectangle([bx+5, 49, bx+44, 73], radius=4, fill=INK)
-    d.rounded_rectangle([bx+58, 54, bx+66, 68], radius=3, fill=INK)
+            h=18+i*11; x=pw-268+i*20
+            d.rounded_rectangle([x, base-h, x+13, base], radius=3, fill=INK)
+    # Wi-Fi — the iOS glyph: an apex dot with three concentric arcs above it.
+    wx=pw-150; wy=base
+    for rr,wd in [(16,7),(29,7),(42,7)]:
+        d.arc([wx-rr, wy-rr, wx+rr, wy+rr], 214, 326, fill=INK, width=wd)
+    d.ellipse([wx-6, wy-6, wx+6, wy+6], fill=INK)
+    # iOS battery
+    bx=pw-96
+    d.rounded_rectangle([bx, base-36, bx+58, base], radius=9, outline=INK, width=3)
+    d.rounded_rectangle([bx+5, base-31, bx+44, base-5], radius=4, fill=INK)
+    d.rounded_rectangle([bx+58, base-26, bx+66, base-10], radius=3, fill=INK)
 
 def chip(d, x, y, text, active=False):
     f=sa(26); w=d.textlength(text,font=f); cw=w+44; ch=58
