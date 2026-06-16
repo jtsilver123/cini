@@ -156,16 +156,17 @@ struct SearchView: View {
         guard query.isEmpty, browse == nil,
               tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch else { return }
         Task { @MainActor in
-            // Wait for the tab transition to settle first — focusing mid-
-            // transition focuses the field but the keyboard doesn't rise (that's
-            // why it used to take two taps). Then toggle off→on so the keyboard
-            // comes up even if the field already quietly holds focus.
-            try? await Task.sleep(for: .milliseconds(450))
-            guard tabRouter.selection == .search, query.isEmpty else { return }
+            // Clear any focus the field quietly kept from a prior visit so the
+            // off→on transition reliably raises the keyboard.
             searchFocused = false
-            try? await Task.sleep(for: .milliseconds(60))
-            guard tabRouter.selection == .search, query.isEmpty else { return }
-            searchFocused = true
+            // Re-assert across a few delays: focusing before the field is in the
+            // window is a no-op, and the tab-transition time varies by device —
+            // a single attempt was flaky (took two taps, or failed entirely).
+            for ms in [300, 220, 220] {
+                try? await Task.sleep(for: .milliseconds(ms))
+                guard tabRouter.selection == .search, query.isEmpty else { return }
+                searchFocused = true
+            }
         }
     }
 
