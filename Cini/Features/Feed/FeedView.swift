@@ -322,7 +322,8 @@ struct FeedView: View {
                     movie: tonightMovie,
                     reason: tonightReason,
                     onOpen: { detailMovie = $0 },
-                    onQuickAdd: { logMovie = $0 }
+                    onQuickAdd: { logMovie = $0 },
+                    onDismiss: { withAnimation(.snappy) { self.tonightMovie = nil } }
                 )
                 .padding(.top, 6)
             }
@@ -532,13 +533,21 @@ struct FeedView: View {
         tonightReason = Self.tonightReason(for: pick)
     }
 
-    /// "We think you'll rate it 8.9 · 3 friends loved it"
+    /// A reason that never overstates confidence. Lead with friends when they
+    /// vouch for it; otherwise quote a predicted score only when it's genuinely
+    /// high (a default ~6.5 for an uncached pick isn't a real prediction).
     static func tonightReason(for pick: TonightPickRow) -> String {
-        var parts = ["We think you'll rate it \(pick.predicted.formatted(.number.precision(.fractionLength(1))))"]
+        var parts: [String] = []
         if pick.friendCount == 1, let friend = pick.topFriend {
             parts.append("@\(friend) loved it")
         } else if pick.friendCount > 1 {
             parts.append("\(pick.friendCount) friends loved it")
+        }
+        if pick.predicted >= 7.0 {
+            parts.append("We think you'll rate it \(pick.predicted.formatted(.number.precision(.fractionLength(1))))")
+        } else if parts.isEmpty {
+            // Nothing strong to say — it's a title they already want to see.
+            parts.append(pick.source == "watchlist" ? "On your Want to Watch" : "Picked for your taste")
         }
         return parts.joined(separator: " · ")
     }

@@ -1314,17 +1314,18 @@ final class SupabaseService {
             params: Params(p_plan_id: planID, p_accept: accept, p_new_time: iso)).execute()
     }
 
-    /// The most recent plan between me and a friend for a title (RLS scopes it
-    /// to plans I'm part of), so the sheet can show "accept" vs "propose".
+    /// The most recent plan between me and a friend for a title, so the sheet
+    /// can show "accept" vs "propose". RLS already scopes watch_plans to plans
+    /// I'm part of, so we fetch my plans for this title and pick the latest one
+    /// that involves this friend (avoids any ambiguous OR-filter encoding).
     func latestWatchPlan(movieID: Int, withUser: UUID) async throws -> WatchPlanRow? {
         let rows: [WatchPlanRow] = try await client.from("watch_plans")
             .select()
             .eq("movie_id", value: movieID)
-            .or("invitee_id.eq.\(withUser.uuidString),proposer_id.eq.\(withUser.uuidString)")
             .order("created_at", ascending: false)
-            .limit(1)
+            .limit(20)
             .execute().value
-        return rows.first
+        return rows.first { $0.proposerId == withUser || $0.inviteeId == withUser }
     }
 
     // MARK: - Shared watchlists

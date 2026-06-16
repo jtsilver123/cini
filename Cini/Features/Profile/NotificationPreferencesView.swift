@@ -25,6 +25,10 @@ struct NotificationPreferencesView: View {
             ("direct_rec", "Recs from friends", "A friend recommends a movie directly to you"),
             ("rec_request", "Rec requests", "A friend asks you to recommend them something"),
         ]),
+        ("Watch together", [
+            ("watch_match", "Watch matches", "You and a friend both want to watch the same title"),
+            ("watch_invite", "Watch invites", "A friend invites you to watch something together"),
+        ]),
         ("Reminders", [
             ("rate_nudge", "Rate reminders", "A nudge to rank a saved title once it's out to watch"),
             ("streak_reminder", "Streak reminders", "A weekly heads-up before your streak resets"),

@@ -9,6 +9,7 @@ struct TonightPickCard: View {
     var reason: String?
     var onOpen: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
+    var onDismiss: (() -> Void)?
 
     var body: some View {
         Button {
@@ -63,6 +64,24 @@ struct TonightPickCard: View {
                 .padding(.horizontal, 9).padding(.vertical, 5)
                 .background(Capsule().fill(Theme.marquee))
                 .padding(12)
+            }
+            // Not feeling it tonight — dismiss for now.
+            .overlay(alignment: .topTrailing) {
+                if let onDismiss {
+                    Button {
+                        Haptics.tap()
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(7)
+                            .background(Circle().fill(.black.opacity(0.45)))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(12)
+                    .accessibilityLabel("Not tonight")
+                }
             }
         }
         .buttonStyle(.plain)
