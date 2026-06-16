@@ -71,8 +71,6 @@ struct ProfileScreen: View {
                 } else {
                     VStack(spacing: 18) {
                         identity
-                        bothWatchingSection
-                        watchingSection
                         topThree
                         if isSelf, !rankings.isEmpty { shareTopFiveButton }
                         if isSelf, session.availableUnlocks > 0 { unlockBanner }
@@ -149,72 +147,6 @@ struct ProfileScreen: View {
 
     /// Everything loads in parallel — serially this took over a second of
     /// visible stagger on device.
-    /// Shows you and the viewed member are BOTH binging — the social hook.
-    @ViewBuilder
-    private var bothWatchingSection: some View {
-        if !isSelf, !bothWatching.isEmpty {
-            watchShelf("You both are watching", bothWatching)
-        }
-    }
-
-    /// "Currently Watching" shelf — the shows this member is mid-binge on.
-    @ViewBuilder
-    private var watchingSection: some View {
-        if !watchingRows.isEmpty {
-            watchShelf(isSelf ? "Currently Watching"
-                              : "\(profile?.username ?? "They")'s currently watching",
-                       watchingRows)
-        }
-    }
-
-    /// A horizontal shelf of shows (poster + episode chip), tappable to the show.
-    private func watchShelf(_ title: String, _ rows: [WatchingRow]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.headline).foregroundStyle(Theme.ink)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 12) {
-                    ForEach(rows) { row in
-                        Button { openShow(row.showId) } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                ZStack(alignment: .bottomLeading) {
-                                    PosterView(url: tmdbPoster(row.posterPath), width: 96)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    if let label = episodeLabel(season: row.season, episode: row.episode) {
-                                        Text(label)
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 6).padding(.vertical, 3)
-                                            .background(Capsule().fill(.black.opacity(0.6)))
-                                            .padding(6)
-                                    }
-                                }
-                                Text(row.title)
-                                    .font(.caption2).foregroundStyle(Theme.gray)
-                                    .lineLimit(1).frame(width: 96, alignment: .leading)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    private func tmdbPoster(_ path: String?) -> URL? {
-        guard let path, !path.isEmpty else { return nil }
-        if path.hasPrefix("http") { return URL(string: path) }
-        return URL(string: "https://image.tmdb.org/t/p/w342\(path)")
-    }
-
-    private func openShow(_ showID: Int) {
-        Task {
-            if let movie = try? await TMDBService.shared.details(for: showID) {
-                store.cache(movie)
-                detailMovie = movie
-            }
-        }
-    }
-
     private func load() async {
         guard let id = resolvedID else { return }
         let supabase = SupabaseService.shared
@@ -750,6 +682,26 @@ struct ProfileScreen: View {
                 listRow(icon: "book", title: "Diary", count: nil)
             }
             .buttonStyle(.plain)
+            // Currently watching as a compact row (was a big poster shelf up top).
+            if !watchingRows.isEmpty {
+                Divider()
+                NavigationLink {
+                    WatchingListScreen(title: "Currently Watching", rows: watchingRows)
+                } label: {
+                    listRow(icon: "play.tv", title: "Currently watching", count: watchingRows.count)
+                }
+                .buttonStyle(.plain)
+            }
+            if !isSelf, !bothWatching.isEmpty {
+                Divider()
+                NavigationLink {
+                    WatchingListScreen(title: "You both are watching", rows: bothWatching)
+                } label: {
+                    listRow(icon: "play.tv.fill", title: "You both are watching",
+                            count: bothWatching.count)
+                }
+                .buttonStyle(.plain)
+            }
             if !isSelf {
                 Divider()
                 NavigationLink {
@@ -1394,6 +1346,64 @@ struct BothWantToWatchScreen: View {
         }
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
+        }
+    }
+}
+
+/// Currently-watching shows as a compact vertical list, pushed from a profile
+/// list row (was a big poster shelf at the top of the profile).
+struct WatchingListScreen: View {
+    let title: String
+    let rows: [WatchingRow]
+
+    @Environment(RankingStore.self) private var store
+    @State private var detailMovie: Movie?
+
+    var body: some View {
+        List {
+            ForEach(rows) { row in
+                Button { open(row.showId) } label: {
+                    HStack(spacing: 12) {
+                        PosterView(url: poster(row.posterPath), width: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink).lineLimit(1)
+                            if let label = episodeLabel(season: row.season, episode: row.episode) {
+                                Text(label).font(.caption).foregroundStyle(Theme.marquee)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Theme.background)
+            }
+        }
+        .listStyle(.plain)
+        .background(Theme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in
+            MovieDetailView(movie: movie)
+        }
+    }
+
+    private func poster(_ path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: "https://image.tmdb.org/t/p/w342\(path)")
+    }
+
+    private func open(_ showID: Int) {
+        Task {
+            if let movie = try? await TMDBService.shared.details(for: showID) {
+                store.cache(movie)
+                detailMovie = movie
+            }
         }
     }
 }
