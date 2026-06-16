@@ -227,7 +227,7 @@ struct LetterboxdImportView: View {
                         if pastedToWatchlist {
                             summaryRow(icon: "bookmark.fill", count: result.watched.count,
                                        label: "added to Want to Watch",
-                                       detail: "Find them under Your Lists → Want to Watch.")
+                                       detail: "Find them under My Lists → Want to Watch.")
                         } else {
                             summaryRow(icon: "film.stack", count: result.watched.count,
                                        label: "films queued to rank",

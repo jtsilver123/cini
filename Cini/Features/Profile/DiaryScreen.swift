@@ -32,8 +32,8 @@ struct DiaryScreen: View {
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Theme.background)
             } else if watches.isEmpty {
-                Text(isSelf ? "Your diary starts with your next rank — every watch lands here, rewatches included."
-                            : "No diary entries yet.")
+                Text(isSelf ? "Every movie and show you rank lands here — rewatches too. Rank one to start your diary."
+                            : "No diary entries to show yet.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .listRowBackground(Theme.background)

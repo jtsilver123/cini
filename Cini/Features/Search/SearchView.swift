@@ -310,7 +310,7 @@ struct SearchView: View {
     private var browseSection: some View {
         if browseResults.isEmpty {
             if browseLoaded {
-                noResultsMessage("Nothing to show right now — check your connection and try again.")
+                noResultsMessage("Couldn't load these right now — pull to refresh or try again.")
             } else {
                 SearchSkeleton(kind: .titles)
             }

@@ -184,7 +184,7 @@ struct OnboardingView: View {
             AvatarView(url: founder?.avatarURL, size: 132,
                        name: founder?.displayName ?? "Jake Silver")
             VStack(spacing: 8) {
-                Text("\(founderFirstName) thinks you have great taste")
+                Text("\(founderFirstName) will help you find your next favorite")
                     .font(.title3.weight(.semibold)).foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.center).padding(.horizontal, 28)
                 Button("Who's \(founderFirstName)?") { showFounderInfo = true }
@@ -535,7 +535,7 @@ struct OnboardingView: View {
                 .foregroundStyle(Theme.gold)
             Text("Stay in the loop")
                 .font(Theme.serif(34))
-            Text("Two quick things so Cini can reach you.")
+            Text("Turn these on so you never miss a friend's pick or a movie hitting theaters.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -645,7 +645,7 @@ struct OnboardingView: View {
                 Spacer()
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 40)).foregroundStyle(Theme.gray)
-                Text("Search any title to rank it from the home screen — or jump in and explore first.")
+                Text("We couldn't load suggestions — jump in below, then use the gold + to rank anything.")
                     .font(.subheadline).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center).padding(.horizontal, 36)
                 Spacer()

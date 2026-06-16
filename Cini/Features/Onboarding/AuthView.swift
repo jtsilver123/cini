@@ -78,7 +78,7 @@ struct AuthView: View {
                 Task { await signIn() }
             }
             messages
-            Button("New here? Create an account") { switchMode(toSignUp: true) }
+            Button("New to Cini? Create an account") { switchMode(toSignUp: true) }
                 .font(.subheadline).foregroundStyle(Theme.marquee)
             Spacer(minLength: 20)
             legal
@@ -110,7 +110,7 @@ struct AuthView: View {
                               disabled: !PhoneNumber.isValid(phone, dial: country.dial)) {
                     Task { await continueFromPhone() }
                 }
-                Button("Have an account? Sign in") { switchMode(toSignUp: false) }
+                Button("Already have an account? Sign in") { switchMode(toSignUp: false) }
                     .font(.subheadline).foregroundStyle(Theme.marquee)
             case 1:
                 header("What's your email?", "We'll use it to keep your account safe.")
