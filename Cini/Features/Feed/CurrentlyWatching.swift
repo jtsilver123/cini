@@ -74,10 +74,10 @@ struct FriendsWatchingShelf: View {
 struct WatchingControl: View {
     let movie: Movie
 
+    @Environment(RankingStore.self) private var store
     @State private var watching = false
     @State private var season = 1
     @State private var episode = 1
-    @State private var loaded = false
 
     var body: some View {
         if movie.mediaKind == "tv" {
@@ -87,6 +87,10 @@ struct WatchingControl: View {
                 } else {
                     Button {
                         Haptics.tap()
+                        // Starting to watch moves it out of Want to Watch — say so.
+                        if store.isOnWatchlist(movie.tmdbID) {
+                            ToastCenter.shared.show("Moved out of Want to Watch")
+                        }
                         watching = true
                         save()
                     } label: {
@@ -105,14 +109,14 @@ struct WatchingControl: View {
                     .buttonStyle(.plain)
                 }
             }
-            .task {
-                guard !loaded else { return }
+            // Reload per show (a pushed detail is a fresh view, but key it anyway
+            // so progress is never carried over from a previous title).
+            .task(id: movie.tmdbID) {
                 if let p = await SupabaseService.shared.myShowProgress(showID: movie.tmdbID) {
                     watching = true
                     season = p.season ?? 1
                     episode = p.episode ?? 1
                 }
-                loaded = true
             }
         }
     }
@@ -150,9 +154,9 @@ struct WatchingControl: View {
                 .font(.subheadline.weight(.bold)).monospacedDigit()
                 .frame(minWidth: 28)
             Button {
-                value.wrappedValue += 1; save()
+                if value.wrappedValue < 99 { value.wrappedValue += 1; save() }
             } label: { Image(systemName: "plus.circle.fill") }
-                .buttonStyle(.plain).foregroundStyle(Theme.marquee)
+                .buttonStyle(.plain).foregroundStyle(value.wrappedValue < 99 ? Theme.marquee : Theme.gray.opacity(0.5))
         }
         .font(.title3)
     }
