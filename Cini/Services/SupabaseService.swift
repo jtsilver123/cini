@@ -754,6 +754,17 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// One list by id (for an opened share link). Returns nil when it's not
+    /// viewable — RLS only returns the row to the owner or an allowed follower.
+    func list(id: UUID) async -> CustomList? {
+        let rows: [CustomList]? = try? await client.from("custom_lists")
+            .select("id, user_id, name, is_private, created_at, media_kind, custom_list_items(count)")
+            .eq("id", value: id)
+            .limit(1)
+            .execute().value
+        return rows?.first
+    }
+
     func createList(name: String, mediaKind: String = "movie") async throws -> CustomList {
         guard let me = currentUserID else { throw URLError(.userAuthenticationRequired) }
         struct Row: Encodable { let user_id: UUID; let name: String; let media_kind: String }

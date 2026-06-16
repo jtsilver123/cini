@@ -141,7 +141,6 @@ struct CustomListScreen: View {
     let isSelf: Bool
 
     @Environment(RankingStore.self) private var store
-    @Environment(AppSession.self) private var session
 
     @State private var movieIDs: [Int] = []
     @State private var movies: [Int: Movie] = [:]
@@ -280,10 +279,10 @@ struct CustomListScreen: View {
             let year = movie.releaseYear.map { " (\($0))" } ?? ""
             lines.append("\(index + 1). \(movie.title)\(year)")
         }
-        let username = session.profile?.username ?? ""
+        // The list link opens this exact list in the app (App Store otherwise).
         lines.append("")
-        lines.append(username.isEmpty ? AppLinks.appStore
-                                      : "Find me on Cini at \(AppLinks.invite(username))")
+        lines.append((whole ? "Open it in Cini: " : "See the full list in Cini: ")
+                     + AppLinks.listLink(list.id))
         return lines.joined(separator: "\n")
     }
 

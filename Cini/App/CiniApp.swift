@@ -11,6 +11,8 @@ struct CiniApp: App {
     @AppStorage("cini.touredUserIDs") private var touredUserIDsRaw = ""
     @State private var showOnboarding = false
     @State private var showTour = false
+    /// A list opened from a shared `cini://list?id=` link.
+    @State private var sharedList: CustomList?
 
     private func isOnboarded(_ uid: String) -> Bool {
         onboardedUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
@@ -86,13 +88,28 @@ struct CiniApp: App {
         }
     }
 
+    /// Route a `cini://…` deep link from a shared trycini.com page.
+    private func handleURL(_ url: URL) {
+        guard url.scheme == "cini",
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+        if url.host == "list" {
+            // cini://list?id=<uuid> → open that list (if it's viewable).
+            guard let idStr = comps.queryItems?.first(where: { $0.name == "id" })?.value,
+                  let id = UUID(uuidString: idStr) else { return }
+            Task {
+                if let list = await SupabaseService.shared.list(id: id) { sharedList = list }
+                else { ToastCenter.shared.show("That list is private or unavailable.") }
+            }
+            return
+        }
+        handleInvite(comps)
+    }
+
     /// `cini://invite?u=<username>` from a friend's invite link: remember the
     /// inviter so onboarding prefills it, and if we're already signed in,
     /// follow them right away — the invitee never types a username.
-    private func handleInvite(_ url: URL) {
-        guard url.scheme == "cini",
-              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let raw = comps.queryItems?.first(where: { $0.name == "u" })?.value else { return }
+    private func handleInvite(_ comps: URLComponents) {
+        guard let raw = comps.queryItems?.first(where: { $0.name == "u" })?.value else { return }
         let username = raw.replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces)
         guard !username.isEmpty else { return }
         // Your own link is a no-op — don't leave a stale inviter pointing at you.
@@ -164,7 +181,22 @@ struct CiniApp: App {
             .preferredColorScheme(colorScheme)
             .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }
-            .onOpenURL { handleInvite($0) }
+            .onOpenURL { handleURL($0) }
+            // A shared list link (cini://list?id=) opens the list right here.
+            .sheet(item: $sharedList) { list in
+                NavigationStack {
+                    CustomListScreen(list: list,
+                                     isSelf: list.userId == SupabaseService.shared.currentUserID)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { sharedList = nil }
+                            }
+                        }
+                }
+                // Same shared router the tab bar uses, so a tapped movie/profile
+                // inside the list navigates correctly.
+                .environment(TabRouter.shared)
+            }
         }
     }
 

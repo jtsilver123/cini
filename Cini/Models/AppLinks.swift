@@ -11,6 +11,12 @@ enum AppLinks {
     static func invite(_ username: String) -> String {
         "https://trycini.com/i/?u=\(username)"
     }
+
+    /// Link to a specific list — opens that list in the app (the `/l/` page
+    /// deep-links `cini://list?id=`) and sends everyone else to the App Store.
+    static func listLink(_ id: UUID) -> String {
+        "https://trycini.com/l/?id=\(id.uuidString.lowercased())"
+    }
 }
 
 extension String {

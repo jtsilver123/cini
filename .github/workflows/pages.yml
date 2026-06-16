@@ -45,6 +45,10 @@ jobs:
           mkdir -p _site/i
           cp i/index.html _site/i/index.html
           cp favicon.png _site/i/favicon.png
+          # Shared-list landing page served from /l/.
+          mkdir -p _site/l
+          cp l/index.html _site/l/index.html
+          cp favicon.png _site/l/favicon.png
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
