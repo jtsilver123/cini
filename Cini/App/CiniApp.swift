@@ -13,6 +13,8 @@ struct CiniApp: App {
     @State private var showTour = false
     /// A list opened from a shared `cini://list?id=` link.
     @State private var sharedList: CustomList?
+    /// A list link tapped while signed out — opened once the user is in the app.
+    @State private var pendingListID: UUID?
 
     private func isOnboarded(_ uid: String) -> Bool {
         onboardedUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
@@ -53,6 +55,7 @@ struct CiniApp: App {
         if !isToured(uid) && !showOnboarding {
             withAnimation { showTour = true }
         }
+        consumePendingList()   // returning user with a stashed list link
     }
     /// "dark" · "light" · "system" (default — follows the device).
     @AppStorage("cini.appearance") private var appearance = "system"
@@ -93,16 +96,31 @@ struct CiniApp: App {
         guard url.scheme == "cini",
               let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
         if url.host == "list" {
-            // cini://list?id=<uuid> → open that list (if it's viewable).
+            // cini://list?id=<uuid> → open that list (if it's viewable). Signed
+            // out, stash it and open once they're in the app.
             guard let idStr = comps.queryItems?.first(where: { $0.name == "id" })?.value,
                   let id = UUID(uuidString: idStr) else { return }
-            Task {
-                if let list = await SupabaseService.shared.list(id: id) { sharedList = list }
-                else { ToastCenter.shared.show("That list is private or unavailable.") }
-            }
+            if session.isAuthenticated { openList(id) } else { pendingListID = id }
             return
         }
         handleInvite(comps)
+    }
+
+    /// Fetch + present a shared list, or explain why it can't open.
+    private func openList(_ id: UUID) {
+        Task {
+            if let list = await SupabaseService.shared.list(id: id) { sharedList = list }
+            else { ToastCenter.shared.show("That list is private or unavailable.") }
+        }
+    }
+
+    /// Open a stashed list link — only once the user is fully in the app (never
+    /// over onboarding or the tour).
+    private func consumePendingList() {
+        guard session.isAuthenticated, !showOnboarding, !showTour,
+              let id = pendingListID else { return }
+        pendingListID = nil
+        openList(id)
     }
 
     /// `cini://invite?u=<username>` from a friend's invite link: remember the
@@ -150,6 +168,7 @@ struct CiniApp: App {
                                     if !isToured(uid) { showTour = true }
                                 }
                                 withAnimation { showOnboarding = false }
+                                consumePendingList()   // if no tour follows
                             }
                         } else {
                             RootTabView()
@@ -162,6 +181,7 @@ struct CiniApp: App {
                                                 markToured(uid)
                                             }
                                             withAnimation { showTour = false }
+                                            consumePendingList()   // open a stashed list link
                                         }
                                         .transition(.opacity)
                                     }
