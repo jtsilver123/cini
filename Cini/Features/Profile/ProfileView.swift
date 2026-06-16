@@ -17,6 +17,10 @@ struct ProfileScreen: View {
     @State private var rankings: [RankingRow] = []
     @State private var movies: [Int: Movie] = [:]
     @State private var events: [FeedEventRow] = []
+    // Diary watches (incl. Letterboxd imports) merged into Activity — one
+    // history surface instead of a separate Diary screen.
+    @State private var watches: [WatchRow] = []
+    @State private var watchMovies: [Int: Movie] = [:]
     @State private var showAllActivity = false
     @State private var followerCount = 0
     @State private var followingCount = 0
@@ -155,7 +159,8 @@ struct ProfileScreen: View {
 
         async let profileTask = supabase.profile(id: id)
         async let rankingsTask = supabase.rankings(userID: id)
-        async let eventsTask = supabase.events(of: id)
+        async let eventsTask = supabase.events(of: id, limit: 100)
+        async let watchesTask = supabase.watches(of: id)
         async let followersTask = supabase.followCount(of: id, direction: "following_id")
         async let followingTask = supabase.followCount(of: id, direction: "follower_id")
         async let rankTask = supabase.globalRank(userID: id)
@@ -191,6 +196,13 @@ struct ProfileScreen: View {
         rankings.sort { (order[$0.bucket] ?? 3, $0.position) < (order[$1.bucket] ?? 3, $1.position) }
 
         events = (try? await eventsTask) ?? []
+        watches = (try? await watchesTask) ?? []
+        // Pull metadata for any watch (e.g. an import) the store/events don't cover.
+        let missing = Set(watches.map(\.movieId)).filter { movies[$0] == nil && store.movie($0) == nil }
+        if !missing.isEmpty {
+            let rows = (try? await supabase.movies(ids: Array(missing))) ?? []
+            for row in rows { watchMovies[row.tmdbId] = row.asMovie }
+        }
         followerCount = await followersTask
         followingCount = await followingTask
         globalRank = try? await rankTask
@@ -675,13 +687,7 @@ struct ProfileScreen: View {
                 }
                 .buttonStyle(.plain)
             }
-            Divider()
-            NavigationLink {
-                DiaryScreen(userID: resolvedID, isSelf: isSelf)
-            } label: {
-                listRow(icon: "book", title: "Diary", count: nil)
-            }
-            .buttonStyle(.plain)
+            // Diary merged into the Activity tab — no separate Diary row.
             // Currently watching as a compact row (was a big poster shelf up top).
             if !watchingRows.isEmpty {
                 Divider()
@@ -834,9 +840,36 @@ struct ProfileScreen: View {
         .frame(maxWidth: .infinity)
     }
 
+    /// Activity is now the single history surface: social events (ranked,
+    /// saved, rec'd) merged with diary watches (incl. Letterboxd imports), newest
+    /// first. A watch on the same day a social event already covers is dropped so
+    /// nothing double-lists.
+    private enum ActivityItem: Identifiable {
+        case event(FeedEventRow)
+        case watch(WatchRow)
+        var id: String {
+            switch self {
+            case .event(let e): return "e-\(e.id)"
+            case .watch(let w): return "w-\(w.id)"
+            }
+        }
+    }
+
+    private var activityItems: [ActivityItem] {
+        let day = DateFormatter.posixDay
+        var covered = Set<String>()
+        for e in events { if let m = e.movieId { covered.insert("\(m)@\(day.string(from: e.createdAt))") } }
+        var dated: [(Date, ActivityItem)] = events.map { ($0.createdAt, .event($0)) }
+        for w in watches where !covered.contains("\(w.movieId)@\(w.watchedOn)") {
+            dated.append((day.date(from: w.watchedOn) ?? .distantPast, .watch(w)))
+        }
+        return dated.sorted { $0.0 > $1.0 }.map(\.1)
+    }
+
     @ViewBuilder
     private var activityContent: some View {
-        if events.isEmpty && loaded {
+        let items = activityItems
+        if items.isEmpty && loaded {
             if let lockedHint {
                 Text(lockedHint)
                     .font(.subheadline)
@@ -847,7 +880,7 @@ struct ProfileScreen: View {
                 EmptyStateView(
                     icon: "film.stack",
                     title: "Build your taste",
-                    message: "Rank your first movie and your stats, top films, and activity fill in right here.",
+                    message: "Rank or import a movie and your stats, top films, and activity fill in right here.",
                     actionTitle: "Rank a movie") { tabRouter.selection = .search }
             } else {
                 Text(username.map { "@\($0) hasn't ranked anything yet." } ?? "Nothing here yet.")
@@ -857,27 +890,12 @@ struct ProfileScreen: View {
                     .padding(.vertical, 24)
             }
         }
-        ForEach(showAllActivity ? events : Array(events.prefix(12))) { event in
-            let movie = event.movies?.asMovie
-            HStack(spacing: 12) {
-                if let movie {
-                    PosterView(url: movie.posterURL, width: 36)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(activityLine(event)).font(.subheadline).lineLimit(2)
-                    Text(event.createdAt.formatted(.relative(presentation: .named)))
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .onTapGesture { if let movie { detailMovie = movie } }
+        ForEach(showAllActivity ? items : Array(items.prefix(12))) { item in
+            activityRow(item)
             Divider()
         }
-        if !showAllActivity && events.count > 12 {
-            Button("See all \(events.count) updates") {
+        if !showAllActivity && items.count > 12 {
+            Button("See all \(items.count) updates") {
                 withAnimation(.snappy) { showAllActivity = true }
             }
             .font(.subheadline.weight(.semibold))
@@ -885,6 +903,48 @@ struct ProfileScreen: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
         }
+    }
+
+    @ViewBuilder
+    private func activityRow(_ item: ActivityItem) -> some View {
+        switch item {
+        case .event(let event):
+            let movie = event.movies?.asMovie
+            HStack(spacing: 12) {
+                if let movie { PosterView(url: movie.posterURL, width: 36) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(activityLine(event)).font(.subheadline).lineLimit(2)
+                    Text(event.createdAt.formatted(.relative(presentation: .named)))
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture { if let movie { detailMovie = movie } }
+        case .watch(let watch):
+            let movie = watchMovies[watch.movieId] ?? movies[watch.movieId] ?? store.movie(watch.movieId)
+            HStack(spacing: 12) {
+                if let movie { PosterView(url: movie.posterURL, width: 36) }
+                VStack(alignment: .leading, spacing: 2) {
+                    (Text("Watched ").foregroundStyle(Theme.gray)
+                     + Text(movie?.title ?? "a title").fontWeight(.semibold).foregroundStyle(Theme.ink))
+                        .font(.subheadline).lineLimit(2)
+                    Text(diaryDayLabel(watch.watchedOn))
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture { if let movie { store.cache(movie); detailMovie = movie } }
+        }
+    }
+
+    /// "Jun 11, 2026" from a date-only string; falls back to the raw string.
+    private func diaryDayLabel(_ day: String) -> String {
+        guard let date = DateFormatter.posixDay.date(from: day) else { return day }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
     private func activityLine(_ event: FeedEventRow) -> AttributedString {
