@@ -219,7 +219,7 @@ struct SearchView: View {
 
     private var tabsRow: some View {
         HStack(spacing: 0) {
-            tabButton("Movies", icon: "film", index: 0)
+            tabButton("Movies/TV", icon: "film", index: 0)
             tabButton("Members", icon: "person.2", index: 1)
         }
     }

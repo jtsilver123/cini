@@ -58,6 +58,9 @@ struct YourListsView: View {
     private var visibleDefaultTabs: [SubTab] {
         SubTab.allCases.filter { tab in
             switch tab {
+            // Currently Watching is a TV-only concept (you binge shows, not
+            // movies) — hide it under the Movies category.
+            case .watching: return category == .tvShows
             case .recs, .friendRecs: return !hiddenTabs.contains(tab.rawValue)
             default: return true
             }
@@ -187,6 +190,8 @@ struct YourListsView: View {
                    list.kind != newCategory.mediaKind {
                     self.selectedListID = nil
                 }
+                // Watching is TV-only — switching to Movies retires that tab.
+                if !visibleDefaultTabs.contains(subTab) { subTab = .watched }
             }
             .onAppear {
                 consumePendingCustomList()
