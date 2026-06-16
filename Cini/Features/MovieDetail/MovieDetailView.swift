@@ -166,8 +166,7 @@ struct MovieDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
-        .confirmationDialog("Delete your rating for \(movie.title)?",
-                            isPresented: $showDeleteRatingConfirm, titleVisibility: .visible) {
+        .alert("Delete your rating for \(movie.title)?", isPresented: $showDeleteRatingConfirm) {
             Button("Delete my rating", role: .destructive) {
                 Task {
                     if await store.removeRanking(movieID: movie.tmdbID) {
@@ -182,11 +181,10 @@ struct MovieDetailView: View {
             Text("It comes off your ranked list and your score clears. Notes and diary entries stay.")
         }
         // Blocking is heavy — always confirm before mutual invisibility.
-        .confirmationDialog(
+        .alert(
             "Block @\(blockCandidate?.username ?? "")?",
             isPresented: Binding(get: { blockCandidate != nil },
                                  set: { if !$0 { blockCandidate = nil } }),
-            titleVisibility: .visible,
             presenting: blockCandidate
         ) { row in
             Button("Block @\(row.username)", role: .destructive) {

@@ -158,9 +158,9 @@ struct YourListsView: View {
                 Text("Add movies to it from any movie page with \"Add to List\".")
             }
             // A whole list is hours of curation — deleting one confirms.
-            .confirmationDialog(
+            .alert(
                 "Delete \"\(selectedList?.name ?? "this list")\"?",
-                isPresented: $showDeleteListConfirm, titleVisibility: .visible
+                isPresented: $showDeleteListConfirm
             ) {
                 Button("Delete list", role: .destructive) {
                     guard let doomed = selectedList else { return }
@@ -823,10 +823,10 @@ struct YourListsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
-        .confirmationDialog("Delete this rating?",
-                            isPresented: Binding(get: { pendingDeleteRating != nil },
-                                                 set: { if !$0 { pendingDeleteRating = nil } }),
-                            presenting: pendingDeleteRating) { movie in
+        .alert("Delete this rating?",
+               isPresented: Binding(get: { pendingDeleteRating != nil },
+                                    set: { if !$0 { pendingDeleteRating = nil } }),
+               presenting: pendingDeleteRating) { movie in
             Button("Delete rating", role: .destructive) {
                 // removeRanking surfaces its own saveFailed() toast on error.
                 Task { await store.removeRanking(movieID: movie.tmdbID) }

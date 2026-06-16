@@ -129,8 +129,7 @@ struct LogFlowView: View {
         }
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
-        .confirmationDialog("Discard this ranking?", isPresented: $showDiscardConfirm,
-                            titleVisibility: .visible) {
+        .alert("Discard this ranking?", isPresented: $showDiscardConfirm) {
             Button("Discard", role: .destructive) { cancel() }
             Button("Keep going", role: .cancel) {}
         } message: {

@@ -312,8 +312,7 @@ struct ProfileScreen: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Menu")
-                .confirmationDialog("Log out of Cini?",
-                                    isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+                .alert("Log out of Cini?", isPresented: $showLogoutConfirm) {
                     Button("Log out", role: .destructive) {
                         Task { await session.signOut() }
                     }
@@ -598,8 +597,7 @@ struct ProfileScreen: View {
                         .contentShape(Rectangle())
                 }
                 // Blocking is heavy — always confirm before mutual invisibility.
-                .confirmationDialog("Block @\(profile?.username ?? username ?? "member")?",
-                                    isPresented: $showBlockConfirm, titleVisibility: .visible) {
+                .alert("Block @\(profile?.username ?? username ?? "member")?", isPresented: $showBlockConfirm) {
                     Button("Block", role: .destructive) {
                         Task {
                             do {

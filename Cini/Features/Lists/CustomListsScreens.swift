@@ -77,11 +77,10 @@ struct CustomListsScreen: View {
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         // A whole list is hours of curation — deleting one confirms.
-        .confirmationDialog(
+        .alert(
             "Delete \(doomedLists.first?.name ?? "this list")?",
             isPresented: Binding(get: { !doomedLists.isEmpty },
-                                 set: { if !$0 { doomedLists = [] } }),
-            titleVisibility: .visible
+                                 set: { if !$0 { doomedLists = [] } })
         ) {
             Button("Delete list", role: .destructive) {
                 let doomed = doomedLists
@@ -223,8 +222,7 @@ struct CustomListScreen: View {
                 }
             }
         }
-        .confirmationDialog("Block this list's owner?",
-                            isPresented: $showBlockConfirm, titleVisibility: .visible) {
+        .alert("Block this list's owner?", isPresented: $showBlockConfirm) {
             Button("Block", role: .destructive) {
                 Task {
                     do {
@@ -390,11 +388,10 @@ struct EditListsSheet: View {
             .background(Theme.background)
             .navigationTitle("Edit Lists")
             .navigationBarTitleDisplayMode(.inline)
-            .confirmationDialog(
+            .alert(
                 "Delete \(doomedLists.first?.name ?? "this list")?",
                 isPresented: Binding(get: { !doomedLists.isEmpty },
-                                     set: { if !$0 { doomedLists = [] } }),
-                titleVisibility: .visible
+                                     set: { if !$0 { doomedLists = [] } })
             ) {
                 Button("Delete list", role: .destructive) {
                     let doomed = doomedLists

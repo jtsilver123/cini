@@ -183,8 +183,7 @@ struct FeedView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Menu")
-                .confirmationDialog("Log out of Cini?",
-                                    isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+                .alert("Log out of Cini?", isPresented: $showLogoutConfirm) {
                     Button("Log out", role: .destructive) {
                         Task { await session.signOut() }
                     }
@@ -1002,11 +1001,10 @@ struct CommentsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         // Blocking is heavy — always confirm before mutual invisibility.
-        .confirmationDialog(
+        .alert(
             "Block @\(blockCandidate?.profiles?.username ?? "member")?",
             isPresented: Binding(get: { blockCandidate != nil },
                                  set: { if !$0 { blockCandidate = nil } }),
-            titleVisibility: .visible,
             presenting: blockCandidate
         ) { comment in
             Button("Block @\(comment.profiles?.username ?? "member")", role: .destructive) {

@@ -241,33 +241,25 @@ struct OnboardingView: View {
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
         // Branded bottom sheets — system alerts/dialogs were rendering as a
-        // top-anchored popover bubble overlapping the screen.
-        .sheet(isPresented: $showFounderInfo) {
-            OnboardingSheet(title: "Who's \(founderFirstName)?",
-                            message: "\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.") {
-                PillButton(title: "Got it") { showFounderInfo = false }
-            }
-            .presentationDetents([.height(300)])
+        // standard centered iOS alerts (the system confirmationDialog had been
+        // rendering as a misplaced popover bubble).
+        .alert("Who's \(founderFirstName)?", isPresented: $showFounderInfo) {
+            Button("Got it", role: .cancel) {}
+        } message: {
+            Text("\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.")
         }
-        .sheet(isPresented: $showInviterEntry, onDismiss: { inviterDraft = "" }) {
-            OnboardingSheet(title: "Who invited you?",
-                            message: "Enter their username and you'll follow each other automatically once you finish.") {
-                HStack(spacing: 4) {
-                    Text("@").foregroundStyle(Theme.gray)
-                    TextField("their username", text: $inviterDraft)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-                PillButton(title: "Save") {
-                    inviterUsername = inviterDraft
-                        .trimmingCharacters(in: .whitespaces)
-                        .replacingOccurrences(of: "@", with: "")
-                    showInviterEntry = false
-                }
+        .alert("Who invited you?", isPresented: $showInviterEntry) {
+            TextField("their username", text: $inviterDraft)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Save") {
+                inviterUsername = inviterDraft
+                    .trimmingCharacters(in: .whitespaces)
+                    .replacingOccurrences(of: "@", with: "")
             }
-            .presentationDetents([.height(320)])
+            Button("Cancel", role: .cancel) { inviterDraft = "" }
+        } message: {
+            Text("Enter their username and you'll follow each other automatically once you finish.")
         }
     }
 
@@ -302,24 +294,20 @@ struct OnboardingView: View {
             // Pull the contact list up immediately instead of showing a button.
             InviteSheet(autoFindContacts: true)
         }
-        // Beli-style nudge: one more chance to invite before skipping. A branded
-        // bottom sheet — the system confirmationDialog was rendering as a
-        // misplaced top popover.
-        .sheet(isPresented: $showSkipFriendsNudge) {
-            OnboardingSheet(title: "Cini is so much better with friends",
-                            message: "Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.") {
-                PillButton(title: "Invite friends") {
-                    showSkipFriendsNudge = false
-                    // Let this sheet dismiss before presenting the next one.
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(350))
-                        showFindFriends = true
-                    }
+        // Beli-style nudge: one more chance to invite before skipping. A
+        // standard centered alert (the system confirmationDialog had been
+        // rendering as a misplaced popover bubble).
+        .alert("Cini is so much better with friends", isPresented: $showSkipFriendsNudge) {
+            Button("Invite friends") {
+                // Let the alert dismiss before presenting the contacts sheet.
+                Task {
+                    try? await Task.sleep(for: .milliseconds(300))
+                    showFindFriends = true
                 }
-                Button("Skip for now") { showSkipFriendsNudge = false; advance() }
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.gray)
             }
-            .presentationDetents([.height(300)])
+            Button("Skip for now", role: .cancel) { advance() }
+        } message: {
+            Text("Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.")
         }
     }
 
@@ -763,36 +751,5 @@ struct OnboardingView: View {
                     .padding(.bottom, 24)
             }
         }
-    }
-}
-
-/// A small branded confirmation anchored at the bottom — replaces system
-/// alerts/dialogs in onboarding, which were rendering as a misplaced popover.
-private struct OnboardingSheet<Actions: View>: View {
-    let title: String
-    let message: String
-    @ViewBuilder var actions: Actions
-
-    var body: some View {
-        VStack(spacing: 14) {
-            Capsule().fill(Theme.fill).frame(width: 38, height: 5)
-                .padding(.top, 10)
-            Spacer(minLength: 0)
-            Text(title)
-                .font(Theme.serif(24))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.ink)
-            Text(message)
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(Theme.gray)
-            actions
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-        .background(Theme.background)
-        .presentationDragIndicator(.hidden)
     }
 }

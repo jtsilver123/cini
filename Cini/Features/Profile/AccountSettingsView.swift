@@ -30,8 +30,7 @@ struct AccountSettingsView: View {
         .background(Theme.background)
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Log out of Cini?",
-                            isPresented: $showLogoutConfirm, titleVisibility: .visible) {
+        .alert("Log out of Cini?", isPresented: $showLogoutConfirm) {
             Button("Log out", role: .destructive) { Task { await session.signOut() } }
             Button("Cancel", role: .cancel) {}
         }
@@ -104,8 +103,7 @@ private struct ManageAccountScreen: View {
         .background(Theme.background)
         .navigationTitle("Manage account")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Delete your account forever?",
-                            isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+        .alert("Delete your account forever?", isPresented: $showDeleteConfirm) {
             Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -534,8 +532,7 @@ private struct TheaterAlertsScreen: View {
                     }
                     .disabled(detecting)
                     Button("Turn off alerts", role: .destructive) { confirmOff = true }
-                        .confirmationDialog("Turn off theater alerts?",
-                                            isPresented: $confirmOff, titleVisibility: .visible) {
+                        .alert("Turn off theater alerts?", isPresented: $confirmOff) {
                             Button("Turn off alerts", role: .destructive) {
                                 Task {
                                     await SupabaseService.shared.setHomeZip(nil)
