@@ -1264,6 +1264,13 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// The day's single "watch this tonight" pick for the signed-in user, or
+    /// nil if there's nothing to recommend yet (brand-new account).
+    func tonightPick() async throws -> TonightPickRow? {
+        let rows: [TonightPickRow] = try await client.rpc("tonight_pick").execute().value
+        return rows.first
+    }
+
     // MARK: - Shared watchlists
 
     // MARK: - Comments
@@ -1839,6 +1846,23 @@ struct RecRow: Codable, Identifiable, Hashable {
         case recScore = "rec_score"
         case friendCount = "friend_count"
         case topFriendUsername = "top_friend_username"
+    }
+}
+
+/// One row from the `tonight_pick` RPC — the movie plus the reason inputs.
+struct TonightPickRow: Codable, Hashable {
+    let movieId: Int
+    let predicted: Double
+    let friendCount: Int
+    let topFriend: String?
+    let source: String              // "watchlist" or "friends"
+
+    enum CodingKeys: String, CodingKey {
+        case movieId = "movie_id"
+        case predicted
+        case friendCount = "friend_count"
+        case topFriend = "top_friend"
+        case source
     }
 }
 

@@ -23,6 +23,8 @@ struct FeedView: View {
     @State private var pendingAsks: [RecRequestRow] = []
     @State private var promoted: Movie?
     @State private var promotedReason: String?
+    @State private var tonightMovie: Movie?
+    @State private var tonightReason: String?
 
     var body: some View {
         NavigationStack {
@@ -53,6 +55,7 @@ struct FeedView: View {
             .background(Theme.background)
             .task { await loadFeed() }
             .task(id: store.isLoaded) { await loadPromoted() }
+            .task(id: store.isLoaded) { await loadTonightPick() }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
             .onAppear { consumePush() }
@@ -307,6 +310,17 @@ struct FeedView: View {
 
     private var yourFeed: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // The daily hook — one "watch this tonight" pinned to the top.
+            if let tonightMovie {
+                TonightPickCard(
+                    movie: tonightMovie,
+                    reason: tonightReason,
+                    onOpen: { detailMovie = $0 },
+                    onQuickAdd: { logMovie = $0 }
+                )
+                .padding(.top, 6)
+            }
+
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
                 FeedUnlockCard()
@@ -490,6 +504,33 @@ struct FeedView: View {
             promoted = fresh.first
         }
         if let promoted { store.cache(promoted) }
+    }
+
+    /// Load the day's "Tonight's Pick" and resolve its poster/title.
+    private func loadTonightPick() async {
+        guard tonightMovie == nil,
+              let pick = try? await SupabaseService.shared.tonightPick() else { return }
+        let resolved: Movie?
+        if let cached = store.movie(pick.movieId) {
+            resolved = cached
+        } else {
+            resolved = (try? await SupabaseService.shared.movies(ids: [pick.movieId]))?.first?.asMovie
+        }
+        guard let movie = resolved, movie.posterPath != nil else { return }
+        store.cache(movie)
+        tonightMovie = movie
+        tonightReason = Self.tonightReason(for: pick)
+    }
+
+    /// "We think you'll rate it 8.9 · 3 friends loved it"
+    static func tonightReason(for pick: TonightPickRow) -> String {
+        var parts = ["We think you'll rate it \(pick.predicted.formatted(.number.precision(.fractionLength(1))))"]
+        if pick.friendCount == 1, let friend = pick.topFriend {
+            parts.append("@\(friend) loved it")
+        } else if pick.friendCount > 1 {
+            parts.append("\(pick.friendCount) friends loved it")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func loadFeed() async {
