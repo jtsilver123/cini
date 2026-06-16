@@ -16,6 +16,9 @@ struct EnrichmentCard: View {
     var showsStealth = true
     /// Watched-with tags live on the ranking row — hidden until one exists.
     var showsWatchedWith = true
+    /// "How did you watch it?" (home/theater) — the fast log flow drops it as
+    /// optional noise; the movie-page editor keeps it.
+    var showsWatchedWhere = true
     var onOkay: () -> Void
 
     /// Which editor is open — owned by LogFlowView, which presents the
@@ -34,15 +37,18 @@ struct EnrichmentCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Notes lead the card — capturing what you thought while it's fresh
+            // is the point of logging, so it's the elevated, can't-miss row.
+            notesRow
+            divider
             if showsWatchedWith {
                 watchedWithSection
                 divider
             }
-            watchedWhereSection
-            divider
-            enrichmentRow(.notes, icon: "square.and.pencil", title: "Add notes",
-                          detail: draft.notes.isEmpty ? nil : draft.notes)
-            divider
+            if showsWatchedWhere {
+                watchedWhereSection
+                divider
+            }
             enrichmentRow(.performances, icon: "star", title: "Add favorite performances",
                           detail: draft.cast.isEmpty ? nil : draft.cast.map(\.name).joined(separator: ", "))
             divider
@@ -102,6 +108,10 @@ struct EnrichmentCard: View {
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
                 }
+                // Make the whole row hittable, not just the text/chevron —
+                // otherwise the Spacer gap swallows taps and the modal feels
+                // glitchy to open.
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if !friends.isEmpty {
@@ -208,6 +218,47 @@ struct EnrichmentCard: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
             }
             .padding(.vertical, 11)
+            // Hit the whole row, not just the label — the Spacer gap was
+            // eating taps, so the editor felt glitchy to open.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Notes — the headline action
+
+    /// Notes are the reason to log while it's fresh, so this row is elevated
+    /// above the rest: a soft marquee wash, a bolder title, and an inviting
+    /// prompt when empty. The whole tile is tappable.
+    private var notesRow: some View {
+        Button {
+            guard !isLocked else { return }
+            activeRow = .notes
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "square.and.pencil")
+                    .font(.title3)
+                    .frame(width: 28)
+                    .foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(draft.notes.isEmpty ? "Add notes" : "Notes")
+                        .font(.headline)
+                        .foregroundStyle(Theme.ink)
+                    Text(draft.notes.isEmpty
+                         ? "What did you think? Capture it while it's fresh."
+                         : draft.notes)
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 12)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.marqueeSoft))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

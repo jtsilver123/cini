@@ -98,6 +98,7 @@ struct LogFlowView: View {
                                     movie: movie,
                                     draft: $draft,
                                     isLocked: false,
+                                    showsWatchedWhere: false,
                                     onOkay: { startComparisons() },
                                     activeRow: $enrichRow
                                 )
