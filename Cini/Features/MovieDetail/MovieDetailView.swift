@@ -79,6 +79,7 @@ struct MovieDetailView: View {
                 actionPills
                 WatchingControl(movie: movie)
                     .padding(.horizontal, 16)
+                nextEpisodeRow
                 scoresSection
                 histogramSection
                 yourDetailsSection
@@ -1019,6 +1020,36 @@ struct MovieDetailView: View {
     }
 
     // MARK: Data
+
+    /// For ongoing shows: when the next episode (or season premiere) airs.
+    @ViewBuilder
+    private var nextEpisodeRow: some View {
+        if movie.mediaKind == "tv",
+           let ext = extended,
+           let raw = ext.nextEpisodeAirDate,
+           let date = DateFormatter.posixDay.date(from: raw),
+           date >= Calendar.current.startOfDay(for: Date()) {
+            HStack(spacing: 8) {
+                Image(systemName: "calendar.badge.clock").foregroundStyle(Theme.marquee)
+                Text(nextEpisodeText(ext, date))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func nextEpisodeText(_ ext: TMDBService.ExtendedDetails, _ date: Date) -> String {
+        let when = date.formatted(.dateTime.month(.abbreviated).day())
+        if (ext.nextEpisodeNumber ?? 0) == 1, let s = ext.nextEpisodeSeason {
+            return "Season \(s) premieres \(when)"
+        }
+        if let s = ext.nextEpisodeSeason, let e = ext.nextEpisodeNumber {
+            return "Next: S\(s) · E\(e) airs \(when)"
+        }
+        return "Next episode airs \(when)"
+    }
 
     /// Friends who also want to watch this — invite one to plan a time together.
     @ViewBuilder

@@ -23,6 +23,8 @@ struct YourListsView: View {
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
+    @State private var watchingRows: [WatchingRow] = []
+    @State private var showWatchingInfo = false
     @State private var predicted: [Int: Double] = [:]
     @State private var showListSearch = false
     @State private var listQuery = ""
@@ -71,6 +73,7 @@ struct YourListsView: View {
     enum SubTab: String, CaseIterable {
         case watched = "Watched"
         case watchlist = "Want to Watch"
+        case watching = "Watching"
         case recs = "Recs"
         case friendRecs = "Friend Recs"
     }
@@ -112,6 +115,16 @@ struct YourListsView: View {
             }
             .task {
                 customLists = (try? await SupabaseService.shared.myLists()) ?? []
+            }
+            .task(id: subTab) {
+                if subTab == .watching, let me = SupabaseService.shared.currentUserID {
+                    watchingRows = await SupabaseService.shared.watching(for: me)
+                }
+            }
+            .alert("Currently Watching", isPresented: $showWatchingInfo) {
+                Button("Got it", role: .cancel) {}
+            } message: {
+                Text("A show lands here when you tap “I'm watching this” on its page. It leaves when you rank it (you finished) or tap Stop. Friends can see what you're binging.")
             }
             .sheet(isPresented: $showEditLists, onDismiss: {
                 Task { customLists = (try? await SupabaseService.shared.myLists()) ?? [] }
@@ -578,6 +591,7 @@ struct YourListsView: View {
             switch subTab {
             case .watched: watchedList
             case .watchlist: watchlistList
+            case .watching: watchingList
             case .recs: recsList
             case .friendRecs: friendRecsList
             }
@@ -865,6 +879,75 @@ struct YourListsView: View {
             guard let movie = store.movie(item.movieID) else { return true }
             guard passesFilters(movie) else { return false }
             return query.isEmpty || movie.title.lowercased().contains(query)
+        }
+    }
+
+    /// "Watching" — shows you've marked yourself mid-binge on. An (i) explains
+    /// how a title lands here; swipe to stop.
+    private var watchingList: some View {
+        List {
+            Button { showWatchingInfo = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                    Text("How shows end up here")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+            .listRowBackground(Theme.background)
+            .listRowSeparator(.hidden)
+
+            ForEach(watchingRows) { row in
+                HStack(spacing: 12) {
+                    PosterView(url: watchingPoster(row.posterPath), width: 46)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.title)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.ink).lineLimit(2)
+                        if let label = episodeLabel(season: row.season, episode: row.episode) {
+                            Text(label).font(.caption).foregroundStyle(Theme.marquee)
+                        }
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { openShow(row.showId) }
+                .listRowBackground(Theme.background)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        Task {
+                            try? await SupabaseService.shared.clearShowProgress(showID: row.showId)
+                            watchingRows.removeAll { $0.showId == row.showId }
+                        }
+                    } label: { Label("Stop", systemImage: "stop.circle") }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .overlay {
+            if watchingRows.isEmpty {
+                emptyList("Mark a show “I'm watching this” on its page and it shows up here.",
+                          actionTitle: "Find a show") {
+                    tabRouter.pendingSearchBrowse = .trending
+                    tabRouter.selection = .search
+                }
+            }
+        }
+    }
+
+    private func watchingPoster(_ path: String?) -> URL? {
+        guard let path, !path.isEmpty else { return nil }
+        if path.hasPrefix("http") { return URL(string: path) }
+        return URL(string: "https://image.tmdb.org/t/p/w342\(path)")
+    }
+
+    private func openShow(_ showID: Int) {
+        Task {
+            if let movie = try? await TMDBService.shared.details(for: showID) {
+                store.cache(movie)
+                detailMovie = movie
+            }
         }
     }
 

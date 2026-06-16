@@ -140,11 +140,16 @@ final class TMDBService {
         var countries: [String] = []
         var languages: [String] = []
         var releaseDate: String?   // "2024-03-01"
+        // For ongoing shows: when the next episode/season airs.
+        var nextEpisodeAirDate: String?   // "2024-06-20"
+        var nextEpisodeSeason: Int?
+        var nextEpisodeNumber: Int?
     }
 
     func extendedDetails(for movieID: Int) async throws -> ExtendedDetails {
         struct Named: Codable { let name: String }
         struct Lang: Codable { let englishName: String?; let name: String? }
+        struct NextEp: Codable { let airDate: String?; let seasonNumber: Int?; let episodeNumber: Int? }
         struct DTO: Codable {
             let productionCompanies: [Named]?
             let networks: [Named]?
@@ -152,6 +157,7 @@ final class TMDBService {
             let spokenLanguages: [Lang]?
             let releaseDate: String?
             let firstAirDate: String?
+            let nextEpisodeToAir: NextEp?
         }
         let dto: DTO = try await get(Self.mediaPath(movieID))
         var studios = (dto.productionCompanies ?? []).map(\.name)
@@ -160,7 +166,10 @@ final class TMDBService {
             studios: studios,
             countries: (dto.productionCountries ?? []).map(\.name),
             languages: (dto.spokenLanguages ?? []).compactMap { $0.englishName ?? $0.name },
-            releaseDate: dto.releaseDate ?? dto.firstAirDate
+            releaseDate: dto.releaseDate ?? dto.firstAirDate,
+            nextEpisodeAirDate: dto.nextEpisodeToAir?.airDate,
+            nextEpisodeSeason: dto.nextEpisodeToAir?.seasonNumber,
+            nextEpisodeNumber: dto.nextEpisodeToAir?.episodeNumber
         )
     }
 

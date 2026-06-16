@@ -800,6 +800,17 @@ function renderLists(){
             </div>
           </div>
         </div>`;}).join("");
+  } else if(sub==="watching"){
+    const wk2=Object.keys(MOVIES);
+    const shows=[[wk2[0],"S2 · E5"],[wk2[1]||wk2[0],"S1 · E3"]];
+    content = `
+      <div class="pad"><button class="lnk" onclick="toast('A show lands here when you tap I\\'m watching this on its page. It leaves when you rank it or tap Stop.')">ⓘ How shows end up here</button></div>
+      ${shows.map(([k,ep])=>{ const m=MOVIES[k];
+        return `<div class="listrow" style="cursor:pointer;" onclick="openDetail('${k}')">
+          <div class="poster" style="width:52px;height:78px; background-image:url('${IMG(m.p)}');"></div>
+          <div style="flex:1;"><div style="font-weight:700;font-size:15.5px;">${m.t}</div>
+            <div class="meta" style="color:var(--marquee);font-weight:700;">${ep}</div></div>
+        </div>`;}).join("")}`;
   } else if(sub==="recs"){
     const recs=Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.watchlist.includes(k));
     const reasons={poor:"Loved by @oliviafang + 1 more", anat:"Because you loved Dune: Part Two", zone:"Loved by @allynevias"};
@@ -870,7 +881,7 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["recs","Recs"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k)).map(([k,l])=>
+      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["watching","Watching"],["recs","Recs"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k)).map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     ${sub!=="shared"&&!S.ui.reorder?`<div class="row-scroll" style="margin-top:12px;">
@@ -1523,6 +1534,9 @@ function renderDetail(){
       <div class="card" style="display:flex;gap:12px;align-items:center;" onclick="toast('Now watching — friends can see you\\'re binging this 📺')">
         <span style="color:var(--marquee);">${I("play",22,1.6)}</span>
         <div style="flex:1;"><b style="font-size:14px;">I'm watching this</b><div class="sub" style="margin-top:1px;">Let friends see what you're binging · set your episode</div></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--ink);font-size:14px;font-weight:600;">
+        <span style="color:var(--marquee);">${I("calendar",17)}</span> Next: S3 · E5 airs Jun 20
       </div>
     </div>
     <div class="pad" style="margin-top:14px;">
