@@ -633,105 +633,99 @@ struct ProfileScreen: View {
     // MARK: List rows (Beli: Been / Want to Try / Recs for You)
 
     private var listRows: some View {
+        isSelf ? AnyView(ownListRows) : AnyView(memberListRows)
+    }
+
+    /// Your own profile: Watched · Want to Watch · Watching · Recs — each jumps
+    /// to that page in the Lists tab (no separate "Lists" row, since these
+    /// already land there).
+    private var ownListRows: some View {
         VStack(spacing: 0) {
-            // Your own Watched / Want to Watch live in the Lists tab —
-            // jump there instead of pushing a second copy of the list.
-            if isSelf {
-                Button {
-                    tabRouter.pendingListsTab = .watched
-                    tabRouter.selection = .lists
-                } label: {
-                    listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
-                }
-                .buttonStyle(.plain)
-                Divider()
-                Button {
-                    tabRouter.pendingListsTab = .watchlist
-                    tabRouter.selection = .lists
-                } label: {
-                    listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
-                }
-                .buttonStyle(.plain)
-            } else {
-                NavigationLink {
-                    RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
-                                     isSelf: isSelf, emptyHint: lockedHint)
-                } label: {
-                    listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
-                }
-                .buttonStyle(.plain)
-                Divider()
-                NavigationLink {
-                    WatchlistScreen(userID: resolvedID, isSelf: isSelf)
-                } label: {
-                    listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
-                }
-                .buttonStyle(.plain)
-            }
+            jumpRow(icon: "checkmark.circle", title: "Watched", count: rankings.count, tab: .watched)
             Divider()
-            if isSelf {
-                // Your lists live in the Lists tab — go there, chips and all.
-                Button {
-                    tabRouter.pendingListsTab = nil
-                    tabRouter.pendingCustomListID = nil
-                    tabRouter.selection = .lists
-                } label: {
-                    listRow(icon: "list.star", title: "Lists", count: nil)
-                }
-                .buttonStyle(.plain)
-            } else {
-                NavigationLink {
-                    CustomListsScreen(userID: resolvedID, isSelf: isSelf)
-                } label: {
-                    listRow(icon: "list.star", title: "Lists", count: nil)
-                }
-                .buttonStyle(.plain)
+            jumpRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount, tab: .watchlist)
+            Divider()
+            jumpRow(icon: "play.tv", title: "Watching", count: watchingRows.count, tab: .watching)
+            Divider()
+            jumpRow(icon: "heart", title: "Recs for You", count: nil, tab: .recs)
+        }
+    }
+
+    private func jumpRow(icon: String, title: String, count: Int?,
+                         tab: YourListsView.SubTab) -> some View {
+        Button {
+            tabRouter.pendingListsTab = tab
+            tabRouter.selection = .lists
+        } label: {
+            listRow(icon: icon, title: title, count: count)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A friend's profile: their Watched · Want to Watch · Watching in the same
+    /// UI as your own (pushed, so the back arrow returns here), then the two
+    /// "both" overlap screens.
+    private var memberListRows: some View {
+        VStack(spacing: 0) {
+            NavigationLink {
+                RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
+                                 isSelf: isSelf, emptyHint: lockedHint)
+            } label: {
+                listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
             }
-            // Diary merged into the Activity tab — no separate Diary row.
-            // Currently watching as a compact row (was a big poster shelf up top).
+            .buttonStyle(.plain)
+            Divider()
+            NavigationLink {
+                WatchlistScreen(userID: resolvedID, isSelf: isSelf)
+            } label: {
+                listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
+            }
+            .buttonStyle(.plain)
             if !watchingRows.isEmpty {
                 Divider()
                 NavigationLink {
-                    WatchingListScreen(title: "Currently Watching", rows: watchingRows)
+                    WatchingListScreen(title: "Watching", rows: watchingRows)
                 } label: {
-                    listRow(icon: "play.tv", title: "Currently watching", count: watchingRows.count)
+                    listRow(icon: "play.tv", title: "Watching", count: watchingRows.count)
                 }
                 .buttonStyle(.plain)
             }
-            if !isSelf, !bothWatching.isEmpty {
-                Divider()
-                NavigationLink {
-                    WatchingListScreen(title: "You both are watching", rows: bothWatching)
-                } label: {
-                    listRow(icon: "play.tv.fill", title: "You both are watching",
-                            count: bothWatching.count)
-                }
-                .buttonStyle(.plain)
-            }
-            if !isSelf {
+            if !bothWantToWatch.isEmpty {
                 Divider()
                 NavigationLink {
                     BothWantToWatchScreen(username: profile?.username ?? username ?? "them",
-                                          rows: bothWantToWatch)
+                                          rows: bothWantToWatch, overlap: overlapInfo)
                 } label: {
                     listRow(icon: "person.2", title: "You both want to watch",
                             count: bothWantToWatch.count)
                 }
                 .buttonStyle(.plain)
             }
-            if isSelf {
+            if !bothWatching.isEmpty {
                 Divider()
-                // One Recs surface, not two: this row jumps to the Lists
-                // tab's Recs instead of duplicating the screen.
-                Button {
-                    tabRouter.pendingListsTab = .recs
-                    tabRouter.selection = .lists
+                NavigationLink {
+                    WatchingListScreen(title: "You both are watching", rows: bothWatching,
+                                       overlap: overlapInfo)
                 } label: {
-                    listRow(icon: "heart", title: "Recs for You", count: nil)
+                    listRow(icon: "play.tv.fill", title: "You both are watching",
+                            count: bothWatching.count)
                 }
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    /// The overlapping-avatars header data for the "both" screens.
+    private var overlapInfo: OverlapData {
+        OverlapData(
+            myAvatar: session.profile?.avatarURL,
+            myName: session.profile?.displayName ?? session.profile?.username,
+            theirAvatar: profile?.avatarURL,
+            theirName: profile?.displayName ?? profile?.username ?? username,
+            onAddFriend: {
+                tabRouter.openMembersSearch = true
+                tabRouter.selection = .search
+            })
     }
 
     private var lockedHint: String? {
@@ -1365,6 +1359,7 @@ struct BothWantToWatchScreen: View {
     let username: String
     /// The member's watchlist rows that are also on the viewer's watchlist.
     let rows: [WatchlistRow]
+    var overlap: OverlapData?
 
     @Environment(RankingStore.self) private var store
     @State private var detailMovie: Movie?
@@ -1373,17 +1368,17 @@ struct BothWantToWatchScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                if let overlap {
+                    OverlapHeader(overlap: overlap,
+                                  title: "You both want to watch",
+                                  subtitle: "On both your Want to Watch lists — perfect for a watch night.")
+                }
                 if rows.isEmpty {
                     Text("No overlap yet — save a few of @\(username)'s Want to Watch picks and they show up here.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
-                } else {
-                    Text("On both of your Want to Watch lists — perfect for a watch party.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                        .padding(.bottom, 8)
                 }
                 ForEach(rows) { row in
                     // Intersection rows are on the viewer's own watchlist,
@@ -1421,12 +1416,21 @@ struct BothWantToWatchScreen: View {
 struct WatchingListScreen: View {
     let title: String
     let rows: [WatchingRow]
+    /// When set, shows the overlapping-avatars header (the "you both" screens).
+    var overlap: OverlapData? = nil
 
     @Environment(RankingStore.self) private var store
     @State private var detailMovie: Movie?
 
     var body: some View {
         List {
+            if let overlap {
+                OverlapHeader(overlap: overlap,
+                              title: "You both are watching",
+                              subtitle: "Shows you're both mid-binge on — line up your next episode together.")
+                    .listRowBackground(Theme.background)
+                    .listRowSeparator(.hidden)
+            }
             ForEach(rows) { row in
                 Button { open(row.showId) } label: {
                     HStack(spacing: 12) {
@@ -1471,6 +1475,58 @@ struct WatchingListScreen: View {
                 detailMovie = movie
             }
         }
+    }
+}
+
+/// The two profile pics (you + the friend) for an overlap screen, plus a way
+/// to bring in another friend.
+struct OverlapData {
+    let myAvatar: URL?
+    let myName: String?
+    let theirAvatar: URL?
+    let theirName: String?
+    var onAddFriend: () -> Void
+}
+
+/// Overlapping avatars + a "+" to add another friend, over a title/subtitle —
+/// the header for the "you both" overlap screens (no map; our design).
+struct OverlapHeader: View {
+    let overlap: OverlapData
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: -14) {
+                AvatarView(url: overlap.myAvatar, size: 54, name: overlap.myName)
+                    .overlay(Circle().strokeBorder(Theme.background, lineWidth: 3))
+                    .zIndex(2)
+                AvatarView(url: overlap.theirAvatar, size: 54, name: overlap.theirName)
+                    .overlay(Circle().strokeBorder(Theme.background, lineWidth: 3))
+                    .zIndex(1)
+                Button(action: overlap.onAddFriend) {
+                    Image(systemName: "plus")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.marquee)
+                        .frame(width: 54, height: 54)
+                        .background(Circle().fill(Theme.fill))
+                        .overlay(Circle().strokeBorder(Theme.marquee.opacity(0.5),
+                                                       style: StrokeStyle(lineWidth: 1.5, dash: [4])))
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 8)
+                .accessibilityLabel("Compare with another friend")
+            }
+            Text(title)
+                .font(Theme.serif(26)).foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+            Text(subtitle)
+                .font(.subheadline).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+        .padding(.bottom, 14)
     }
 }
 
