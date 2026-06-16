@@ -622,24 +622,32 @@ struct LogFlowView: View {
     private func celebrateIfMilestone() {
         let count = store.watchedCount
         let newStreak = appSession.profile?.streakWeeks ?? 0
+        let score = scored?.score ?? 0
+
+        // Pick a celebration: a ranked-count milestone wins over a streak bump.
         let celebration: Celebration?
-        var isRankMilestone = false
         if CelebrationCenter.rankMilestones.contains(count) {
             celebration = .rankMilestone(count)
-            isRankMilestone = true
         } else if newStreak >= 2 && newStreak > priorStreak {
             celebration = .streak(newStreak)
         } else {
             celebration = nil
         }
-        guard let celebration else { return }
+
+        // The review prompt's "spots": a milestone, a new streak high, or a
+        // standout score (a new all-time favorite). Each just *attempts* — the
+        // 3-per-year budget decides whether it actually shows.
+        let reviewWorthy = celebration != nil || score >= 9.0
+
+        guard celebration != nil || reviewWorthy else { return }
         Task {
-            try? await Task.sleep(for: .milliseconds(700))
-            CelebrationCenter.shared.fire(celebration)
-            // A ranked-count milestone is peak delight — once the confetti has
-            // played, ask for an App Store review (gated so it stays rare).
-            if isRankMilestone {
-                try? await Task.sleep(for: .milliseconds(1900))
+            if let celebration {
+                try? await Task.sleep(for: .milliseconds(700))
+                CelebrationCenter.shared.fire(celebration)
+            }
+            if reviewWorthy {
+                // Let any confetti play first, then ask at the emotional peak.
+                try? await Task.sleep(for: .milliseconds(celebration != nil ? 1900 : 900))
                 ReviewPrompt.askAfterDelight()
             }
         }
