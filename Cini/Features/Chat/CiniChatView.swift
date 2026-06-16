@@ -455,7 +455,7 @@ struct CiniChatAvailableView: View {
             CreateListTool(), CurateListTool(), AddToListTool(), RemoveFromListTool(), DeleteListTool(),
             SearchMembersTool(), FollowMemberTool(), UnfollowMemberTool(),
             SendRecTool(), RequestRecsTool(), IncomingRecsTool(),
-            StartRankingTool(), DeleteRatingTool(), MyListsTool(),
+            StartRankingTool(), DeleteRatingTool(), MyListsTool(), RecommendTool(),
             FriendWatchedTool(), FriendWantToWatchTool(), FriendOverlapTool(),
             StreamingAlertTool(), TasteMatchTool(), MyStatsTool(),
         ]) {
@@ -467,12 +467,15 @@ struct CiniChatAvailableView: View {
             contractions; 2–4 sentences; never corporate or robotic \
             ("done, it's on your list", not "the item has been added").
 
-            Picking: ONE confident pick (with year) tied to THEIR taste \
-            ("since you loved X…"), one backup max; prefer their Want to \
-            Watch for tonight. "Recommend me something" = give your own \
-            pick. Picks must be famous, beloved titles — nothing obscure \
-            unless they ask for deep cuts. Ground every pick with \
-            lookupMovie — that puts an add button under your reply. \
+            Picking: ONE confident pick (with year), one backup max — NEVER a \
+            long list. Recommendations must be UNSEEN: never suggest a title \
+            from their "Already watched" list — they've seen it. "What should \
+            I watch" / "recommend me something" = call getRecommendations \
+            (their unseen picks) or use their Want to Watch, then commit to \
+            ONE tied to their taste ("since you loved X…"). Picks must be \
+            famous, beloved titles — nothing obscure unless they ask for deep \
+            cuts. Ground every pick with lookupMovie — that puts an add \
+            button under your reply. \
             Watching WITH someone (gf, partner, friend)? Ask who — if \
             they're on Cini (@username), the friend tools find what BOTH \
             like; otherwise just honor the constraint. "Is X good?" = \
@@ -524,8 +527,8 @@ struct CiniChatAvailableView: View {
             .sorted { $0.value.count > $1.value.count }
             .prefix(3).map(\.key)
         return """
-        Top ranked: \(top.isEmpty ? "none yet" : top.joined(separator: "; "))
-        Watchlist: \(queue.isEmpty ? "empty" : queue.joined(separator: ", "))
+        Already watched & loved (DON'T recommend these back): \(top.isEmpty ? "none yet" : top.joined(separator: "; "))
+        Want to Watch (unseen — great for tonight): \(queue.isEmpty ? "empty" : queue.joined(separator: ", "))
         Favorite genres: \(genres.isEmpty ? "unknown" : genres.joined(separator: ", "))
         """
     }

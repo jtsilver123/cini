@@ -741,6 +741,31 @@ struct MyListsTool: Tool {
     }
 }
 
+@available(iOS 26.0, *)
+struct RecommendTool: Tool {
+    let name = "getRecommendations"
+    let description = "Fresh titles the user has NOT seen, ranked by how much they'll like them. Use this for 'what should I watch' / 'recommend me something' — never recommend titles they've already ranked."
+
+    @Generable
+    struct Arguments {}
+
+    func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("sparkles", "Finding picks you haven't seen")
+        let recs = (try? await SupabaseService.shared.recsForUser(limit: 8)) ?? []
+        guard !recs.isEmpty else {
+            return "No personalized recs yet (they need a few more rankings). Suggest ONE famous film in their favorite genres they likely haven't seen, grounded with lookupMovie."
+        }
+        let titles = await ChatAgentBridge.titles(for: recs.map(\.movieId))
+        let lines = recs.compactMap { rec -> String? in
+            guard let title = titles[rec.movieId] else { return nil }
+            return "\(title) — predicted \(String(format: "%.1f", rec.recScore))/10"
+        }
+        return "Unseen picks they'll likely love (NOT watched yet — safe to recommend): "
+            + lines.joined(separator: "; ")
+            + ". Pick ONE, ground it with lookupMovie, and say why it fits their taste."
+    }
+}
+
 
 @available(iOS 26.0, *)
 struct FriendWatchedTool: Tool {
