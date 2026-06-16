@@ -1122,6 +1122,8 @@ struct ReleaseCalendarView: View {
 }
 
 struct NotificationsView: View {
+    @Environment(TabRouter.self) private var tabRouter
+    @Environment(\.dismiss) private var dismiss
     @State private var rows: [NotificationRow] = []
     @State private var loaded = false
     @State private var detailMovie: Movie?
@@ -1153,13 +1155,19 @@ struct NotificationsView: View {
                     .listRowBackground(Theme.background)
             }
             if rows.isEmpty && loaded {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "bell").font(.title).foregroundStyle(Theme.gray)
                     Text("Nothing yet").font(.subheadline.weight(.semibold))
-                    Text("Likes, comments, new followers, rec requests, and friends ranking your Want to Watch titles land here.")
+                    Text("Likes, comments, and friends' activity show up here. Add a few friends to get things moving.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
+                    PillButton(title: "Find friends", systemImage: "person.badge.plus") {
+                        tabRouter.openMembersSearch = true
+                        tabRouter.selection = .search
+                        dismiss()
+                    }
+                    .padding(.top, 2)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 32)
@@ -1284,8 +1292,8 @@ struct NotificationsView: View {
         case "watch_invite": text = "**\(who)** wants to watch **\(movie)** together — when works? 🎬"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
-        case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it ⭐️"
-        case "friend_loved": text = "**\(who)** just rated **\(movie)** — one of your favorites 🍿"
+        case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
+        case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
         default: text = "**\(who)** did something new"
         }
         return (try? AttributedString(markdown: text)) ?? AttributedString(text)

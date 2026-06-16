@@ -255,7 +255,7 @@ private struct FriendsMock: View {
     private let rows: [(String, Color, String, String, String, Color)] = [
         ("MK", Color(red: 0.55, green: 0.35, blue: 0.7), "Maya", "ranked Dune", "8.7", Theme.scoreGreen),
         ("JR", Theme.velvet, "Jordan", "loved Sinners", "9.2", Theme.scoreGreen),
-        ("AL", Color(red: 0.20, green: 0.5, blue: 0.45), "Alex", "rated Wicked", "6.4", Theme.scoreAmber),
+        ("AL", Color(red: 0.20, green: 0.5, blue: 0.45), "Alex", "ranked Wicked", "6.4", Theme.scoreAmber),
     ]
 
     var body: some View {

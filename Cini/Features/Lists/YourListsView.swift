@@ -466,8 +466,16 @@ struct YourListsView: View {
                             .font(.caption)
                         Spacer()
                         Button {
-                            Task { await SupabaseService.shared.dismissDirectRec(id: rec.id) }
+                            let removed = rec
                             withAnimation(.snappy) { directRecs.removeAll { $0.id == rec.id } }
+                            Task {
+                                do { try await SupabaseService.shared.dismissDirectRec(id: removed.id) }
+                                catch {
+                                    // Put it back if the dismiss didn't take.
+                                    withAnimation(.snappy) { directRecs.append(removed) }
+                                    ToastCenter.shared.saveFailed()
+                                }
+                            }
                         } label: {
                             Image(systemName: "xmark").font(.caption).foregroundStyle(Theme.gray)
                                 .padding(8)
@@ -612,9 +620,10 @@ struct YourListsView: View {
     private var customListContent: some View {
         List {
             if customListMovies.isEmpty {
-                Text("Empty so far — add titles with \"Add to List\" on any title's page.")
+                Text("Nothing in this list yet — open any movie or show and tap \"Add to List.\"")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 32)
                     .listRowBackground(Theme.background)
@@ -916,9 +925,14 @@ struct YourListsView: View {
                 .listRowBackground(Theme.background)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
+                        let removed = row
+                        withAnimation { watchingRows.removeAll { $0.showId == row.showId } }
                         Task {
-                            try? await SupabaseService.shared.clearShowProgress(showID: row.showId)
-                            watchingRows.removeAll { $0.showId == row.showId }
+                            do { try await SupabaseService.shared.clearShowProgress(showID: removed.showId) }
+                            catch {
+                                withAnimation { watchingRows.append(removed) }
+                                ToastCenter.shared.saveFailed()
+                            }
                         }
                     } label: { Label("Stop", systemImage: "stop.circle") }
                 }

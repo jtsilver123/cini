@@ -563,8 +563,8 @@ final class SupabaseService {
             .execute().value
     }
 
-    func dismissDirectRec(id: UUID) async {
-        _ = try? await client.from("direct_recs").delete().eq("id", value: id).execute()
+    func dismissDirectRec(id: UUID) async throws {
+        _ = try await client.from("direct_recs").delete().eq("id", value: id).execute()
     }
 
     // MARK: - Rec requests (ask friends for a rec)
