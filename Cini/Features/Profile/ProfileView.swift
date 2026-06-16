@@ -423,7 +423,7 @@ struct ProfileScreen: View {
                 stat("\(followerCount)", "Followers")
                 stat("\(followingCount)", "Following")
             }
-            stat(globalRank.map { "#\($0)" } ?? "—", "Rank on Cini")
+            // Rank on Cini lives in its own stat card below — don't show it twice.
         }
     }
 
