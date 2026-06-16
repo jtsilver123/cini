@@ -122,8 +122,10 @@ struct TonightPickCard: View {
     }
 
     @ViewBuilder private var swipeStamps: some View {
-        let save = max(0, min(dragX / 90, 1))
-        let dismiss = max(0, min(-dragX / 90, 1))
+        // Divisor matches the 100pt action threshold so a full-opacity stamp
+        // always means "release to act" (no solid stamp that snaps back).
+        let save = max(0, min(dragX / 100, 1))
+        let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.scoreGreen, lineWidth: 4).opacity(save)

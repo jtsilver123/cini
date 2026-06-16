@@ -615,11 +615,20 @@ struct FeedView: View {
     /// Swipe right on a Tonight's Pick → save it to Want to Watch and clear it
     /// from the deck (remembered so it won't resurface as a pick today).
     private func saveTonight(_ item: TonightCardItem) {
-        if !store.isOnWatchlist(item.movie.tmdbID) {
-            Task { await store.toggleWatchlist(movie: item.movie) }
+        if store.isOnWatchlist(item.movie.tmdbID) {
+            // Already saved — just confirm.
+            Haptics.success()
+            ToastCenter.shared.show("Saved to Want to Watch")
+        } else {
+            // toggleWatchlist provides its own haptic and a failure toast/revert;
+            // only claim success once it actually lands.
+            Task {
+                await store.toggleWatchlist(movie: item.movie)
+                if store.isOnWatchlist(item.movie.tmdbID) {
+                    ToastCenter.shared.show("Saved to Want to Watch")
+                }
+            }
         }
-        Haptics.success()
-        ToastCenter.shared.show("Saved to Want to Watch")
         dismissTonight(item.id, toast: false)
     }
 
