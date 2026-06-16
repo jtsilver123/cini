@@ -59,7 +59,6 @@ struct FeedView: View {
             .background(Theme.background)
             .task { await loadFeed() }
             .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
-            .task(id: store.isLoaded) { await loadPromoted() }
             .task(id: store.isLoaded) { await loadTonightStack() }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
@@ -378,18 +377,16 @@ struct FeedView: View {
             if events.isEmpty {
                 if feedLoaded {
                     emptyState
-                    // No friend activity yet — still surface one release to explore.
-                    promotedCard
                 } else {
                     FeedSkeleton()
                         .padding(.top, 4)
                 }
             }
 
-            // Instagram-style placement: friends' activity leads, then the
-            // featured release flows in after a few posts — never pinned to the
-            // very top. (First-party, taste-matched, no tracking.)
-            ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
+            // Friends' activity. (Tonight's Pick at the top is now the single
+            // first-party recommendation surface — the old interspersed
+            // "Promoted release" card was redundant and removed.)
+            ForEach(Array(events.enumerated()), id: \.element.id) { _, event in
                 FeedCard(
                     event: event,
                     initiallyLiked: likedEventIDs.contains(event.id),
@@ -397,9 +394,6 @@ struct FeedView: View {
                     onQuickAdd: { logMovie = $0 },
                     onOpenMember: { memberTarget = $0 }
                 )
-                if index == promotedSlot {
-                    promotedCard
-                }
             }
         }
     }
