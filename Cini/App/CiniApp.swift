@@ -57,8 +57,9 @@ struct CiniApp: App {
         }
         consumePendingList()   // returning user with a stashed list link
     }
-    /// "dark" · "light" · "system" (default — follows the device).
-    @AppStorage("cini.appearance") private var appearance = "system"
+    /// "dark" (default — the cinema-dark room) · "light" · "system" (follows
+    /// the device). Dark is the intended look on both iPhone and iPad.
+    @AppStorage("cini.appearance") private var appearance = "dark"
     /// Carried in from a friend's invite link (`cini://invite?u=…`) so
     /// onboarding prefills it / we auto-follow — no typing a username.
     @AppStorage("cini.pendingInviter") private var pendingInviter = ""

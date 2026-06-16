@@ -219,7 +219,7 @@ private struct PrivacyScreen: View {
 // MARK: - Your app (preferences)
 
 private struct AppPreferencesScreen: View {
-    @AppStorage("cini.appearance") private var appearance = "system"
+    @AppStorage("cini.appearance") private var appearance = "dark"
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
 
     var body: some View {
