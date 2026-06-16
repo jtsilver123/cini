@@ -382,6 +382,11 @@ struct FeedView: View {
                     onDismiss: { dismissTonight($0) }
                 )
                 .padding(.top, 2)
+                // The deck reserves a fixed height, but a dragged/rotated card
+                // (and the card flying off on dismiss) overflows that frame. Keep
+                // it drawn above the rows below — otherwise "Ask friends for a
+                // rec" paints over it, since VStack draws later siblings on top.
+                .zIndex(1)
             }
 
             askForRecsRow
