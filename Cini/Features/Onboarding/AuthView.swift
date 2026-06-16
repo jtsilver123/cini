@@ -179,7 +179,16 @@ struct AuthView: View {
     }
 
     /// Full E.164-ish number (country code + digits) sent to the server.
-    private var e164Phone: String { country.dial + PhoneNumber.digits(phone) }
+    /// Outside the +1 (NANP) plan, callers usually type the national trunk
+    /// prefix (UK "07911…", etc.) — strip a single leading 0 so we don't build
+    /// "+4407911…" instead of "+447911…".
+    private var e164Phone: String {
+        let digits = PhoneNumber.digits(phone)
+        if country.dial != "+1", digits.hasPrefix("0") {
+            return country.dial + String(digits.dropFirst())
+        }
+        return country.dial + digits
+    }
 
     private var passwordRules: some View {
         VStack(alignment: .leading, spacing: 8) {

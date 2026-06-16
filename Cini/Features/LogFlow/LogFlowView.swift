@@ -646,7 +646,7 @@ struct LogFlowView: View {
         let standoutMinRanked = 15
         let reviewWorthy = celebration != nil || (score >= 9.0 && count >= standoutMinRanked)
 
-        guard celebration != nil || reviewWorthy else { return }
+        guard reviewWorthy else { return }
         Task {
             if let celebration {
                 try? await Task.sleep(for: .milliseconds(700))

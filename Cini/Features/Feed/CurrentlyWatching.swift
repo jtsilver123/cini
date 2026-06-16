@@ -156,8 +156,11 @@ struct WatchingControl: View {
     @State private var season = 1
     @State private var episode = 1
 
-    private var maxSeason: Int { info?.numberOfSeasons ?? 99 }
-    private func maxEpisode(_ s: Int) -> Int { info?.seasonEpisodeCounts[s] ?? 99 }
+    // Until the season structure loads, cap at the current value so the steppers
+    // can't run away to a nonsense "S2 · E47" that friends would then see; once
+    // `info` arrives the real caps apply.
+    private var maxSeason: Int { info?.numberOfSeasons ?? season }
+    private func maxEpisode(_ s: Int) -> Int { info?.seasonEpisodeCounts[s] ?? episode }
 
     var body: some View {
         if movie.mediaKind == "tv" {

@@ -75,9 +75,15 @@ struct FeedView: View {
                     row: row,
                     onOpenShow: { openShow($0) },
                     onPlanTogether: { r in
-                        watchPlanContext = WatchPlanContext(
-                            movieID: r.showId,
-                            friend: MemberRef(id: r.userId, username: r.username))
+                        // Let the story sheet finish dismissing before presenting
+                        // the plan sheet — two sheets in one runloop can swallow
+                        // the second on device.
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            watchPlanContext = WatchPlanContext(
+                                movieID: r.showId,
+                                friend: MemberRef(id: r.userId, username: r.username))
+                        }
                     }
                 )
             }

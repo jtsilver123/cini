@@ -1111,7 +1111,15 @@ struct MovieDetailView: View {
         content.sound = .default
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
         comps.hour = 9
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        // A non-repeating calendar trigger in the past never fires — if 9am on
+        // the air date has already passed (it airs today), fire a minute out so
+        // "Reminder set" isn't an empty promise.
+        let trigger: UNNotificationTrigger
+        if let fireAt = Calendar.current.date(from: comps), fireAt <= Date() {
+            trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+        } else {
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        }
         do {
             try await center.add(UNNotificationRequest(identifier: reminderID(),
                                                        content: content, trigger: trigger))
@@ -1235,14 +1243,16 @@ struct MovieDetailView: View {
                                 .font(.caption).foregroundStyle(friend.caughtUp ? Theme.scoreGreen : Theme.gray)
                         }
                         Spacer()
+                        let state = planButtonState(for: friend.userId)
                         Button {
                             Haptics.tap()
                             openPlan(with: friend.userId, username: friend.username, from: $showWatchingSheet)
                         } label: {
-                            Text("Invite").font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.background)
+                            Text(state.label).font(.subheadline.weight(.semibold))
+                                .foregroundStyle(state.filled ? Theme.background : Theme.marquee)
                                 .padding(.horizontal, 16).padding(.vertical, 8)
-                                .background(Capsule().fill(Theme.marquee))
+                                .background(Capsule().fill(state.filled ? Theme.marquee : .clear))
+                                .overlay(Capsule().strokeBorder(state.filled ? .clear : Theme.marquee.opacity(0.6)))
                         }
                         .buttonStyle(.plain)
                     }
