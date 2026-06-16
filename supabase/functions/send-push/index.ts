@@ -101,6 +101,10 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `Your streak ends Sunday — rank one title to keep it alive 🔥`;
     case "tonight_pick":
       return `Tonight's pick: ${movie ?? "a film for you"} 🍿`;
+    case "watch_match":
+      return `You and @${actor} both want to watch ${movie ?? "the same movie"} — plan a movie night? 🍿`;
+    case "watch_invite":
+      return `@${actor} wants to watch ${movie ?? "a movie"} together — when works? 🎬`;
     case "streaming_now":
       return `${movie ?? "A title you saved"} is streaming now 🍿`;
     case "season_premiere":

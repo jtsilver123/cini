@@ -25,6 +25,7 @@ struct FeedView: View {
     @State private var promotedReason: String?
     @State private var tonightMovie: Movie?
     @State private var tonightReason: String?
+    @State private var watchPlanContext: WatchPlanContext?
 
     var body: some View {
         NavigationStack {
@@ -61,6 +62,11 @@ struct FeedView: View {
             .onAppear { consumePush() }
             .onChange(of: tabRouter.pendingPushMovieID) { _, _ in consumePush() }
             .onChange(of: tabRouter.pendingPushMember) { _, _ in consumePush() }
+            .onChange(of: tabRouter.pendingWatchPlan) { _, _ in consumePush() }
+            .sheet(item: $watchPlanContext) { ctx in
+                PlanWatchSheet(context: ctx)
+                    .presentationDetents([.medium, .large])
+            }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
             }
@@ -472,6 +478,10 @@ struct FeedView: View {
             tabRouter.pendingPushMember = nil
             memberTarget = member
         }
+        if let plan = tabRouter.pendingWatchPlan {
+            tabRouter.pendingWatchPlan = nil
+            watchPlanContext = plan
+        }
     }
 
     /// The genre the user ranks most (favorites weigh more) — drives the
@@ -584,6 +594,14 @@ enum FeedDiskCache {
 struct MemberRef: Identifiable, Hashable {
     let id: UUID
     let username: String
+}
+
+/// A title + a friend, opened in the Plan-a-Watch sheet (from a watch-match
+/// push or the "friends who want this" row on the movie page).
+struct WatchPlanContext: Identifiable, Equatable {
+    let movieID: Int
+    let friend: MemberRef
+    var id: String { "\(movieID)-\(friend.id.uuidString)" }
 }
 
 struct FeedCard: View {
@@ -1185,6 +1203,9 @@ struct NotificationsView: View {
         case "contact_joined": text = "**\(name)** from your contacts just joined Cini 🎬"
         case "saved_your_rank": text = "**\(who)** saved **\(movie)** — you ranked it 🔖"
         case "streak_reminder": text = "Your streak ends Sunday — rank one title to keep it alive 🔥"
+        case "tonight_pick": text = "Tonight's pick: **\(movie)** 🍿"
+        case "watch_match": text = "**\(who)** also wants to watch **\(movie)** — plan a movie night? 🍿"
+        case "watch_invite": text = "**\(who)** wants to watch **\(movie)** together — when works? 🎬"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it ⭐️"

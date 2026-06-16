@@ -1453,6 +1453,8 @@ const PUBLIC_NOTES = {
   past:[{n:"Lena", u:"lenawrites", av:"av1", score:8.6, note:"Quietest heartbreak of the year. The bar scene destroyed me.", likes:7}],
 };
 let detailPeopleTab="friends", detailMoreOpen=false;
+function planWatch(u){ toast(`Invite sent to @${u} — they'll get a nudge to pick a time 🎬`); }
+
 function renderDetail(){
   const k=detailKey, m=MOVIES[k];
   const mine=myEntry(k);
@@ -1496,6 +1498,15 @@ function renderDetail(){
     ${m.ov?`<div class="pad" style="margin-top:16px; font-size:14px; line-height:1.6; color:rgba(245,238,223,.9);">${m.ov}</div>`:""}
     <div class="pad" style="margin-top:8px;">
       <button class="lnk" onclick="window.open('https://www.youtube.com/results?search_query=${encodeURIComponent(m.t+" trailer")}','_blank')">${IF("play",15)} Watch trailer</button>
+    </div>
+    <div class="pad" style="margin-top:14px;">
+      <div style="font-weight:800; font-size:16px;">A friend also wants to watch this</div>
+      <div class="sub" style="margin-top:2px;">Invite one to watch together — pick a time and we'll nudge them.</div>
+      <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
+        <span class="avatar av1" style="width:40px;height:40px;font-size:16px;">M</span>
+        <div style="flex:1;"><b>maddy</b><div class="sub">@maddyc</div></div>
+        <button class="pill" onclick="planWatch('maddyc')">Invite</button>
+      </div>
     </div>
     <div class="row-scroll" style="margin-top:12px;">
       <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Where to Watch</button>

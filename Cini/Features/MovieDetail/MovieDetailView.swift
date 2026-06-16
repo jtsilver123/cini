@@ -49,6 +49,8 @@ struct MovieDetailView: View {
     @State private var blockCandidate: PublicNoteRow?
     @State private var heartsInFlight: Set<UUID> = []
     @State private var commentsTarget: CommentsTarget?
+    @State private var watchlistFriends: [WatchlistFriendRow] = []
+    @State private var planContext: WatchPlanContext?
 
     enum PeopleTab: String, CaseIterable {
         case friends = "Friends"
@@ -80,6 +82,7 @@ struct MovieDetailView: View {
                 yourDetailsSection
                 moreInfoSection
                 performancesSection
+                watchTogetherSection
                 peopleSection
             }
             // Ask Cini opens context-aware: the page you're on is the
@@ -113,6 +116,10 @@ struct MovieDetailView: View {
         }
         .sheet(isPresented: $showSendRec) {
             SendRecSheet(movie: movie)
+        }
+        .sheet(item: $planContext) { ctx in
+            PlanWatchSheet(context: ctx)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showUnlocks) {
             UnlocksView()
@@ -1011,6 +1018,53 @@ struct MovieDetailView: View {
 
     // MARK: Data
 
+    /// Friends who also want to watch this — invite one to plan a time together.
+    @ViewBuilder
+    private var watchTogetherSection: some View {
+        if !watchlistFriends.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(watchlistFriends.count == 1
+                     ? "A friend also wants to watch this"
+                     : "\(watchlistFriends.count) friends also want to watch this")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(Theme.ink)
+                Text("Invite one to watch together — pick a time and we'll nudge them.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                ForEach(watchlistFriends) { friend in
+                    HStack(spacing: 12) {
+                        AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
+                                   name: preferredName(friend.displayName, friend.username))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("@\(friend.username)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
+                        }
+                        Spacer()
+                        Button {
+                            Haptics.tap()
+                            planContext = WatchPlanContext(
+                                movieID: movie.tmdbID,
+                                friend: MemberRef(id: friend.userId, username: friend.username))
+                        } label: {
+                            Text("Invite")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.background)
+                                .padding(.horizontal, 16).padding(.vertical, 8)
+                                .background(Capsule().fill(Theme.marquee))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Invite \(friend.username) to watch together")
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
     private func loadEverything() async {
         store.cache(movie)
         // Stable id captured before enrichment can reassign `movie` — the Rec
@@ -1046,6 +1100,7 @@ struct MovieDetailView: View {
         trailerURL = try? await trailerTask
         community = stats?.community
         friends = (try? await friendsTask) ?? []
+        watchlistFriends = (try? await SupabaseService.shared.watchlistFriends(movieID: pid)) ?? []
         histogram = stats?.histogram ?? []
         performances = SupabaseService.tallyPerformances(stats?.performances ?? [])
         cast = (try? await castTask) ?? []

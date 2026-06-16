@@ -126,6 +126,7 @@ RPCS = [
     ("movie_public_notes", {"p_movie_id": 27205}),
     ("recs_for_user", {"p_limit": 5}),
     ("tonight_pick", {}),
+    ("movie_watchlist_friends", {"p_movie_id": 27205}),
     ("movie_friend_scores", {"p_movie_id": 27205}),
     ("movie_score_histogram", {"p_movie_id": 27205}),
     ("leaderboard", {"p_metric": "watched", "p_school": None, "p_genre": None}),

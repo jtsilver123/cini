@@ -1278,6 +1278,55 @@ final class SupabaseService {
         return rows.first
     }
 
+    // MARK: - Watch Match (plan to watch together)
+
+    /// Friends (you follow, not blocked) who also have this title on their
+    /// Want to Watch — powers the movie page's "invite to watch together" row.
+    func watchlistFriends(movieID: Int) async throws -> [WatchlistFriendRow] {
+        struct Params: Encodable { let p_movie_id: Int }
+        return try await client.rpc("movie_watchlist_friends", params: Params(p_movie_id: movieID))
+            .execute().value
+    }
+
+    /// Propose watching a title together at a time; notifies the invitee.
+    @discardableResult
+    func proposeWatchPlan(movieID: Int, inviteeID: UUID, proposedAt: Date?) async throws -> UUID {
+        struct Params: Encodable {
+            let p_movie_id: Int
+            let p_invitee: UUID
+            let p_proposed_at: String?
+        }
+        let iso = proposedAt.map { ISO8601DateFormatter().string(from: $0) }
+        return try await client.rpc("propose_watch_plan",
+            params: Params(p_movie_id: movieID, p_invitee: inviteeID, p_proposed_at: iso))
+            .execute().value
+    }
+
+    /// Accept/decline a plan, or propose a different time (pass newTime).
+    func respondWatchPlan(planID: UUID, accept: Bool, newTime: Date? = nil) async throws {
+        struct Params: Encodable {
+            let p_plan_id: UUID
+            let p_accept: Bool
+            let p_new_time: String?
+        }
+        let iso = newTime.map { ISO8601DateFormatter().string(from: $0) }
+        try await client.rpc("respond_watch_plan",
+            params: Params(p_plan_id: planID, p_accept: accept, p_new_time: iso)).execute()
+    }
+
+    /// The most recent plan between me and a friend for a title (RLS scopes it
+    /// to plans I'm part of), so the sheet can show "accept" vs "propose".
+    func latestWatchPlan(movieID: Int, withUser: UUID) async throws -> WatchPlanRow? {
+        let rows: [WatchPlanRow] = try await client.from("watch_plans")
+            .select()
+            .eq("movie_id", value: movieID)
+            .or("invitee_id.eq.\(withUser.uuidString),proposer_id.eq.\(withUser.uuidString)")
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute().value
+        return rows.first
+    }
+
     // MARK: - Shared watchlists
 
     // MARK: - Comments
@@ -1853,6 +1902,41 @@ struct RecRow: Codable, Identifiable, Hashable {
         case recScore = "rec_score"
         case friendCount = "friend_count"
         case topFriendUsername = "top_friend_username"
+    }
+}
+
+/// A friend who also wants to watch a title (movie page invite row).
+struct WatchlistFriendRow: Codable, Identifiable, Hashable {
+    let userId: UUID
+    let username: String
+    let displayName: String?
+    let avatarUrl: String?
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case username
+        case userId = "user_id"
+        case displayName = "display_name"
+        case avatarUrl = "avatar_url"
+    }
+}
+
+/// A watch-together plan between two friends.
+struct WatchPlanRow: Codable, Identifiable, Hashable {
+    let id: UUID
+    let movieId: Int
+    let proposerId: UUID
+    let inviteeId: UUID
+    let proposedAt: Date?
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, status
+        case movieId = "movie_id"
+        case proposerId = "proposer_id"
+        case inviteeId = "invitee_id"
+        case proposedAt = "proposed_at"
     }
 }
 

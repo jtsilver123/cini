@@ -51,6 +51,8 @@ final class TabRouter {
     /// Tapped push notification → the relevant content (consumed by FeedView).
     var pendingPushMovieID: Int?
     var pendingPushMember: MemberRef?
+    /// A tapped watch-match / invite → open the Plan-a-Watch sheet.
+    var pendingWatchPlan: WatchPlanContext?
 
     /// Route a tapped push by its payload: movie pushes (likes, comments,
     /// recs, watchlist alerts) open the movie page; follower pushes open
@@ -63,11 +65,22 @@ final class TabRouter {
         let movieID = (userInfo["movie_id"] as? Int)
             ?? (userInfo["movie_id"] as? NSNumber)?.intValue
             ?? (userInfo["movie_id"] as? String).flatMap(Int.init)
+        let kind = userInfo["kind"] as? String
+        let actor: MemberRef? = {
+            guard let actorID = (userInfo["actor_id"] as? String).flatMap(UUID.init),
+                  let username = userInfo["actor_username"] as? String else { return nil }
+            return MemberRef(id: actorID, username: username)
+        }()
+        // A watch-match / invite opens the Plan-a-Watch sheet for that title +
+        // friend, not the plain movie page.
+        if kind == "watch_match" || kind == "watch_invite", let movieID, let actor {
+            pendingWatchPlan = WatchPlanContext(movieID: movieID, friend: actor)
+            return
+        }
         if let movieID {
             pendingPushMovieID = movieID
-        } else if let actorID = (userInfo["actor_id"] as? String).flatMap(UUID.init),
-                  let username = userInfo["actor_username"] as? String {
-            pendingPushMember = MemberRef(id: actorID, username: username)
+        } else if let actor {
+            pendingPushMember = actor
         }
     }
 
