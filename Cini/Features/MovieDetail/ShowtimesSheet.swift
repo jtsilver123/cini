@@ -13,6 +13,11 @@ struct ShowtimesSheet: View {
     @State private var theaters: [TheaterShowtimes] = []
     @State private var state: LoadState = .idle
     @State private var isLocating = false
+    @State private var searchingNext = false
+    @State private var noNextFound = false
+    /// Set true to skip the re-search that a programmatic date change would
+    /// otherwise trigger (we already have the showtimes for the new date).
+    @State private var suppressSearch = false
 
     enum LoadState {
         case idle, loading, loaded, notConfigured, error(String)
@@ -66,7 +71,10 @@ struct ShowtimesSheet: View {
 
             DatePicker("Date", selection: $date, in: Date()..., displayedComponents: .date)
                 .datePickerStyle(.compact)
-                .onChange(of: date) { _, _ in Task { await search() } }
+                .onChange(of: date) { _, _ in
+                    if suppressSearch { suppressSearch = false; return }
+                    Task { await search() }
+                }
         }
         .padding(16)
     }
@@ -86,8 +94,7 @@ struct ShowtimesSheet: View {
             placeholder(icon: "exclamationmark.triangle", title: "Couldn't load showtimes", message: message)
         case .loaded:
             if theaters.isEmpty {
-                placeholder(icon: "ticket", title: "No showings",
-                            message: "\(movie.title) isn't playing near \(zipcode) on this date. Try another date above.")
+                noShowingsView
             } else {
                 VStack(spacing: 0) {
                     theaterList
@@ -118,6 +125,67 @@ struct ShowtimesSheet: View {
             .listRowBackground(Theme.background)
         }
         .listStyle(.plain)
+    }
+
+    /// No showings on this date — offer to jump to the next date that has any.
+    private var noShowingsView: some View {
+        VStack(spacing: 10) {
+            Spacer()
+            Image(systemName: "ticket").font(.largeTitle).foregroundStyle(Theme.gray)
+            Text("No showings").font(.headline)
+            Text("\(movie.title) isn't playing near \(zipcode) on this date.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            if noNextFound {
+                Text("Nothing in the next two weeks either — try another zipcode.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            } else {
+                Button {
+                    Task { await findNextAvailable() }
+                } label: {
+                    HStack(spacing: 6) {
+                        if searchingNext { ProgressView().controlSize(.small).tint(.white) }
+                        Text(searchingNext ? "Searching…" : "Find the next date with showtimes")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18).padding(.vertical, 11)
+                    .background(Capsule().fill(Theme.velvet))
+                }
+                .buttonStyle(.plain)
+                .disabled(searchingNext)
+                .padding(.top, 6)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Probe forward day-by-day (up to two weeks) for the first date with any
+    /// showings, then jump the picker there.
+    private func findNextAvailable() async {
+        guard zipcode.count == 5 else { return }
+        searchingNext = true
+        defer { searchingNext = false }
+        let cal = Calendar.current
+        var probe = cal.startOfDay(for: date)
+        for _ in 0..<14 {
+            probe = cal.date(byAdding: .day, value: 1, to: probe) ?? probe
+            if let found = try? await ShowtimesService.shared.showtimes(
+                for: movie, zipcode: zipcode, date: probe), !found.isEmpty {
+                suppressSearch = true   // we already have this date's showtimes
+                date = probe
+                theaters = found
+                state = .loaded
+                return
+            }
+        }
+        noNextFound = true
     }
 
     private func placeholder(icon: String, title: String, message: String) -> some View {
@@ -151,6 +219,7 @@ struct ShowtimesSheet: View {
 
     private func search() async {
         guard zipcode.count == 5 else { return }
+        noNextFound = false
         state = .loading
         do {
             theaters = try await ShowtimesService.shared.showtimes(
