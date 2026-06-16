@@ -193,6 +193,15 @@ final class TMDBService {
         )
     }
 
+    /// One episode's title + synopsis — the little recap under the Currently
+    /// Watching steppers. `showID` is the app's signed id (negative for TV).
+    struct EpisodeInfo { var name: String?; var overview: String? }
+    func episode(showID: Int, season: Int, episode: Int) async throws -> EpisodeInfo {
+        struct DTO: Codable { let name: String?; let overview: String? }
+        let dto: DTO = try await get(Self.mediaPath(showID, suffix: "/season/\(season)/episode/\(episode)"))
+        return EpisodeInfo(name: dto.name, overview: dto.overview)
+    }
+
     // MARK: - Genre & director queries (first-class search inputs)
 
     /// Movie-genre id whose name matches the query ("horror", "sci fi",

@@ -165,6 +165,9 @@ struct WatchingControl: View {
     @State private var watching = false
     @State private var season = 1
     @State private var episode = 1
+    // Title + synopsis of the episode you're on (a little recap).
+    @State private var epName: String?
+    @State private var epOverview: String?
 
     /// A finished/cancelled show — "caught up" means you've completed it.
     private var isEnded: Bool {
@@ -255,6 +258,18 @@ struct WatchingControl: View {
                 episode = min(max(1, $0), maxEpisode(season))
                 save()
             }
+            // A short recap of the episode you're on (skipped for an unaired
+            // "waiting for next" position, where TMDB has no synopsis yet).
+            if let epOverview, !epOverview.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(epName.map { "S\(season) · E\(episode) · \($0)" } ?? "S\(season) · E\(episode)")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Text(epOverview)
+                        .font(.caption).foregroundStyle(Theme.gray).lineLimit(3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
+            }
             // "All caught up" means different things by show type.
             if let c = ceiling {
                 if isEnded {
@@ -306,6 +321,17 @@ struct WatchingControl: View {
             }
             .buttonStyle(.plain)
             .padding(.top, 2)
+        }
+        // Refresh the recap whenever the episode you're on changes.
+        .task(id: [season, episode]) {
+            epName = nil; epOverview = nil
+            guard movie.mediaKind == "tv" else { return }
+            let s = season, e = episode
+            if let ep = try? await TMDBService.shared.episode(showID: movie.tmdbID, season: s, episode: e),
+               s == season, e == episode {
+                epName = ep.name
+                epOverview = ep.overview
+            }
         }
     }
 
