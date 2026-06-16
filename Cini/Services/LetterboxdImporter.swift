@@ -578,6 +578,10 @@ enum ZipReader {
 
     /// Raw-deflate decode via the Compression framework (zip's method 8).
     private static func inflate(_ data: Data, expectedSize: Int) throws -> Data {
+        // A zero-byte deflate payload (a malformed/truncated entry from the
+        // file picker) would make `baseAddress` nil and crash the force-unwrap
+        // below — reject it cleanly instead.
+        guard !data.isEmpty else { throw ZipError.malformed }
         let capacity = max(expectedSize, 64)
         var output = Data(count: capacity)
         let written = output.withUnsafeMutableBytes { (dst: UnsafeMutableRawBufferPointer) -> Int in

@@ -7,6 +7,11 @@ extension DateFormatter {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
+        // Pin to UTC so a date-only column round-trips the same calendar day on
+        // every device — matching SupabaseService's UTC `dateOnly`. Without
+        // this it used the device zone, so late-night logs in a non-UTC zone
+        // could land a day off from the server's stored date.
+        f.timeZone = TimeZone(identifier: "UTC")
         return f
     }()
 }

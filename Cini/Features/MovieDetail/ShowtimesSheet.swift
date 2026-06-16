@@ -190,7 +190,10 @@ struct ShowtimesSheet: View {
                     return
                 }
             } catch {
-                break
+                // A real failure (network/config) — say so, rather than
+                // claiming there's nothing playing for two weeks.
+                state = .error("Couldn't check upcoming dates — try again.")
+                return
             }
         }
         noNextFound = true

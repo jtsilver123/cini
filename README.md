@@ -25,7 +25,7 @@ transactional.
 - **SwiftUI, iOS 17+** — Swift Concurrency throughout, MVVM with
   `@Observable` stores. Liquid Glass (iOS 26/27) adopted via availability
   checks in the design system; earlier OSes get equivalent fallbacks.
-- **Supabase** — Auth (Sign in with Apple + email), Postgres with RLS,
+- **Supabase** — Auth (email/phone + password), Postgres with RLS,
   Realtime-ready feed, Storage for avatars.
 - **TMDB** — search, metadata, cast, trailers, and watch providers
   ("Where to Watch").

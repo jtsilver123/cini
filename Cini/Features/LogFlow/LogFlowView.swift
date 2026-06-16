@@ -512,7 +512,11 @@ struct LogFlowView: View {
             FriendsCache.shared.warm()
         }
         if draft.stealthMode {
-            try? await supabase.hideRankEvent(movieID: movie.tmdbID)
+            // Privacy-critical: if hiding fails the rank is public while the
+            // user believes it's stealthed — surface it like any other miss.
+            do {
+                try await supabase.hideRankEvent(movieID: movie.tmdbID)
+            } catch { anySaveFailed = true }
         }
         if anySaveFailed {
             // The rank itself landed; only extras missed. Be specific.

@@ -1174,12 +1174,16 @@ struct WatchlistRowView: View {
                     Button(action: onQuickRank) {
                         Image(systemName: "plus.circle")
                     }
+                    .accessibilityLabel("Rank \(movie.title)")
                     Button {
                         bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                             .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
                     }
+                    .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
+                        ? "Remove \(movie.title) from Want to Watch"
+                        : "Add \(movie.title) to Want to Watch")
                 }
                 .font(.title3)
                 .buttonStyle(.plain)
