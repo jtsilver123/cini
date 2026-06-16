@@ -177,40 +177,52 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
     for j,ln in enumerate(wrap(d, title, sb(26), w-24)):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
+INK_RGB = (245, 238, 223, 255)
+def _wifi(cx, cy, R3):
+    """The iOS Wi-Fi glyph: a SOLID filled fan — a small apex wedge plus two
+    filled arc bands — built on an overlay (carved with transparency) and
+    composited onto the screen. `(cx, cy)` is the apex at the bottom."""
+    if SCREEN is None: return
+    pad = R3 + 6
+    lay = Image.new("RGBA", (pad*2, pad*2), (0,0,0,0))
+    ld = ImageDraw.Draw(lay); ox = oy = pad
+    a0, a1 = 221, 319                              # ±49° around straight up
+    def sect(rad, col): ld.pieslice([ox-rad, oy-rad, ox+rad, oy+rad], a0, a1, fill=col)
+    t = max(3, int(R3*0.27)); g = max(2, int(R3*0.20))
+    sect(R3, INK_RGB); sect(R3-t, (0,0,0,0))                       # outer band
+    sect(R3-t-g, INK_RGB); sect(R3-t-g-t, (0,0,0,0))              # inner band
+    sect(max(3, int(R3*0.16)), INK_RGB)                           # apex wedge
+    SCREEN.paste(lay, (int(cx-ox), int(cy-oy)), lay)
+
 def status_bar(d, pw):
-    """A pixel-accurate iOS status bar. The iPhone screen renders at ~1180px
-    (≈ iPhone 15 Pro's 1179px @3x), so these use real device proportions: a
-    Dynamic Island, SF-like 9:41, the iOS Wi-Fi glyph (apex dot + 3 arcs), and
-    the iOS battery — all on one vertical midline. iPad is scaled down (its bar
-    is proportionally smaller) and drops the island + cellular."""
+    """A pixel-accurate iOS status bar at real iPhone 15 Pro @3x proportions
+    (the iPhone screen renders at ~1180px ≈ 1179px device). iPhone: 9:41,
+    Dynamic Island, 4 cellular bars, the filled Wi-Fi fan, iOS battery. iPad:
+    scaled down, '9:41 AM', Wi-Fi + 100% + battery, no island/cellular."""
     s = 1.0 if DEVICE == "iphone" else 0.64
     R = lambda v: round(v * s)
-    mid = R(88)                                   # vertical center of the bar content
-    h = R(34)                                     # right-icon height
-    top, bot = mid - h//2, mid + h//2
-    # Dynamic Island (iPhone only) — 125pt × 37pt @3x.
-    if ISLAND:
+    mid = R(88); h = R(34); top, bot = mid - h//2, mid + h//2
+    if ISLAND:                                     # Dynamic Island — 125pt × 37pt @3x
         iw=R(376); ih=R(112); ix=(pw-iw)//2; iy=mid-ih//2
         d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=ih//2, fill="#000000")
-    # Time — SF-like, vertically centered (SF Pro 17pt → ~51px @3x).
     tf = stf(R(52)); asc,desc = tf.getmetrics()
-    d.text((R(60), mid - (asc+desc)//2 + R(2)), "9:41", font=tf, fill=INK)
-    # iOS battery (right-most).
+    d.text((R(60), mid-(asc+desc)//2+R(2)), "9:41" if ISLAND else "9:41 AM", font=tf, fill=INK)
+    # iOS battery (right-most)
     nub_w=R(7); nub_h=R(15); bw=R(70)
     bx1 = pw - R(58) - nub_w; bx0 = bx1 - bw
     d.rounded_rectangle([bx0, top, bx1, bot], radius=R(11), outline=INK, width=max(2,R(4)))
     d.rounded_rectangle([bx0+R(6), top+R(6), bx1-R(8), bot-R(6)], radius=R(5), fill=INK)
     d.rounded_rectangle([bx1, mid-nub_h//2, bx1+nub_w, mid+nub_h//2], radius=R(3), fill=INK)
-    # Wi-Fi (left of battery) — apex dot with three radiating arcs.
-    gap=R(26); r3=R(33); half=int(r3*0.82); wd=max(2,R(6))
-    wx = bx0 - gap - half; wy = bot            # apex at the bottom of the band
-    for rr in (R(12), R(22), r3):
-        d.arc([wx-rr, wy-rr, wx+rr, wy+rr], 218, 322, fill=INK, width=wd)
-    dot=R(5); d.ellipse([wx-dot,wy-dot,wx+dot,wy+dot], fill=INK)
-    # Cellular (iPhone only) — 4 ascending bars sharing the bottom line.
-    if ISLAND:
+    left = bx0
+    if not ISLAND:                                 # iPad shows the battery %
+        pf = stf(R(40)); pt="100%"; tw=d.textlength(pt,font=pf); a2,de2=pf.getmetrics()
+        d.text((bx0-R(16)-tw, mid-(a2+de2)//2+R(2)), pt, font=pf, fill=INK); left = bx0-R(16)-tw
+    # Wi-Fi (filled fan), left of the battery/percentage
+    gap=R(28); R3=R(34); half=int(R3*0.75)
+    wx = left - gap - half; _wifi(wx, bot, R3)
+    if ISLAND:                                     # cellular — 4 ascending bars
         bar_w=R(8); step=R(13); cw=step*3+bar_w
-        cx = wx - half - gap - cw
+        cx = (wx-half) - gap - cw
         for i in range(4):
             bh=R(11+i*7); x=cx+i*step
             d.rounded_rectangle([x, bot-bh, x+bar_w, bot], radius=R(2), fill=INK)
