@@ -6,7 +6,12 @@ renders a clean app mockup behind a polished gold-rimmed frame with a clearly
 iOS status bar (9:41, Dynamic Island on iPhone, Wi-Fi + battery) — addressing
 App Review's note about non-iOS status bars. Posters are real (TMDB)."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import os, json, urllib.request, urllib.parse, math
+import os, json, urllib.request, urllib.parse, math, io
+try:
+    import cairosvg                       # render the real iOS glyph shapes as crisp vectors
+    HAVE_SVG = True
+except Exception:
+    HAVE_SVG = False
 
 # Device + canvas are set per pass in render_all(); these are defaults.
 W, H = 1284, 2778
@@ -177,19 +182,36 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
     for j,ln in enumerate(wrap(d, title, sb(26), w-24)):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
-def _wifi(d, cx, cy, h):
-    """The iOS Wi-Fi glyph exactly as Apple draws it: a small apex dot plus
-    three concentric arcs that fan upward, each stroked with ROUNDED caps.
-    `(cx, cy)` is the apex (bottom center); `h` is the glyph height."""
-    a0, a1 = 217, 323                                  # ±53° around straight up (270)
-    w = max(3, round(h*0.15))                          # arc stroke thickness
-    for r in (round(h*0.34), round(h*0.65), round(h*0.96)):
-        d.arc([cx-r, cy-r, cx+r, cy+r], a0, a1, fill=INK, width=w)
-        for ang in (a0, a1):                           # round the arc ends with end-caps
-            ex = cx + r*math.cos(math.radians(ang)); ey = cy + r*math.sin(math.radians(ang))
-            d.ellipse([ex-w/2, ey-w/2, ex+w/2, ey+w/2], fill=INK)
-    dr = max(2, round(h*0.085))                        # apex dot
-    d.ellipse([cx-dr, cy-dr, cx+dr, cy+dr], fill=INK)
+# ---- Real iOS status-bar glyphs as vector SVG (rendered crisp via cairosvg) --
+def _svg_icon(svg, target_h):
+    png = cairosvg.svg2png(bytestring=svg.encode(), output_height=max(8, target_h*3))
+    im = Image.open(io.BytesIO(png)).convert("RGBA")
+    bb = im.getbbox()
+    if bb: im = im.crop(bb)
+    w = max(1, round(im.width * target_h / im.height))
+    return im.resize((w, target_h), Image.LANCZOS)
+
+def _wifi_svg(c):
+    cx, cy, fan = 50, 64, 54
+    p = lambda r,deg: (cx + r*math.sin(math.radians(deg)), cy - r*math.cos(math.radians(deg)))
+    s = ""
+    for r in (15, 31, 47):
+        (xL,yL),(xR,yR) = p(r,-fan), p(r,fan)
+        s += (f'<path d="M {xL:.2f} {yL:.2f} A {r} {r} 0 0 1 {xR:.2f} {yR:.2f}" '
+              f'fill="none" stroke="{c}" stroke-width="7" stroke-linecap="round"/>')
+    s += f'<circle cx="{cx}" cy="{cy}" r="5" fill="{c}"/>'
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80">{s}</svg>'
+
+def _cellular_svg(c):
+    s = "".join(f'<rect x="{i*11}" y="{34-(9+i*8)}" width="7" height="{9+i*8}" rx="2.2" fill="{c}"/>'
+                for i in range(4))
+    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 34">{s}</svg>'
+
+def _battery_svg(c):
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 86 34">'
+            f'<rect x="1.6" y="1.6" width="70" height="30.8" rx="9" fill="none" stroke="{c}" stroke-width="3.2" opacity="0.85"/>'
+            f'<rect x="6" y="6" width="60" height="22" rx="5" fill="{c}"/>'
+            f'<rect x="74.5" y="11" width="6" height="12" rx="3" fill="{c}"/></svg>')
 
 def status_bar(d, pw):
     """A pixel-accurate iOS status bar at real iPhone 15 Pro @3x proportions
@@ -198,31 +220,23 @@ def status_bar(d, pw):
     scaled down, '9:41 AM', Wi-Fi + 100% + battery, no island/cellular."""
     s = 1.0 if DEVICE == "iphone" else 0.64
     R = lambda v: round(v * s)
-    mid = R(88); h = R(34); top, bot = mid - h//2, mid + h//2
+    mid = R(88); h = R(34)
     if ISLAND:                                     # Dynamic Island — 125pt × 37pt @3x
         iw=R(376); ih=R(112); ix=(pw-iw)//2; iy=mid-ih//2
         d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=ih//2, fill="#000000")
     tf = stf(R(52)); asc,desc = tf.getmetrics()
     d.text((R(60), mid-(asc+desc)//2+R(2)), "9:41" if ISLAND else "9:41 AM", font=tf, fill=INK)
-    # iOS battery (right-most)
-    nub_w=R(7); nub_h=R(15); bw=R(70)
-    bx1 = pw - R(58) - nub_w; bx0 = bx1 - bw
-    d.rounded_rectangle([bx0, top, bx1, bot], radius=R(11), outline=INK, width=max(2,R(4)))
-    d.rounded_rectangle([bx0+R(6), top+R(6), bx1-R(8), bot-R(6)], radius=R(5), fill=INK)
-    d.rounded_rectangle([bx1, mid-nub_h//2, bx1+nub_w, mid+nub_h//2], radius=R(3), fill=INK)
-    left = bx0
+    if SCREEN is None or not HAVE_SVG: return      # icons need the screen + cairosvg
+    def paste(img, right_edge):                    # place img so its right edge sits at right_edge
+        x = int(right_edge - img.width); y = mid - img.height//2
+        SCREEN.paste(img, (x, y), img); return x
+    left = paste(_svg_icon(_battery_svg(INK), h), pw - R(54))   # battery (right-most)
     if not ISLAND:                                 # iPad shows the battery %
-        pf = stf(R(40)); pt="100%"; tw=d.textlength(pt,font=pf); a2,de2=pf.getmetrics()
-        d.text((bx0-R(16)-tw, mid-(a2+de2)//2+R(2)), pt, font=pf, fill=INK); left = bx0-R(16)-tw
-    # Wi-Fi (filled fan), left of the battery/percentage
-    gap=R(28); R3=R(34); half=int(R3*0.78)
-    wx = left - gap - half; _wifi(d, wx, bot, R3)
-    if ISLAND:                                     # cellular — 4 ascending bars
-        bar_w=R(8); step=R(13); cw=step*3+bar_w
-        cx = (wx-half) - gap - cw
-        for i in range(4):
-            bh=R(11+i*7); x=cx+i*step
-            d.rounded_rectangle([x, bot-bh, x+bar_w, bot], radius=R(2), fill=INK)
+        pf=stf(R(40)); pt="100%"; tw=d.textlength(pt,font=pf); a2,de2=pf.getmetrics()
+        d.text((left-R(16)-tw, mid-(a2+de2)//2+R(2)), pt, font=pf, fill=INK); left -= R(16)+round(tw)
+    left = paste(_svg_icon(_wifi_svg(INK), h), left - R(22))     # Wi-Fi
+    if ISLAND:                                      # cellular — iPhone only
+        paste(_svg_icon(_cellular_svg(INK), round(h*0.92)), left - R(20))
 
 def chip(d, x, y, text, active=False):
     f=sa(26); w=d.textlength(text,font=f); cw=w+44; ch=58
