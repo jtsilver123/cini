@@ -635,9 +635,12 @@ struct LogFlowView: View {
         }
 
         // The review prompt's "spots": a milestone, a new streak high, or a
-        // standout score (a new all-time favorite). Each just *attempts* — the
-        // 3-per-year budget decides whether it actually shows.
-        let reviewWorthy = celebration != nil || score >= 9.0
+        // standout score (a new all-time favorite). A 9+ only counts once
+        // there's enough ranked for the relative score to mean something — a
+        // 9 on your 2nd rank is noise, not a favorite. Each just *attempts*;
+        // the 3-per-year budget decides whether it actually shows.
+        let standoutMinRanked = 15
+        let reviewWorthy = celebration != nil || (score >= 9.0 && count >= standoutMinRanked)
 
         guard celebration != nil || reviewWorthy else { return }
         Task {
