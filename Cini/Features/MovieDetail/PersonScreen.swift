@@ -77,8 +77,10 @@ struct PersonScreen: View {
             LogFlowView(movie: movie)
         }
         .task {
-            details = try? await TMDBService.shared.person(id: member.id)
-            filmography = (try? await TMDBService.shared.filmography(personID: member.id)) ?? []
+            do { details = try await TMDBService.shared.person(id: member.id) }
+            catch { SupabaseService.logSwallowed("person.details", error) }
+            do { filmography = try await TMDBService.shared.filmography(personID: member.id) }
+            catch { SupabaseService.logSwallowed("person.filmography", error) }
             for movie in filmography { store.cache(movie) }
             loaded = true
         }

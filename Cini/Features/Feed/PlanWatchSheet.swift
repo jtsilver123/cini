@@ -237,6 +237,10 @@ struct PlanWatchSheet: View {
     private func load() async {
         if let m = (try? await SupabaseService.shared.movies(ids: [context.movieID]))?.first?.asMovie {
             movie = m
+        } else if let m = try? await TMDBService.shared.details(for: context.movieID) {
+            // Cache miss (e.g. opened from a push) — fall back to TMDB so the
+            // header shows the real title instead of staying on "…".
+            movie = m
         }
         // The latest plan in either direction drives which UI we show.
         plan = try? await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id)
