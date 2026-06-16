@@ -667,16 +667,17 @@ struct ProfileScreen: View {
     /// "both" overlap screens.
     private var memberListRows: some View {
         VStack(spacing: 0) {
+            // Watched / Want to Watch / Watching open ONE connected tabbed page
+            // (like My Lists) with a single back arrow to this profile.
             NavigationLink {
-                RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
-                                 isSelf: isSelf, emptyHint: lockedHint)
+                memberLists(.watched)
             } label: {
                 listRow(icon: "checkmark.circle", title: "Watched", count: rankings.count)
             }
             .buttonStyle(.plain)
             Divider()
             NavigationLink {
-                WatchlistScreen(userID: resolvedID, isSelf: isSelf)
+                memberLists(.watchlist)
             } label: {
                 listRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount)
             }
@@ -684,7 +685,7 @@ struct ProfileScreen: View {
             if !watchingRows.isEmpty {
                 Divider()
                 NavigationLink {
-                    WatchingListScreen(title: "Watching", rows: watchingRows)
+                    memberLists(.watching)
                 } label: {
                     listRow(icon: "play.tv", title: "Watching", count: watchingRows.count)
                 }
@@ -713,6 +714,14 @@ struct ProfileScreen: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private func memberLists(_ initial: MemberListsView.Tab) -> some View {
+        MemberListsView(
+            userID: resolvedID,
+            title: profile?.displayName ?? username.map { "@\($0)" } ?? "Lists",
+            rankings: rankings, movies: movies, watchingRows: watchingRows,
+            lockedHint: lockedHint, initial: initial)
     }
 
     /// The overlapping-avatars header data for the "both" screens.
@@ -1130,6 +1139,11 @@ struct RankedListScreen: View {
     let movies: [Int: Movie]
     var isSelf = true
     var emptyHint: String?
+    // When embedded in MemberListsView, taps route to the parent's nav and this
+    // screen drops its own title/destination so the tabs share one back arrow.
+    var openDetail: ((Movie) -> Void)? = nil
+    var openLog: ((Movie) -> Void)? = nil
+    private var embedded: Bool { openDetail != nil }
 
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
@@ -1159,6 +1173,23 @@ struct RankedListScreen: View {
     }
 
     var body: some View {
+        let content = scrollBody
+        if embedded {
+            content
+        } else {
+            content
+                .navigationTitle("\(title) (\(rankings.count))")
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(item: $detailMovie) { movie in
+                    MovieDetailView(movie: movie)
+                }
+                .fullScreenCover(item: $logMovie) { movie in
+                    LogFlowView(movie: movie)
+                }
+        }
+    }
+
+    private var scrollBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Split by kind whenever there are both — movies and TV are
@@ -1229,10 +1260,10 @@ struct RankedListScreen: View {
                             context: "Ranked \(row.createdAt.formatted(.relative(presentation: .named)))",
                             score: row.score,
                             showsQuickActions: !isSelf,
-                            onLog: { logMovie = $0 }
+                            onLog: { (openLog ?? { logMovie = $0 })($0) }
                         )
                         .contentShape(Rectangle())
-                        .onTapGesture { detailMovie = movie }
+                        .onTapGesture { (openDetail ?? { detailMovie = $0 })(movie) }
                         Divider()
                     }
                 }
@@ -1248,14 +1279,6 @@ struct RankedListScreen: View {
             pickedDefault = true
             if rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty { categoryIndex = 1 }
         }
-        .navigationTitle("\(title) (\(rankings.count))")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $detailMovie) { movie in
-            MovieDetailView(movie: movie)
-        }
-        .fullScreenCover(item: $logMovie) { movie in
-            LogFlowView(movie: movie)
-        }
     }
 }
 
@@ -1264,6 +1287,9 @@ struct RankedListScreen: View {
 struct WatchlistScreen: View {
     let userID: UUID?
     let isSelf: Bool
+    var openDetail: ((Movie) -> Void)? = nil
+    var openLog: ((Movie) -> Void)? = nil
+    private var embedded: Bool { openDetail != nil }
 
     @Environment(RankingStore.self) private var store
     @State private var fetched: [WatchlistRow] = []
@@ -1285,6 +1311,23 @@ struct WatchlistScreen: View {
     }
 
     var body: some View {
+        let content = scrollBody
+        if embedded {
+            content
+        } else {
+            content
+                .navigationTitle("Want to Watch (\(entries.count))")
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(item: $detailMovie) { movie in
+                    MovieDetailView(movie: movie)
+                }
+                .fullScreenCover(item: $logMovie) { movie in
+                    LogFlowView(movie: movie)
+                }
+        }
+    }
+
+    private var scrollBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Same filter pills as My Lists — on anyone's list.
@@ -1315,10 +1358,10 @@ struct WatchlistScreen: View {
                             contextColor: movie.availabilityText == nil ? Theme.gray : Theme.marquee,
                             score: predicted[entry.movieID],
                             showsQuickActions: true,
-                            onLog: { logMovie = $0 }
+                            onLog: { (openLog ?? { logMovie = $0 })($0) }
                         )
                         .contentShape(Rectangle())
-                        .onTapGesture { detailMovie = movie }
+                        .onTapGesture { (openDetail ?? { detailMovie = $0 })(movie) }
                         Divider()
                     }
                 }
@@ -1326,14 +1369,6 @@ struct WatchlistScreen: View {
             .padding(16)
         }
         .background(Theme.background)
-        .navigationTitle("Want to Watch (\(entries.count))")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $detailMovie) { movie in
-            MovieDetailView(movie: movie)
-        }
-        .fullScreenCover(item: $logMovie) { movie in
-            LogFlowView(movie: movie)
-        }
         .task {
             if !isSelf, let userID {
                 fetched = (try? await SupabaseService.shared.watchlist(userID: userID)) ?? []
@@ -1418,11 +1453,27 @@ struct WatchingListScreen: View {
     let rows: [WatchingRow]
     /// When set, shows the overlapping-avatars header (the "you both" screens).
     var overlap: OverlapData? = nil
+    var openDetail: ((Movie) -> Void)? = nil
+    private var embedded: Bool { openDetail != nil }
 
     @Environment(RankingStore.self) private var store
     @State private var detailMovie: Movie?
 
     var body: some View {
+        let content = listBody
+        if embedded {
+            content
+        } else {
+            content
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(item: $detailMovie) { movie in
+                    MovieDetailView(movie: movie)
+                }
+        }
+    }
+
+    private var listBody: some View {
         List {
             if let overlap {
                 OverlapHeader(overlap: overlap,
@@ -1455,11 +1506,6 @@ struct WatchingListScreen: View {
         }
         .listStyle(.plain)
         .background(Theme.background)
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $detailMovie) { movie in
-            MovieDetailView(movie: movie)
-        }
     }
 
     private func poster(_ path: String?) -> URL? {
@@ -1472,9 +1518,66 @@ struct WatchingListScreen: View {
         Task {
             if let movie = try? await TMDBService.shared.details(for: showID) {
                 store.cache(movie)
-                detailMovie = movie
+                (openDetail ?? { detailMovie = $0 })(movie)
             }
         }
+    }
+}
+
+/// Another member's lists as one connected, tabbed page — the same experience
+/// as My Lists (Watched / Want to Watch / Watching, switchable in place), but
+/// pushed from their profile so a single back arrow returns there.
+struct MemberListsView: View {
+    let userID: UUID?
+    let title: String                 // their name / @handle, shown in the nav bar
+    let rankings: [RankingRow]
+    let movies: [Int: Movie]
+    let watchingRows: [WatchingRow]
+    let lockedHint: String?
+    @State private var tab: Tab
+    @State private var detailMovie: Movie?
+    @State private var logMovie: Movie?
+
+    enum Tab: String, CaseIterable { case watched = "Watched", watchlist = "Want to Watch", watching = "Watching" }
+
+    init(userID: UUID?, title: String, rankings: [RankingRow], movies: [Int: Movie],
+         watchingRows: [WatchingRow], lockedHint: String?, initial: Tab = .watched) {
+        self.userID = userID; self.title = title; self.rankings = rankings
+        self.movies = movies; self.watchingRows = watchingRows; self.lockedHint = lockedHint
+        _tab = State(initialValue: initial)
+    }
+
+    // Watching only appears when they're actually watching something.
+    private var tabs: [Tab] { watchingRows.isEmpty ? [.watched, .watchlist] : [.watched, .watchlist, .watching] }
+    private var active: Tab { tabs.contains(tab) ? tab : .watched }
+    private var tabIndex: Binding<Int> {
+        Binding(get: { tabs.firstIndex(of: active) ?? 0 }, set: { tab = tabs[$0] })
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if tabs.count > 1 {
+                SegmentedPillControl(segments: tabs.map(\.rawValue), selection: tabIndex)
+                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
+            }
+            switch active {
+            case .watched:
+                RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
+                                 isSelf: false, emptyHint: lockedHint,
+                                 openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 })
+            case .watchlist:
+                WatchlistScreen(userID: userID, isSelf: false,
+                                openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 })
+            case .watching:
+                WatchingListScreen(title: "Watching", rows: watchingRows,
+                                   openDetail: { detailMovie = $0 })
+            }
+        }
+        .background(Theme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $detailMovie) { movie in MovieDetailView(movie: movie) }
+        .fullScreenCover(item: $logMovie) { movie in LogFlowView(movie: movie) }
     }
 }
 
