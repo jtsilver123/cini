@@ -7,6 +7,7 @@ import SwiftUI
 struct TonightPickCard: View {
     let movie: Movie
     var reason: String?
+    var service: String?               // streaming service it's on, e.g. "Netflix"
     var onOpen: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
     var onDismiss: (() -> Void)?
@@ -29,6 +30,13 @@ struct TonightPickCard: View {
                                startPoint: .top, endPoint: .bottom)
 
                 VStack(alignment: .leading, spacing: 4) {
+                    if let service {
+                        Text("ON \(service.uppercased())")
+                            .font(.system(size: 10, weight: .heavy)).tracking(0.5)
+                            .foregroundStyle(Theme.background)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(Capsule().fill(.white.opacity(0.92)))
+                    }
                     Text(movie.title)
                         .font(Theme.serif(24))
                         .foregroundStyle(.white)
@@ -92,5 +100,75 @@ struct TonightPickCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Tonight's pick: \(movie.title). \(reason ?? "")")
+    }
+}
+
+/// One streamable Tonight's Pick candidate.
+struct TonightCardItem: Identifiable, Equatable {
+    let movie: Movie
+    let reason: String
+    let service: String?
+    var id: Int { movie.tmdbID }
+}
+
+/// Up to three Tonight's Picks stacked like a deck — swipe the top one away
+/// (or tap ✕) to reveal the next.
+struct TonightStack: View {
+    let items: [TonightCardItem]
+    var onOpen: (Movie) -> Void = { _ in }
+    var onRank: (Movie) -> Void = { _ in }
+
+    @State private var dismissed: Set<Int> = []
+    @State private var drag: CGSize = .zero
+
+    private var visible: [TonightCardItem] { items.filter { !dismissed.contains($0.id) } }
+
+    var body: some View {
+        let cards = Array(visible.prefix(3))
+        if !cards.isEmpty {
+            ZStack {
+                ForEach(Array(cards.enumerated()).reversed(), id: \.element.id) { pair in
+                    let idx = pair.offset
+                    let item = pair.element
+                    TonightPickCard(
+                        movie: item.movie, reason: item.reason, service: item.service,
+                        onOpen: onOpen, onQuickAdd: onRank,
+                        onDismiss: idx == 0 ? { dismissTop(item) } : nil
+                    )
+                    .scaleEffect(1 - CGFloat(idx) * 0.04)
+                    .offset(y: CGFloat(idx) * 10)
+                    .offset(idx == 0 ? drag : .zero)
+                    .rotationEffect(.degrees(idx == 0 ? Double(drag.width / 22) : 0))
+                    .zIndex(Double(cards.count - idx))
+                    .gesture(idx == 0 ? swipe(item) : nil)
+                    .animation(.snappy, value: drag)
+                    .animation(.snappy, value: visible.count)
+                }
+            }
+            // Reserve the card height plus the stack's peek offset.
+            .frame(height: 240)
+        }
+    }
+
+    private func swipe(_ item: TonightCardItem) -> some Gesture {
+        DragGesture()
+            .onChanged { drag = $0.translation }
+            .onEnded { value in
+                if abs(value.translation.width) > 90 {
+                    Haptics.tap()
+                    withAnimation(.snappy) {
+                        drag = CGSize(width: value.translation.width > 0 ? 700 : -700,
+                                      height: value.translation.height)
+                    }
+                    Task { try? await Task.sleep(for: .milliseconds(160)); dismissTop(item) }
+                } else {
+                    withAnimation(.snappy) { drag = .zero }
+                }
+            }
+    }
+
+    private func dismissTop(_ item: TonightCardItem) {
+        dismissed.insert(item.id)
+        drag = .zero
     }
 }

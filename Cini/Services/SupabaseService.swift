@@ -1278,6 +1278,13 @@ final class SupabaseService {
         return rows.first
     }
 
+    /// Several Tonight's Pick candidates, so the app can keep the streamable
+    /// ones for the 3-card stack.
+    func tonightPicks(limit: Int = 8) async throws -> [TonightPickRow] {
+        struct Params: Encodable { let p_limit: Int }
+        return try await client.rpc("tonight_picks", params: Params(p_limit: limit)).execute().value
+    }
+
     // MARK: - Watch Match (plan to watch together)
 
     /// Friends (you follow, not blocked) who also have this title on their

@@ -23,8 +23,7 @@ struct FeedView: View {
     @State private var pendingAsks: [RecRequestRow] = []
     @State private var promoted: Movie?
     @State private var promotedReason: String?
-    @State private var tonightMovie: Movie?
-    @State private var tonightReason: String?
+    @State private var tonightCards: [TonightCardItem] = []
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
 
@@ -58,7 +57,7 @@ struct FeedView: View {
             .task { await loadFeed() }
             .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
             .task(id: store.isLoaded) { await loadPromoted() }
-            .task(id: store.isLoaded) { await loadTonightPick() }
+            .task(id: store.isLoaded) { await loadTonightStack() }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
             .onAppear { consumePush() }
@@ -318,14 +317,13 @@ struct FeedView: View {
 
     private var yourFeed: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // The daily hook — one "watch this tonight" pinned to the top.
-            if let tonightMovie {
-                TonightPickCard(
-                    movie: tonightMovie,
-                    reason: tonightReason,
+            // The daily hook — up to three streamable "watch tonight" picks,
+            // stacked like a deck you can swipe through.
+            if !tonightCards.isEmpty {
+                TonightStack(
+                    items: tonightCards,
                     onOpen: { detailMovie = $0 },
-                    onQuickAdd: { logMovie = $0 },
-                    onDismiss: { withAnimation(.snappy) { self.tonightMovie = nil } }
+                    onRank: { logMovie = $0 }
                 )
                 .padding(.top, 6)
             }
@@ -532,20 +530,29 @@ struct FeedView: View {
         if let promoted { store.cache(promoted) }
     }
 
-    /// Load the day's "Tonight's Pick" and resolve its poster/title.
-    private func loadTonightPick() async {
-        guard tonightMovie == nil,
-              let pick = try? await SupabaseService.shared.tonightPick() else { return }
-        let resolved: Movie?
-        if let cached = store.movie(pick.movieId) {
-            resolved = cached
-        } else {
-            resolved = (try? await SupabaseService.shared.movies(ids: [pick.movieId]))?.first?.asMovie
+    /// Load several Tonight's Pick candidates and keep up to three that are
+    /// actually streamable (with the service to show on the card).
+    private func loadTonightStack() async {
+        guard tonightCards.isEmpty,
+              let picks = try? await SupabaseService.shared.tonightPicks(limit: 8), !picks.isEmpty
+        else { return }
+        let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
+        var byID: [Int: Movie] = [:]
+        for row in rows { byID[row.tmdbId] = row.asMovie }
+        var cards: [TonightCardItem] = []
+        for pick in picks {
+            if cards.count >= 3 { break }
+            guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
+                  movie.posterPath != nil else { continue }
+            // Must be streamable — keep only picks on a streaming service.
+            guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
+                  let service = providers.streamingNames.first else { continue }
+            store.cache(movie)
+            cards.append(TonightCardItem(movie: movie,
+                                         reason: Self.tonightReason(for: pick),
+                                         service: service))
         }
-        guard let movie = resolved, movie.posterPath != nil else { return }
-        store.cache(movie)
-        tonightMovie = movie
-        tonightReason = Self.tonightReason(for: pick)
+        tonightCards = cards
     }
 
     /// A reason that never overstates confidence. Lead with friends when they

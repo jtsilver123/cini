@@ -637,18 +637,23 @@ function renderFeed(){
   const tm = MOVIES[tk];
   const tRanked = !!myEntry(tk);
   const tonight = `
-    <div style="cursor:pointer; margin:16px 14px 0; position:relative; border-radius:22px; overflow:hidden; height:220px; border:1px solid rgba(232,182,76,.45);
+    <div style="position:relative; margin:16px 14px 0;">
+      <div style="position:absolute; inset:0 6px; transform:translateY(10px) scale(.96); background:var(--surface,#1d1719); border-radius:22px; opacity:.6;"></div>
+      <div style="position:absolute; inset:0 3px; transform:translateY(5px) scale(.98); background:var(--surface,#1d1719); border-radius:22px; opacity:.8;"></div>
+    <div style="cursor:pointer; position:relative; border-radius:22px; overflow:hidden; height:220px; border:1px solid rgba(232,182,76,.45);
         background:linear-gradient(180deg, rgba(0,0,0,.1) 25%, rgba(0,0,0,.88)), url('${IMG(tm.bd||tm.p)}') center/cover no-repeat;"
         onclick="if(!event.target.closest('button'))openDetail('${tk}')">
       <span style="position:absolute; top:12px; left:12px; background:var(--marquee); color:var(--bg); font-size:10px; font-weight:700; letter-spacing:1.5px; padding:5px 9px; border-radius:999px;">🌙 TONIGHT'S PICK</span>
       <div style="position:absolute; left:14px; bottom:14px; max-width:220px;">
-        <div class="serif" style="color:#fff; font-size:24px; line-height:1.12;">${tm.t}</div>
+        <span style="display:inline-block;background:rgba(255,255,255,.92);color:var(--bg);font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 7px;border-radius:999px;">ON NETFLIX</span>
+        <div class="serif" style="color:#fff; font-size:24px; line-height:1.12; margin-top:4px;">${tm.t}</div>
         <div style="color:rgba(255,255,255,.88); font-size:12px; margin-top:3px;">We think you'll rate it 8.9 · 2 friends loved it</div>
       </div>
       <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
         <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${tRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${tk}')">${tRanked?I("check",18):I("plus",18)}</button>
         ${tRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${tk}')">${bmIcon(tk)}</button>`}
       </div>
+    </div>
     </div>`;
 
   // "Friends are watching" — the binging signal, a horizontal shelf.
