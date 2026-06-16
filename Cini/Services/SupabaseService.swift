@@ -1349,10 +1349,13 @@ final class SupabaseService {
 
     /// Mark/update where I am in a show (season/episode optional). Starting to
     /// watch supersedes Want to Watch (server drops the watchlist row).
-    func setShowProgress(showID: Int, season: Int?, episode: Int?) async throws {
-        struct Params: Encodable { let p_show_id: Int; let p_season: Int?; let p_episode: Int? }
+    func setShowProgress(showID: Int, season: Int?, episode: Int?, caughtUp: Bool = false) async throws {
+        struct Params: Encodable {
+            let p_show_id: Int; let p_season: Int?; let p_episode: Int?; let p_caught_up: Bool
+        }
         try await client.rpc("set_show_progress",
-            params: Params(p_show_id: showID, p_season: season, p_episode: episode)).execute()
+            params: Params(p_show_id: showID, p_season: season, p_episode: episode, p_caught_up: caughtUp))
+            .execute()
     }
 
     func clearShowProgress(showID: Int) async throws {
@@ -1995,6 +1998,7 @@ struct FriendWatchingRow: Codable, Identifiable, Hashable {
     let posterPath: String?
     let season: Int?
     let episode: Int?
+    var caughtUp: Bool = false
     let updatedAt: Date
 
     var id: String { "\(userId.uuidString)-\(showId)" }
@@ -2006,6 +2010,7 @@ struct FriendWatchingRow: Codable, Identifiable, Hashable {
         case avatarUrl = "avatar_url"
         case showId = "show_id"
         case posterPath = "poster_path"
+        case caughtUp = "caught_up"
         case updatedAt = "updated_at"
     }
 }

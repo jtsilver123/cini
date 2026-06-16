@@ -12,60 +12,56 @@ func episodeLabel(season: Int?, episode: Int?) -> String? {
 
 // MARK: - "Friends are watching" shelf (the binging signal on the feed)
 
+/// "Friends are watching" as Instagram/Snap-style story circles at the top of
+/// the feed. A gold ring means mid-binge; a green ring + check means caught up.
 struct FriendsWatchingShelf: View {
     let rows: [FriendWatchingRow]
     var onOpen: (Int) -> Void          // show_id
 
     var body: some View {
         if !rows.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("FRIENDS ARE WATCHING")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(rows) { row in
-                            Button { onOpen(row.showId) } label: { item(row) }
-                                .buttonStyle(.plain)
-                        }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(rows) { row in
+                        Button { onOpen(row.showId) } label: { story(row) }
+                            .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, 2).padding(.vertical, 2)
             }
         }
     }
 
-    private func item(_ row: FriendWatchingRow) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ZStack(alignment: .bottomLeading) {
-                PosterView(url: posterURL(row.posterPath), width: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                if let label = episodeLabel(season: row.season, episode: row.episode) {
-                    Text(label)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(Capsule().fill(.black.opacity(0.6)))
-                        .padding(6)
+    private func story(_ row: FriendWatchingRow) -> some View {
+        VStack(spacing: 6) {
+            AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 62,
+                       name: preferredName(row.displayName, row.username))
+                .overlay(
+                    Circle()
+                        .strokeBorder(row.caughtUp
+                                      ? AnyShapeStyle(Theme.scoreGreen)
+                                      : AnyShapeStyle(LinearGradient(colors: [Theme.marquee, Theme.velvet],
+                                                                     startPoint: .topLeading, endPoint: .bottomTrailing)),
+                                      lineWidth: 2.5)
+                        .padding(-4)
+                )
+                // Caught-up check badge.
+                .overlay(alignment: .bottomTrailing) {
+                    if row.caughtUp {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundStyle(Theme.scoreGreen)
+                            .background(Circle().fill(Theme.background))
+                            .offset(x: 2, y: 2)
+                    }
                 }
-            }
-            .overlay(alignment: .topLeading) {
-                AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 24,
-                           name: preferredName(row.displayName, row.username))
-                    .overlay(Circle().strokeBorder(Theme.background, lineWidth: 1.5))
-                    .padding(5)
-            }
-            Text("@\(row.username)")
+            Text(row.title)
                 .font(.caption2)
-                .foregroundStyle(Theme.gray)
+                .foregroundStyle(Theme.ink)
                 .lineLimit(1)
+                .frame(width: 74)
         }
-        .frame(width: 96)
-    }
-
-    private func posterURL(_ path: String?) -> URL? {
-        guard let path, !path.isEmpty else { return nil }
-        if path.hasPrefix("http") { return URL(string: path) }
-        return URL(string: "https://image.tmdb.org/t/p/w342\(path)")
+        .frame(width: 74)
     }
 }
 
@@ -149,7 +145,7 @@ struct WatchingControl: View {
             if let s = info?.lastAiredSeason, let e = info?.lastAiredEpisode,
                !(season == s && episode == e) {
                 Button {
-                    Haptics.tap(); season = s; episode = e; save()
+                    Haptics.tap(); season = s; episode = e; save(caughtUp: true)
                 } label: {
                     Label("I'm caught up (S\(s) · E\(e))", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.weight(.semibold))
@@ -190,12 +186,13 @@ struct WatchingControl: View {
         .font(.title3)
     }
 
-    private func save() {
+    private func save(caughtUp: Bool = false) {
         let s = season, e = episode
         Task {
             do {
                 try await SupabaseService.shared.cacheMovie(movie)   // FK needs the show cached
-                try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID, season: s, episode: e)
+                try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID, season: s,
+                                                                 episode: e, caughtUp: caughtUp)
             } catch {
                 ToastCenter.shared.saveFailed()
             }

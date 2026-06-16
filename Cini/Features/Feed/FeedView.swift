@@ -29,6 +29,7 @@ struct FeedView: View {
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
+    @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
 
     var body: some View {
         NavigationStack {
@@ -37,8 +38,6 @@ struct FeedView: View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 18) {
                     header
-                    searchBar
-                    quickPills
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
@@ -109,7 +108,16 @@ struct FeedView: View {
                 .font(Theme.wordmark)
                 .foregroundStyle(Theme.marquee)
             Spacer()
-            HStack(spacing: 20) {
+            HStack(spacing: 4) {
+                Button {
+                    tabRouter.selection = .search
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Search")
                 NavigationLink {
                     ReleaseCalendarView()
                 } label: {
@@ -320,6 +328,12 @@ struct FeedView: View {
 
     private var yourFeed: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // What friends are binging right now — story circles at the top.
+            if !hideWatchingStories {
+                FriendsWatchingShelf(rows: friendsWatchingRows, onOpen: { openShow($0) })
+                    .padding(.top, 6)
+            }
+
             // The daily hook — up to three streamable "watch tonight" picks,
             // stacked like a deck you can swipe through.
             if !tonightCards.isEmpty {
@@ -329,11 +343,8 @@ struct FeedView: View {
                     onRank: { logMovie = $0 },
                     onDismiss: { dismissTonight($0) }
                 )
-                .padding(.top, 6)
+                .padding(.top, 2)
             }
-
-            // What friends are binging right now — the high-frequency signal.
-            FriendsWatchingShelf(rows: friendsWatchingRows, onOpen: { openShow($0) })
 
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {

@@ -219,6 +219,7 @@ private struct PrivacyScreen: View {
 
 private struct AppPreferencesScreen: View {
     @AppStorage("cini.appearance") private var appearance = "system"
+    @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
 
     var body: some View {
         Form {
@@ -228,6 +229,12 @@ private struct AppPreferencesScreen: View {
                     Text("Light").tag("light")
                     Text("Match device").tag("system")
                 } label: { Label("Theme", systemImage: "circle.lefthalf.filled") }
+            }
+            Section("Feed") {
+                Toggle(isOn: $hideWatchingStories) {
+                    Label("Hide \u{201C}Friends are watching\u{201D}", systemImage: "circle.dashed")
+                }
+                .tint(Theme.velvet)
             }
             Section {
                 NavigationLink {
