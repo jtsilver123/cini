@@ -176,13 +176,21 @@ struct ShowtimesSheet: View {
         var probe = cal.startOfDay(for: date)
         for _ in 0..<14 {
             probe = cal.date(byAdding: .day, value: 1, to: probe) ?? probe
-            if let found = try? await ShowtimesService.shared.showtimes(
-                for: movie, zipcode: zipcode, date: probe), !found.isEmpty {
-                suppressSearch = true   // we already have this date's showtimes
-                date = probe
-                theaters = found
-                state = .loaded
-                return
+            do {
+                // An empty result is "no showings that day" → keep probing; a
+                // thrown error is a real failure (network/config) → stop, don't
+                // hammer the API 14 times on an outage.
+                let found = try await ShowtimesService.shared.showtimes(
+                    for: movie, zipcode: zipcode, date: probe)
+                if !found.isEmpty {
+                    suppressSearch = true   // we already have this date's showtimes
+                    date = probe
+                    theaters = found
+                    state = .loaded
+                    return
+                }
+            } catch {
+                break
             }
         }
         noNextFound = true
