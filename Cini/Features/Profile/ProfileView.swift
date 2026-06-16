@@ -41,6 +41,7 @@ struct ProfileScreen: View {
     @State private var followedSuggested: Set<UUID> = []
     @State private var detailMovie: Movie?
     @State private var watchingRows: [WatchingRow] = []
+    @State private var bothWatching: [WatchingRow] = []
     @State private var loaded = false
     @State private var lastLoaded: Date = .distantPast
     @State private var showLogoutConfirm = false
@@ -70,6 +71,7 @@ struct ProfileScreen: View {
                 } else {
                     VStack(spacing: 18) {
                         identity
+                        bothWatchingSection
                         watchingSection
                         topThree
                         if isSelf, !rankings.isEmpty { shareTopFiveButton }
@@ -147,38 +149,51 @@ struct ProfileScreen: View {
 
     /// Everything loads in parallel — serially this took over a second of
     /// visible stagger on device.
+    /// Shows you and the viewed member are BOTH binging — the social hook.
+    @ViewBuilder
+    private var bothWatchingSection: some View {
+        if !isSelf, !bothWatching.isEmpty {
+            watchShelf("You both are watching", bothWatching)
+        }
+    }
+
     /// "Currently Watching" shelf — the shows this member is mid-binge on.
     @ViewBuilder
     private var watchingSection: some View {
         if !watchingRows.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(isSelf ? "Currently Watching" : "\(profile?.username ?? "They")'s currently watching")
-                    .font(.headline)
-                    .foregroundStyle(Theme.ink)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(watchingRows) { row in
-                            Button { openShow(row.showId) } label: {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    ZStack(alignment: .bottomLeading) {
-                                        PosterView(url: tmdbPoster(row.posterPath), width: 96)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                        if let label = episodeLabel(season: row.season, episode: row.episode) {
-                                            Text(label)
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(.white)
-                                                .padding(.horizontal, 6).padding(.vertical, 3)
-                                                .background(Capsule().fill(.black.opacity(0.6)))
-                                                .padding(6)
-                                        }
+            watchShelf(isSelf ? "Currently Watching"
+                              : "\(profile?.username ?? "They")'s currently watching",
+                       watchingRows)
+        }
+    }
+
+    /// A horizontal shelf of shows (poster + episode chip), tappable to the show.
+    private func watchShelf(_ title: String, _ rows: [WatchingRow]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline).foregroundStyle(Theme.ink)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(rows) { row in
+                        Button { openShow(row.showId) } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                ZStack(alignment: .bottomLeading) {
+                                    PosterView(url: tmdbPoster(row.posterPath), width: 96)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    if let label = episodeLabel(season: row.season, episode: row.episode) {
+                                        Text(label)
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 6).padding(.vertical, 3)
+                                            .background(Capsule().fill(.black.opacity(0.6)))
+                                            .padding(6)
                                     }
-                                    Text(row.title)
-                                        .font(.caption2).foregroundStyle(Theme.gray)
-                                        .lineLimit(1).frame(width: 96, alignment: .leading)
                                 }
+                                Text(row.title)
+                                    .font(.caption2).foregroundStyle(Theme.gray)
+                                    .lineLimit(1).frame(width: 96, alignment: .leading)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -204,6 +219,7 @@ struct ProfileScreen: View {
         guard let id = resolvedID else { return }
         let supabase = SupabaseService.shared
         Task { watchingRows = await supabase.watching(for: id) }
+        if !isSelf { Task { bothWatching = await supabase.mutualWatching(with: id) } }
 
         async let profileTask = supabase.profile(id: id)
         async let rankingsTask = supabase.rankings(userID: id)

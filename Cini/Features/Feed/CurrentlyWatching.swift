@@ -73,11 +73,17 @@ struct FriendsWatchingShelf: View {
 
 struct WatchingControl: View {
     let movie: Movie
+    /// The show's season structure (loads async on the detail page) — used to
+    /// cap the steppers and power "I'm caught up".
+    var info: TMDBService.ExtendedDetails?
 
     @Environment(RankingStore.self) private var store
     @State private var watching = false
     @State private var season = 1
     @State private var episode = 1
+
+    private var maxSeason: Int { info?.numberOfSeasons ?? 99 }
+    private func maxEpisode(_ s: Int) -> Int { info?.seasonEpisodeCounts[s] ?? 99 }
 
     var body: some View {
         if movie.mediaKind == "tv" {
@@ -127,36 +133,59 @@ struct WatchingControl: View {
                 Image(systemName: "play.tv.fill").foregroundStyle(Theme.marquee)
                 Text("Currently watching").font(.subheadline.weight(.semibold))
                 Spacer()
-                Button("Stop") {
-                    Haptics.tap()
-                    watching = false
-                    Task { try? await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID) }
-                }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.gray)
+                Text("Friends can see this")
+                    .font(.caption2).foregroundStyle(Theme.gray)
             }
-            stepper("Season", value: $season)
-            stepper("Episode", value: $episode)
-            Text("Friends see you're on S\(season) · E\(episode)")
-                .font(.caption).foregroundStyle(Theme.gray)
+            stepper("Season", value: season, cap: maxSeason) {
+                season = min(max(1, $0), maxSeason)
+                episode = min(episode, maxEpisode(season))   // clamp to the new season
+                save()
+            }
+            stepper("Episode", value: episode, cap: maxEpisode(season)) {
+                episode = min(max(1, $0), maxEpisode(season))
+                save()
+            }
+            // Jump straight to the latest aired episode.
+            if let s = info?.lastAiredSeason, let e = info?.lastAiredEpisode,
+               !(season == s && episode == e) {
+                Button {
+                    Haptics.tap(); season = s; episode = e; save()
+                } label: {
+                    Label("I'm caught up (S\(s) · E\(e))", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain)
+            }
+            // A clearly-labeled remove (the old "Stop" was ambiguous).
+            Button {
+                Haptics.tap()
+                withAnimation(.snappy) { watching = false }
+                Task { try? await SupabaseService.shared.clearShowProgress(showID: movie.tmdbID) }
+            } label: {
+                Label("Remove from Currently Watching", systemImage: "xmark.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .overlay(Capsule().strokeBorder(Theme.hairline))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
     }
 
-    private func stepper(_ label: String, value: Binding<Int>) -> some View {
+    /// A +/- stepper capped at `cap`; `onSet` receives the requested new value.
+    private func stepper(_ label: String, value: Int, cap: Int, onSet: @escaping (Int) -> Void) -> some View {
         HStack {
             Text(label).font(.subheadline).foregroundStyle(Theme.ink)
             Spacer()
-            Button {
-                if value.wrappedValue > 1 { value.wrappedValue -= 1; save() }
-            } label: { Image(systemName: "minus.circle.fill") }
-                .buttonStyle(.plain).foregroundStyle(value.wrappedValue > 1 ? Theme.marquee : Theme.gray.opacity(0.5))
-            Text("\(value.wrappedValue)")
-                .font(.subheadline.weight(.bold)).monospacedDigit()
-                .frame(minWidth: 28)
-            Button {
-                if value.wrappedValue < 99 { value.wrappedValue += 1; save() }
-            } label: { Image(systemName: "plus.circle.fill") }
-                .buttonStyle(.plain).foregroundStyle(value.wrappedValue < 99 ? Theme.marquee : Theme.gray.opacity(0.5))
+            Button { if value > 1 { onSet(value - 1) } } label: { Image(systemName: "minus.circle.fill") }
+                .buttonStyle(.plain).foregroundStyle(value > 1 ? Theme.marquee : Theme.gray.opacity(0.4))
+            Text("\(value)")
+                .font(.subheadline.weight(.bold)).monospacedDigit().frame(minWidth: 28)
+            Button { if value < cap { onSet(value + 1) } } label: { Image(systemName: "plus.circle.fill") }
+                .buttonStyle(.plain).foregroundStyle(value < cap ? Theme.marquee : Theme.gray.opacity(0.4))
         }
         .font(.title3)
     }

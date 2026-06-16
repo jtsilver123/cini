@@ -1354,6 +1354,12 @@ final class SupabaseService {
         return (try? await client.rpc("watching_for", params: Params(p_user: userID)).execute().value) ?? []
     }
 
+    /// Shows BOTH I and this member are currently watching.
+    func mutualWatching(with userID: UUID) async -> [WatchingRow] {
+        struct Params: Encodable { let p_user: UUID }
+        return (try? await client.rpc("mutual_watching", params: Params(p_user: userID)).execute().value) ?? []
+    }
+
     /// My progress on one show (nil = not currently marked watching).
     func myShowProgress(showID: Int) async -> ShowProgressRow? {
         guard let me = currentUserID else { return nil }

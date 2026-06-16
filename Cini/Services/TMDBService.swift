@@ -144,12 +144,18 @@ final class TMDBService {
         var nextEpisodeAirDate: String?   // "2024-06-20"
         var nextEpisodeSeason: Int?
         var nextEpisodeNumber: Int?
+        // Show structure, for bounding the "currently watching" steppers.
+        var numberOfSeasons: Int?
+        var seasonEpisodeCounts: [Int: Int] = [:]   // season number → episode count
+        var lastAiredSeason: Int?                    // latest episode that has aired
+        var lastAiredEpisode: Int?
     }
 
     func extendedDetails(for movieID: Int) async throws -> ExtendedDetails {
         struct Named: Codable { let name: String }
         struct Lang: Codable { let englishName: String?; let name: String? }
-        struct NextEp: Codable { let airDate: String?; let seasonNumber: Int?; let episodeNumber: Int? }
+        struct Ep: Codable { let airDate: String?; let seasonNumber: Int?; let episodeNumber: Int? }
+        struct SeasonDTO: Codable { let seasonNumber: Int?; let episodeCount: Int? }
         struct DTO: Codable {
             let productionCompanies: [Named]?
             let networks: [Named]?
@@ -157,11 +163,18 @@ final class TMDBService {
             let spokenLanguages: [Lang]?
             let releaseDate: String?
             let firstAirDate: String?
-            let nextEpisodeToAir: NextEp?
+            let nextEpisodeToAir: Ep?
+            let lastEpisodeToAir: Ep?
+            let numberOfSeasons: Int?
+            let seasons: [SeasonDTO]?
         }
         let dto: DTO = try await get(Self.mediaPath(movieID))
         var studios = (dto.productionCompanies ?? []).map(\.name)
         if studios.isEmpty { studios = (dto.networks ?? []).map(\.name) }
+        var counts: [Int: Int] = [:]
+        for s in dto.seasons ?? [] {
+            if let n = s.seasonNumber, n >= 1, let c = s.episodeCount { counts[n] = c }
+        }
         return ExtendedDetails(
             studios: studios,
             countries: (dto.productionCountries ?? []).map(\.name),
@@ -169,7 +182,11 @@ final class TMDBService {
             releaseDate: dto.releaseDate ?? dto.firstAirDate,
             nextEpisodeAirDate: dto.nextEpisodeToAir?.airDate,
             nextEpisodeSeason: dto.nextEpisodeToAir?.seasonNumber,
-            nextEpisodeNumber: dto.nextEpisodeToAir?.episodeNumber
+            nextEpisodeNumber: dto.nextEpisodeToAir?.episodeNumber,
+            numberOfSeasons: dto.numberOfSeasons,
+            seasonEpisodeCounts: counts,
+            lastAiredSeason: dto.lastEpisodeToAir?.seasonNumber,
+            lastAiredEpisode: dto.lastEpisodeToAir?.episodeNumber
         )
     }
 

@@ -77,7 +77,7 @@ struct MovieDetailView: View {
                 metadataBlock
                 summarySection
                 actionPills
-                WatchingControl(movie: movie)
+                WatchingControl(movie: movie, info: extended)
                     .padding(.horizontal, 16)
                 nextEpisodeRow
                 scoresSection
