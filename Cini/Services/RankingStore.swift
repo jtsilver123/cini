@@ -37,6 +37,21 @@ final class RankingStore {
 
     // MARK: - Loading
 
+    /// Wipe in-memory state on sign-out so the next account starts clean: no
+    /// stale rankings bleeding into a new account's UI, and — critically —
+    /// `isLoaded` flips back to false so onboarding re-evaluates from scratch
+    /// (a new signup must not inherit the previous account's watched count and
+    /// skip onboarding).
+    func reset() {
+        lists = ["movie": RankingList(), "tv": RankingList()]
+        watchedItems = []
+        movies = [:]
+        watchlist = []
+        predictedScores = [:]
+        customLists = []
+        isLoaded = false
+    }
+
     func load() async {
         guard let userID = supabase.currentUserID else { return }
         // Cold start: the last-synced snapshot renders lists instantly

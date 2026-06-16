@@ -265,6 +265,11 @@ final class AppSession {
                 isAuthenticated = false
                 didResolveAuth = true
                 profile = nil
+                // Clear in-memory rankings too (not just disk) so a new signup
+                // on this device starts clean and re-runs onboarding — without
+                // this, the next account inherited the prior one's watched count
+                // and skipped onboarding.
+                rankingStore.reset()
                 FeedDiskCache.clear()
                 RankingDiskCache.clear()
                 ImportQueue.shared.clear()
