@@ -49,7 +49,7 @@ Status legend: ✅ done · 🔶 in progress · 👤 requires Jake (account owner
 
 ## Pre-submission functional pass (on device, latest build)
 
-- [ ] Sign up with email; sign in with Apple
+- [ ] Sign up with email + phone; sign in with email or phone (no Sign in with Apple — email/phone only)
 - [ ] Onboarding: name + profile photo on the username step; initials
       avatar when no photo
 - [ ] Search → rank a movie end-to-end (sentiment → comparisons → enrichment)

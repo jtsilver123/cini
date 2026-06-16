@@ -54,8 +54,8 @@ struct SendRecSheet: View {
             HStack(spacing: 12) {
                 PosterView(url: movie.posterURL, width: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(movie.title).font(.subheadline.weight(.bold))
-                    Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
+                    Text(movie.title).font(.subheadline.weight(.bold)).lineLimit(2)
+                    Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
                 }
                 Spacer()
             }

@@ -383,8 +383,8 @@ struct RespondPickerView: View {
             HStack(spacing: 12) {
                 PosterView(url: movie.posterURL, width: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(movie.title).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray)
+                    Text(movie.title).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink).lineLimit(2)
+                    Text(movie.bylineText).font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
                 }
                 Spacer()
                 if let scored = store.scoredItem(for: movie.tmdbID) {

@@ -269,7 +269,7 @@ private struct FriendsMock: View {
                         .overlay(Text(row.0).font(.system(size: 10, weight: .bold)).foregroundStyle(.white))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(row.2).font(.caption.weight(.bold)).foregroundStyle(Theme.ink)
-                        Text(row.3).font(.system(size: 10)).foregroundStyle(Theme.gray).lineLimit(1)
+                        Text(row.3).font(.caption2).foregroundStyle(Theme.gray).lineLimit(1)
                     }
                     Spacer(minLength: 4)
                     mockBadge(row.4, row.5)
