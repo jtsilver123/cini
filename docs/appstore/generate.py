@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Branded App Store screenshots (6.7" = 1290x2796) matching Cini's marquee
-icon: glowing marquee-gold on house-lights-down black, marquee-bulb trim, the
-REAL brand faces (Limelight wordmark + DM Serif Display headlines), and REAL
-movie posters fetched from TMDB. Marketing frames = headline + phone mockup."""
+"""Branded App Store screenshots for Cini — iPhone (1284x2778) + iPad
+(2048x2732). Beli-style marketing frames: an ALL-CAPS headline, one short
+centered sentence, then a large device mockup that is the hero. Each device
+renders a clean app mockup behind a polished gold-rimmed frame with a clearly
+iOS status bar (9:41, Dynamic Island on iPhone, Wi-Fi + battery) — addressing
+App Review's note about non-iOS status bars. Posters are real (TMDB)."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os, json, urllib.request, urllib.parse
 
 # Device + canvas are set per pass in render_all(); these are defaults.
-W, H = 1290, 2796
+W, H = 1284, 2778
 DEVICE = "iphone"; ISLAND = True
 BG="#131011"; BG2="#1b1614"; SURF="#1D1719"; SURF2="#281F20"; FILL="#2a2526"
 INK="#F5EEDF"; GRAY="#A69C91"; MARQUEE="#E8B64C"; VELVET="#A8352A"; GOLD="#D9A93C"
@@ -78,8 +80,6 @@ def wrap(d, t, f, maxw):
 
 # Per-screen branded backdrops — distinct warm cinema tones (top), settling
 # into the house-lights-down charcoal. Cohesive with the marquee palette.
-# Rich warm tops; the base stays a tinted dark of the SAME hue (never pure
-# black) so the app's near-black UI separates cleanly against it.
 BACKDROPS = {
     "velvet": (0x6e, 0x27, 0x20),
     "gold":   (0x6c, 0x4e, 0x1d),
@@ -103,34 +103,26 @@ def bg(accent="gold"):
     img.paste(Image.alpha_composite(img.convert("RGBA"),glow).convert("RGB"),(0,0))
     return img
 
-def bulbs(d, y, n=17):
-    span=W-150; step=span/(n-1)
-    for i in range(n):
-        x=75+step*i
-        d.ellipse([x-7,y-7,x+7,y+7], fill=MARQUEE)
-        d.ellipse([x-3,y-3,x+3,y+3], fill="#fff7e0")
-
 def caption(d, headline, sub):
-    # Small gold wordmark (brand signature, clean — no bulbs), then a big
-    # one-word header + a clear benefit subline. Scales with the canvas.
+    # Small gold wordmark (brand signature), a big ALL-CAPS headline, and a
+    # clear one-sentence benefit. Scales with the canvas.
     k = W / 1290
     wm = disp(int(40 * k)); ww = d.textlength("cini", font=wm)
-    d.text((W/2 - ww/2, int(60 * k)), "cini", font=wm, fill=MARQUEE)
-    y = int(166 * k)
-    hf = sf(int(116 * k))
-    for ln in wrap(d, headline, hf, W - int(130 * k)):
-        ctext(d, W/2, y, ln, hf, INK); y += int(128 * k)
-    y += int(4 * k)
-    sfont = sa(int(42 * k))
-    for ln in wrap(d, sub, sfont, W - int(170 * k)):
-        ctext(d, W/2, y, ln, sfont, GRAY); y += int(56 * k)
+    d.text((W/2 - ww/2, int(58 * k)), "cini", font=wm, fill=MARQUEE)
+    y = int(150 * k)
+    hf = sf(int(126 * k))
+    ctext(d, W/2, y, headline.upper(), hf, INK, track=int(10 * k))
+    y += int(168 * k)
+    sfont = sa(int(40 * k))
+    for ln in wrap(d, sub, sfont, W - int(150 * k)):
+        ctext(d, W/2, y, ln, sfont, GRAY); y += int(54 * k)
     return y
 
 SCREEN = None  # set by phone(); poster() pastes onto this
 def phone(top, draw_screen):
-    """Big, close device cropped at the bottom (Beli-style), gold marquee frame.
-    The screen content is drawn on a 1180-wide logical canvas and resized to the
-    device width, so the same draw code renders sharp on both iPhone and iPad."""
+    """Big, centered device cropped at the bottom (Beli-style), gold marquee
+    frame. Screen content is drawn on a 1180-wide logical canvas and resized to
+    the device width, so the same code renders sharp on iPhone and iPad."""
     global SCREEN
     pw = 1180 if DEVICE == "iphone" else 1880    # on-canvas device width
     corner = 100 if DEVICE == "iphone" else 64
@@ -144,7 +136,6 @@ def phone(top, draw_screen):
     d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, fill="#0a0809")
     # thin marquee-gold rim — a brand accent, not a heavy frame (Beli-clean)
     d.rounded_rectangle([x0-16,y0-16,x0+pw+16,y0+ph], radius=corner+16, outline=MARQUEE, width=4)
-    # Render the screen on a 1180-wide logical canvas, then scale to device width.
     lw = 1180; lh = int(lw * ph / pw)
     screen = Image.new("RGB",(lw,lh),BG); SCREEN = screen
     draw_screen(ImageDraw.Draw(screen), lw, lh)
@@ -182,47 +173,22 @@ def poster(d, x, y, w, h, title="", tone=0, query=None, year=None):
     for j,ln in enumerate(wrap(d, title, sb(26), w-24)):
         d.text((x+14, y+h-90+j*30), ln, font=sb(26), fill="#efe6d4")
 
-SHOTS=[]
-
 def status_bar(d, pw):
-    # Dynamic Island — iPhone only (iPad has no island).
+    """A clearly-iOS status bar: 9:41, Dynamic Island (iPhone only), cellular
+    (iPhone only), Wi-Fi fan, and the iOS battery glyph."""
     if ISLAND:
         iw=300; ih=78; ix=(pw-iw)//2; iy=30
         d.rounded_rectangle([ix,iy,ix+iw,iy+ih], radius=39, fill="#000000")
-    # time (left)
     d.text((58, 40), "9:41", font=sb(38), fill=INK)
-    # right cluster: signal bars, wifi fan, battery
-    for i in range(4):
-        h=16+i*10; d.rounded_rectangle([pw-260+i*18, 76-h, pw-249+i*18, 76], radius=2, fill=INK)
+    if ISLAND:  # cellular signal — phones only
+        for i in range(4):
+            h=16+i*10; d.rounded_rectangle([pw-260+i*18, 76-h, pw-249+i*18, 76], radius=2, fill=INK)
     wx=pw-176
-    d.pieslice([wx, 40, wx+56, 96], 212, 328, fill=INK)
-    bx=pw-96
+    d.pieslice([wx, 40, wx+56, 96], 212, 328, fill=INK)   # Wi-Fi fan
+    bx=pw-96                                               # iOS battery
     d.rounded_rectangle([bx, 44, bx+58, 78], radius=8, outline=INK, width=3)
     d.rounded_rectangle([bx+5, 49, bx+44, 73], radius=4, fill=INK)
     d.rounded_rectangle([bx+58, 54, bx+66, 68], radius=3, fill=INK)
-
-def tabbar(d, pw, ph, active=0):
-    bh=164; y=ph-bh
-    d.rectangle([0,y,pw,ph], fill=(15,13,14))
-    d.line([(0,y),(pw,y)], fill="#241f20", width=2)
-    labels=["Feed","Your Lists","Search","Leaderboard","Profile"]
-    step=pw/5
-    for i,lbl in enumerate(labels):
-        cx=step*i+step/2; iy=y+46; col=MARQUEE if i==active else GRAY
-        if i==0:
-            for k in range(3): d.rounded_rectangle([cx-22,iy-16+k*13,cx+22,iy-9+k*13],radius=3,fill=col)
-        elif i==1:
-            for k in range(3):
-                d.ellipse([cx-24,iy-16+k*13,cx-15,iy-7+k*13],fill=col)
-                d.rounded_rectangle([cx-8,iy-15+k*13,cx+24,iy-9+k*13],radius=2,fill=col)
-        elif i==2:
-            d.ellipse([cx-22,iy-20,cx+6,iy+8],outline=col,width=5); d.line([cx+3,iy+5,cx+20,iy+22],fill=col,width=6)
-        elif i==3:
-            d.rounded_rectangle([cx-18,iy-20,cx+18,iy+2],radius=9,fill=col)
-            d.rectangle([cx-6,iy+2,cx+6,iy+14],fill=col); d.rectangle([cx-18,iy+14,cx+18,iy+22],fill=col)
-        else:
-            d.ellipse([cx-11,iy-22,cx+11,iy],fill=col); d.ellipse([cx-22,iy-2,cx+22,iy+26],fill=col)
-        f=sa(20); w=d.textlength(lbl,font=f); d.text((cx-w/2,y+100),lbl,font=f,fill=col)
 
 def chip(d, x, y, text, active=False):
     f=sa(26); w=d.textlength(text,font=f); cw=w+44; ch=58
@@ -234,41 +200,31 @@ def chip(d, x, y, text, active=False):
         d.text((x+22,y+14),text,font=f,fill=GRAY)
     return x+cw+14
 
-# 1 — HERO (brand intro)
-def s_hero(d, pw, ph):
-    status_bar(d, pw)
-    cx=pw//2
-    f=disp(176); t="CINI"; w=d.textlength(t,font=f)
-    d.text((cx-w/2, 520), t, font=f, fill=MARQUEE)
-    ctext(d, cx, 740, "EVERY FILM · RANKED", sb(36), GRAY, track=12)
-    ctext(d, cx, 1000, "Rank everything you watch", sf(50), INK)
-    ctext(d, cx, 1072, "through quick head-to-head taps.", sf(50), INK)
-    for k,(c,lbl) in enumerate([(LOVE,"Liked it"),(FINE,"It was fine"),(DIS,"Didn't")]):
-        bx=cx-320+k*320
-        d.ellipse([bx-66,1360,bx+66,1492], fill=c)
-        ww=d.textlength(lbl,font=sa(30)); d.text((bx-ww/2, 1520), lbl, font=sa(30), fill=GRAY)
-# (brand-only hero dropped — every screenshot now shows the product.)
+# ============================ SCREENS ======================================
 
-# 2 — COMPARE (the ranking modal)
-def s_compare(d, pw, ph):
+# 1 — DISCOVER (search + Tonight's Pick hero + trending row)
+def s_discover(d, pw, ph):
     status_bar(d, pw)
-    cx=pw//2
-    ctext(d, cx, 220, "Which did you", sf(66), INK)
-    ctext(d, cx, 304, "like more?", sf(66), INK)
-    pwid=460; px=70; py=520
-    poster(d, px, py, pwid, pwid*3//2, query="Whiplash", year=2014)
-    poster(d, pw-px-pwid, py, pwid, pwid*3//2, query="Interstellar", year=2014)
-    cyc=py+pwid*3//4
-    d.ellipse([cx-62, cyc-62, cx+62, cyc+62], fill=VELVET)
-    vt="VS"; f=sb(46); w=d.textlength(vt,font=f); d.text((cx-w/2, cyc-30), vt, font=f, fill="#fff")
-    for k,c in enumerate([LOVE,FINE,DIS]):
-        bx=cx-170+k*170; by=py+pwid*3//2+110
-        d.ellipse([bx-38,by,bx+38,by+76], fill=c)
-    ctext(d, cx, py+pwid*3//2+240, "A few quick taps — no scores to overthink.", sa(30), GRAY)
-SHOTS.append(("01-rank", "Rank", "No star ratings — answer one question and Cini ranks everything you watch.", s_compare, "velvet"))
+    d.text((44, 150), "cini", font=disp(54), fill=MARQUEE)
+    d.rounded_rectangle([44,248,pw-44,320], radius=20, fill=FILL)
+    d.ellipse([66,268,98,300], outline=GRAY, width=4)
+    d.text((118,266), "Search movies, shows, friends", font=sa(28), fill=GRAY)
+    d.text((44, 366), "TONIGHT'S PICK", font=sb(28), fill=MARQUEE)
+    by=420; bw=pw-88; bh=540
+    poster(d, 44, by, bw, bh, query="Dune: Part Two", year=2024)
+    d.text((44, by+bh+22), "Dune: Part Two", font=sf(48), fill=INK)
+    d.rounded_rectangle([44, by+bh+100, 198, by+bh+148], radius=24, fill=SURF2)
+    d.text((60, by+bh+108), "ON NETFLIX", font=sb(20), fill=GRAY)
+    d.text((222, by+bh+104), "We think you'll love it", font=sa(28), fill=GRAY)
+    ty=by+bh+200
+    d.text((44, ty), "Trending now", font=sf(40), fill=INK)
+    titles=[("Anora",2024),("The Brutalist",2024),("Conclave",2024),("Sinners",2025)]
+    pwid=240; gap=24; x=44; py=ty+70
+    for t,yr in titles:
+        poster(d, x, py, pwid, pwid*3//2, query=t, year=yr); x += pwid+gap
 
-# 3 — YOUR LISTS (segmented tabs + filter chips + ranked rows)
-def s_list(d, pw, ph):
+# 2 — RANK (ranked list: top movies + your own scores)
+def s_rank(d, pw, ph):
     status_bar(d, pw)
     d.text((44, 150), "Your Lists", font=sf(60), fill=INK)
     segs=["Watched","Want to Watch","Recs"]; sy=250; sx=44; sw=pw-88
@@ -294,10 +250,9 @@ def s_list(d, pw, ph):
         d.text((262, y+108), str(yr), font=sa(24), fill=GRAY)
         score_badge(d, pw-118, y+75, sc)
         y+=166
-SHOTS.append(("02-scored", "Scored", "Every title gets a 1–10 score from your own taste — not strangers.", s_list, "bronze"))
 
-# 4 — FEED (cini header, search, pills, friend cards)
-def s_feed(d, pw, ph):
+# 3 — SHARE (social feed: friends ranking / saving)
+def s_share(d, pw, ph):
     status_bar(d, pw)
     d.text((44, 150), "cini", font=disp(54), fill=MARQUEE)
     for k in range(3):
@@ -320,13 +275,12 @@ def s_feed(d, pw, ph):
             d.text((254, y+170+j*48), ln, font=sf(40), fill=INK)
         if sc is not None: score_badge(d, pw-150, y+220, sc, r=50)
         y+=386
-SHOTS.append(("03-friends", "Friends", "See what friends scored before you spend a night on it.", s_feed, "plum"))
 
-# 5 — WANT TO WATCH, sorted by Rec Score
-def s_recs(d, pw, ph):
+# 4 — SAVE (Want to Watch, sorted by Rec Score)
+def s_save(d, pw, ph):
     status_bar(d, pw)
     d.text((44, 150), "Want to Watch", font=sf(56), fill=INK)
-    d.text((44, 232), "sorted by what you'll love", font=sa(30), fill=GRAY)
+    d.text((44, 232), "for movie night, date night & later", font=sa(30), fill=GRAY)
     titles=[("Sinners",2025,9.2),("The Brutalist",2024,8.9),("Anora",2024,8.5),("Conclave",2024,8.3),
             ("Dune: Part Two",2024,8.0),("Challengers",2024,7.9),("A Real Pain",2024,7.8),
             ("The Substance",2024,7.5),("Nosferatu",2024,7.1),("Wicked",2024,6.4)]
@@ -341,13 +295,59 @@ def s_recs(d, pw, ph):
         d.text((pw-292, y+62), "REC", font=sb(22), fill=GRAY)
         score_badge(d, pw-118, y+77, sc, r=42)
         y+=164
-SHOTS.append(("04-discover", "Discover", "Rec Scores predict how much you'll like what you haven't seen.", s_recs, "ember"))
+
+# 5 — LOG (the head-to-head logging flow)
+def s_log(d, pw, ph):
+    status_bar(d, pw)
+    cx=pw//2
+    ctext(d, cx, 220, "Which did you", sf(66), INK)
+    ctext(d, cx, 304, "like more?", sf(66), INK)
+    pwid=460; px=70; py=520
+    poster(d, px, py, pwid, pwid*3//2, query="Whiplash", year=2014)
+    poster(d, pw-px-pwid, py, pwid, pwid*3//2, query="Interstellar", year=2014)
+    cyc=py+pwid*3//4
+    d.ellipse([cx-62, cyc-62, cx+62, cyc+62], fill=VELVET)
+    vt="VS"; f=sb(46); w=d.textlength(vt,font=f); d.text((cx-w/2, cyc-30), vt, font=f, fill="#fff")
+    for k,c in enumerate([LOVE,FINE,DIS]):
+        bx=cx-170+k*170; by=py+pwid*3//2+110
+        d.ellipse([bx-38,by,bx+38,by+76], fill=c)
+    ctext(d, cx, py+pwid*3//2+240, "A few quick taps — no scores to overthink.", sa(30), GRAY)
+
+# 6 — RECS (Ask Cini: a personalized recommendation)
+def s_recs(d, pw, ph):
+    status_bar(d, pw)
+    d.text((44, 150), "Ask Cini", font=sf(58), fill=INK)
+    d.text((44, 234), "your personal movie concierge", font=sa(30), fill=GRAY)
+    q="What should I watch tonight?"
+    qf=sa(30); qw=d.textlength(q,font=qf); bw=qw+56; bx=pw-44-bw; by=326
+    d.rounded_rectangle([bx,by,bx+bw,by+74], radius=30, fill=MARQUEE)
+    d.text((bx+28,by+18), q, font=qf, fill=(19,16,17))
+    cy=by+126
+    d.rounded_rectangle([44,cy,pw-44,cy+520], radius=24, fill=SURF)
+    d.text((76,cy+34), "Based on your taste, watch:", font=sa(28), fill=GRAY)
+    poster(d, 76, cy+96, 230, 330, query="Past Lives", year=2023)
+    d.text((338, cy+104), "Past Lives", font=sf(46), fill=INK)
+    d.text((338, cy+168), "2023 · Drama", font=sa(26), fill=GRAY)
+    score_badge(d, pw-128, cy+150, 9.4, r=54)
+    for j,ln in enumerate(wrap(d, "Because you loved Whiplash and Aftersun — quiet, aching, beautifully restrained.", sa(28), pw-338-70)):
+        d.text((338, cy+236+j*40), ln, font=sa(28), fill=INK)
+    x=76; fy=cy+452
+    x=chip(d,x,fy,"Something lighter"); x=chip(d,x,fy,"Shorter")
+
+SHOTS = [
+    ("01-discover", "Discover", "Find what to watch tonight from your taste, friends, and what's trending", s_discover, "gold"),
+    ("02-rank",     "Rank",     "Rate movies and build a taste profile that gets smarter", s_rank, "velvet"),
+    ("03-share",    "Share",    "See what friends are watching, saving, and recommending", s_share, "plum"),
+    ("04-save",     "Save",     "Build a watchlist for movie night, date night, and later", s_save, "bronze"),
+    ("05-log",      "Log",      "Keep track of what you watched and what you loved", s_log, "ember"),
+    ("06-recs",     "Recs",     "Get better picks the more you rank, save, and watch", s_recs, "gold"),
+]
 
 def render_all(device):
     global W, H, DEVICE, ISLAND, BASE
     DEVICE = device
     if device == "iphone":
-        W, H, ISLAND = 1284, 2778, True       # 6.7" iPhone (App Store size)
+        W, H, ISLAND = 1284, 2778, True       # 6.5"/6.7" iPhone (App Store size)
     else:
         W, H, ISLAND = 2048, 2732, False      # 12.9" iPad
     out = os.path.join(OUT, device)
@@ -355,7 +355,7 @@ def render_all(device):
     for name, headline, sub, fn, accent in SHOTS:
         BASE = bg(accent)
         d = ImageDraw.Draw(BASE)
-        ph_top = caption(d, headline, sub) + int(34 * W / 1290)
+        ph_top = caption(d, headline, sub) + int(40 * W / 1290)
         phone(int(ph_top), fn)
         BASE.save(os.path.join(out, f"{name}.png"))
         print(device, "saved", name)
