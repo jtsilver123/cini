@@ -995,10 +995,16 @@ struct ActivityMovieRow: View {
                     .frame(minWidth: 26, alignment: .leading)
             }
             PosterView(url: movie.posterURL, width: 52)
+            // Match the normal My Lists row (WatchlistRowView): heavier title +
+            // the genre·year metadata line, so a member's list looks like yours.
             VStack(alignment: .leading, spacing: 3) {
                 Text(movie.title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.headline)
                     .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                Text(movie.metadataLine)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ink.opacity(0.8))
                     .lineLimit(1)
                 if !movie.bylineText.isEmpty {
                     Text(movie.bylineText)
