@@ -1051,17 +1051,12 @@ struct ActivityMovieRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let rank {
-                Text("\(rank)")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .frame(minWidth: 26, alignment: .leading)
-            }
             PosterView(url: movie.posterURL, width: 52)
-            // Match the normal My Lists row (WatchlistRowView): heavier title +
-            // the genre·year metadata line, so a member's list looks like yours.
+            // Match My Lists rows: inline "N. Title" rank (when ranked), heavier
+            // title, and the genre·year metadata line — so a member's list looks
+            // exactly like your own.
             VStack(alignment: .leading, spacing: 3) {
-                Text(movie.title)
+                Text(rank.map { "\($0). \(movie.title)" } ?? movie.title)
                     .font(.headline)
                     .foregroundStyle(Theme.ink)
                     .lineLimit(1)
@@ -1143,6 +1138,9 @@ struct RankedListScreen: View {
     // screen drops its own title/destination so the tabs share one back arrow.
     var openDetail: ((Movie) -> Void)? = nil
     var openLog: ((Movie) -> Void)? = nil
+    /// When set (e.g. embedded under a parent's Movies/TV switcher), this screen
+    /// shows only that kind and hides its own segmented control.
+    var forcedCategory: MediaCategory? = nil
     private var embedded: Bool { openDetail != nil }
 
     @State private var detailMovie: Movie?
@@ -1154,7 +1152,7 @@ struct RankedListScreen: View {
     // #1 among that kind, never a mixed number.
     @State private var categoryIndex = 0
     @State private var pickedDefault = false
-    private var category: MediaCategory { categoryIndex == 0 ? .movies : .tvShows }
+    private var category: MediaCategory { forcedCategory ?? (categoryIndex == 0 ? .movies : .tvShows) }
 
     private func rows(in category: MediaCategory) -> [RankingRow] {
         rankings.filter { movies[$0.movieId].map(category.matches) ?? false }
@@ -1193,8 +1191,8 @@ struct RankedListScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Split by kind whenever there are both — movies and TV are
-                // ranked separately, so they're listed separately.
-                if !rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty {
+                // ranked separately. Hidden when a parent already drives the kind.
+                if forcedCategory == nil && !rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty {
                     SegmentedPillControl(segments: ["Movies", "TV Shows"], selection: $categoryIndex)
                         .padding(.bottom, 12)
                 }
@@ -1274,8 +1272,9 @@ struct RankedListScreen: View {
         .background(Theme.background)
         .onAppear {
             // Open on the kind that actually has titles (e.g. a TV-only list
-            // shouldn't land on an empty Movies tab).
-            guard !pickedDefault else { return }
+            // shouldn't land on an empty Movies tab). Skipped when the kind is
+            // driven by a parent.
+            guard forcedCategory == nil, !pickedDefault else { return }
             pickedDefault = true
             if rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty { categoryIndex = 1 }
         }
@@ -1289,6 +1288,7 @@ struct WatchlistScreen: View {
     let isSelf: Bool
     var openDetail: ((Movie) -> Void)? = nil
     var openLog: ((Movie) -> Void)? = nil
+    var categoryFilter: MediaCategory? = nil      // restrict to Movies or TV when driven by a parent
     private var embedded: Bool { openDetail != nil }
 
     @Environment(RankingStore.self) private var store
@@ -1306,7 +1306,7 @@ struct WatchlistScreen: View {
                          : fetched.map { ($0.movieId, $0.createdAt) }
         return all.filter { entry in
             guard let movie = movies[entry.0] ?? store.movie(entry.0) else { return true }
-            return filters.passes(movie)
+            return filters.passes(movie) && (categoryFilter?.matches(movie) ?? true)
         }
     }
 
@@ -1534,7 +1534,8 @@ struct MemberListsView: View {
     let movies: [Int: Movie]
     let watchingRows: [WatchingRow]
     let lockedHint: String?
-    @State private var tab: Tab
+    @State private var category: MediaCategory = .movies
+    @State private var subTab: Tab
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
 
@@ -1544,30 +1545,38 @@ struct MemberListsView: View {
          watchingRows: [WatchingRow], lockedHint: String?, initial: Tab = .watched) {
         self.userID = userID; self.title = title; self.rankings = rankings
         self.movies = movies; self.watchingRows = watchingRows; self.lockedHint = lockedHint
-        _tab = State(initialValue: initial)
+        _subTab = State(initialValue: initial)
     }
 
-    // Watching only appears when they're actually watching something.
-    private var tabs: [Tab] { watchingRows.isEmpty ? [.watched, .watchlist] : [.watched, .watchlist, .watching] }
-    private var active: Tab { tabs.contains(tab) ? tab : .watched }
-    private var tabIndex: Binding<Int> {
-        Binding(get: { tabs.firstIndex(of: active) ?? 0 }, set: { tab = tabs[$0] })
+    // Same shape as My Lists: Movies/TV up top, then sub-tabs. Watching is
+    // TV-only (and only when they're watching something).
+    private var tabs: [Tab] {
+        var t: [Tab] = [.watched, .watchlist]
+        if category == .tvShows && !watchingRows.isEmpty { t.append(.watching) }
+        return t
     }
+    private var active: Tab { tabs.contains(subTab) ? subTab : .watched }
 
     var body: some View {
         VStack(spacing: 0) {
-            if tabs.count > 1 {
-                SegmentedPillControl(segments: tabs.map(\.rawValue), selection: tabIndex)
-                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
-            }
+            SegmentedPillControl(
+                segments: ["Movies", "TV Shows"],
+                selection: Binding(get: { category == .tvShows ? 1 : 0 },
+                                   set: { category = $0 == 1 ? .tvShows : .movies
+                                          if !tabs.contains(subTab) { subTab = .watched } }))
+                .padding(.horizontal, 16).padding(.top, 10)
+            subTabsRow.padding(.top, 12)
+            Divider().padding(.top, 6)
             switch active {
             case .watched:
                 RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
                                  isSelf: false, emptyHint: lockedHint,
-                                 openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 })
+                                 openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 },
+                                 forcedCategory: category)
             case .watchlist:
                 WatchlistScreen(userID: userID, isSelf: false,
-                                openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 })
+                                openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 },
+                                categoryFilter: category)
             case .watching:
                 WatchingListScreen(title: "Watching", rows: watchingRows,
                                    openDetail: { detailMovie = $0 })
@@ -1578,6 +1587,27 @@ struct MemberListsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $detailMovie) { movie in MovieDetailView(movie: movie) }
         .fullScreenCover(item: $logMovie) { movie in LogFlowView(movie: movie) }
+    }
+
+    // Text-underline sub-tabs, matching My Lists.
+    private var subTabsRow: some View {
+        HStack(spacing: 22) {
+            ForEach(tabs, id: \.self) { tab in
+                let isOn = active == tab
+                Button { withAnimation(.snappy) { subTab = tab } } label: {
+                    VStack(spacing: 6) {
+                        Text(tab.rawValue)
+                            .font(.subheadline.weight(isOn ? .bold : .regular))
+                            .foregroundStyle(isOn ? Theme.ink : Theme.gray)
+                        Rectangle().fill(isOn ? Theme.ink : .clear).frame(height: 2)
+                    }
+                    .fixedSize()
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
     }
 }
 

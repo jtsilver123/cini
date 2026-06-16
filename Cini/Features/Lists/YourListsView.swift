@@ -351,16 +351,12 @@ struct YourListsView: View {
     }
 
     private var categoryRow: some View {
-        Button { showCategorySheet = true } label: {
-            HStack(spacing: 6) {
-                Text(category.title).font(Theme.serif(30))
-                Image(systemName: "chevron.down").font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(Theme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        // Movies / TV Shows as a segmented tab switcher (was a dropdown).
+        SegmentedPillControl(
+            segments: ["Movies", "TV Shows"],
+            selection: Binding(get: { category == .tvShows ? 1 : 0 },
+                               set: { category = $0 == 1 ? .tvShows : .movies }))
             .padding(.horizontal, 16)
-        }
-        .buttonStyle(.plain)
     }
 
     private var subTabs: some View {
