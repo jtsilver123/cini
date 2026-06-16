@@ -346,6 +346,15 @@ struct FeedView: View {
                     .padding(.top, 6)
             }
 
+            // Anything that needs you first — one banner at a time, never a stack.
+            if !pendingAsks.isEmpty {
+                pendingAsksBanner
+            } else if let profile = session.profile, profile.streakAtRisk {
+                streakBanner(profile.streakWeeks)
+            } else if let nudge = nudgeCandidate {
+                followThroughBanner(nudge)
+            }
+
             // The daily hook — up to three streamable "watch tonight" picks,
             // stacked like a deck you can swipe through.
             if !tonightCards.isEmpty {
@@ -358,26 +367,12 @@ struct FeedView: View {
                 .padding(.top, 2)
             }
 
+            askForRecsRow
+
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
                 FeedUnlockCard()
                     .padding(.top, 6)
-            }
-
-            Text("YOUR FEED")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-                .padding(.top, 6)
-
-            askForRecsRow
-
-            // One contextual banner at a time — never a stack of them.
-            if !pendingAsks.isEmpty {
-                pendingAsksBanner
-            } else if let profile = session.profile, profile.streakAtRisk {
-                streakBanner(profile.streakWeeks)
-            } else if let nudge = nudgeCandidate {
-                followThroughBanner(nudge)
             }
 
             if events.isEmpty {

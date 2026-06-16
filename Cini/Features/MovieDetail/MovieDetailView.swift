@@ -81,10 +81,11 @@ struct MovieDetailView: View {
                 metadataBlock
                 summarySection
                 actionPills
+                // "Is it good?" leads, right after the act-now pills.
+                scoresSection
                 WatchingControl(movie: movie, info: extended)
                     .padding(.horizontal, 16)
                 nextEpisodeRow
-                scoresSection
                 histogramSection
                 yourDetailsSection
                 moreInfoSection
@@ -903,7 +904,7 @@ struct MovieDetailView: View {
                         AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44,
                                    name: row.displayName?.isEmpty == false ? row.displayName : row.username)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(row.displayName?.isEmpty == false ? row.displayName! : row.username)
+                            Text(preferredName(row.displayName, row.username) ?? row.username)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
                                 .lineLimit(1)

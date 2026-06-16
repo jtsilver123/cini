@@ -75,7 +75,7 @@ struct PlanWatchSheet: View {
             acceptedState(plan)
         } else if let plan, plan.status == "proposed", plan.proposerId == friend.id {
             respondState(plan)            // they invited me
-        } else if let plan, plan.status == "proposed", plan.proposerId == myID {
+        } else if let plan, plan.status == "proposed", let myID, plan.proposerId == myID {
             waitingState(plan)            // I invited them
         } else {
             planControls                  // no plan (or declined) → fresh invite

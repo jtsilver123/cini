@@ -146,6 +146,9 @@ struct TonightStack: View {
             }
             // Reserve the card height plus the stack's peek offset.
             .frame(height: 240)
+            // Whenever the deck changes (a card dismissed), make sure the new
+            // top card isn't left carrying the previous card's drag offset.
+            .onChange(of: items.count) { _, _ in drag = .zero }
         }
     }
 
