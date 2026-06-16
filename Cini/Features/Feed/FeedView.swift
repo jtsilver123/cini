@@ -745,7 +745,7 @@ struct FeedCard: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    headline.font(.subheadline)
+                    headline.font(.subheadline).lineLimit(3)
                     if let movie {
                         Text([movie.genres.first, movie.releaseYear.map(String.init)]
                             .compactMap(\.self).joined(separator: " · "))
@@ -1185,7 +1185,7 @@ struct NotificationsView: View {
                     }
                     .buttonStyle(.plain)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(headline(row)).font(.subheadline)
+                        Text(headline(row)).font(.subheadline).lineLimit(3)
                         Text(row.createdAt.formatted(.relative(presentation: .named)))
                             .font(.caption)
                             .foregroundStyle(Theme.gray)

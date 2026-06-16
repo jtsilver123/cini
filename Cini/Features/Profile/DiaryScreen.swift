@@ -85,7 +85,7 @@ struct DiaryScreen: View {
                 .frame(width: 30)
             PosterView(url: movie.posterURL, width: 38)
             VStack(alignment: .leading, spacing: 2) {
-                Text(movie.title).font(.subheadline.weight(.semibold))
+                Text(movie.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                 HStack(spacing: 6) {
                     if let location = watch.watchedWhere {
                         Label(location == "theater" ? "In theaters" : "At home",

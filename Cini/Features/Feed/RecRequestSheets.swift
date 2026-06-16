@@ -248,6 +248,7 @@ struct RespondRecSheet: View {
                                     if let note = request.note {
                                         Text("“\(note)”").font(.caption).italic()
                                             .foregroundStyle(Theme.gray)
+                                            .lineLimit(3)
                                     }
                                     Text(request.createdAt.formatted(.relative(presentation: .named)))
                                         .font(.caption2).foregroundStyle(Theme.gray)
@@ -330,9 +331,10 @@ struct RespondPickerView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("**@\(request.profiles?.username ?? "someone")** wants \(request.criteriaText)")
-                    .font(.subheadline)
+                    .font(.subheadline).lineLimit(2)
                 if let askNote = request.note {
                     Text("“\(askNote)”").font(.caption).italic().foregroundStyle(Theme.gray)
+                        .lineLimit(3)
                 }
                 if filtersMissed {
                     Text("Nothing you've ranked matches exactly — showing everything.")

@@ -94,7 +94,8 @@ struct PlanWatchSheet: View {
                         Text("@\(friend.username) wants to watch this together")
                             .font(.subheadline.weight(.semibold))
                     }
-                    PillButton(title: "Accept", systemImage: "checkmark") { accept(plan) }
+                    PillButton(title: sending ? "…" : "Accept", systemImage: "checkmark") { accept(plan) }
+                        .disabled(sending)
                 }
             }
             Button { withAnimation(.snappy) { showTimePicker.toggle() } } label: {
@@ -105,6 +106,7 @@ struct PlanWatchSheet: View {
             if showTimePicker { timeControls(send: { sendNewTime(plan) }, label: "Send new time") }
             Button("Can't make it", role: .destructive) { decline(plan) }
                 .font(.subheadline).foregroundStyle(Theme.gray)
+                .disabled(sending)
             draftTextButton
         }
     }
@@ -255,10 +257,18 @@ struct PlanWatchSheet: View {
     }
 
     private func decline(_ plan: WatchPlanRow) {
+        guard !sending else { return }
+        sending = true
         Task {
-            try? await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
-            Haptics.tap()
-            dismiss()
+            do {
+                try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
+                Haptics.tap()
+                dismiss()
+            } catch {
+                // Don't dismiss as if it worked — the inviter would still be waiting.
+                ToastCenter.shared.saveFailed()
+            }
+            sending = false
         }
     }
 
@@ -279,6 +289,8 @@ struct PlanWatchSheet: View {
     }
 
     private func accept(_ plan: WatchPlanRow) {
+        guard !sending else { return }
+        sending = true
         Task {
             do {
                 try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: true)
@@ -288,6 +300,7 @@ struct PlanWatchSheet: View {
             } catch {
                 ToastCenter.shared.saveFailed()
             }
+            sending = false
         }
     }
 

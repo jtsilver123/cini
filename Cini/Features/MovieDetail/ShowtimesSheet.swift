@@ -111,7 +111,7 @@ struct ShowtimesSheet: View {
         List(theaters) { theater in
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(theater.theaterName).font(.subheadline.weight(.bold))
+                    Text(theater.theaterName).font(.subheadline.weight(.bold)).lineLimit(2)
                     if !theater.amenities.isEmpty {
                         // The closest thing showtime data has to seat info.
                         Text(theater.amenities.joined(separator: " · "))

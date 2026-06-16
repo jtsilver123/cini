@@ -95,7 +95,7 @@ struct PersonScreen: View {
             .frame(width: 84, height: 84)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             VStack(alignment: .leading, spacing: 4) {
-                Text(member.name).font(Theme.serif(26))
+                Text(member.name).font(Theme.serif(26)).lineLimit(2).minimumScaleFactor(0.8)
                 if let department = details?.knownForDepartment {
                     Text(department == "Acting" ? "Actor" : department)
                         .font(.caption.weight(.semibold))
