@@ -39,8 +39,6 @@ struct MovieDetailView: View {
     @State private var showShowtimes = false
     @State private var showSendRec = false
     @State private var memberTarget: MemberRef?
-    // Commenter tapped in the comments sheet → open after it dismisses.
-    @State private var pendingCommentMember: MemberRef?
     @State private var personTarget: CastMember?
     @State private var predicted: Double?
     @State private var scoreInfo: ScoreInfo?
@@ -64,9 +62,11 @@ struct MovieDetailView: View {
         case everyone = "Everyone"
     }
 
-    struct CommentsTarget: Identifiable {
+    struct CommentsTarget: Identifiable, Hashable {
         let id: UUID
         var context: CommentContext? = nil
+        static func == (lhs: CommentsTarget, rhs: CommentsTarget) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     /// Which score circle is being explained.
@@ -139,16 +139,11 @@ struct MovieDetailView: View {
         .sheet(isPresented: $showUnlocks) {
             UnlocksView()
         }
-        // Presented from the screen root — sheets attached deep inside the
-        // scrolling stack can silently fail to appear on device.
-        .fullScreenCover(item: $commentsTarget, onDismiss: {
-            if let m = pendingCommentMember { pendingCommentMember = nil; memberTarget = m }
-        }) { target in
+        // Pushed onto the nav stack so it gets a native back + swipe-back; a
+        // tapped commenter pushes their profile on top.
+        .navigationDestination(item: $commentsTarget) { target in
             CommentsSheet(eventID: target.id, context: target.context,
-                          onOpenMember: { member in
-                              pendingCommentMember = member
-                              commentsTarget = nil
-                          },
+                          onOpenMember: { memberTarget = $0 },
                           onCommentCountChange: { newCount in
                               if let i = publicNotes.firstIndex(where: { $0.eventId == target.id }) {
                                   publicNotes[i].commentCount = newCount

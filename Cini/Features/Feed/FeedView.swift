@@ -13,6 +13,9 @@ struct FeedView: View {
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var memberTarget: MemberRef?
+    @State private var commentsLink: CommentsLink?
+    /// Live comment counts reported back from open threads, keyed by event id.
+    @State private var commentCountOverrides: [UUID: Int] = [:]
     @State private var showImport = false
     @State private var showMenuImport = false
     @State private var showSettings = false
@@ -98,6 +101,14 @@ struct FeedView: View {
             }
             .navigationDestination(item: $memberTarget) { member in
                 MemberProfileView(userID: member.id, username: member.username)
+            }
+            .navigationDestination(item: $commentsLink) { link in
+                CommentsSheet(
+                    eventID: link.id,
+                    context: link.context,
+                    onOpenMember: { memberTarget = $0 },
+                    onCommentCountChange: { commentCountOverrides[link.id] = $0 }
+                )
             }
             .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
@@ -397,7 +408,9 @@ struct FeedView: View {
                     initiallyLiked: likedEventIDs.contains(event.id),
                     onOpenMovie: { detailMovie = $0 },
                     onQuickAdd: { logMovie = $0 },
-                    onOpenMember: { memberTarget = $0 }
+                    onOpenMember: { memberTarget = $0 },
+                    onOpenComments: { ev, ctx in commentsLink = CommentsLink(id: ev.id, context: ctx) },
+                    commentCountOverride: commentCountOverrides[event.id]
                 )
             }
         }
@@ -660,19 +673,39 @@ struct FeedCard: View {
     var onOpenMovie: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
     var onOpenMember: (MemberRef) -> Void = { _ in }
+    /// Open the comment thread — the presenter pushes it onto its nav stack so
+    /// it gets native back + swipe-back.
+    var onOpenComments: (FeedEventRow, CommentContext) -> Void = { _, _ in }
+    /// Live comment count from the presenter (updated when a comment is
+    /// added/removed in the pushed thread); falls back to the server count.
+    var commentCountOverride: Int? = nil
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
     @State private var likeInFlight = false
-    @State private var showComments = false
     @State private var heartPop = false
     @State private var likeCount = 0
-    @State private var commentCount = 0
-    // Stashed when a commenter is tapped; opened after the sheet dismisses so
-    // the profile pushes cleanly in the main nav stack (not inside the sheet).
-    @State private var pendingMember: MemberRef?
 
     private var movie: Movie? { event.movies?.asMovie }
+    /// Count shown on the comment button.
+    private var commentCount: Int { commentCountOverride ?? event.commentCount }
+    /// The post context handed to the comment thread's header.
+    private var commentContext: CommentContext {
+        CommentContext(
+            actorId: event.userId,
+            username: actorUsername,
+            displayName: event.profiles?.displayName,
+            avatarUrl: event.profiles?.avatarUrl,
+            movie: movie,
+            actionText: actionText,
+            score: event.payload?.score,
+            note: nil,
+            createdAt: event.createdAt,
+            likeCount: likeCount,
+            commentCount: commentCount,
+            likedByMe: liked
+        )
+    }
     /// The real handle — used to route to the profile (never the display name).
     private var actorUsername: String { event.profiles?.username ?? "someone" }
     /// Shown in the feed: first name when we have one, else the username.
@@ -796,7 +829,7 @@ struct FeedCard: View {
                         }
                     }
                 }
-                Button { showComments = true } label: {
+                Button { onOpenComments(event, commentContext) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "bubble.right")
                         if commentCount > 0 {
@@ -885,37 +918,6 @@ struct FeedCard: View {
         .onChange(of: event.likeCount, initial: true) { _, count in
             likeCount = count
         }
-        // Same for the comment count — and the comments sheet reports live
-        // changes back so posting/deleting updates the badge immediately.
-        .onChange(of: event.commentCount, initial: true) { _, count in
-            commentCount = count
-        }
-        .fullScreenCover(isPresented: $showComments, onDismiss: {
-            if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
-        }) {
-            CommentsSheet(
-                eventID: event.id,
-                context: CommentContext(
-                    actorId: event.userId,
-                    username: actorUsername,
-                    displayName: event.profiles?.displayName,
-                    avatarUrl: event.profiles?.avatarUrl,
-                    movie: movie,
-                    actionText: actionText,
-                    score: event.payload?.score,
-                    note: nil,
-                    createdAt: event.createdAt,
-                    likeCount: likeCount,
-                    commentCount: event.commentCount,
-                    likedByMe: liked
-                ),
-                onOpenMember: { member in
-                    pendingMember = member
-                    showComments = false
-                },
-                onCommentCountChange: { commentCount = $0 }
-            )
-        }
     }
 }
 
@@ -940,6 +942,15 @@ struct CommentContext {
     var likeCount: Int = 0
     var commentCount: Int = 0
     var likedByMe: Bool = false
+}
+
+/// A pushable comment thread: the event id to load plus its post header context.
+/// Hashable on the id alone so it can drive `navigationDestination(item:)`.
+struct CommentsLink: Identifiable, Hashable {
+    let id: UUID
+    let context: CommentContext
+    static func == (lhs: CommentsLink, rhs: CommentsLink) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 struct CommentsSheet: View {
@@ -975,9 +986,10 @@ struct CommentsSheet: View {
     // context didn't supply one (the movie page already passes its note).
     @State private var fetchedNote: String?
 
+    // Pushed onto the presenter's navigation stack, so it gets a native back
+    // button and edge-swipe-back for free (like opening a profile).
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 // The post being discussed, pinned on top so the screen reads
                 // as a full thread (Beli-style) instead of a bare comment list.
                 if let context {
@@ -1069,20 +1081,10 @@ struct CommentsSheet: View {
                 }
                 .background(.thinMaterial)
             }
-            .navigationTitle("")
+            .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
-            // Full page like Beli — a back chevron instead of a sheet grabber.
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(Theme.ink)
-                    }
-                    .accessibilityLabel("Back")
-                }
-            }
-        }
+            // Full-page like Beli — no tab bar peeking under the composer.
+            .toolbar(.hidden, for: .tabBar)
         // Blocking is heavy — always confirm before mutual invisibility.
         .alert(
             "Block @\(blockCandidate?.profiles?.username ?? "member")?",
