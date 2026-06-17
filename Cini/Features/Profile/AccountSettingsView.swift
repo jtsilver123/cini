@@ -387,26 +387,78 @@ private struct ChangeEmailScreen: View {
 // MARK: - Change phone
 
 private struct ChangePhoneScreen: View {
-    @State var phone: String
+    @State private var country: CountryCode
+    @State private var phone: String
     var onSaved: (String) -> Void
     @State private var saved = false
     @State private var saving = false
 
+    /// Parse the stored E.164 number (signup saves "+44…", not bare digits) back
+    /// into its country + national part so a non-US number re-opens correctly.
+    init(phone: String, onSaved: @escaping (String) -> Void) {
+        self.onSaved = onSaved
+        let e164 = phone.hasPrefix("+") ? phone : "+" + PhoneNumber.digits(phone)
+        let matched = CountryCode.common
+            .filter { e164.hasPrefix($0.dial) }
+            .sorted { $0.dial.count > $1.dial.count }
+            .first ?? .usDefault
+        // +1 is shared by US/Canada — prefer the US entry.
+        let resolved = matched.dial == "+1" ? CountryCode.usDefault : matched
+        let national = PhoneNumber.digits(String(e164.dropFirst(resolved.dial.count)))
+        _country = State(initialValue: resolved)
+        _phone = State(initialValue: resolved.dial == "+1"
+                       ? PhoneNumber.formattedLive(national) : national)
+    }
+
+    /// Full E.164 number sent to the server (mirrors AuthView): strip a single
+    /// national trunk "0" outside the +1 plan so "+44 07911…" becomes "+447911…".
+    private var e164Phone: String {
+        let digits = PhoneNumber.digits(phone)
+        if country.dial != "+1", digits.hasPrefix("0") {
+            return country.dial + String(digits.dropFirst())
+        }
+        return country.dial + digits
+    }
+
+    private func reformat(_ new: String) {
+        if country.dial == "+1" {
+            let f = PhoneNumber.formattedLive(new)
+            if f != phone { phone = f }
+        } else {
+            let d = String(PhoneNumber.digits(new).prefix(14))
+            if d != phone { phone = d }
+        }
+    }
+
     var body: some View {
         Form {
             Section {
-                HStack(spacing: 6) {
-                    Text("+1").foregroundStyle(Theme.gray)
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(CountryCode.common) { c in
+                            Button("\(c.flag)  \(c.name)  \(c.dial)") {
+                                country = c
+                                saved = false
+                                reformat(phone)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(country.flag)
+                            Text(country.dial).foregroundStyle(Theme.ink)
+                            Image(systemName: "chevron.down").font(.caption2).foregroundStyle(Theme.gray)
+                        }
+                    }
+                    Divider().frame(height: 22)
                     TextField("Phone number", text: $phone)
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
                         .onChange(of: phone) { _, new in
                             saved = false
-                            let formatted = PhoneNumber.formattedLive(new)
-                            if formatted != phone { phone = formatted }
+                            reformat(new)
                         }
                 }
-                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone) {
+                if PhoneNumber.digits(phone).count >= 6 && !PhoneNumber.isValid(phone, dial: country.dial) {
                     Text("That doesn't look like a valid number — check for typos.")
                         .font(.caption).foregroundStyle(Theme.scoreRed)
                 }
@@ -416,7 +468,7 @@ private struct ChangePhoneScreen: View {
                         if saving { Spacer(); ProgressView() }
                     }
                 }
-                .disabled(!PhoneNumber.isValid(phone) || saving)
+                .disabled(!PhoneNumber.isValid(phone, dial: country.dial) || saving)
                 if saved {
                     Label("Saved", systemImage: "checkmark.circle.fill")
                         .font(.caption).foregroundStyle(Theme.scoreGreen)
@@ -435,9 +487,9 @@ private struct ChangePhoneScreen: View {
     private func save() async {
         saving = true
         defer { saving = false }
-        if await SupabaseService.shared.setPhone(phone) {
+        if await SupabaseService.shared.setPhone(e164Phone) {
             saved = true
-            onSaved(phone)
+            onSaved(e164Phone)
         } else {
             ToastCenter.shared.show("Couldn't use that number — it may already be on Cini.")
         }
