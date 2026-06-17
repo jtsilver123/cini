@@ -2092,21 +2092,25 @@ function openComments(id){
       ${e.kind==='ranked'?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
     </div>`;
   }
-  renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Comments</b>
-      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
-    <div class="sheet-body" id="commentList" style="min-height:120px;">
-      ${header}
-      ${list.length? list.map(c=>`<div style="display:flex; gap:11px; padding:10px 0;">
-          <button class="avatar ${MEMBERS.find(m=>m.u===c.u)?.av||""}" style="width:34px;height:34px;font-size:14px;border:none;"
-            onclick="${MEMBERS.some(m=>m.u===c.u)?`openMember('${c.u}')`:`closeOverlay(); go('profile')`}">${c.u[0].toUpperCase()}</button>
-          <div><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${c.t}</div></div>
-        </div>`).join("") : `<div class="sub" style="text-align:center; padding:24px;">No comments yet — say something nice.</div>`}
-    </div>
-    <div class="chatbar" style="padding-bottom:14px;">
-      <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment('${id}')">
-      <button class="sendbtn" onclick="postComment('${id}')">↑</button>
-    </div>`);
+  // Full page like Beli — a back chevron up top, not a bottom sheet.
+  $("overlayRoot").innerHTML = `
+    <div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:center; padding:12px 12px 6px;">
+        <button class="iconbtn" onclick="closeOverlay()">${I("chevL",24,2)}</button>
+      </div>
+      <div class="sheet-body" id="commentList" style="flex:1; overflow-y:auto; padding:0 16px;">
+        ${header}
+        ${list.length? list.map(c=>`<div style="display:flex; gap:11px; padding:10px 0;">
+            <button class="avatar ${MEMBERS.find(m=>m.u===c.u)?.av||""}" style="width:34px;height:34px;font-size:14px;border:none;"
+              onclick="${MEMBERS.some(m=>m.u===c.u)?`openMember('${c.u}')`:`closeOverlay(); go('profile')`}">${c.u[0].toUpperCase()}</button>
+            <div><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${c.t}</div></div>
+          </div>`).join("") : `<div class="sub" style="padding:24px 0;">No comments yet — say something nice.</div>`}
+      </div>
+      <div class="chatbar" style="padding-bottom:14px;">
+        <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment('${id}')">
+        <button class="sendbtn" onclick="postComment('${id}')">↑</button>
+      </div>
+    </div>`;
 }
 function postComment(id){
   const el=$("commentInput"); const t=el.value.trim();

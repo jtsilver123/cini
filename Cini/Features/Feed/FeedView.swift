@@ -949,7 +949,7 @@ struct FeedCard: View {
         .onChange(of: event.likeCount, initial: true) { _, count in
             likeCount = count
         }
-        .sheet(isPresented: $showComments, onDismiss: {
+        .fullScreenCover(isPresented: $showComments, onDismiss: {
             if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
         }) {
             CommentsSheet(
@@ -973,7 +973,6 @@ struct FeedCard: View {
                     showComments = false
                 }
             )
-            .presentationDetents([.medium, .large])
         }
     }
 }
@@ -1013,6 +1012,7 @@ struct CommentsSheet: View {
     /// comments sheet.
     var onOpenMember: (MemberRef) -> Void = { _ in }
 
+    @Environment(\.dismiss) private var dismiss
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
     @State private var loaded = false
@@ -1080,8 +1080,19 @@ struct CommentsSheet: View {
                 .padding(12)
                 .background(.thinMaterial)
             }
-            .navigationTitle("Comments")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            // Full page like Beli — a back chevron instead of a sheet grabber.
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .accessibilityLabel("Back")
+                }
+            }
         }
         // Blocking is heavy — always confirm before mutual invisibility.
         .alert(

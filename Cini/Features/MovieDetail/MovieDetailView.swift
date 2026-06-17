@@ -141,14 +141,13 @@ struct MovieDetailView: View {
         }
         // Presented from the screen root — sheets attached deep inside the
         // scrolling stack can silently fail to appear on device.
-        .sheet(item: $commentsTarget, onDismiss: {
+        .fullScreenCover(item: $commentsTarget, onDismiss: {
             if let m = pendingCommentMember { pendingCommentMember = nil; memberTarget = m }
         }) { target in
             CommentsSheet(eventID: target.id, context: target.context, onOpenMember: { member in
                 pendingCommentMember = member
                 commentsTarget = nil
             })
-            .presentationDetents([.medium, .large])
         }
         .sheet(item: $scoreInfo) { info in
             ScoreInfoSheet(info: info)
