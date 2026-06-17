@@ -117,6 +117,8 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `@${actor} started watching ${movie ?? "a show"} — you're watching it too 📺`;
     case "caught_up":
       return `@${actor} is all caught up on ${movie ?? "a show you're watching"} 🎉`;
+    case "mention":
+      return `@${actor} mentioned you in a comment on ${movie ?? "a movie"} 💬`;
     default: return `@${actor} did something new on Cini`;
   }
 }

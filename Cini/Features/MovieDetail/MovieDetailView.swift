@@ -144,7 +144,13 @@ struct MovieDetailView: View {
         .fullScreenCover(item: $commentsTarget, onDismiss: {
             if let m = pendingCommentMember { pendingCommentMember = nil; memberTarget = m }
         }) { target in
-            CommentsSheet(eventID: target.id, context: target.context, onOpenMember: { member in
+            CommentsSheet(eventID: target.id, context: target.context,
+                          onCommentCountChange: { newCount in
+                              if let i = publicNotes.firstIndex(where: { $0.eventId == target.id }) {
+                                  publicNotes[i].commentCount = newCount
+                              }
+                          },
+                          onOpenMember: { member in
                 pendingCommentMember = member
                 commentsTarget = nil
             })

@@ -142,6 +142,8 @@ RPCS = [
     ("request_recs", {"p_recipients": [], "p_media_kind": None,
                       "p_genre": None, "p_note": None}),
     ("complete_rec_request", {"p_request_id": "00000000-0000-0000-0000-000000000000"}),
+    # Zero event id + empty ids: a no-op (RLS gate fails), exercises the signature.
+    ("notify_mention", {"p_event_id": "00000000-0000-0000-0000-000000000000", "p_user_ids": []}),
     # Demo user has no watchlist row for id 2 — a no-op update.
     ("set_watchlist_note", {"p_movie_id": 2, "p_note": None}),
     ("set_watch_by", {"p_movie_id": 2, "p_watch_by": None}),

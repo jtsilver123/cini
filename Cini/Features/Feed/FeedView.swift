@@ -732,6 +732,7 @@ struct FeedCard: View {
     @State private var showComments = false
     @State private var heartPop = false
     @State private var likeCount = 0
+    @State private var commentCount = 0
     // Stashed when a commenter is tapped; opened after the sheet dismisses so
     // the profile pushes cleanly in the main nav stack (not inside the sheet).
     @State private var pendingMember: MemberRef?
@@ -863,8 +864,8 @@ struct FeedCard: View {
                 Button { showComments = true } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "bubble.right")
-                        if event.commentCount > 0 {
-                            Text("\(event.commentCount)").font(.subheadline.weight(.medium))
+                        if commentCount > 0 {
+                            Text("\(commentCount)").font(.subheadline.weight(.medium))
                         }
                     }
                 }
@@ -949,6 +950,11 @@ struct FeedCard: View {
         .onChange(of: event.likeCount, initial: true) { _, count in
             likeCount = count
         }
+        // Same for the comment count — and the comments sheet reports live
+        // changes back so posting/deleting updates the badge immediately.
+        .onChange(of: event.commentCount, initial: true) { _, count in
+            commentCount = count
+        }
         .fullScreenCover(isPresented: $showComments, onDismiss: {
             if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
         }) {
@@ -968,6 +974,7 @@ struct FeedCard: View {
                     commentCount: event.commentCount,
                     likedByMe: liked
                 ),
+                onCommentCountChange: { commentCount = $0 },
                 onOpenMember: { member in
                     pendingMember = member
                     showComments = false
@@ -1011,6 +1018,9 @@ struct CommentsSheet: View {
     /// (after this sheet dismisses) — never a cramped profile pushed inside the
     /// comments sheet.
     var onOpenMember: (MemberRef) -> Void = { _ in }
+    /// Reports the live comment count to the presenter so its badge stays
+    /// accurate as comments are added/removed.
+    var onCommentCountChange: (Int) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @State private var comments: [CommentRow] = []
@@ -1062,22 +1072,45 @@ struct CommentsSheet: View {
             .background(Theme.background)
             // safeAreaInset keeps the composer pinned ABOVE the keyboard.
             .safeAreaInset(edge: .bottom) {
-                HStack(spacing: 10) {
-                    TextField("Add a comment…", text: $draft, axis: .vertical)
-                        .padding(10)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.fill))
-                    Button {
-                        Task { await post() }
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.title)
-                            .foregroundStyle(
-                                draft.trimmingCharacters(in: .whitespaces).isEmpty
-                                    ? Theme.gray.opacity(0.4) : Theme.marquee)
+                VStack(spacing: 0) {
+                    // @-mention autocomplete: appears while typing an @handle.
+                    if !mentionSuggestions.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(mentionSuggestions) { friend in
+                                    Button { insertMention(friend) } label: {
+                                        HStack(spacing: 6) {
+                                            AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 22,
+                                                       name: preferredName(friend.displayName, friend.username))
+                                            Text("@\(friend.username)").font(.subheadline).foregroundStyle(Theme.ink)
+                                        }
+                                        .padding(.horizontal, 10).padding(.vertical, 6)
+                                        .background(Capsule().fill(Theme.fill))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                        }
+                        Divider().overlay(Theme.hairline)
                     }
-                    .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    HStack(spacing: 10) {
+                        TextField("Add a comment…", text: $draft, axis: .vertical)
+                            .padding(10)
+                            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.fill))
+                        Button {
+                            Task { await post() }
+                        } label: {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.title)
+                                .foregroundStyle(
+                                    draft.trimmingCharacters(in: .whitespaces).isEmpty
+                                        ? Theme.gray.opacity(0.4) : Theme.marquee)
+                        }
+                        .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(12)
                 }
-                .padding(12)
                 .background(.thinMaterial)
             }
             .navigationTitle("")
@@ -1117,6 +1150,7 @@ struct CommentsSheet: View {
             Text("You won't see each other's rankings, notes, or activity.")
         }
         .task {
+            FriendsCache.shared.refreshIfStale()   // power the @-mention picker
             await reload()
             // Backfill the note for the header when the caller couldn't supply
             // one (feed posts), so the thread shows the review like Beli.
@@ -1289,28 +1323,21 @@ struct CommentsSheet: View {
             .accessibilityLabel(comment.likedByMe ? "Unlike comment" : "Like comment")
         }
         .listRowBackground(Theme.background)
+        // Swipe left to delete your own comment (Undo offered after).
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if comment.userId == SupabaseService.shared.currentUserID {
+                Button(role: .destructive) {
+                    deleteComment(comment)
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
         // Long-press: delete your own, moderate others'.
         .contextMenu {
             if comment.userId == SupabaseService.shared.currentUserID {
                 Button(role: .destructive) {
-                    Task {
-                        do {
-                            try await SupabaseService.shared.deleteComment(id: comment.id)
-                            // Offer Undo (re-post) — matches the app's other
-                            // destructive removals.
-                            let body = comment.body
-                            let eid = eventID
-                            ToastCenter.shared.showUndo("Comment deleted") {
-                                Task {
-                                    try? await SupabaseService.shared.comment(eventID: eid, body: body)
-                                    await reload()
-                                }
-                            }
-                            await reload()
-                        } catch {
-                            ToastCenter.shared.saveFailed()
-                        }
-                    }
+                    deleteComment(comment)
                 } label: {
                     Label("Delete my comment", systemImage: "trash")
                 }
@@ -1355,6 +1382,7 @@ struct CommentsSheet: View {
     private func reload() async {
         comments = (try? await SupabaseService.shared.comments(eventID: eventID)) ?? []
         loaded = true
+        onCommentCountChange(comments.count)
     }
 
     private func post() async {
@@ -1363,11 +1391,78 @@ struct CommentsSheet: View {
         draft = ""
         do {
             try await SupabaseService.shared.comment(eventID: eventID, body: body)
+            await notifyMentions(in: body)
         } catch {
             draft = body   // give the text back instead of eating it
             ToastCenter.shared.saveFailed()
         }
         await reload()
+    }
+
+    private func deleteComment(_ comment: CommentRow) {
+        Task {
+            do {
+                try await SupabaseService.shared.deleteComment(id: comment.id)
+                // Offer Undo (re-post) — matches the app's other destructive removals.
+                let body = comment.body
+                let eid = eventID
+                ToastCenter.shared.showUndo("Comment deleted") {
+                    Task {
+                        try? await SupabaseService.shared.comment(eventID: eid, body: body)
+                        await reload()
+                    }
+                }
+                await reload()
+            } catch {
+                ToastCenter.shared.saveFailed()
+            }
+        }
+    }
+
+    // MARK: @-mentions
+
+    /// The handle being typed right now (text after the last '@' with no space),
+    /// or nil when the cursor isn't in a mention.
+    private var mentionQuery: String? {
+        guard let at = draft.lastIndex(of: "@") else { return nil }
+        let after = draft[draft.index(after: at)...]
+        if after.contains(where: { $0 == " " || $0 == "\n" }) { return nil }
+        return String(after)
+    }
+
+    private var mentionSuggestions: [ProfileRow] {
+        guard let q = mentionQuery else { return [] }
+        let ql = q.lowercased()
+        let friends = FriendsCache.shared.following
+        let matches = ql.isEmpty ? friends : friends.filter {
+            $0.username.lowercased().hasPrefix(ql) || $0.displayName.lowercased().contains(ql)
+        }
+        return Array(matches.prefix(6))
+    }
+
+    private func insertMention(_ friend: ProfileRow) {
+        guard let at = draft.lastIndex(of: "@") else { return }
+        draft = String(draft[..<at]) + "@\(friend.username) "
+    }
+
+    /// Resolve @handles in the posted body to followed members and tag them.
+    private func notifyMentions(in body: String) async {
+        let names = Self.mentionedUsernames(in: body)
+        guard !names.isEmpty else { return }
+        let ids = FriendsCache.shared.following
+            .filter { names.contains($0.username.lowercased()) }
+            .map(\.id)
+        await SupabaseService.shared.notifyMention(eventID: eventID, userIDs: ids)
+    }
+
+    static func mentionedUsernames(in body: String) -> Set<String> {
+        guard let re = try? NSRegularExpression(pattern: "@([A-Za-z0-9_]+)") else { return [] }
+        let ns = body as NSString
+        var names: Set<String> = []
+        for m in re.matches(in: body, range: NSRange(location: 0, length: ns.length)) {
+            names.insert(ns.substring(with: m.range(at: 1)).lowercased())
+        }
+        return names
     }
 }
 
@@ -1638,6 +1733,7 @@ struct NotificationsView: View {
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
+        case "mention": text = "**\(who)** mentioned you in a comment on **\(movie)**"
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
         case "friend_watching": text = "**\(who)** started watching **\(movie)** — you're watching it too 📺"
         case "caught_up": text = "**\(who)** is all caught up on **\(movie)** 🎉"

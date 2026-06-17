@@ -1289,6 +1289,16 @@ final class SupabaseService {
         try await client.from("comments").insert(Row(user_id: me, event_id: eventID, body: body)).execute()
     }
 
+    /// Notify members tagged with @username in a comment. Server-side it only
+    /// notifies people the caller follows (and not the author), so passing extra
+    /// ids is harmless.
+    func notifyMention(eventID: UUID, userIDs: [UUID]) async {
+        guard !userIDs.isEmpty else { return }
+        struct Params: Encodable { let p_event_id: UUID; let p_user_ids: [UUID] }
+        _ = try? await client.rpc("notify_mention",
+                                  params: Params(p_event_id: eventID, p_user_ids: userIDs)).execute()
+    }
+
     // MARK: - Recommendations
 
     /// Friend-powered recs: movies friends loved (weighted by taste match)
