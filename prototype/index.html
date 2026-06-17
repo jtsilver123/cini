@@ -2100,22 +2100,26 @@ function openComments(id){
       </div>
       <div class="sheet-body" id="commentList" style="flex:1; overflow-y:auto; padding:0 16px;">
         ${header}
-        ${list.length? list.map((c,ci)=>{const ck=`${id}_${ci}`; const on=S.cLikes&&S.cLikes[ck]; const mine=c.u==="jtsilver123"; return `<div style="display:flex; gap:11px; padding:10px 0; align-items:flex-start;">
+        ${list.length? list.map((c,ci)=>{const ck=`${id}_${ci}`; const on=S.cLikes&&S.cLikes[ck]; const mine=c.u==="jtsilver123"; return `<div style="display:flex; gap:11px; padding:10px 0; align-items:flex-start;" ${mine?`oncontextmenu="event.preventDefault(); deleteComment('${id}',${ci}); return false;"`:""}>
             <button class="avatar ${MEMBERS.find(m=>m.u===c.u)?.av||""}" style="width:34px;height:34px;font-size:14px;border:none;"
               onclick="${MEMBERS.some(m=>m.u===c.u)?`openMember('${c.u}')`:`closeOverlay(); go('profile')`}">${c.u[0].toUpperCase()}</button>
-            <div style="flex:1;"><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${linkifyMentions(c.t)}</div></div>
-            ${mine?`<button class="iconbtn" style="color:var(--gray);" onclick="deleteComment('${id}',${ci})">${I('trash',16)}</button>`:""}
+            <div style="flex:1;"><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${linkifyMentions(c.t)}</div>
+              <div onclick="startReply('${c.u}','${id}')" style="font-size:12px; font-weight:700; color:var(--gray); margin-top:3px; cursor:pointer;">Reply</div></div>
             <button class="iconbtn" style="color:${on?'#e0455e':'var(--gray)'};" onclick="toggleCommentLike('${id}',${ci})">${on?`<span style="color:#e0455e;">${IF('heart')}</span>`:I('heart',16)}</button>
           </div>`;}).join("") : `<div class="sub" style="padding:24px 0;">No comments yet — say something nice.</div>`}
       </div>
       <div id="mentionSug" style="display:flex; gap:8px; overflow-x:auto; padding:0 12px;"></div>
+      ${_replyTo?`<div style="display:flex; align-items:center; gap:8px; padding:8px 14px; background:rgba(255,255,255,.05); border-top:1px solid var(--hair); font-size:13px; color:var(--gray);">Replying to <b style="color:var(--ink);">@${_replyTo}</b><span style="flex:1;"></span><button class="iconbtn" onclick="cancelReply('${id}')">${I('x',14)}</button></div>`:""}
       <div class="chatbar" style="padding-bottom:14px;">
-        <input id="commentInput" placeholder="Add a comment or @mention a friend…" oninput="onCommentInput('${id}')" onkeydown="if(event.key==='Enter')postComment('${id}')">
+        <input id="commentInput" placeholder="Add a comment or @mention a friend…" value="${_replyTo?`@${_replyTo} `:''}" oninput="onCommentInput('${id}')" onkeydown="if(event.key==='Enter')postComment('${id}')">
         <button class="sendbtn" onclick="postComment('${id}')">↑</button>
       </div>
     </div>`;
   _commentCtx = id;
 }
+let _replyTo = null;
+function startReply(u, id){ _replyTo=u; openComments(id); const el=$("commentInput"); if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+function cancelReply(id){ _replyTo=null; openComments(id); }
 function linkifyMentions(t){ return t.replace(/@([A-Za-z0-9_]+)/g, '<b style="color:var(--marquee);">@$1</b>'); }
 let _commentCtx = null;
 function onCommentInput(id){
@@ -2138,7 +2142,7 @@ function postComment(id){
   if(!t){ toast("Write something first"); return; }
   (S.comments[id]=S.comments[id]||[]).push({u:"jtsilver123", t});
   if(/@([A-Za-z0-9_]+)/.test(t)) toast("Tagged friends notified");
-  save(); openComments(id); buzz();
+  _replyTo=null; save(); openComments(id); buzz();
 }
 
 function notifLine(n){

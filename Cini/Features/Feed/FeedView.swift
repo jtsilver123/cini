@@ -1023,10 +1023,14 @@ struct CommentsSheet: View {
     var onCommentCountChange: (Int) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var composerFocused: Bool
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
     @State private var loaded = false
     @State private var blockCandidate: CommentRow?
+    /// The comment being replied to — drives the "Replying to…" bar and seeds
+    /// the composer with their @handle.
+    @State private var replyingTo: CommentRow?
     // Header like state, seeded from the context and owned optimistically after.
     @State private var headerLiked = false
     @State private var headerLikeCount = 0
@@ -1073,6 +1077,22 @@ struct CommentsSheet: View {
             // safeAreaInset keeps the composer pinned ABOVE the keyboard.
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
+                    // "Replying to <name>" context, with a cancel ✕.
+                    if let replyingTo {
+                        HStack(spacing: 8) {
+                            Text("Replying to \(preferredName(replyingTo.profiles?.displayName, replyingTo.profiles?.username) ?? "member")")
+                                .font(.caption).foregroundStyle(Theme.gray)
+                            Spacer()
+                            Button { cancelReply() } label: {
+                                Image(systemName: "xmark").font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Cancel reply")
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Theme.fill.opacity(0.5))
+                        Divider().overlay(Theme.hairline)
+                    }
                     // @-mention autocomplete: appears while typing an @handle.
                     if !mentionSuggestions.isEmpty {
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -1096,6 +1116,7 @@ struct CommentsSheet: View {
                     }
                     HStack(spacing: 10) {
                         TextField("Add a comment…", text: $draft, axis: .vertical)
+                            .focused($composerFocused)
                             .padding(10)
                             .background(RoundedRectangle(cornerRadius: 16).fill(Theme.fill))
                         Button {
@@ -1300,6 +1321,11 @@ struct CommentsSheet: View {
                         .layoutPriority(-1)
                 }
                 Text(comment.body).font(.subheadline)
+                Button { startReply(to: comment) } label: {
+                    Text("Reply").font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 1)
             }
             Spacer(minLength: 8)
             // Like a single comment, Beli-style.
@@ -1389,6 +1415,7 @@ struct CommentsSheet: View {
         let body = draft.trimmingCharacters(in: .whitespaces)
         guard !body.isEmpty else { return }
         draft = ""
+        replyingTo = nil
         do {
             try await SupabaseService.shared.comment(eventID: eventID, body: body)
             await notifyMentions(in: body)
@@ -1397,6 +1424,21 @@ struct CommentsSheet: View {
             ToastCenter.shared.saveFailed()
         }
         await reload()
+    }
+
+    /// Reply prefills the composer with the commenter's @handle (which tags them
+    /// via the normal mention flow) and shows the "Replying to…" bar.
+    private func startReply(to comment: CommentRow) {
+        let handle = comment.profiles?.username ?? "member"
+        replyingTo = comment
+        draft = "@\(handle) "
+        composerFocused = true
+    }
+
+    private func cancelReply() {
+        replyingTo = nil
+        draft = ""
+        composerFocused = false
     }
 
     private func deleteComment(_ comment: CommentRow) {
