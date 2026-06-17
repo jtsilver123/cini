@@ -1127,11 +1127,21 @@ struct CommentsSheet: View {
                 }
                 .buttonStyle(.plain)
                 VStack(alignment: .leading, spacing: 3) {
-                    (Text(preferredName(c.displayName, c.username) ?? c.username).bold()
-                        + Text(" \(c.actionText) ")
-                        + Text(c.movie?.title ?? "").bold())
-                        .font(.subheadline)
-                        .lineLimit(3)
+                    // Bold, tappable name (→ profile) + the rest of the sentence,
+                    // same treatment as the feed card.
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Button {
+                            onOpenMember(MemberRef(id: c.actorId, username: c.username))
+                        } label: {
+                            Text(preferredName(c.displayName, c.username) ?? c.username)
+                                .bold().foregroundStyle(Theme.ink)
+                        }
+                        .buttonStyle(.plain)
+                        (Text(" \(c.actionText) ") + Text(c.movie?.title ?? "").bold())
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .font(.subheadline)
+                    .lineLimit(3)
                     if let movie = c.movie {
                         Text([movie.genres.first, movie.releaseYear.map(String.init)]
                             .compactMap(\.self).joined(separator: " · "))
