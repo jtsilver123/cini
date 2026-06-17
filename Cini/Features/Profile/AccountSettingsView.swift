@@ -458,7 +458,7 @@ private struct ChangePhoneScreen: View {
                             reformat(new)
                         }
                 }
-                if PhoneNumber.digits(phone).count >= 6 && !PhoneNumber.isValid(phone, dial: country.dial) {
+                if PhoneNumber.digits(phone).count >= 10 && !PhoneNumber.isValid(phone, dial: country.dial) {
                     Text("That doesn't look like a valid number — check for typos.")
                         .font(.caption).foregroundStyle(Theme.scoreRed)
                 }
