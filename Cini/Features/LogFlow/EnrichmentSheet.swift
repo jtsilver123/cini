@@ -305,6 +305,7 @@ struct EnrichmentEditorOverlay: View {
             Color.black.opacity(0.55)
                 .ignoresSafeArea()
                 .onTapGesture { onDone() }
+                .transition(.opacity)
 
             VStack(spacing: 0) {
                 HStack {
@@ -344,6 +345,7 @@ struct EnrichmentEditorOverlay: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Theme.cardShadow, radius: 18, y: 8)
             .padding(.horizontal, 14)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 }
@@ -431,13 +433,30 @@ struct NoteEditor: View {
     /// Public notes can flag spoilers — the wall blurs them until tapped.
     var containsSpoilers: Binding<Bool>?
 
+    @FocusState private var focused: Bool
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
-            TextEditor(text: $text)
-                .frame(minHeight: 160)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+            ZStack(alignment: .topLeading) {
+                // A filled, themed field — TextEditor's own background renders as
+                // an opaque black box otherwise, which is what looked broken.
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Theme.fill)
+                if text.isEmpty {
+                    Text("What did you think?")
+                        .foregroundStyle(Theme.gray)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 16)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $text)
+                    .focused($focused)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+            }
+            .frame(minHeight: 180)
             if let containsSpoilers {
                 Toggle(isOn: containsSpoilers) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -449,11 +468,14 @@ struct NoteEditor: View {
                 }
                 .tint(Theme.marquee)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
         .padding()
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
+        // Raise the keyboard right away so the editor is immediately typable —
+        // the previous tap-then-tap-again is what felt choppy.
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { focused = true }
+        }
     }
 }
 

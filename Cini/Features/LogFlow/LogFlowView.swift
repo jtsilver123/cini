@@ -149,6 +149,9 @@ struct LogFlowView: View {
                 }
             }
         }
+        // Slide the editor in/out instead of popping — the abrupt appearance is
+        // what read as choppy.
+        .animation(.snappy(duration: 0.28), value: enrichRow)
         // The flow is a clear cover over the app, so milestone confetti needs
         // its own overlay here to land over the result ticket.
         .overlay { CelebrationOverlay() }
