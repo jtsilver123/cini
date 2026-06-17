@@ -51,7 +51,7 @@ struct WhereToWatchSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(provider.providerName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(provider.providerName).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
                             Text(label).font(.caption).italic().foregroundStyle(Theme.gray)
                         }
                         Spacer()

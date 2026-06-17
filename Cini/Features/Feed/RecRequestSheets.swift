@@ -368,6 +368,7 @@ struct RespondPickerView: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollDismissesKeyboard(.interactively)
             }
             sendBar
         }

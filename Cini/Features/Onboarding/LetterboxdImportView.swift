@@ -74,40 +74,48 @@ struct LetterboxdImportView: View {
             }
             .sheet(isPresented: $showPaste) {
                 NavigationStack {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Copy your movie list in Notes, then paste it here — one title per line. Bullets, numbering, and years like \"Dune (2021)\" all work.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                        TextEditor(text: $pastedText)
-                            .frame(minHeight: 220)
-                            .padding(8)
-                            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
-                        Picker("Where do these go?", selection: $pasteDestination) {
-                            ForEach(PasteDestination.allCases) { destination in
-                                Text(destination.rawValue).tag(destination)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Copy your movie list in Notes, then paste it here — one title per line. Bullets, numbering, and years like \"Dune (2021)\" all work.")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
+                            TextEditor(text: $pastedText)
+                                .frame(minHeight: 220)
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+                            Picker("Where do these go?", selection: $pasteDestination) {
+                                ForEach(PasteDestination.allCases) { destination in
+                                    Text(destination.rawValue).tag(destination)
+                                }
                             }
+                            .pickerStyle(.segmented)
+                            Text(pasteDestination == .watched
+                                 ? "They'll join your ranking queue so you can score them head-to-head."
+                                 : "They'll land straight on your Want to Watch list.")
+                                .font(.caption)
+                                .foregroundStyle(Theme.gray)
                         }
-                        .pickerStyle(.segmented)
-                        Text(pasteDestination == .watched
-                             ? "They'll join your ranking queue so you can score them head-to-head."
-                             : "They'll land straight on your Want to Watch list.")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                        PillButton(title: "Import list") {
-                            showPaste = false
-                            Task { await runPastedImport() }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        Spacer()
+                        .padding()
                     }
-                    .padding()
+                    .scrollDismissesKeyboard(.interactively)
                     .navigationTitle("Paste from Notes")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") { showPaste = false }
                         }
+                    }
+                    // Keep "Import list" tappable above the keyboard.
+                    .safeAreaInset(edge: .bottom) {
+                        PillButton(title: "Import list") {
+                            showPaste = false
+                            Task { await runPastedImport() }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .padding()
+                        .background(.thinMaterial)
                     }
                 }
                 .presentationDetents([.large])

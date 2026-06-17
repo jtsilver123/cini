@@ -272,7 +272,7 @@ struct CiniChatAvailableView: View {
                     Image(systemName: "plus")
                         .font(.headline)
                         .foregroundStyle(Theme.ink)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(Theme.fill))
                 }
                 .buttonStyle(.plain)
@@ -283,7 +283,7 @@ struct CiniChatAvailableView: View {
                     Image(systemName: "arrow.up")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(Theme.background)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(Theme.marquee))
                 }
                 .buttonStyle(.plain)

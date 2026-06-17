@@ -254,7 +254,7 @@ struct UnlocksView: View {
                 Text("Unlock")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14).padding(.vertical, 7)
+                    .padding(.horizontal, 16).frame(minHeight: 44)
                     .background(Capsule().fill(Theme.velvet))
             }
             .buttonStyle(.plain)

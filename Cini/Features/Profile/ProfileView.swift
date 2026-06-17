@@ -222,7 +222,7 @@ struct ProfileScreen: View {
             HStack(spacing: 18) {
                 ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 Menu {
@@ -253,7 +253,7 @@ struct ProfileScreen: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal").foregroundStyle(Theme.ink)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Menu")

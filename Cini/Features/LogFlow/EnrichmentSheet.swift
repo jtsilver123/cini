@@ -420,6 +420,7 @@ struct WatchedWithPicker: View {
             }
         }
         .listStyle(.plain)
+        .scrollDismissesKeyboard(.immediately)
         .navigationTitle("Watched with")
         .navigationBarTitleDisplayMode(.inline)
         .task { friendsCache.refreshIfStale() }

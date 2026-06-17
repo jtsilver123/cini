@@ -21,8 +21,6 @@ struct FeedView: View {
     @State private var showAskRecs = false
     @State private var showRespondRecs = false
     @State private var pendingAsks: [RecRequestRow] = []
-    @State private var promoted: Movie?
-    @State private var promotedReason: String?
     @State private var tonightCards: [TonightCardItem] = []
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
@@ -202,22 +200,6 @@ struct FeedView: View {
             .foregroundStyle(Theme.ink)
         }
         .padding(.top, 8)
-    }
-
-    /// Jump straight into the lists that answer "what should I watch?"
-    private var quickPills: some View {
-        HStack(spacing: 10) {
-            PillButton(title: "Trending", systemImage: "chart.line.uptrend.xyaxis", style: .outlined) {
-                // Trending lives in Search's browse modes — one home.
-                tabRouter.pendingSearchBrowse = .trending
-                tabRouter.selection = .search
-            }
-            PillButton(title: "Friend Recs", systemImage: "paperplane", style: .outlined) {
-                tabRouter.pendingListsTab = .friendRecs
-                tabRouter.selection = .lists
-            }
-            Spacer()
-        }
     }
 
     /// "What should I watch?" aimed at your actual friends: pick people,
@@ -421,21 +403,6 @@ struct FeedView: View {
         }
     }
 
-    /// Where the featured release flows into the feed: after the 4th post so
-    /// friends' activity leads, or after the last post in a shorter feed.
-    private var promotedSlot: Int { min(3, events.count - 1) }
-
-    @ViewBuilder private var promotedCard: some View {
-        if let promoted {
-            PromotedReleaseCard(
-                movie: promoted,
-                reason: promotedReason,
-                onOpen: { detailMovie = $0 },
-                onQuickAdd: { logMovie = $0 }
-            )
-        }
-    }
-
     /// The streak is alive but unfed this week — one tap to keep it.
     private func streakBanner(_ weeks: Int) -> some View {
         HairlineCard {
@@ -535,38 +502,6 @@ struct FeedView: View {
             tabRouter.pendingWatchPlan = nil
             watchPlanContext = plan
         }
-    }
-
-    /// The genre the user ranks most (favorites weigh more) — drives the
-    /// promoted release pick. Nil until they've ranked something.
-    private func topGenre() -> String? {
-        guard store.isLoaded else { return nil }
-        var counts: [String: Double] = [:]
-        for item in store.watchedItems {
-            guard let movie = store.movie(item.id) else { continue }
-            let weight = max(0.5, item.score / 5)   // higher-scored picks count more
-            for genre in movie.genres { counts[genre, default: 0] += weight }
-        }
-        return counts.max { $0.value < $1.value }?.key
-    }
-
-    /// Pick one upcoming/new release to feature, biased to the user's taste
-    /// and excluding anything they've already ranked or saved.
-    private func loadPromoted() async {
-        guard promoted == nil,
-              let upcoming = try? await TMDBService.shared.upcoming(), !upcoming.isEmpty
-        else { return }
-        let seen = Set(store.watchedItems.map(\.id)).union(store.watchlist.map(\.movieID))
-        let fresh = upcoming.filter { !seen.contains($0.tmdbID) && $0.posterPath != nil }
-        guard !fresh.isEmpty else { return }
-        if let genre = topGenre(), let match = fresh.first(where: { $0.genres.contains(genre) }) {
-            promotedReason = "Because you like \(genre.lowercased())"
-            promoted = match
-        } else {
-            promotedReason = "New this season"
-            promoted = fresh.first
-        }
-        if let promoted { store.cache(promoted) }
     }
 
     /// Load several Tonight's Pick candidates and keep up to three that are
