@@ -2100,11 +2100,12 @@ function openComments(id){
       </div>
       <div class="sheet-body" id="commentList" style="flex:1; overflow-y:auto; padding:0 16px;">
         ${header}
-        ${list.length? list.map(c=>`<div style="display:flex; gap:11px; padding:10px 0;">
+        ${list.length? list.map((c,ci)=>{const ck=`${id}_${ci}`; const on=S.cLikes&&S.cLikes[ck]; return `<div style="display:flex; gap:11px; padding:10px 0; align-items:flex-start;">
             <button class="avatar ${MEMBERS.find(m=>m.u===c.u)?.av||""}" style="width:34px;height:34px;font-size:14px;border:none;"
               onclick="${MEMBERS.some(m=>m.u===c.u)?`openMember('${c.u}')`:`closeOverlay(); go('profile')`}">${c.u[0].toUpperCase()}</button>
-            <div><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${c.t}</div></div>
-          </div>`).join("") : `<div class="sub" style="padding:24px 0;">No comments yet — say something nice.</div>`}
+            <div style="flex:1;"><b style="font-size:13px;">@${c.u}</b><div style="font-size:14px; margin-top:2px;">${c.t}</div></div>
+            <button class="iconbtn" style="color:${on?'#e0455e':'var(--gray)'};" onclick="toggleCommentLike('${id}',${ci})">${on?`<span style="color:#e0455e;">${IF('heart')}</span>`:I('heart',16)}</button>
+          </div>`;}).join("") : `<div class="sub" style="padding:24px 0;">No comments yet — say something nice.</div>`}
       </div>
       <div class="chatbar" style="padding-bottom:14px;">
         <input id="commentInput" placeholder="Add a comment…" onkeydown="if(event.key==='Enter')postComment('${id}')">
@@ -2112,6 +2113,7 @@ function openComments(id){
       </div>
     </div>`;
 }
+function toggleCommentLike(id, ci){ buzz(); const ck=`${id}_${ci}`; S.cLikes=S.cLikes||{}; S.cLikes[ck]=!S.cLikes[ck]; save(); openComments(id); }
 function postComment(id){
   const el=$("commentInput"); const t=el.value.trim();
   if(!t){ toast("Write something first"); return; }

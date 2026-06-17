@@ -1267,7 +1267,23 @@ struct CommentsSheet: View {
                 }
                 Text(comment.body).font(.subheadline)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+            // Like a single comment, Beli-style.
+            Button { toggleCommentLike(comment) } label: {
+                VStack(spacing: 2) {
+                    Image(systemName: comment.likedByMe ? "heart.fill" : "heart")
+                        .font(.footnote)
+                        .foregroundStyle(comment.likedByMe ? .red : Theme.gray)
+                    if comment.likeCount > 0 {
+                        Text("\(comment.likeCount)")
+                            .font(.caption2)
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+                .frame(minWidth: 24)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
         .listRowBackground(Theme.background)
         // Long-press: delete your own, moderate others'.
@@ -1310,6 +1326,25 @@ struct CommentsSheet: View {
             } label: {
                 Label("Block @\(comment.profiles?.username ?? "member")",
                       systemImage: "hand.raised")
+            }
+        }
+    }
+
+    private func toggleCommentLike(_ comment: CommentRow) {
+        guard let idx = comments.firstIndex(where: { $0.id == comment.id }) else { return }
+        Haptics.tap()
+        let liking = !comments[idx].likedByMe
+        comments[idx].likedByMe = liking
+        comments[idx].likeCount = max(0, comments[idx].likeCount + (liking ? 1 : -1))
+        Task {
+            do {
+                try await SupabaseService.shared.toggleCommentLike(commentID: comment.id, like: liking)
+            } catch {
+                if let i = comments.firstIndex(where: { $0.id == comment.id }) {
+                    comments[i].likedByMe = !liking
+                    comments[i].likeCount = max(0, comments[i].likeCount + (liking ? -1 : 1))
+                }
+                ToastCenter.shared.saveFailed()
             }
         }
     }

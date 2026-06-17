@@ -1432,12 +1432,46 @@ final class SupabaseService {
     // MARK: - Comments
 
     func comments(eventID: UUID) async throws -> [CommentRow] {
-        try await client.from("comments")
-            .select("*, profiles!comments_user_id_fkey(username, display_name, avatar_url)")
+        var rows: [CommentRow] = try await client.from("comments")
+            .select("*, profiles!comments_user_id_fkey(username, display_name, avatar_url), comment_likes(count)")
             .eq("event_id", value: eventID)
             .order("created_at")
             .limit(200)
             .execute().value
+        // Seed each comment's like count from the embed and the viewer's own
+        // liked state from one batched lookup.
+        let likedIDs = await myLikedCommentIDs(rows.map(\.id))
+        for i in rows.indices {
+            rows[i].likeCount = rows[i].serverLikeCount
+            rows[i].likedByMe = likedIDs.contains(rows[i].id)
+        }
+        return rows
+    }
+
+    /// Which of these comments the current user already liked — one query for
+    /// the whole thread, so hearts survive a refresh.
+    func myLikedCommentIDs(_ commentIDs: [UUID]) async -> Set<UUID> {
+        guard let me = currentUserID, !commentIDs.isEmpty else { return [] }
+        struct Row: Decodable { let comment_id: UUID }
+        let rows: [Row] = (try? await client.from("comment_likes")
+            .select("comment_id")
+            .eq("user_id", value: me)
+            .in("comment_id", values: commentIDs)
+            .execute().value) ?? []
+        return Set(rows.map(\.comment_id))
+    }
+
+    func toggleCommentLike(commentID: UUID, like: Bool) async throws {
+        guard let me = currentUserID else { return }
+        if like {
+            struct Row: Encodable { let user_id: UUID; let comment_id: UUID }
+            try await client.from("comment_likes")
+                .upsert(Row(user_id: me, comment_id: commentID), onConflict: "user_id,comment_id")
+                .execute()
+        } else {
+            try await client.from("comment_likes").delete()
+                .eq("user_id", value: me).eq("comment_id", value: commentID).execute()
+        }
     }
 
     // MARK: - Notifications
@@ -2190,6 +2224,14 @@ struct CommentRow: Codable, Identifiable, Hashable {
     let body: String
     let createdAt: Date
     let profiles: CommentProfile?
+    /// PostgREST embedded `comment_likes(count)`.
+    let commentLikes: [FeedEventRow.CountRow]?
+    /// Filled in after fetch (server count seeds it; toggles own it after).
+    var likeCount = 0
+    /// Filled in after fetch from the viewer's liked-comment set.
+    var likedByMe = false
+
+    var serverLikeCount: Int { commentLikes?.first?.count ?? 0 }
 
     struct CommentProfile: Codable, Hashable {
         let username: String
@@ -2208,5 +2250,6 @@ struct CommentRow: Codable, Identifiable, Hashable {
         case userId = "user_id"
         case eventId = "event_id"
         case createdAt = "created_at"
+        case commentLikes = "comment_likes"
     }
 }
