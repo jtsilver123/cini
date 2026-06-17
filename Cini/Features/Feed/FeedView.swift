@@ -1274,16 +1274,19 @@ struct CommentsSheet: View {
                     Image(systemName: comment.likedByMe ? "heart.fill" : "heart")
                         .font(.footnote)
                         .foregroundStyle(comment.likedByMe ? .red : Theme.gray)
+                        .symbolEffect(.bounce, value: comment.likedByMe)
                     if comment.likeCount > 0 {
                         Text("\(comment.likeCount)")
                             .font(.caption2)
                             .foregroundStyle(Theme.gray)
                     }
                 }
-                .frame(minWidth: 24)
+                // A comfortable hit target (the bare icon was too small to tap).
+                .frame(minWidth: 44, minHeight: 36)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(comment.likedByMe ? "Unlike comment" : "Like comment")
         }
         .listRowBackground(Theme.background)
         // Long-press: delete your own, moderate others'.
