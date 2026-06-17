@@ -473,14 +473,20 @@ struct LogFlowView: View {
                 dismiss()
                 return
             }
-            await persistDraft()
+            // The score is already known — show the ticket immediately instead of
+            // waiting on the detail writes + profile refresh, which added a ~1s
+            // dead gap between the last comparison and the reveal screen.
             priorStreak = appSession.profile?.streakWeeks ?? 0
-            await appSession.loadProfile()    // streak may have just grown
             withAnimation(.snappy) {
                 session = nil
                 scored = result
                 phase = .result
             }
+            // Catch up during the reveal's ~1s "calculating" beat: refresh the
+            // streak first (so a milestone celebration sees it), then persist the
+            // note / watch / cast / etc.
+            await appSession.loadProfile()
+            await persistDraft()
         }
     }
 
