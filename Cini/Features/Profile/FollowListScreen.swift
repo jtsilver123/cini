@@ -39,6 +39,9 @@ struct FollowListScreen: View {
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
                     }
                     .padding(12)
+                    // Make the whole card tappable — the Spacer gap swallowed
+                    // taps, so only the text/icons opened member search.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .floatingCard(cornerRadius: 16)
