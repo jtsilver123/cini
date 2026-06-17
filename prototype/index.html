@@ -2072,10 +2072,30 @@ function openCategorySheet(){
 
 function openComments(id){
   const list=(S.comments[id]||[]);
+  // Pin the post being discussed on top so it reads as a full thread.
+  const e = FEED.find(x=>x.id===id);
+  let header = "";
+  if(e){
+    const m = MOVIES[e.movie];
+    const likeN = (e.likes||0)+(S.liked[e.id]?1:0);
+    header = `<div style="display:flex; gap:12px; padding:2px 0 12px; border-bottom:1px solid var(--hair); margin-bottom:6px;">
+      <button class="avatar ${e.av}" style="width:44px;height:44px;font-size:17px;border:none;" onclick="openMember('${e.u}')">${e.who[0].toUpperCase()}</button>
+      <div style="flex:1;">
+        <div style="font-size:14.5px;"><button style="background:none;border:none;padding:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;" onclick="openMember('${e.u}')">${e.who}</button> ${e.kind==='ranked'?'ranked':'wants to watch'} <b>${m.t}</b></div>
+        <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
+        <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
+          <button class="iconbtn" onclick="toggleLike('${e.id}'); openComments('${id}')">${likeIcon(e.id)}${likeN?`<span style="font-size:11px;font-weight:700;"> ${likeN}</span>`:""}</button>
+          <span class="sub">${e.when}</span>
+        </div>
+      </div>
+      ${e.kind==='ranked'?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
+    </div>`;
+  }
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Comments</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body" id="commentList" style="min-height:120px;">
+      ${header}
       ${list.length? list.map(c=>`<div style="display:flex; gap:11px; padding:10px 0;">
           <button class="avatar ${MEMBERS.find(m=>m.u===c.u)?.av||""}" style="width:34px;height:34px;font-size:14px;border:none;"
             onclick="${MEMBERS.some(m=>m.u===c.u)?`openMember('${c.u}')`:`closeOverlay(); go('profile')`}">${c.u[0].toUpperCase()}</button>

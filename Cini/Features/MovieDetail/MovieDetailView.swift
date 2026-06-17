@@ -66,6 +66,7 @@ struct MovieDetailView: View {
 
     struct CommentsTarget: Identifiable {
         let id: UUID
+        var context: CommentContext? = nil
     }
 
     /// Which score circle is being explained.
@@ -143,7 +144,7 @@ struct MovieDetailView: View {
         .sheet(item: $commentsTarget, onDismiss: {
             if let m = pendingCommentMember { pendingCommentMember = nil; memberTarget = m }
         }) { target in
-            CommentsSheet(eventID: target.id, onOpenMember: { member in
+            CommentsSheet(eventID: target.id, context: target.context, onOpenMember: { member in
                 pendingCommentMember = member
                 commentsTarget = nil
             })
@@ -983,7 +984,24 @@ struct MovieDetailView: View {
                 }
                 Button {
                     if let eventId = row.eventId {
-                        commentsTarget = CommentsTarget(id: eventId)
+                        commentsTarget = CommentsTarget(
+                            id: eventId,
+                            context: CommentContext(
+                                actorId: row.userId,
+                                username: row.username,
+                                displayName: row.displayName,
+                                avatarUrl: row.avatarUrl,
+                                movie: movie,
+                                actionText: "ranked",
+                                score: row.score,
+                                note: row.note,
+                                containsSpoilers: row.containsSpoilers ?? false,
+                                createdAt: row.rankedAt,
+                                likeCount: row.likeCount,
+                                commentCount: row.commentCount,
+                                likedByMe: row.likedByMe
+                            )
+                        )
                     }
                 } label: {
                     HStack(spacing: 5) {

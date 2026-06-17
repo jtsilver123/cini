@@ -782,6 +782,17 @@ struct FeedCard: View {
         }
     }
 
+    /// The verb between the name and the title — also handed to the comments
+    /// header so the post reads the same there.
+    private var actionText: String {
+        switch event.eventType {
+        case "ranked":      return "ranked"
+        case "watchlisted": return "wants to watch"
+        case "noted":       return "wrote about"
+        default:            return "shared an update"
+        }
+    }
+
     /// Everything after the name (" ranked <Title>"). The name is rendered
     /// separately as a bold, tappable run so it can route to the profile while
     /// the rest of the sentence falls through to the card's open-movie tap.
@@ -941,10 +952,27 @@ struct FeedCard: View {
         .sheet(isPresented: $showComments, onDismiss: {
             if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
         }) {
-            CommentsSheet(eventID: event.id, onOpenMember: { member in
-                pendingMember = member
-                showComments = false
-            })
+            CommentsSheet(
+                eventID: event.id,
+                context: CommentContext(
+                    actorId: event.userId,
+                    username: actorUsername,
+                    displayName: event.profiles?.displayName,
+                    avatarUrl: event.profiles?.avatarUrl,
+                    movie: movie,
+                    actionText: actionText,
+                    score: event.payload?.score,
+                    note: nil,
+                    createdAt: event.createdAt,
+                    likeCount: likeCount,
+                    commentCount: event.commentCount,
+                    likedByMe: liked
+                ),
+                onOpenMember: { member in
+                    pendingMember = member
+                    showComments = false
+                }
+            )
             .presentationDetents([.medium, .large])
         }
     }
@@ -952,10 +980,34 @@ struct FeedCard: View {
 
 // MARK: - Comments
 
+/// The originating post shown at the top of the comments view, so the screen
+/// reads as a full thread (post → comments) rather than a bare list. Built by
+/// whoever opens the sheet — the feed from its event, the movie page from a
+/// public note.
+struct CommentContext {
+    let actorId: UUID
+    let username: String
+    var displayName: String?
+    var avatarUrl: String?
+    var movie: Movie?
+    /// "ranked", "wants to watch", … — the verb between name and title.
+    var actionText: String = "ranked"
+    var score: Double?
+    var note: String?
+    var containsSpoilers: Bool = false
+    var createdAt: Date
+    var likeCount: Int = 0
+    var commentCount: Int = 0
+    var likedByMe: Bool = false
+}
+
 struct CommentsSheet: View {
     /// Comments hang off a feed event — the feed passes its card's event,
     /// the movie page passes the 'ranked' event behind a public rating.
     let eventID: UUID
+    /// The post being discussed, pinned to the top of the thread. Nil falls back
+    /// to the bare comment list.
+    var context: CommentContext? = nil
     /// Tapping a commenter routes to their profile in the PRESENTER's nav stack
     /// (after this sheet dismisses) — never a cramped profile pushed inside the
     /// comments sheet.
@@ -965,102 +1017,44 @@ struct CommentsSheet: View {
     @State private var draft = ""
     @State private var loaded = false
     @State private var blockCandidate: CommentRow?
+    // Header like state, seeded from the context and owned optimistically after.
+    @State private var headerLiked = false
+    @State private var headerLikeCount = 0
+    @State private var headerSeeded = false
+    @State private var noteRevealed = false
 
     var body: some View {
         NavigationStack {
-            Group {
-                if !loaded {
-                    ScrollView {
-                        ListSkeleton(rows: 6)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 12)
-                    }
-                } else if comments.isEmpty {
-                    Spacer()
-                    EmptyStateView(
-                        icon: "bubble.left.and.bubble.right",
-                        title: "Be the first",
-                        message: "No comments yet — say something nice.")
-                    Spacer()
-                } else {
-                    List(comments) { comment in
-                        HStack(alignment: .top, spacing: 12) {
-                            // A plain Button (not a List NavigationLink, which
-                            // injects a disclosure chevron and breaks the row
-                            // layout) — hand the member to the presenter so the
-                            // real profile opens in the main nav stack.
-                            Button {
-                                onOpenMember(MemberRef(id: comment.userId,
-                                                       username: comment.profiles?.username ?? "member"))
-                            } label: {
-                                AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
-                                           name: preferredName(comment.profiles?.displayName, comment.profiles?.username))
-                            }
-                            .buttonStyle(.plain)
-                            VStack(alignment: .leading, spacing: 3) {
-                                HStack(spacing: 6) {
-                                    Text("@\(comment.profiles?.username ?? "member")")
-                                        .font(.caption.weight(.bold))
-                                        .lineLimit(1)
-                                    Text(comment.createdAt.formatted(.relative(presentation: .named)))
-                                        .font(.caption2)
-                                        .foregroundStyle(Theme.gray)
-                                        .lineLimit(1)
-                                        .layoutPriority(-1)
-                                }
-                                Text(comment.body).font(.subheadline)
-                            }
-                            Spacer(minLength: 0)
-                        }
+            List {
+                // The post being discussed, pinned on top so the screen reads
+                // as a full thread (Beli-style) instead of a bare comment list.
+                if let context {
+                    postHeader(context)
+                        .listRowSeparator(.hidden)
                         .listRowBackground(Theme.background)
-                        // Long-press: delete your own, moderate others'.
-                        .contextMenu {
-                            if comment.userId == SupabaseService.shared.currentUserID {
-                                Button(role: .destructive) {
-                                    Task {
-                                        do {
-                                            try await SupabaseService.shared.deleteComment(id: comment.id)
-                                            // Offer Undo (re-post) — matches the
-                                            // app's other destructive removals.
-                                            let body = comment.body
-                                            let eid = eventID
-                                            ToastCenter.shared.showUndo("Comment deleted") {
-                                                Task {
-                                                    try? await SupabaseService.shared.comment(eventID: eid, body: body)
-                                                    await reload()
-                                                }
-                                            }
-                                            await reload()
-                                        } catch {
-                                            ToastCenter.shared.saveFailed()
-                                        }
-                                    }
-                                } label: {
-                                    Label("Delete my comment", systemImage: "trash")
-                                }
-                            }
-                            Button(role: .destructive) {
-                                Task {
-                                    await SupabaseService.shared.report(
-                                        kind: "comment", subjectID: comment.id.uuidString)
-                                    ToastCenter.shared.show("Reported — we'll review it")
-                                }
-                            } label: {
-                                Label("Report comment", systemImage: "flag")
-                            }
-                            Button(role: .destructive) {
-                                blockCandidate = comment
-                            } label: {
-                                Label("Block @\(comment.profiles?.username ?? "member")",
-                                      systemImage: "hand.raised")
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollDismissesKeyboard(.interactively)
+                        .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16))
                 }
 
+                if !loaded {
+                    ListSkeleton(rows: 5)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Theme.background)
+                } else if comments.isEmpty {
+                    Text("No comments yet — say something nice.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Theme.background)
+                } else {
+                    ForEach(comments) { comment in
+                        commentRow(comment)
+                    }
+                }
             }
+            .listStyle(.plain)
+            .scrollDismissesKeyboard(.interactively)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.background)
             // safeAreaInset keeps the composer pinned ABOVE the keyboard.
@@ -1109,6 +1103,184 @@ struct CommentsSheet: View {
             Text("You won't see each other's rankings, notes, or activity.")
         }
         .task { await reload() }
+        // Seed the header's like state from the context once; the heart owns it
+        // optimistically after that.
+        .onAppear {
+            if let context, !headerSeeded {
+                headerLiked = context.likedByMe
+                headerLikeCount = context.likeCount
+                headerSeeded = true
+            }
+        }
+    }
+
+    // MARK: Post header (the thing being commented on)
+
+    @ViewBuilder private func postHeader(_ c: CommentContext) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Button {
+                    onOpenMember(MemberRef(id: c.actorId, username: c.username))
+                } label: {
+                    AvatarView(url: c.avatarUrl.flatMap(URL.init), size: 44,
+                               name: preferredName(c.displayName, c.username))
+                }
+                .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: 3) {
+                    (Text(preferredName(c.displayName, c.username) ?? c.username).bold()
+                        + Text(" \(c.actionText) ")
+                        + Text(c.movie?.title ?? "").bold())
+                        .font(.subheadline)
+                        .lineLimit(3)
+                    if let movie = c.movie {
+                        Text([movie.genres.first, movie.releaseYear.map(String.init)]
+                            .compactMap(\.self).joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+                Spacer(minLength: 0)
+                if let score = c.score {
+                    ScoreBadge(score: score, size: 44)
+                }
+            }
+
+            if let note = c.note, !note.isEmpty {
+                if c.containsSpoilers && !noteRevealed {
+                    Button {
+                        Haptics.tap()
+                        withAnimation(.snappy) { noteRevealed = true }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "eye.slash")
+                            Text("Contains spoilers — tap to reveal")
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    (Text("Notes: ").bold() + Text(note)).font(.subheadline)
+                }
+            }
+
+            HStack(spacing: 18) {
+                Button { toggleHeaderLike() } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: headerLiked ? "heart.fill" : "heart")
+                            .foregroundStyle(headerLiked ? .red : Theme.ink)
+                        if headerLikeCount > 0 {
+                            Text("\(headerLikeCount)").font(.subheadline.weight(.medium))
+                        }
+                    }
+                }
+                if let movie = c.movie {
+                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
+                        Image(systemName: "paperplane").foregroundStyle(Theme.ink)
+                    }
+                }
+                Spacer()
+                Text(c.createdAt.formatted(.relative(presentation: .named)))
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            .foregroundStyle(Theme.ink)
+            .buttonStyle(.plain)
+
+            Divider().overlay(Theme.hairline).padding(.top, 2)
+        }
+    }
+
+    private func toggleHeaderLike() {
+        Haptics.tap()
+        headerLiked.toggle()
+        headerLikeCount += headerLiked ? 1 : -1
+        Task {
+            do { try await SupabaseService.shared.toggleLike(eventID: eventID) }
+            catch {
+                headerLiked.toggle()
+                headerLikeCount += headerLiked ? 1 : -1
+                ToastCenter.shared.saveFailed()
+            }
+        }
+    }
+
+    // MARK: One comment
+
+    @ViewBuilder private func commentRow(_ comment: CommentRow) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            // A plain Button (not a List NavigationLink, which injects a
+            // disclosure chevron and breaks the row layout) — hand the member to
+            // the presenter so the real profile opens in the main nav stack.
+            Button {
+                onOpenMember(MemberRef(id: comment.userId,
+                                       username: comment.profiles?.username ?? "member"))
+            } label: {
+                AvatarView(url: comment.profiles?.avatarUrl.flatMap(URL.init), size: 36,
+                           name: preferredName(comment.profiles?.displayName, comment.profiles?.username))
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(preferredName(comment.profiles?.displayName, comment.profiles?.username) ?? "member")
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                    Text(comment.createdAt.formatted(.relative(presentation: .named)))
+                        .font(.caption2)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+                Text(comment.body).font(.subheadline)
+            }
+            Spacer(minLength: 0)
+        }
+        .listRowBackground(Theme.background)
+        // Long-press: delete your own, moderate others'.
+        .contextMenu {
+            if comment.userId == SupabaseService.shared.currentUserID {
+                Button(role: .destructive) {
+                    Task {
+                        do {
+                            try await SupabaseService.shared.deleteComment(id: comment.id)
+                            // Offer Undo (re-post) — matches the app's other
+                            // destructive removals.
+                            let body = comment.body
+                            let eid = eventID
+                            ToastCenter.shared.showUndo("Comment deleted") {
+                                Task {
+                                    try? await SupabaseService.shared.comment(eventID: eid, body: body)
+                                    await reload()
+                                }
+                            }
+                            await reload()
+                        } catch {
+                            ToastCenter.shared.saveFailed()
+                        }
+                    }
+                } label: {
+                    Label("Delete my comment", systemImage: "trash")
+                }
+            }
+            Button(role: .destructive) {
+                Task {
+                    await SupabaseService.shared.report(
+                        kind: "comment", subjectID: comment.id.uuidString)
+                    ToastCenter.shared.show("Reported — we'll review it")
+                }
+            } label: {
+                Label("Report comment", systemImage: "flag")
+            }
+            Button(role: .destructive) {
+                blockCandidate = comment
+            } label: {
+                Label("Block @\(comment.profiles?.username ?? "member")",
+                      systemImage: "hand.raised")
+            }
+        }
     }
 
     private func reload() async {
