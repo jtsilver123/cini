@@ -1265,11 +1265,24 @@ function renderProfile(){
     </div>`
     : `<div class="sub" style="text-align:center; padding:28px;">Rank a few movies and the taste profile appears here.</div>`;
 
-  const activityContent = activity.length ? activity.map(a=>{const m=MOVIES[a.k]; return `
-      <div class="listrow" style="cursor:pointer; align-items:center;" onclick="openDetail('${a.k}')">
-        <div class="poster" style="width:34px;height:51px; background-image:url('${IMG(m.p)}');"></div>
-        <div style="flex:1;"><div style="font-size:14px;">${isSelf?"You":"@"+handle} ${a.kind==="ranked"?"ranked":"added"} <b>${m.t}</b>${a.kind==="watchlisted"?" to watchlist":""}</div>
-          <div class="sub" style="margin-top:2px;">${a.when}</div></div>
+  // Same interactive feed card as the Feed tab — like / comment / share — so
+  // engaging with a profile's activity feels just like the feed.
+  const activityContent = activity.length ? activity.map(a=>{const m=MOVIES[a.k]; const aid=`pa_${handle}_${a.k}`;
+      const e=isSelf?myEntry(a.k):null; const likeN=(a.kind==="ranked"?2:1)+(S.liked[aid]?1:0); const cN=(S.comments[aid]||[]).length;
+      return `
+      <div style="margin-bottom:12px; padding:14px; border-radius:16px; position:relative; overflow:hidden; background:linear-gradient(90deg, var(--surface) 52%, rgba(29,23,25,.55) 75%, rgba(29,23,25,.25)), url('${IMG(m.bd||m.p)}') right center / auto 100% no-repeat; border:1px solid var(--hair); display:flex; gap:12px; align-items:flex-start; cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${a.k}')">
+        <div class="avatar ${av}" style="width:44px;height:44px;border:none;font-size:17px;">${(isSelf?name:handle)[0].toUpperCase()}</div>
+        <div style="flex:1;">
+          <div style="font-size:14.5px;"><b>${isSelf?"You":"@"+handle}</b> ${a.kind==="ranked"?"ranked":"want to watch"} <b>${m.t}</b></div>
+          <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
+          <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
+            <button class="iconbtn" onclick="toggleLike('${aid}')">${likeIcon(aid)}${likeN?`<span style="font-size:11px;font-weight:700;"> ${likeN}</span>`:""}</button>
+            <button class="iconbtn" onclick="openComments('${aid}')">${I("comment")}${cN?`<span style="font-size:11px;font-weight:700;"> ${cN}</span>`:""}</button>
+            <button class="iconbtn" onclick="share('${esc(m.t)} on Cini')">${I("send")}</button>
+          </div>
+          <div class="sub" style="margin-top:6px;">${a.when}</div>
+        </div>
+        ${e?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
       </div>`;}).join("")
     : `<div class="sub" style="text-align:center; padding:28px;">Rank or watchlist a movie and it shows up here.</div>`;
 

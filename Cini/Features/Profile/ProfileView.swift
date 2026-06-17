@@ -44,6 +44,12 @@ struct ProfileScreen: View {
     @State private var suggested: [SuggestedMember] = []
     @State private var followedSuggested: Set<UUID> = []
     @State private var detailMovie: Movie?
+    @State private var logMovie: Movie?
+    @State private var commentsLink: CommentsLink?
+    @State private var commentMemberTarget: MemberRef?
+    @State private var likedEventIDs: Set<UUID> = []
+    /// Live comment counts reported back from open threads, keyed by event id.
+    @State private var commentCountOverrides: [UUID: Int] = [:]
     @State private var watchingRows: [WatchingRow] = []
     @State private var bothWatching: [WatchingRow] = []
     @State private var loaded = false
@@ -110,6 +116,20 @@ struct ProfileScreen: View {
         }
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
+        }
+        .navigationDestination(item: $commentsLink) { link in
+            CommentsSheet(
+                eventID: link.id,
+                context: link.context,
+                onOpenMember: { commentMemberTarget = $0 },
+                onCommentCountChange: { commentCountOverrides[link.id] = $0 }
+            )
+        }
+        .navigationDestination(item: $commentMemberTarget) { member in
+            MemberProfileView(userID: member.id, username: member.username)
+        }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
         }
         .navigationDestination(isPresented: $showSettings) {
             AccountSettingsView()
@@ -197,6 +217,9 @@ struct ProfileScreen: View {
         rankings.sort { (order[$0.bucket] ?? 3, $0.position) < (order[$1.bucket] ?? 3, $1.position) }
 
         events = (try? await eventsTask) ?? []
+        // Which of these activity events the viewer already liked, so the cards'
+        // hearts are filled correctly.
+        likedEventIDs = await supabase.myLikedEventIDs(events.map(\.id))
         watches = (try? await watchesTask) ?? []
         // Pull metadata for any watch (e.g. an import) the store/events don't cover.
         let missing = Set(watches.map(\.movieId)).filter { movies[$0] == nil && store.movie($0) == nil }
@@ -894,9 +917,10 @@ struct ProfileScreen: View {
                     .padding(.vertical, 24)
             }
         }
-        ForEach(showAllActivity ? items : Array(items.prefix(12))) { item in
-            activityRow(item)
-            Divider()
+        VStack(spacing: 12) {
+            ForEach(showAllActivity ? items : Array(items.prefix(12))) { item in
+                activityRow(item)
+            }
         }
         if !showAllActivity && items.count > 12 {
             Button("See all \(items.count) updates") {
@@ -913,19 +937,30 @@ struct ProfileScreen: View {
     private func activityRow(_ item: ActivityItem) -> some View {
         switch item {
         case .event(let event):
-            let movie = event.movies?.asMovie
-            HStack(spacing: 12) {
-                if let movie { PosterView(url: movie.posterURL, width: 36) }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(activityLine(event)).font(.subheadline).lineLimit(2)
-                    Text(event.createdAt.formatted(.relative(presentation: .named)))
-                        .font(.caption).foregroundStyle(Theme.gray)
+            if event.movieId != nil {
+                // The same interactive card as the feed — like, comment, share,
+                // save — so you can engage with activity right from a profile.
+                FeedCard(
+                    event: event,
+                    initiallyLiked: likedEventIDs.contains(event.id),
+                    onOpenMovie: { detailMovie = $0 },
+                    onQuickAdd: { logMovie = $0 },
+                    onOpenMember: { _ in },   // already on this profile
+                    onOpenComments: { ev, ctx in commentsLink = CommentsLink(id: ev.id, context: ctx) },
+                    commentCountOverride: commentCountOverrides[event.id]
+                )
+            } else {
+                // No movie attached (rare "shared an update") — a plain line.
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(activityLine(event)).font(.subheadline).lineLimit(2)
+                        Text(event.createdAt.formatted(.relative(presentation: .named)))
+                            .font(.caption).foregroundStyle(Theme.gray)
+                    }
+                    Spacer()
                 }
-                Spacer()
+                .padding(.vertical, 8)
             }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .onTapGesture { if let movie { detailMovie = movie } }
         case .watch(let watch):
             let movie = watchMovies[watch.movieId] ?? movies[watch.movieId] ?? store.movie(watch.movieId)
             HStack(spacing: 12) {

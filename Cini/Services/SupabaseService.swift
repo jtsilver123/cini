@@ -1082,7 +1082,9 @@ final class SupabaseService {
             // profiles must name the FK: the likes table adds a second
             // feed_events↔profiles path and PostgREST rejects the bare
             // embed as ambiguous (PGRST201), silently emptying the feed.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)")
+            // likes/comments counts ride along so the profile Activity tab can
+            // show interactive feed cards (like/comment), same as the feed.
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .limit(limit)
