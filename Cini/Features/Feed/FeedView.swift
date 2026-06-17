@@ -974,11 +974,11 @@ struct FeedCard: View {
                     commentCount: event.commentCount,
                     likedByMe: liked
                 ),
-                onCommentCountChange: { commentCount = $0 },
                 onOpenMember: { member in
                     pendingMember = member
                     showComments = false
-                }
+                },
+                onCommentCountChange: { commentCount = $0 }
             )
         }
     }

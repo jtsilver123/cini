@@ -9,6 +9,7 @@ struct NotificationPreferencesView: View {
         ("Activity on your stuff", [
             ("like", "Likes", "A friend likes your activity"),
             ("comment", "Comments", "A friend comments on your activity"),
+            ("mention", "Mentions", "A friend @mentions you in a comment"),
             ("saved_your_rank", "Saved from your taste",
              "A friend adds a title you ranked to their Want to Watch"),
             ("friend_ranked_watchlist_movie", "Want to Watch ranked by a friend",
