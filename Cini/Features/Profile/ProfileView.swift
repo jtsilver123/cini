@@ -161,14 +161,38 @@ struct ProfileScreen: View {
             }
         }
         .onAppear {
+            // Counts are the thing most prone to a stale 0 (e.g. the tab
+            // appears before the session profile resolves) — refresh them every
+            // time, cheaply, independent of the throttled heavy load.
+            Task { await loadCounts() }
             // Fresh when you come back, without re-firing 6 queries on
             // every quick tab flick.
             guard Date().timeIntervalSince(lastLoaded) > 10 else { return }
             Task { await load() }
         }
+        // Your own profile tab can appear before the session profile is ready
+        // (resolvedID nil → load bails, counts stay 0); refresh once it lands.
+        .onChange(of: session.profile?.id) { _, id in
+            guard id != nil else { return }
+            Task { await loadCounts() }
+            if !loaded { Task { await load() } }
+        }
     }
 
     // MARK: Data
+
+    /// Follower / following counts — cheap HEAD queries, refreshed on every
+    /// appearance so they never show a stale 0.
+    private func loadCounts() async {
+        guard let id = resolvedID else { return }
+        let supabase = SupabaseService.shared
+        async let followers = supabase.followCount(of: id, direction: "following_id")
+        async let following = supabase.followCount(of: id, direction: "follower_id")
+        let f = await followers
+        let g = await following
+        followerCount = f
+        followingCount = g
+    }
 
     /// Everything loads in parallel — serially this took over a second of
     /// visible stagger on device.
@@ -177,13 +201,14 @@ struct ProfileScreen: View {
         let supabase = SupabaseService.shared
         Task { watchingRows = await supabase.watching(for: id) }
         if !isSelf { Task { bothWatching = await supabase.mutualWatching(with: id) } }
+        // Counts refresh in parallel and assign as soon as they land, so they're
+        // never blocked behind the events/watches chain below.
+        Task { await loadCounts() }
 
         async let profileTask = supabase.profile(id: id)
         async let rankingsTask = supabase.rankings(userID: id)
         async let eventsTask = supabase.events(of: id, limit: 100)
         async let watchesTask = supabase.watches(of: id)
-        async let followersTask = supabase.followCount(of: id, direction: "following_id")
-        async let followingTask = supabase.followCount(of: id, direction: "follower_id")
         async let rankTask = supabase.globalRank(userID: id)
 
         if isSelf {
@@ -227,8 +252,6 @@ struct ProfileScreen: View {
             let rows = (try? await supabase.movies(ids: Array(missing))) ?? []
             for row in rows { watchMovies[row.tmdbId] = row.asMovie }
         }
-        followerCount = await followersTask
-        followingCount = await followingTask
         globalRank = try? await rankTask
         loaded = true
         lastLoaded = Date()
