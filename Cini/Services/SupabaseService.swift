@@ -1195,7 +1195,10 @@ final class SupabaseService {
             // profiles must name the FK: the likes table adds a second
             // feed_events↔profiles path and PostgREST rejects the bare
             // embed as ambiguous (PGRST201), silently emptying the feed.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*)")
+            // likes(count)/comments(count) ride along as embedded aggregates —
+            // both have a single FK to feed_events, so they're unambiguous, and
+            // their RLS counts every like/comment on a visible event.
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
             .in("user_id", values: ids)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -1786,6 +1789,15 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
     let payload: Payload?
     let profiles: EmbeddedProfile?
     let movies: MovieRow?
+    // PostgREST embedded aggregates: `likes(count)` / `comments(count)` arrive
+    // as a single-element array of {count}. Nil when a query doesn't select them.
+    let likes: [CountRow]?
+    let comments: [CountRow]?
+
+    var likeCount: Int { likes?.first?.count ?? 0 }
+    var commentCount: Int { comments?.first?.count ?? 0 }
+
+    struct CountRow: Codable, Hashable { let count: Int }
 
     struct Payload: Codable, Hashable {
         let score: Double?
@@ -1804,7 +1816,7 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, profiles, movies, payload
+        case id, profiles, movies, payload, likes, comments
         case userId = "user_id"
         case eventType = "event_type"
         case movieId = "movie_id"

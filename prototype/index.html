@@ -402,9 +402,9 @@ const MEMBERS = [
 ];
 
 const FEED = [
-  {id:"f1", who:"maddy", u:"maddyc", av:"av1", kind:"ranked", movie:"dune2", score:9.2, when:"58 minutes ago"},
-  {id:"f2", who:"Emily", u:"emilyq", av:"av2", kind:"watchlisted", movie:"past", when:"3 hours ago"},
-  {id:"f3", who:"jzjackjz", u:"jzjackjz", av:"av3", kind:"ranked", movie:"opp", score:8.7, when:"yesterday"},
+  {id:"f1", who:"maddy", u:"maddyc", av:"av1", kind:"ranked", movie:"dune2", score:9.2, when:"58 minutes ago", likes:4},
+  {id:"f2", who:"Emily", u:"emilyq", av:"av2", kind:"watchlisted", movie:"past", when:"3 hours ago", likes:1},
+  {id:"f3", who:"jzjackjz", u:"jzjackjz", av:"av3", kind:"ranked", movie:"opp", score:8.7, when:"yesterday", likes:0},
 ];
 
 const PROVIDER_BRANDS = {
@@ -598,7 +598,7 @@ function renderFeed(){
         <div style="font-size:14.5px;">${headline}</div>
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
         <div style="display:flex; gap:18px; margin-top:11px; align-items:center;">
-          <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}</button>
+          <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); return n?`<span style="font-size:11px;font-weight:700;"> ${n}</span>`:"";})()}</button>
           <button class="iconbtn" onclick="openComments('${e.id}')">${I("comment")}${comments.length?`<span style="font-size:11px;font-weight:700;"> ${comments.length}</span>`:""}</button>
           <button class="iconbtn" onclick="share('${esc(m.t)} on Cini')">${I("send")}</button>
         </div>

@@ -731,12 +731,27 @@ struct FeedCard: View {
     @State private var likeInFlight = false
     @State private var showComments = false
     @State private var heartPop = false
+    @State private var likeCount = 0
+    @State private var countsLoaded = false
     // Stashed when a commenter is tapped; opened after the sheet dismisses so
     // the profile pushes cleanly in the main nav stack (not inside the sheet).
     @State private var pendingMember: MemberRef?
 
     private var movie: Movie? { event.movies?.asMovie }
-    private var actorName: String { event.profiles?.username ?? "someone" }
+    /// The real handle — used to route to the profile (never the display name).
+    private var actorUsername: String { event.profiles?.username ?? "someone" }
+    /// Shown in the feed: first name when we have one, else the username.
+    private var actorName: String {
+        let display = event.profiles?.displayName?.trimmingCharacters(in: .whitespaces) ?? ""
+        if !display.isEmpty {
+            return display.split(separator: " ").first.map(String.init) ?? display
+        }
+        return actorUsername
+    }
+
+    private func openActor() {
+        onOpenMember(MemberRef(id: event.userId, username: actorUsername))
+    }
 
     /// Toggle the like with optimistic UI + revert on failure (shared by the
     /// heart button and the double-tap gesture).
@@ -745,11 +760,13 @@ struct FeedCard: View {
         likeInFlight = true
         Haptics.tap()
         liked.toggle()
+        likeCount += liked ? 1 : -1
         Task {
             defer { likeInFlight = false }
             do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
             catch {
                 liked.toggle()
+                likeCount += liked ? 1 : -1
                 ToastCenter.shared.saveFailed()
             }
         }
@@ -766,17 +783,20 @@ struct FeedCard: View {
         }
     }
 
-    private var headline: Text {
+    /// Everything after the name (" ranked <Title>"). The name is rendered
+    /// separately as a bold, tappable run so it can route to the profile while
+    /// the rest of the sentence falls through to the card's open-movie tap.
+    private var headlineRest: Text {
         let title = Text(movie?.title ?? "a movie").bold()
         switch event.eventType {
         case "ranked":
-            return Text("\(actorName) ranked ") + title
+            return Text(" ranked ") + title
         case "watchlisted":
-            return Text("\(actorName) wants to watch ") + title
+            return Text(" wants to watch ") + title
         case "noted":
-            return Text("\(actorName) wrote about ") + title
+            return Text(" wrote about ") + title
         default:
-            return Text("\(actorName) shared an update")
+            return Text(" shared an update")
         }
     }
 
@@ -784,7 +804,7 @@ struct FeedCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 Button {
-                    onOpenMember(MemberRef(id: event.userId, username: actorName))
+                    openActor()
                 } label: {
                     AvatarView(url: event.profiles?.avatarUrl.flatMap(URL.init), size: 48,
                                name: preferredName(event.profiles?.displayName, event.profiles?.username))
@@ -792,7 +812,18 @@ struct FeedCard: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    headline.font(.subheadline).lineLimit(3)
+                    // Bold, tappable name + the rest of the sentence. Only the
+                    // name routes to the profile; the rest falls through to the
+                    // card tap (open movie).
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        Button { openActor() } label: {
+                            Text(actorName).bold().foregroundStyle(Theme.ink)
+                        }
+                        .buttonStyle(.plain)
+                        headlineRest.foregroundStyle(Theme.ink)
+                    }
+                    .font(.subheadline)
+                    .lineLimit(3)
                     if let movie {
                         Text([movie.genres.first, movie.releaseYear.map(String.init)]
                             .compactMap(\.self).joined(separator: " · "))
@@ -811,11 +842,21 @@ struct FeedCard: View {
                 Button {
                     toggleLike()
                 } label: {
-                    Image(systemName: liked ? "heart.fill" : "heart")
-                        .foregroundStyle(liked ? .red : Theme.ink)
+                    HStack(spacing: 6) {
+                        Image(systemName: liked ? "heart.fill" : "heart")
+                            .foregroundStyle(liked ? .red : Theme.ink)
+                        if likeCount > 0 {
+                            Text("\(likeCount)").font(.subheadline.weight(.medium))
+                        }
+                    }
                 }
                 Button { showComments = true } label: {
-                    Image(systemName: "bubble.right")
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.right")
+                        if event.commentCount > 0 {
+                            Text("\(event.commentCount)").font(.subheadline.weight(.medium))
+                        }
+                    }
                 }
                 if let movie {
                     ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
@@ -891,6 +932,11 @@ struct FeedCard: View {
         // whole feed) — adopt it whenever it changes.
         .onChange(of: initiallyLiked, initial: true) { _, isLiked in
             liked = isLiked
+        }
+        // Seed the like count from the server once; optimistic toggles own it
+        // after that (re-seeding on every appear would clobber them).
+        .onAppear {
+            if !countsLoaded { likeCount = event.likeCount; countsLoaded = true }
         }
         .sheet(isPresented: $showComments, onDismiss: {
             if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
