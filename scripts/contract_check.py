@@ -109,6 +109,7 @@ READS = [
     ("feed", "feed_events", "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)"),
     ("taste_match", "taste_matches", "pct"),
     ("my_likes", "likes", "event_id"),
+    ("member_note", "notes", "body"),
     ("comments", "comments", "*, profiles!comments_user_id_fkey(username, display_name, avatar_url)"),
     ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
     ("community_score", "movie_community_scores", "*"),

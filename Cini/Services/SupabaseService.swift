@@ -1214,6 +1214,22 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// One member's public note for a movie — used by the comments header on a
+    /// feed post, since feed events don't carry the note inline. RLS hides
+    /// private notes and anything from members you can't view, so this only ever
+    /// returns a note the viewer is allowed to read.
+    func note(userID: UUID, movieID: Int) async -> String? {
+        struct Row: Decodable { let body: String }
+        let rows: [Row] = (try? await client.from("notes")
+            .select("body")
+            .eq("user_id", value: userID)
+            .eq("movie_id", value: movieID)
+            .eq("is_private", value: false)
+            .limit(1)
+            .execute().value) ?? []
+        return rows.first?.body
+    }
+
     /// Which of these feed events the current user already liked — one
     /// query for the whole visible feed, so hearts survive a refresh.
     func myLikedEventIDs(_ eventIDs: [UUID]) async -> Set<UUID> {

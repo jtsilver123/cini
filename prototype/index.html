@@ -402,7 +402,7 @@ const MEMBERS = [
 ];
 
 const FEED = [
-  {id:"f1", who:"maddy", u:"maddyc", av:"av1", kind:"ranked", movie:"dune2", score:9.2, when:"58 minutes ago", likes:4},
+  {id:"f1", who:"maddy", u:"maddyc", av:"av1", kind:"ranked", movie:"dune2", score:9.2, when:"58 minutes ago", likes:4, note:"Best blockbuster in years — saw it twice in IMAX. The sound design alone is worth the ticket."},
   {id:"f2", who:"Emily", u:"emilyq", av:"av2", kind:"watchlisted", movie:"past", when:"3 hours ago", likes:1},
   {id:"f3", who:"jzjackjz", u:"jzjackjz", av:"av3", kind:"ranked", movie:"opp", score:8.7, when:"yesterday", likes:0},
 ];
@@ -2083,6 +2083,7 @@ function openComments(id){
       <div style="flex:1;">
         <div style="font-size:14.5px;"><button style="background:none;border:none;padding:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;" onclick="openMember('${e.u}')">${e.who}</button> ${e.kind==='ranked'?'ranked':'wants to watch'} <b>${m.t}</b></div>
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
+        ${e.note?`<div style="font-size:14px; margin-top:8px;"><b>Notes:</b> ${e.note}</div>`:""}
         <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('${e.id}'); openComments('${id}')">${likeIcon(e.id)}${likeN?`<span style="font-size:11px;font-weight:700;"> ${likeN}</span>`:""}</button>
           <span class="sub">${e.when}</span>

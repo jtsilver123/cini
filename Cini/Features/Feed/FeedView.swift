@@ -1022,6 +1022,9 @@ struct CommentsSheet: View {
     @State private var headerLikeCount = 0
     @State private var headerSeeded = false
     @State private var noteRevealed = false
+    // Feed events don't carry the note inline; fetch it for the header when the
+    // context didn't supply one (the movie page already passes its note).
+    @State private var fetchedNote: String?
 
     var body: some View {
         NavigationStack {
@@ -1102,7 +1105,14 @@ struct CommentsSheet: View {
         } message: { _ in
             Text("You won't see each other's rankings, notes, or activity.")
         }
-        .task { await reload() }
+        .task {
+            await reload()
+            // Backfill the note for the header when the caller couldn't supply
+            // one (feed posts), so the thread shows the review like Beli.
+            if let c = context, c.note == nil, fetchedNote == nil, let m = c.movie {
+                fetchedNote = await SupabaseService.shared.note(userID: c.actorId, movieID: m.tmdbID)
+            }
+        }
         // Seed the header's like state from the context once; the heart owns it
         // optimistically after that.
         .onAppear {
@@ -1155,7 +1165,7 @@ struct CommentsSheet: View {
                 }
             }
 
-            if let note = c.note, !note.isEmpty {
+            if let note = (c.note ?? fetchedNote), !note.isEmpty {
                 if c.containsSpoilers && !noteRevealed {
                     Button {
                         Haptics.tap()
