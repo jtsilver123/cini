@@ -658,18 +658,22 @@ function renderFeed(){
 
   // "Friends are watching" — Instagram/Snap-style story circles (green ring = caught up).
   const wk = Object.keys(MOVIES);
-  const watchPairs = [[wk[0],"maddyc","M",false],[wk[1]||wk[0],"jdoe","J",false],[wk[2]||wk[0],"sara","S",true]];
+  S.seenStories = S.seenStories || {};
+  const _sk = (k,u)=>`${u}_${k}`;
+  let watchPairs = [[wk[0],"maddyc","M",false],[wk[1]||wk[0],"jdoe","J",false],[wk[2]||wk[0],"sara","S",true]];
+  // Unseen first; viewed ones sink to the back (and dim).
+  watchPairs = watchPairs.filter(p=>!S.seenStories[_sk(p[0],p[1])]).concat(watchPairs.filter(p=>S.seenStories[_sk(p[0],p[1])]));
   const watchingShelf = `
     <div class="pad" style="margin-top:14px;">
       <div class="row-scroll" style="gap:14px;">
-        ${watchPairs.map(([k,u,init,caught])=>{ const mm=MOVIES[k];
-          const ring = caught ? "var(--scoregreen,#4ade80)" : "linear-gradient(135deg,var(--marquee),#a8352a)";
-          return `<div style="cursor:pointer;text-align:center;flex:0 0 auto;width:74px;" onclick="watchStory('${k}','${u}','${init}',${caught})">
+        ${watchPairs.map(([k,u,init,caught])=>{ const mm=MOVIES[k]; const seen=S.seenStories[_sk(k,u)];
+          const ring = seen ? "rgba(255,255,255,.16)" : (caught ? "var(--scoregreen,#4ade80)" : "linear-gradient(135deg,var(--marquee),#a8352a)");
+          return `<div style="cursor:pointer;text-align:center;flex:0 0 auto;width:74px;opacity:${seen?.55:1};" onclick="watchStory('${k}','${u}','${init}',${caught})">
             <div style="position:relative;width:62px;height:62px;margin:0 auto;border-radius:50%;padding:3px;background:${ring};">
               <div class="avatar av1" style="width:100%;height:100%;border:2px solid var(--bg);font-size:20px;">${init}</div>
               ${caught?`<span style="position:absolute;bottom:-2px;right:-2px;background:var(--bg);border-radius:50%;color:var(--scoregreen,#4ade80);font-size:16px;line-height:1;">●</span>`:""}
             </div>
-            <div class="sub" style="font-size:11px;margin-top:5px;color:var(--ink);">${mm.t}</div>
+            <div class="sub" style="font-size:11px;margin-top:5px;color:${seen?'var(--gray)':'var(--ink)'};">${mm.t}</div>
           </div>`; }).join("")}
       </div>
     </div>`;
@@ -2178,6 +2182,8 @@ function openNotifications(){
   S.notifs.forEach(n=>n.unread=false); save();
 }
 function watchStory(k,u,init,caught){
+  // Mark seen so it dims and sinks to the back (no manual dismiss).
+  S.seenStories = S.seenStories || {}; S.seenStories[`${u}_${k}`] = true; save();
   const m=MOVIES[k];
   renderSheet(`
     <div style="position:relative;height:200px;overflow:hidden;margin:-16px -16px 0;background:linear-gradient(180deg,rgba(0,0,0,.2),rgba(0,0,0,.92)),url('${IMG(m.bd||m.p)}') center/cover;">

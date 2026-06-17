@@ -12,18 +12,56 @@ func episodeLabel(season: Int?, episode: Int?) -> String? {
 
 // MARK: - "Friends are watching" shelf (the binging signal on the feed)
 
+/// Remembers which watching "stories" you've already opened, so seen ones can
+/// sink to the back and dim — no manual dismiss. Keyed by member+show+progress,
+/// so a friend moving forward re-surfaces as fresh.
+enum WatchingStoriesSeen {
+    private static let key = "watchingStoriesSeen"
+    private static let cap = 300
+
+    static func all() -> Set<String> {
+        Set((UserDefaults.standard.array(forKey: key) as? [String]) ?? [])
+    }
+    static func markSeen(_ id: String) {
+        var arr = (UserDefaults.standard.array(forKey: key) as? [String]) ?? []
+        guard !arr.contains(id) else { return }
+        arr.append(id)
+        if arr.count > cap { arr.removeFirst(arr.count - cap) }
+        UserDefaults.standard.set(arr, forKey: key)
+    }
+}
+
 /// "Friends are watching" as Instagram/Snap-style story circles at the top of
 /// the feed. A gold ring means mid-binge; a green ring + check means caught up.
+/// Once you open one it dims and moves to the back so unseen ones stay up front.
 struct FriendsWatchingShelf: View {
     let rows: [FriendWatchingRow]
     var onTap: (FriendWatchingRow) -> Void
+
+    @State private var seen: Set<String> = WatchingStoriesSeen.all()
+
+    /// Identity that also folds in the friend's progress timestamp, so when they
+    /// advance, the story counts as new again.
+    private func key(_ r: FriendWatchingRow) -> String {
+        "\(r.id)@\(Int(r.updatedAt.timeIntervalSince1970))"
+    }
+
+    /// Unseen first (keeping their order), already-viewed sink to the back.
+    private var ordered: [FriendWatchingRow] {
+        rows.filter { !seen.contains(key($0)) } + rows.filter { seen.contains(key($0)) }
+    }
 
     var body: some View {
         if !rows.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 14) {
-                    ForEach(rows) { row in
-                        Button { onTap(row) } label: { story(row) }
+                    ForEach(ordered) { row in
+                        Button {
+                            let k = key(row)
+                            seen.insert(k)
+                            WatchingStoriesSeen.markSeen(k)
+                            onTap(row)
+                        } label: { story(row, isSeen: seen.contains(key(row))) }
                             .buttonStyle(.plain)
                     }
                 }
@@ -32,20 +70,25 @@ struct FriendsWatchingShelf: View {
                 // rest but scroll cleanly to the screen edges.
                 .padding(.horizontal, 16).padding(.vertical, 8)
             }
+            .animation(.snappy, value: ordered)
         }
     }
 
-    private func story(_ row: FriendWatchingRow) -> some View {
+    private func ringStyle(_ row: FriendWatchingRow, isSeen: Bool) -> AnyShapeStyle {
+        if isSeen { return AnyShapeStyle(Theme.gray.opacity(0.5)) }
+        return row.caughtUp
+            ? AnyShapeStyle(Theme.scoreGreen)
+            : AnyShapeStyle(LinearGradient(colors: [Theme.marquee, Theme.velvet],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    private func story(_ row: FriendWatchingRow, isSeen: Bool) -> some View {
         VStack(spacing: 6) {
             AvatarView(url: row.avatarUrl.flatMap { URL(string: $0) }, size: 62,
                        name: preferredName(row.displayName, row.username))
                 .overlay(
                     Circle()
-                        .strokeBorder(row.caughtUp
-                                      ? AnyShapeStyle(Theme.scoreGreen)
-                                      : AnyShapeStyle(LinearGradient(colors: [Theme.marquee, Theme.velvet],
-                                                                     startPoint: .topLeading, endPoint: .bottomTrailing)),
-                                      lineWidth: 2.5)
+                        .strokeBorder(ringStyle(row, isSeen: isSeen), lineWidth: 2.5)
                         .padding(-4)
                 )
                 // Caught-up check badge.
@@ -58,9 +101,11 @@ struct FriendsWatchingShelf: View {
                             .offset(x: 2, y: 2)
                     }
                 }
+                // Seen stories dim so unseen ones read as the fresh ones.
+                .opacity(isSeen ? 0.55 : 1)
             Text(row.title)
                 .font(.caption2)
-                .foregroundStyle(Theme.ink)
+                .foregroundStyle(isSeen ? Theme.gray : Theme.ink)
                 .lineLimit(1)
                 .frame(width: 74)
         }
