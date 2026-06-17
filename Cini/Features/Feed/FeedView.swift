@@ -732,7 +732,6 @@ struct FeedCard: View {
     @State private var showComments = false
     @State private var heartPop = false
     @State private var likeCount = 0
-    @State private var countsLoaded = false
     // Stashed when a commenter is tapped; opened after the sheet dismisses so
     // the profile pushes cleanly in the main nav stack (not inside the sheet).
     @State private var pendingMember: MemberRef?
@@ -933,10 +932,11 @@ struct FeedCard: View {
         .onChange(of: initiallyLiked, initial: true) { _, isLiked in
             liked = isLiked
         }
-        // Seed the like count from the server once; optimistic toggles own it
-        // after that (re-seeding on every appear would clobber them).
-        .onAppear {
-            if !countsLoaded { likeCount = event.likeCount; countsLoaded = true }
+        // Adopt the server like count on first render and reconcile to it on
+        // every refresh. Optimistic toggles change local state, not this server
+        // snapshot, so they're never clobbered (same pattern as `liked`).
+        .onChange(of: event.likeCount, initial: true) { _, count in
+            likeCount = count
         }
         .sheet(isPresented: $showComments, onDismiss: {
             if let m = pendingMember { pendingMember = nil; onOpenMember(m) }
