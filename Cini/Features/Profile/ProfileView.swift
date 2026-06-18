@@ -799,7 +799,7 @@ struct ProfileScreen: View {
             userID: resolvedID,
             title: profile?.displayName ?? username.map { "@\($0)" } ?? "Lists",
             rankings: rankings, movies: movies, watchingRows: watchingRows,
-            lockedHint: lockedHint, initial: initial)
+            lockedHint: lockedHint, loaded: loaded, initial: initial)
     }
 
     /// The overlapping-avatars header data for the "both" screens.
@@ -1223,6 +1223,9 @@ struct RankedListScreen: View {
     let rankings: [RankingRow]
     let movies: [Int: Movie]
     var isSelf = true
+    /// False while the parent is still fetching (member profiles), so the empty
+    /// text doesn't flash before the rankings arrive.
+    var loaded = true
     var emptyHint: String?
     // When embedded in MemberListsView, taps route to the parent's nav and this
     // screen drops its own title/destination so the tabs share one back arrow.
@@ -1326,7 +1329,9 @@ struct RankedListScreen: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                     .padding(.bottom, 10)
                 }
-                if rankings.isEmpty {
+                if !loaded && rankings.isEmpty {
+                    ListSkeleton(rows: 8)
+                } else if rankings.isEmpty {
                     Text(emptyHint ?? "Nothing here yet.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
@@ -1628,6 +1633,9 @@ struct MemberListsView: View {
     let movies: [Int: Movie]
     let watchingRows: [WatchingRow]
     let lockedHint: String?
+    /// False while the parent profile is still fetching, so the Watched tab
+    /// shows a skeleton instead of flashing "Nothing here yet".
+    var loaded: Bool = true
     @State private var category: MediaCategory = .movies
     @State private var subTab: Tab
     @State private var detailMovie: Movie?
@@ -1636,9 +1644,10 @@ struct MemberListsView: View {
     enum Tab: String, CaseIterable { case watched = "Watched", watchlist = "Want to Watch", watching = "Watching" }
 
     init(userID: UUID?, title: String, rankings: [RankingRow], movies: [Int: Movie],
-         watchingRows: [WatchingRow], lockedHint: String?, initial: Tab = .watched) {
+         watchingRows: [WatchingRow], lockedHint: String?, loaded: Bool = true, initial: Tab = .watched) {
         self.userID = userID; self.title = title; self.rankings = rankings
         self.movies = movies; self.watchingRows = watchingRows; self.lockedHint = lockedHint
+        self.loaded = loaded
         _subTab = State(initialValue: initial)
     }
 
@@ -1664,7 +1673,7 @@ struct MemberListsView: View {
             switch active {
             case .watched:
                 RankedListScreen(title: "Watched", rankings: rankings, movies: movies,
-                                 isSelf: false, emptyHint: lockedHint,
+                                 isSelf: false, loaded: loaded, emptyHint: lockedHint,
                                  openDetail: { detailMovie = $0 }, openLog: { logMovie = $0 },
                                  forcedCategory: category)
             case .watchlist:

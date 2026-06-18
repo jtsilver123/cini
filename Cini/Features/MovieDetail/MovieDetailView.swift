@@ -19,6 +19,7 @@ struct MovieDetailView: View {
 
     @State private var community: CommunityScore?
     @State private var friends: [FriendScoreRow] = []
+    @State private var friendsLoaded = false
     @State private var histogram: [HistogramBin] = []
     @State private var performances: [PerformanceCount] = []
     @State private var providers: WatchProviders?
@@ -864,7 +865,9 @@ struct MovieDetailView: View {
 
             switch peopleTab {
             case .friends:
-                if friends.isEmpty {
+                if !friendsLoaded {
+                    ListSkeleton(rows: 3)
+                } else if friends.isEmpty {
                     Text("None of your friends have ranked this yet.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
@@ -1354,6 +1357,7 @@ struct MovieDetailView: View {
         trailerURL = try? await trailerTask
         community = stats?.community
         friends = (try? await friendsTask) ?? []
+        friendsLoaded = true
         watchlistFriends = (try? await SupabaseService.shared.watchlistFriends(movieID: pid)) ?? []
         watchingFriends = await SupabaseService.shared.watchingFriends(movieID: pid)
         await loadWatchPlans(pid)

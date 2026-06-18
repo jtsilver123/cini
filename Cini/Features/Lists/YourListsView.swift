@@ -24,6 +24,7 @@ struct YourListsView: View {
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
     @State private var watchingRows: [WatchingRow] = []
+    @State private var watchingLoaded = false
     @State private var showWatchingInfo = false
     @State private var predicted: [Int: Double] = [:]
     @State private var showListSearch = false
@@ -41,6 +42,7 @@ struct YourListsView: View {
     @State private var customLists: [CustomList] = []
     @State private var selectedListID: UUID?
     @State private var customListMovies: [Movie] = []
+    @State private var customListLoaded = false
     @State private var showEditLists = false
     @State private var showNewList = false
     @State private var newListName = ""
@@ -123,6 +125,7 @@ struct YourListsView: View {
             .task(id: subTab) {
                 if subTab == .watching, let me = SupabaseService.shared.currentUserID {
                     watchingRows = await SupabaseService.shared.watching(for: me)
+                    watchingLoaded = true
                 }
             }
             .alert("Currently Watching", isPresented: $showWatchingInfo) {
@@ -621,7 +624,11 @@ struct YourListsView: View {
     /// One of the user's own lists, inline — same rows, swipe to remove.
     private var customListContent: some View {
         List {
-            if customListMovies.isEmpty {
+            if !customListLoaded {
+                ListSkeleton(rows: 6)
+                    .listRowBackground(Theme.background)
+                    .listRowSeparator(.hidden)
+            } else if customListMovies.isEmpty {
                 Text("Nothing in this list yet — open any movie or show and tap \"Add to List.\"")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
@@ -690,11 +697,13 @@ struct YourListsView: View {
         .task(id: selectedListID) {
             guard let listID = selectedListID else { return }
             customListMovies = []
+            customListLoaded = false
             let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
             let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
             let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.tmdbId, $0.asMovie) })
             customListMovies = ids.compactMap { byID[$0] ?? store.movie($0) }
             for movie in customListMovies { store.cache(movie) }
+            customListLoaded = true
         }
     }
 
@@ -942,7 +951,7 @@ struct YourListsView: View {
         }
         .listStyle(.plain)
         .overlay {
-            if watchingRows.isEmpty {
+            if watchingLoaded && watchingRows.isEmpty {
                 emptyList("Mark a show “I'm watching this” on its page and it shows up here.",
                           actionTitle: "Find a show") {
                     tabRouter.pendingSearchBrowse = .trending
