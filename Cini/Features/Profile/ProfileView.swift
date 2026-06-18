@@ -1,6 +1,22 @@
 import SwiftUI
 import RankingEngine
 
+/// Last-known follower/following counts per user, so a profile shows real
+/// numbers instantly on return instead of flashing 0 while the live count loads.
+enum ProfileCountsCache {
+    static func get(_ id: UUID) -> (followers: Int, following: Int)? {
+        let d = UserDefaults.standard
+        let fk = "pc.f.\(id.uuidString)"
+        guard d.object(forKey: fk) != nil else { return nil }
+        return (d.integer(forKey: fk), d.integer(forKey: "pc.g.\(id.uuidString)"))
+    }
+    static func set(_ id: UUID, followers: Int, following: Int) {
+        let d = UserDefaults.standard
+        d.set(followers, forKey: "pc.f.\(id.uuidString)")
+        d.set(following, forKey: "pc.g.\(id.uuidString)")
+    }
+}
+
 /// One profile UI for everyone: your own tab and any member you tap into.
 /// Identity → stats → (Edit/Share | Follow) → Taste Profile → Activity →
 /// ranked list. Self gets the menu (import, sign out); others get Follow.
@@ -24,6 +40,9 @@ struct ProfileScreen: View {
     @State private var showAllActivity = false
     @State private var followerCount = 0
     @State private var followingCount = 0
+    /// True once we have a real value (cached or freshly loaded) — until then
+    /// the stat shows "—" rather than a misleading 0.
+    @State private var hasCounts = false
     @State private var following = false
     @State private var requested = false   // pending follow request to a private account
     @State private var blocked = false
@@ -161,9 +180,8 @@ struct ProfileScreen: View {
             }
         }
         .onAppear {
-            // Counts are the thing most prone to a stale 0 (e.g. the tab
-            // appears before the session profile resolves) — refresh them every
-            // time, cheaply, independent of the throttled heavy load.
+            // Show last-known counts instantly (no flash of 0), then refresh.
+            seedCachedCounts()
             Task { await loadCounts() }
             // Fresh when you come back, without re-firing 6 queries on
             // every quick tab flick.
@@ -174,6 +192,7 @@ struct ProfileScreen: View {
         // (resolvedID nil → load bails, counts stay 0); refresh once it lands.
         .onChange(of: session.profile?.id) { _, id in
             guard id != nil else { return }
+            seedCachedCounts()
             Task { await loadCounts() }
             if !loaded { Task { await load() } }
         }
@@ -181,8 +200,18 @@ struct ProfileScreen: View {
 
     // MARK: Data
 
+    /// Seed counts from the per-user cache so the stats render real numbers
+    /// immediately on return instead of a 0 (or "—") while the live count loads.
+    private func seedCachedCounts() {
+        guard !hasCounts, let id = resolvedID,
+              let cached = ProfileCountsCache.get(id) else { return }
+        followerCount = cached.followers
+        followingCount = cached.following
+        hasCounts = true
+    }
+
     /// Follower / following counts — cheap HEAD queries, refreshed on every
-    /// appearance so they never show a stale 0.
+    /// appearance, cached so they never flash a stale 0.
     private func loadCounts() async {
         guard let id = resolvedID else { return }
         let supabase = SupabaseService.shared
@@ -192,6 +221,8 @@ struct ProfileScreen: View {
         let g = await following
         followerCount = f
         followingCount = g
+        hasCounts = true
+        ProfileCountsCache.set(id, followers: f, following: g)
     }
 
     /// Everything loads in parallel — serially this took over a second of
@@ -457,18 +488,18 @@ struct ProfileScreen: View {
                 NavigationLink {
                     FollowListScreen(userID: id, direction: .followers)
                 } label: {
-                    stat("\(followerCount)", "Followers")
+                    stat(hasCounts ? "\(followerCount)" : "—", "Followers")
                 }
                 .buttonStyle(.plain)
                 NavigationLink {
                     FollowListScreen(userID: id, direction: .following)
                 } label: {
-                    stat("\(followingCount)", "Following")
+                    stat(hasCounts ? "\(followingCount)" : "—", "Following")
                 }
                 .buttonStyle(.plain)
             } else {
-                stat("\(followerCount)", "Followers")
-                stat("\(followingCount)", "Following")
+                stat(hasCounts ? "\(followerCount)" : "—", "Followers")
+                stat(hasCounts ? "\(followingCount)" : "—", "Following")
             }
             // Rank on Cini lives in its own stat card below — don't show it twice.
         }
