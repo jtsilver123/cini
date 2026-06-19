@@ -70,7 +70,9 @@ struct YourListsView: View {
             // Currently Watching is a TV-only concept (you binge shows, not
             // movies) — hide it under the Movies category.
             case .watching: return category == .tvShows
-            case .recs, .friendRecs: return !hiddenTabs.contains(tab.rawValue)
+            // The dedicated Recs tab now covers personalized recs.
+            case .recs: return false
+            case .friendRecs: return !hiddenTabs.contains(tab.rawValue)
             default: return true
             }
         }

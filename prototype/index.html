@@ -292,7 +292,7 @@
       Feed</button>
     <button class="tab" data-go="swipe">
       <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><rect x="2.5" y="7" width="3" height="10" rx="1"/><rect x="18.5" y="7" width="3" height="10" rx="1"/></svg>
-      Swipe</button>
+      Recs</button>
     <button class="tab center" onclick="openSearchForRank()"><span class="plus">+</span>Search</button>
     <button class="tab" data-go="lists">
       <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
@@ -900,7 +900,7 @@ function renderLists(){
       </button>
     </div>
     <div class="subtabs">
-      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["watching","Watching"],["recs","Recs"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k) && !(k==="watching" && S.category!=="TV")).map(([k,l])=>
+      ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["watching","Watching"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k) && !(k==="watching" && S.category!=="TV")).map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:12px;">
@@ -1006,7 +1006,6 @@ function openEditLists(){
       <button class="iconbtn" onclick="closeOverlay(); render()">${I("check",18)}</button></div>
     <div class="sheet-body">
       <div class="sub" style="font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px;">DEFAULT LISTS</div>
-      <div class="erow" style="cursor:default;"><span style="flex:1;">Recs</span>${tog("recs")}</div>
       <div class="erow" style="cursor:default;"><span style="flex:1;">Friend Recs</span>${tog("shared")}</div>
       <div class="sub" style="font-size:11.5px; margin:6px 0 14px;">Watched and Want to Watch always stay.</div>
       <div class="sub" style="font-weight:800; font-size:11px; letter-spacing:.08em; margin-bottom:4px;">YOUR LISTS</div>
@@ -1215,7 +1214,7 @@ function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
 function renderSwipe(){
   const pool=swipePool();
   const head=`<div class="pad" style="display:flex; align-items:center; padding-top:14px; padding-bottom:2px;">
-      <b style="font-size:21px;">Swipe</b><span class="spacer"></span>
+      <b style="font-size:21px;">Recs</b><span class="spacer"></span>
       <button class="iconbtn" onclick="openFilters()" aria-label="Filter" style="margin-right:8px;">${I("sliders",20)}</button>
       <button class="iconbtn" onclick="openImport()" aria-label="Import" style="margin-right:8px;">${I("download",20)}</button>
       <button class="pill out" onclick="swipeGrid=!swipeGrid; renderSwipe()">${swipeGrid?'Cards':'Grid'}</button></div>
@@ -1426,7 +1425,7 @@ function renderProfile(){
       ${listRow("bookmark","Want to Watch",wlCount, isSelf?"S.subTab='watchlist'; save(); go('lists')":`openMemberWatchlist('${handle}')`)}
       ${listRow("star","Lists",null,"openCustomLists()")}
       ${listRow("calendar","Diary",null,"openDiary()")}
-      ${isSelf?listRow("heart","Recs for You",null,"S.subTab='recs'; save(); go('lists')")
+      ${isSelf?listRow("heart","Recs for You",null,"go('swipe')")
               :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
     </div>
     <div class="pad" style="display:flex; gap:12px; margin-top:14px;">

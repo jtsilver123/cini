@@ -97,7 +97,7 @@ struct SwipeView: View {
     private var header: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                Text("Swipe").font(Theme.pageHeader)
+                Text("Recs").font(Theme.pageHeader)
                 Spacer()
                 Button { showFilterSheet = true } label: {
                     Image(systemName: "line.3.horizontal.decrease")

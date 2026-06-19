@@ -353,7 +353,6 @@ struct EditListsSheet: View {
         NavigationStack {
             List {
                 Section {
-                    Toggle("Recs", isOn: visibility(for: "Recs"))
                     Toggle("Friend Recs", isOn: visibility(for: "Friend Recs"))
                 } header: {
                     Text("Default lists")
