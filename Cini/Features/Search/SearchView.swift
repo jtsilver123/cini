@@ -21,6 +21,11 @@ struct SearchView: View {
     // "Movies / TV shows you may have seen" toggle (CIN-34) — filters both the
     // cold-start suggestions and the browse results to the chosen kind.
     @State private var suggestTV = false
+    // Grid (new default) vs list for the suggestions area (CIN-33).
+    @AppStorage("search.suggestionsGrid") private var maybeSeenGrid = true
+    // Watched count captured when a rank starts, so we can confirm "added to
+    // Watched" once the rank flow closes.
+    @State private var watchedCountAtRank = 0
     @State private var showAllMaybeSeen = false
     @State private var showImport = false
     // Once dismissed, the import banner stays hidden (a toast points the user to
@@ -105,7 +110,13 @@ struct SearchView: View {
             }
             .nativeContentWidth()
             .background(Theme.background)
-            .fullScreenCover(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie, onDismiss: {
+                // Ranked one of the suggestions → it's now in Watched; the card
+                // animates out of the grid and we confirm where it went (CIN-33).
+                if store.watchedCount > watchedCountAtRank {
+                    ToastCenter.shared.show("Added to your Watched list 🎬")
+                }
+            }) { movie in
                 LogFlowView(movie: movie)
             }
             .sheet(isPresented: $showImport) {
@@ -318,8 +329,11 @@ struct SearchView: View {
         // The heading (with the Movies/TV toggle) stays even when a filter is
         // active — only the import prompt drops away here (CIN-34).
         VStack(alignment: .leading, spacing: 6) {
-            maybeSeenHeading
-            let results = browseResults.filter { matchesToggle($0) && !store.isWatched($0.tmdbID) }
+            HStack { maybeSeenHeading; Spacer(); suggestionsViewToggle }
+            let results = browseResults.filter {
+                matchesToggle($0) && !store.isWatched($0.tmdbID)
+                    && !dismissedMaybeSeen.contains($0.tmdbID)
+            }
             if results.isEmpty {
                 if browseLoaded {
                     Text("Nothing here right now — try another filter.")
@@ -329,15 +343,7 @@ struct SearchView: View {
                     SearchSkeleton(kind: .titles)
                 }
             } else {
-                ForEach(results) { movie in
-                    MovieSuggestionRow(
-                        movie: movie,
-                        onRank: { logMovie = movie },
-                        onOpen: { detailMovie = movie },
-                        zoomNamespace: posterZoom
-                    )
-                    Divider()
-                }
+                suggestions(results)
             }
         }
         .padding(.top, 8)
@@ -590,6 +596,52 @@ struct SearchView: View {
         suggestTV ? movie.mediaKind == "tv" : movie.mediaKind != "tv"
     }
 
+    /// Grid (default) or list renderer for a set of suggestions (CIN-33).
+    @ViewBuilder
+    private func suggestions(_ list: [Movie]) -> some View {
+        if maybeSeenGrid {
+            SuggestionGrid(
+                movies: list,
+                onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                onSave: { movie in
+                    guard !store.isOnWatchlist(movie.tmdbID) else { return }
+                    Task { await store.toggleWatchlist(movie: movie) }
+                    ToastCenter.shared.show("Saved to Want to Watch ✓")
+                },
+                onDismiss: { movie in
+                    withAnimation(.snappy) { _ = dismissedMaybeSeen.insert(movie.tmdbID) }
+                }
+            )
+            .padding(.top, 4)
+        } else {
+            ForEach(list) { movie in
+                MovieSuggestionRow(
+                    movie: movie,
+                    onRank: { watchedCountAtRank = store.watchedCount; logMovie = movie },
+                    onOpen: { detailMovie = movie },
+                    onDismiss: { dismissedMaybeSeen.insert(movie.tmdbID) },
+                    zoomNamespace: posterZoom
+                )
+                Divider()
+            }
+        }
+    }
+
+    /// Grid/List switch for the suggestions area.
+    private var suggestionsViewToggle: some View {
+        Button {
+            withAnimation(.snappy) { maybeSeenGrid.toggle() }
+        } label: {
+            Image(systemName: maybeSeenGrid ? "list.bullet" : "square.grid.2x2")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .padding(6)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(maybeSeenGrid ? "Show as list" : "Show as grid")
+    }
+
     /// "**Movies** you may have seen" — the leading word is a bold toggle that
     /// flips Movies ↔ TV shows and re-filters the suggestions (CIN-34).
     private var maybeSeenHeading: some View {
@@ -615,22 +667,14 @@ struct SearchView: View {
 
     private var popularFallbackSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            maybeSeenHeading
+            HStack { maybeSeenHeading; Spacer(); suggestionsViewToggle }
 
             if !importBannerHidden { importBanner }
 
-            ForEach(visibleMaybeSeen.prefix(showAllMaybeSeen ? 100 : 4)) { movie in
-                MovieSuggestionRow(
-                    movie: movie,
-                    onRank: { logMovie = movie },
-                    onOpen: { detailMovie = movie },
-                    onDismiss: { dismissedMaybeSeen.insert(movie.tmdbID) },
-                    zoomNamespace: posterZoom
-                )
-                Divider()
-            }
+            let cap = showAllMaybeSeen ? 100 : (maybeSeenGrid ? 12 : 4)
+            suggestions(Array(visibleMaybeSeen.prefix(cap)))
 
-            if visibleMaybeSeen.count > 4 && !showAllMaybeSeen {
+            if visibleMaybeSeen.count > cap && !showAllMaybeSeen {
                 seeAllButton(count: visibleMaybeSeen.count)
             }
         }
