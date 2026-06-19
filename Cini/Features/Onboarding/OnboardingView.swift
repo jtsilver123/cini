@@ -1,17 +1,15 @@
 import SwiftUI
 
 /// First-run flow for a brand-new account. Value props and phone/email/password
-/// are collected before this (the pre-auth carousel + sign-up), Beli-style, so
-/// onboarding picks up at the welcome:
+/// are collected before this (the static welcome + sign-up), so onboarding
+/// picks up at:
 ///
 ///   0. You're in! — meet Jake, the friend everyone starts following
-///   1. What's your name? — first + last (how friends see you)
-///   2. Your username — the @handle (and who invited you)
-///   3. Add a profile photo — its own screen, skippable
-///   4. Find your friends — contacts + invite
-///   5. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
-///   6. Stay in the loop — enable notifications + theater alerts
-///   7. Rank your first movie — a poster grid of iconic titles
+///   1. Create your profile — photo + name + @handle + who invited you, one screen
+///   2. Find your friends — contacts + invite
+///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
+///   4. Stay in the loop — notifications opt-in (re-asked after the first rank)
+///   5. Rank your first movie — a poster grid of iconic titles
 ///
 /// Shown once (per account) when an authenticated user has zero rankings.
 struct OnboardingView: View {
@@ -30,6 +28,9 @@ struct OnboardingView: View {
     @State private var firstName = ""
     @State private var lastName = ""
     @State private var usernameError: String?
+    /// True once the user edits the @handle themselves, so we stop auto-filling
+    /// it from their name on the merged profile screen.
+    @State private var usernameEdited = false
     @State private var saving = false
     @State private var avatarURL: URL?
     @State private var isUploadingPhoto = false
@@ -39,14 +40,11 @@ struct OnboardingView: View {
     @State private var starters: [Movie] = []
     @State private var logMovie: Movie?
     @State private var notifsEnabled = false
-    @State private var theaterZip: String?
-    @State private var detectingZip = false
+    @State private var showNotifReask = false
     /// The founder everyone auto-follows — introduced on the "You're in!" screen
     /// (Beli's "Judy"). Fetched so the avatar/name stay accurate.
     @State private var founder: Profile?
     @State private var showFounderInfo = false
-    @State private var showInviterEntry = false
-    @State private var inviterDraft = ""
     /// Which text field owns the keyboard — lets us raise it as a text step
     /// appears and lower it cleanly *before* a transition (instead of letting
     /// the keyboard collapse mid-slide, which felt abrupt).
@@ -111,6 +109,15 @@ struct OnboardingView: View {
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
         }
+        // One last, well-timed notifications ask for anyone who skipped the
+        // primer — shown only after they've ranked something.
+        .fullScreenCover(isPresented: $showNotifReask) {
+            NotificationPrimer(
+                onTurnOn: { Task { notifsEnabled = await PushManager.request(); onFinished() } },
+                onSkip: { onFinished() }
+            )
+            .background(Theme.background.ignoresSafeArea())
+        }
         .swipeDismissesKeyboard()
         .task {
             username = session.profile?.username.hasPrefix("user_") == false
@@ -140,13 +147,12 @@ struct OnboardingView: View {
             for movie in starters { store.cache(movie) }
             // Reflect any permissions already granted (re-entering onboarding).
             notifsEnabled = await PushManager.isAuthorized()
-            theaterZip = await SupabaseService.shared.homeZip()
             founder = try? await SupabaseService.shared.profile(id: Self.founderID).asProfile
         }
     }
 
-    /// A back chevron (so a typo'd name/username is fixable) above seven
-    /// progress segments for the seven data steps (1–7).
+    /// A back chevron (so a typo'd name/username is fixable) above the
+    /// progress segments for the five data steps (1–5).
     private var topBar: some View {
         VStack(spacing: 12) {
             HStack {
@@ -162,7 +168,7 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 12)
             HStack(spacing: 6) {
-                ForEach(1..<8, id: \.self) { index in
+                ForEach(1..<6, id: \.self) { index in
                     Capsule()
                         .fill(index <= step ? Theme.gold : Theme.fill)
                         .frame(height: 4)
@@ -178,19 +184,25 @@ struct OnboardingView: View {
     /// before the slide so the two animations don't fight (the "abrupt" feel).
     private func advance() {
         guard focus != nil else {
-            withAnimation(.snappy) { step = min(step + 1, 7) }
+            withAnimation(.snappy) { step = min(step + 1, 5) }
             return
         }
         focus = nil
         Task {
             try? await Task.sleep(for: .milliseconds(260))
-            withAnimation(.snappy) { step = min(step + 1, 7) }
+            withAnimation(.snappy) { step = min(step + 1, 5) }
         }
     }
 
     private func goBack() {
         focus = nil
         withAnimation(.snappy) { step = max(step - 1, 0) }
+    }
+
+    /// Finish — but if they skipped the notifications primer earlier, give it one
+    /// more, well-timed try now that they've actually ranked something.
+    private func finishOnboarding() {
+        if notifsEnabled { onFinished() } else { showNotifReask = true }
     }
 
     /// Raise the keyboard for a text step once its slide-in has settled.
@@ -204,14 +216,135 @@ struct OnboardingView: View {
     @ViewBuilder private var currentStep: some View {
         switch step {
         case 0: youreInStep
-        case 1: nameStep
-        case 2: usernameStep
-        case 3: photoStep
-        case 4: findFriendsStep
-        case 5: importStep
-        case 6: permissionsStep
+        case 1: profileStep        // name + @handle + photo, one screen
+        case 2: findFriendsStep
+        case 3: importStep
+        case 4: notificationsStep
         default: firstRankStep
         }
+    }
+
+    // MARK: 1 — Create your profile (name + @handle + photo, one screen)
+
+    private var profileStep: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 16) {
+                Text("Create your profile")
+                    .font(Theme.serif(34))
+                    .padding(.top, 4)
+
+                // Optional photo first — initials stand in until they add one.
+                Button { showCropPicker = true } label: {
+                    ZStack(alignment: .bottomTrailing) {
+                        AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 92,
+                                   name: fullName.isEmpty ? username : fullName)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                            .foregroundStyle(Theme.marquee)
+                            .background(Circle().fill(Theme.background))
+                    }
+                }
+                .buttonStyle(.plain)
+                if isUploadingPhoto {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("Add a photo · optional").font(.caption).foregroundStyle(Theme.gray)
+                }
+
+                VStack(spacing: 10) {
+                    TextField("First name", text: $firstName)
+                        .textContentType(.givenName)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.next)
+                        .focused($focus, equals: .firstName)
+                        .onSubmit { focus = .lastName }
+                        .padding(14)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                    TextField("Last name · optional", text: $lastName)
+                        .textContentType(.familyName)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.next)
+                        .focused($focus, equals: .lastName)
+                        .onSubmit { focus = .username }
+                        .padding(14)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+
+                    HStack(spacing: 4) {
+                        Text("@").foregroundStyle(Theme.gray)
+                        TextField("username", text: $username)
+                            .textContentType(.username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focus, equals: .username)
+                            .onChange(of: username) { _, new in
+                                username = new.lowercased().filter { $0.isLowercase || $0.isNumber || $0 == "_" }
+                                usernameError = nil
+                                usernameEdited = (username != suggestedUsername)
+                                checkAvailability()
+                            }
+                        switch availability {
+                        case .available: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                        case .taken: Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.scoreRed)
+                        case .checking: ProgressView().controlSize(.small)
+                        case .unknown: EmptyView()
+                        }
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+
+                    Text(usernameHint)
+                        .font(.caption).foregroundStyle(usernameHintColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 4) {
+                        Text("@").foregroundStyle(Theme.gray)
+                        TextField("Friend who invited you · optional", text: $inviterUsername)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.bottom, 16)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .safeAreaInset(edge: .bottom) {
+            PillButton(title: saving ? "Saving…" : "Continue") { Task { await saveUsername() } }
+                .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty
+                          || !usernameValid || availability == .taken || saving)
+                .padding(.horizontal, 28).padding(.vertical, 10)
+                .background(.thinMaterial)
+        }
+        .sheet(isPresented: $showCropPicker) {
+            CropImagePicker { image in Task { await uploadPhoto(image) } }
+                .ignoresSafeArea()
+        }
+        .onAppear {
+            if username.isEmpty, suggestedUsername.count >= 3 {
+                username = suggestedUsername
+                checkAvailability()
+            }
+            if inviterUsername.isEmpty, !pendingInviter.isEmpty { inviterUsername = pendingInviter }
+            focusAfterTransition(.firstName)
+        }
+        // Keep the @handle in step with the name until the user edits it.
+        .onChange(of: fullName) { _, _ in
+            if !usernameEdited {
+                username = suggestedUsername
+                checkAvailability()
+            }
+        }
+    }
+
+    // MARK: 4 — Stay in the loop (opt-in primer; re-asked after the first rank)
+
+    private var notificationsStep: some View {
+        NotificationPrimer(
+            onTurnOn: { Task { notifsEnabled = await PushManager.request(); advance() } },
+            onSkip: { advance() }
+        )
     }
 
     // MARK: 0 — You're in! (meet Jake, the friend everyone starts with)
@@ -238,33 +371,16 @@ struct OnboardingView: View {
             Spacer()
             PillButton(title: "Get started") { advance() }
                 .padding(.horizontal, 28)
-            Button("Invited by someone else?") { inviterDraft = inviterUsername; showInviterEntry = true }
-                .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
+                .padding(.bottom, 30)
         }
-        // Branded bottom sheets — system alerts/dialogs were rendering as a
-        // standard centered iOS alerts (the system confirmationDialog had been
-        // rendering as a misplaced popover bubble).
         .alert("Who's \(founderFirstName)?", isPresented: $showFounderInfo) {
             Button("Got it", role: .cancel) {}
         } message: {
-            Text("\(founderFirstName) founded Cini and lives for movies. Everyone starts out following \(founderFirstName), so your feed has great picks from day one — you can unfollow any time.")
-        }
-        .alert("Who invited you?", isPresented: $showInviterEntry) {
-            TextField("their username", text: $inviterDraft)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Save") {
-                inviterUsername = inviterDraft
-                    .trimmingCharacters(in: .whitespaces)
-                    .replacingOccurrences(of: "@", with: "")
-            }
-            Button("Cancel", role: .cancel) { inviterDraft = "" }
-        } message: {
-            Text("Enter their username and you'll follow each other automatically once you finish.")
+            Text("Hey, I'm \(founderFirstName). I love movies and TV, and I'm a little obsessed with tracking and ranking everything I watch. I built Cini for my friends and family, and to see what making an app is like as someone who can't really code. Everyone starts out following me so your feed has great picks from day one, and you can unfollow any time.")
         }
     }
 
-    // MARK: 4 — Find your friends (Beli puts this in onboarding)
+    // MARK: 2 — Find your friends (Beli puts this in onboarding)
 
     private var findFriendsStep: some View {
         VStack(spacing: 22) {
@@ -325,134 +441,6 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 1 — What's your name? (first + last, like Beli)
-
-    private var nameStep: some View {
-        VStack(spacing: 18) {
-            Spacer()
-            Text("What's your name?")
-                .font(Theme.serif(34))
-            Text("This is how friends will see you.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-
-            VStack(spacing: 10) {
-                TextField("First name", text: $firstName)
-                    .textContentType(.givenName)
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.next)
-                    .focused($focus, equals: .firstName)
-                    .onSubmit { focus = .lastName }
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-                TextField("Last name", text: $lastName)
-                    .textContentType(.familyName)
-                    .textInputAutocapitalization(.words)
-                    .submitLabel(.done)
-                    .focused($focus, equals: .lastName)
-                    .padding(14)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-            }
-            .padding(.horizontal, 28)
-
-            Spacer()
-            PillButton(title: "Continue") { advance() }
-                .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty)
-                .padding(.bottom, 36)
-        }
-        .onAppear { focusAfterTransition(.firstName) }
-    }
-
-    // MARK: 2 — Your username (its own screen, like Beli)
-
-    private var usernameStep: some View {
-        VStack(spacing: 18) {
-            Spacer()
-            Text("Your username")
-                .font(Theme.serif(34))
-            Text("How friends find and follow you — you can change it later.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
-
-            VStack(spacing: 10) {
-                HStack(spacing: 4) {
-                    Text("@").foregroundStyle(Theme.gray)
-                    TextField("username", text: $username)
-                        .textContentType(.username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($focus, equals: .username)
-                        .onChange(of: username) { _, new in
-                            username = new.lowercased().filter { $0.isLowercase || $0.isNumber || $0 == "_" }
-                            usernameError = nil
-                            checkAvailability()
-                        }
-                    switch availability {
-                    case .available:
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(Theme.scoreGreen)
-                    case .taken:
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Theme.scoreRed)
-                    case .checking:
-                        ProgressView().controlSize(.small)
-                    case .unknown:
-                        EmptyView()
-                    }
-                }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-
-                // Fills as you type toward the 3-character minimum, then
-                // turns green — the length rule you can see.
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.fill)
-                        Capsule()
-                            .fill(username.count >= 3 ? Theme.scoreGreen : Theme.marquee)
-                            .frame(width: geo.size.width * min(CGFloat(username.count) / 3, 1))
-                    }
-                }
-                .frame(height: 4)
-                .animation(.snappy(duration: 0.2), value: username.count)
-
-                HStack(spacing: 4) {
-                    Text("@").foregroundStyle(Theme.gray)
-                    TextField("Friend who invited you (optional)", text: $inviterUsername)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .padding(14)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-                // Tapped a friend's invite link → it's already filled in.
-                .onAppear { if inviterUsername.isEmpty, !pendingInviter.isEmpty { inviterUsername = pendingInviter } }
-            }
-            .padding(.horizontal, 28)
-
-            Text(usernameHint)
-                .font(.caption)
-                .foregroundStyle(usernameHintColor)
-
-            Spacer()
-            PillButton(title: saving ? "Saving…" : "Continue") {
-                Task { await saveUsername() }
-            }
-            .disabled(!usernameValid || availability == .taken || saving)
-            .padding(.bottom, 36)
-        }
-        .onAppear {
-            // Pre-fill a suggested handle from their name (Beli-style) — they
-            // can edit it, and the note above says it's changeable later.
-            if username.isEmpty, suggestedUsername.count >= 3 {
-                username = suggestedUsername
-                checkAvailability()
-            }
-            focusAfterTransition(.username)
-        }
-    }
-
     /// A handle guess from the entered name: "janedoe", trimmed to 20 chars.
     private var suggestedUsername: String {
         let base = (firstName + lastName)
@@ -477,49 +465,6 @@ struct OnboardingView: View {
         if usernameError != nil || availability == .taken { return Theme.scoreRed }
         if availability == .available { return Theme.scoreGreen }
         return Theme.gray
-    }
-
-    // MARK: 2 — Add a profile photo (its own screen, like Beli)
-
-    private var photoStep: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Text("Add a profile photo")
-                .font(Theme.serif(32)).multilineTextAlignment(.center)
-            Text("Add a photo so friends know it's you. You can skip it — we'll use your initials for now.")
-                .font(.subheadline).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 32)
-
-            Button {
-                showCropPicker = true
-            } label: {
-                ZStack(alignment: .bottomTrailing) {
-                    AvatarView(url: avatarURL ?? session.profile?.avatarURL, size: 132,
-                               name: fullName.isEmpty ? username : fullName)
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title)
-                        .foregroundStyle(Theme.marquee)
-                        .background(Circle().fill(Theme.background))
-                }
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 6)
-            if isUploadingPhoto { ProgressView().controlSize(.small) }
-
-            Spacer()
-            PillButton(title: avatarURL == nil ? "Add a photo" : "Looks good", style: .filled) {
-                if avatarURL == nil { showCropPicker = true } else { advance() }
-            }
-            .padding(.horizontal, 28)
-            Button(avatarURL == nil ? "Not now" : "Continue without it") { advance() }
-                .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
-        }
-        .sheet(isPresented: $showCropPicker) {
-            CropImagePicker { image in
-                Task { await uploadPhoto(image) }
-            }
-            .ignoresSafeArea()
-        }
     }
 
     private func uploadPhoto(_ image: UIImage) async {
@@ -570,7 +515,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 4 — Bring your history
+    // MARK: 3 — Bring your history
 
     private var importStep: some View {
         VStack(spacing: 18) {
@@ -604,92 +549,7 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 5 — Stay in the loop (notifications + theater alerts)
-
-    private var permissionsStep: some View {
-        VStack(spacing: 18) {
-            Spacer()
-            Image(systemName: "bell.and.waveform.fill")
-                .font(.system(size: 42))
-                .foregroundStyle(Theme.gold)
-            Text("Stay in the loop")
-                .font(Theme.serif(34))
-            Text("Turn these on so you never miss a friend's pick or a movie hitting theaters.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
-
-            VStack(spacing: 12) {
-                permissionRow(
-                    icon: "bell.badge.fill",
-                    title: "Notifications",
-                    subtitle: "Friends' ranks, recs sent your way, and replies.",
-                    done: notifsEnabled, busy: false
-                ) { Task { notifsEnabled = await PushManager.request() } }
-
-                permissionRow(
-                    icon: "popcorn.fill",
-                    title: "Theater alerts",
-                    subtitle: "When a Want to Watch movie is playing near you.",
-                    done: theaterZip != nil, busy: detectingZip
-                ) { Task { await enableTheaterAlerts() } }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 6)
-
-            Spacer()
-            PillButton(title: "Continue") { advance() }
-                .padding(.horizontal, 24)
-            Button("Not now") { advance() }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-                .padding(.bottom, 30)
-        }
-    }
-
-    private func permissionRow(icon: String, title: String, subtitle: String,
-                               done: Bool, busy: Bool,
-                               action: @escaping () -> Void) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(Theme.marquee)
-                .frame(width: 34)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline).foregroundStyle(Theme.ink)
-                Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
-            }
-            Spacer(minLength: 8)
-            if busy {
-                ProgressView()
-            } else if done {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(Theme.scoreGreen)
-            } else {
-                Button("Enable", action: action)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(Theme.marquee)
-                    .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
-    }
-
-    private func enableTheaterAlerts() async {
-        detectingZip = true
-        defer { detectingZip = false }
-        if let zip = try? await LocationZip.shared.currentZip() {
-            await SupabaseService.shared.setHomeZip(zip)
-            theaterZip = zip
-        }
-    }
-
-    // MARK: 6 — Rank your first movie
-
-    /// Overlaid on a poster once it's been ranked — dims it and stamps "RANKED".
+    // MARK: 5 — Rank your first movie
 
     private var firstRankStep: some View {
         VStack(spacing: 14) {
@@ -737,15 +597,85 @@ struct OnboardingView: View {
             // Once they've ranked at least one, a clear "Done" finishes; until
             // then it's a low-key skip so the grid stays the focus.
             if store.watchedCount > 0 {
-                PillButton(title: "Done — \(store.watchedCount) ranked", style: .filled) { onFinished() }
+                PillButton(title: "Done · \(store.watchedCount) ranked", style: .filled) { finishOnboarding() }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 24)
             } else {
-                Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { onFinished() }
+                Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { finishOnboarding() }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.gray)
                     .padding(.bottom, 24)
             }
         }
+    }
+}
+
+/// A friendly notifications opt-in (CIN onboarding): one clear "turn on" CTA
+/// with a sample of the kind of alert you'd get, so the ask feels concrete.
+private struct NotificationPrimer: View {
+    var onTurnOn: () -> Void
+    var onSkip: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Text("Stay in the loop")
+                .font(Theme.serif(34))
+                .foregroundStyle(Theme.ink)
+            Text("Get a heads-up when a friend ranks something, sends you a rec, or replies to you.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+
+            // A sample of what an alert looks like, with a faint card peeking
+            // behind it for that stacked-notifications feel.
+            ZStack {
+                sampleBanner
+                    .scaleEffect(0.93)
+                    .offset(y: 16)
+                    .opacity(0.45)
+                sampleBanner
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+
+            Spacer()
+            PillButton(title: "Turn on notifications") { onTurnOn() }
+                .padding(.horizontal, 24)
+            Button("Maybe later") { onSkip() }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+                .padding(.bottom, 30)
+        }
+    }
+
+    private var sampleBanner: some View {
+        HStack(spacing: 12) {
+            appIcon
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cini").font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                Text("@maya ranked Dune: Part Two 🎬")
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Text("now").font(.caption2).foregroundStyle(Theme.gray)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.surface))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 1))
+        .shadow(color: Theme.cardShadow, radius: 10, y: 4)
+    }
+
+    private var appIcon: some View {
+        RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .fill(Theme.marquee)
+            .frame(width: 44, height: 44)
+            .overlay(
+                Image(systemName: "film.fill")
+                    .font(.title3)
+                    .foregroundStyle(Theme.background)
+            )
     }
 }

@@ -6,10 +6,16 @@ import SwiftUI
 struct AccountSettingsView: View {
     @Environment(AppSession.self) private var session
     @State private var showLogoutConfirm = false
+    @State private var showEditProfile = false
 
     var body: some View {
         Form {
             Section {
+                // Edit Profile carries its own NavigationStack, so it's
+                // presented as a sheet rather than pushed (pushing would
+                // double-nest the navigation bar).
+                actionRow("person.text.rectangle", "Your profile",
+                          "Edit your photo, name, bio, and socials") { showEditProfile = true }
                 settingsRow("person.crop.circle", "Your account",
                             "Change your email, phone, or password") { ManageAccountScreen() }
                 settingsRow("bell.badge", "Notifications",
@@ -35,6 +41,11 @@ struct AccountSettingsView: View {
             Button("Log out", role: .destructive) { Task { await session.signOut() } }
             Button("Cancel", role: .cancel) {}
         }
+        .sheet(isPresented: $showEditProfile) {
+            if let profile = session.profile {
+                EditProfileView(profile: profile, onSaved: { Task { await session.loadProfile() } })
+            }
+        }
     }
 
     /// Icon + title + descriptive subtitle, tappable through to a sub-screen.
@@ -43,17 +54,35 @@ struct AccountSettingsView: View {
         NavigationLink {
             destination()
         } label: {
-            HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.title3).foregroundStyle(Theme.marquee)
-                    .frame(width: 30)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.headline).foregroundStyle(Theme.ink)
-                    Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
-                }
-            }
-            .padding(.vertical, 4)
+            rowLabel(icon, title, subtitle)
         }
+    }
+
+    /// Same look as `settingsRow`, but runs an action (used for the "Your
+    /// profile" row, which presents Edit Profile as a sheet).
+    private func actionRow(_ icon: String, _ title: String, _ subtitle: String,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                rowLabel(icon, title, subtitle)
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func rowLabel(_ icon: String, _ title: String, _ subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3).foregroundStyle(Theme.marquee)
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.headline).foregroundStyle(Theme.ink)
+                Text(subtitle).font(.caption).foregroundStyle(Theme.gray)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 
