@@ -401,6 +401,22 @@ final class TMDBService {
         return response.results[region] ?? WatchProviders(link: nil, flatrate: nil, rent: nil, buy: nil)
     }
 
+    /// Provider name → logo URL for every US streaming provider. Powers the
+    /// Streaming filter's provider list (CIN-5). Relies on the HTTP cache, so
+    /// repeated calls don't re-hit the network.
+    func providerLogos(region: String = "US") async -> [String: URL] {
+        struct Directory: Decodable { let results: [WatchProviders.Provider] }
+        guard let dir: Directory = try? await get(
+            "/watch/providers/movie",
+            query: [URLQueryItem(name: "watch_region", value: region)]
+        ) else { return [:] }
+        var map: [String: URL] = [:]
+        for provider in dir.results where provider.logoURL != nil {
+            map[provider.providerName] = provider.logoURL
+        }
+        return map
+    }
+
     func trailerURL(for movieID: Int) async throws -> URL? {
         let videos: VideosDTO = try await get(Self.mediaPath(movieID, suffix: "/videos"))
         let trailer = videos.results.first { $0.site == "YouTube" && $0.type == "Trailer" }

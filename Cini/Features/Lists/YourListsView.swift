@@ -17,8 +17,7 @@ struct YourListsView: View {
     @AppStorage("lists.genreFilter") private var genreFilter: String?
     @AppStorage("lists.decadeFilter") private var decadeFilter: Int?
     @AppStorage("lists.runtimeFilter") private var runtimeFilter: Int?   // max minutes
-    @AppStorage("lists.streamingFilter") private var streamingFilter = false
-    @AppStorage("lists.languageFilter") private var languageFilter: String?   // ISO 639-1
+    @AppStorage("lists.streamingProvider") private var streamingProviderFilter: String?
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
@@ -231,7 +230,7 @@ struct YourListsView: View {
                     reorderMode = true
                     listQuery = ""; showListSearch = false
                     genreFilter = nil; decadeFilter = nil
-                    runtimeFilter = nil; streamingFilter = false; languageFilter = nil
+                    runtimeFilter = nil; streamingProviderFilter = nil
                     sortDescending = true   // drag offsets need canonical order
                 }
             }
@@ -314,8 +313,7 @@ struct YourListsView: View {
                                     listQuery = ""
                                     showListSearch = false
                                     genreFilter = nil; decadeFilter = nil
-                                    runtimeFilter = nil; streamingFilter = false
-                                    languageFilter = nil
+                                    runtimeFilter = nil; streamingProviderFilter = nil
                                     // Drag offsets map onto the canonical
                                     // order — a reversed list would move
                                     // the wrong rows.
@@ -541,7 +539,7 @@ struct YourListsView: View {
 
     private var hasActiveFilters: Bool {
         genreFilter != nil || decadeFilter != nil || runtimeFilter != nil
-            || streamingFilter || languageFilter != nil
+            || streamingProviderFilter != nil
     }
 
     /// The persisted filter fields exposed as one shared MovieFilters.
@@ -549,15 +547,14 @@ struct YourListsView: View {
         Binding(
             get: {
                 MovieFilters(genre: genreFilter, decade: decadeFilter,
-                             runtime: runtimeFilter, streaming: streamingFilter,
-                             language: languageFilter)
+                             runtime: runtimeFilter,
+                             streamingProvider: streamingProviderFilter)
             },
             set: { filters in
                 genreFilter = filters.genre
                 decadeFilter = filters.decade
                 runtimeFilter = filters.runtime
-                streamingFilter = filters.streaming
-                languageFilter = filters.language
+                streamingProviderFilter = filters.streamingProvider
             }
         )
     }

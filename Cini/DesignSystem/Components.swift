@@ -921,12 +921,11 @@ struct AvatarView: View {
 struct MovieFilters: Equatable {
     var genre: String?
     var decade: Int?
-    var runtime: Int?         // max minutes
-    var streaming = false
-    var language: String?     // ISO 639-1
+    var runtime: Int?              // max minutes
+    var streamingProvider: String? // provider name, e.g. "Netflix"
 
     var isActive: Bool {
-        genre != nil || decade != nil || runtime != nil || streaming || language != nil
+        genre != nil || decade != nil || runtime != nil || streamingProvider != nil
     }
 
     func passes(_ movie: Movie) -> Bool {
@@ -934,10 +933,7 @@ struct MovieFilters: Equatable {
         if let decade, let year = movie.releaseYear,
            !(decade..<decade + 10).contains(year) { return false }
         if let runtime, let minutes = movie.runtimeMinutes, minutes > runtime { return false }
-        if streaming && movie.streamingOn.isEmpty { return false }
-        // Unknown language passes — member lists aren't TMDB-enriched.
-        if let language, let original = movie.originalLanguage,
-           original != language { return false }
+        if let streamingProvider, !movie.streamingOn.contains(streamingProvider) { return false }
         return true
     }
 }
@@ -946,19 +942,19 @@ struct MovieFilters: Equatable {
 /// while something is active and clears everything.
 struct MovieFilterBar: View {
     @Binding var filters: MovieFilters
-    /// The movies being filtered — genre/language menus derive from them.
+    /// The movies being filtered — the genre and provider menus derive from them.
     var movies: [Movie]
+
+    @State private var providerLogos: [String: URL] = [:]
+    @State private var showStreamingPicker = false
 
     private var genres: [String] {
         Array(Set(movies.flatMap(\.genres))).sorted()
     }
 
-    private var languages: [(code: String, name: String)] {
-        let codes = Set(movies.compactMap(\.originalLanguage))
-        return codes.compactMap { code in
-            Locale.current.localizedString(forLanguageCode: code).map { (code, $0) }
-        }
-        .sorted { $0.1 < $1.1 }
+    /// Providers that actually appear in this list, for the Streaming filter.
+    private var providers: [String] {
+        Array(Set(movies.flatMap(\.streamingOn))).sorted()
     }
 
     var body: some View {
@@ -986,6 +982,10 @@ struct MovieFilterBar: View {
                     .buttonStyle(.plain)
                     .glassCapsule()
                 }
+                // Order: Streaming, Genre, Runtime, Decade.
+                FilterPill(title: filters.streamingProvider ?? "Streaming") {
+                    showStreamingPicker = true
+                }
                 Menu {
                     Button("All Genres") { filters.genre = nil }
                     ForEach(genres, id: \.self) { genre in
@@ -993,20 +993,6 @@ struct MovieFilterBar: View {
                     }
                 } label: {
                     FilterPill(title: filters.genre ?? "Genre")
-                }
-                Menu {
-                    Button("All Decades") { filters.decade = nil }
-                    ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { decade in
-                        Button("\(String(decade))s") { filters.decade = decade }
-                    }
-                } label: {
-                    FilterPill(title: filters.decade.map { "\(String($0))s" } ?? "Decade")
-                }
-                Menu {
-                    Button("Anywhere") { filters.streaming = false }
-                    Button("Streaming now") { filters.streaming = true }
-                } label: {
-                    FilterPill(title: filters.streaming ? "Streaming now" : "Streaming")
                 }
                 Menu {
                     Button("Any runtime") { filters.runtime = nil }
@@ -1017,18 +1003,86 @@ struct MovieFilterBar: View {
                     FilterPill(title: filters.runtime.map { "< \($0) min" } ?? "Runtime")
                 }
                 Menu {
-                    Button("All Languages") { filters.language = nil }
-                    ForEach(languages, id: \.code) { language in
-                        Button(language.name) { filters.language = language.code }
+                    Button("All Decades") { filters.decade = nil }
+                    ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { decade in
+                        Button("\(String(decade))s") { filters.decade = decade }
                     }
                 } label: {
-                    FilterPill(title: filters.language.flatMap {
-                        Locale.current.localizedString(forLanguageCode: $0)
-                    } ?? "Language")
+                    FilterPill(title: filters.decade.map { "\(String($0))s" } ?? "Decade")
                 }
             }
             .padding(.horizontal, 16)
         }
         .padding(.vertical, 10)
+        // The Streaming filter is a provider list (with logos), not a menu.
+        .sheet(isPresented: $showStreamingPicker) {
+            streamingPicker
+        }
+        .task {
+            if providerLogos.isEmpty {
+                providerLogos = await TMDBService.shared.providerLogos()
+            }
+        }
+    }
+
+    private var streamingPicker: some View {
+        NavigationStack {
+            List {
+                Button {
+                    filters.streamingProvider = nil
+                    showStreamingPicker = false
+                } label: {
+                    HStack {
+                        Text("Any provider").foregroundStyle(Theme.ink)
+                        Spacer()
+                        if filters.streamingProvider == nil {
+                            Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
+                        }
+                    }
+                }
+                ForEach(providers, id: \.self) { name in
+                    Button {
+                        filters.streamingProvider = name
+                        showStreamingPicker = false
+                    } label: {
+                        HStack(spacing: 12) {
+                            providerLogo(name)
+                            Text(name).foregroundStyle(Theme.ink)
+                            Spacer()
+                            if filters.streamingProvider == name {
+                                Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
+                            }
+                        }
+                    }
+                }
+                if providers.isEmpty {
+                    Text("No streaming info for this list yet.")
+                        .font(.subheadline).foregroundStyle(Theme.gray)
+                }
+            }
+            .navigationTitle("Streaming")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showStreamingPicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    @ViewBuilder
+    private func providerLogo(_ name: String) -> some View {
+        if let url = providerLogos[name] {
+            CachedAsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 8).fill(Theme.fill)
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        } else {
+            RoundedRectangle(cornerRadius: 8).fill(Theme.fill).frame(width: 32, height: 32)
+        }
     }
 }
