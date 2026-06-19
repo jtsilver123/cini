@@ -14,6 +14,9 @@ struct SendRecSheet: View {
     @State private var sent = false
     @State private var errorMessage: String?
     @State private var loaded = false
+    /// Friends who've already ranked this title — you can't rec something
+    /// they've already seen (CIN-35).
+    @State private var seenByFriendIDs: Set<UUID> = []
 
     /// Cache-first: friends you tag most show first, instantly.
     private var friends: [ProfileRow] { friendsCache.byTagFrequency }
@@ -44,9 +47,15 @@ struct SendRecSheet: View {
             } else {
                 friendsCache.refreshIfStale()
             }
+            // Who's already ranked this? Those friends can't be rec'd it.
+            if let scores = try? await SupabaseService.shared.friendScores(movieID: movie.tmdbID) {
+                seenByFriendIDs = Set(scores.map(\.userId))
+            }
             loaded = true
         }
     }
+
+    private func hasSeen(_ friend: ProfileRow) -> Bool { seenByFriendIDs.contains(friend.id) }
 
     private var content: some View {
         VStack(spacing: 0) {
@@ -131,7 +140,9 @@ struct SendRecSheet: View {
     }
 
     private func friendRow(_ friend: ProfileRow) -> some View {
-        Button {
+        let seen = hasSeen(friend)
+        return Button {
+            guard !seen else { return }
             selected = selected?.id == friend.id ? nil : friend
         } label: {
             HStack(spacing: 12) {
@@ -146,14 +157,23 @@ struct SendRecSheet: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: selected?.id == friend.id ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(selected?.id == friend.id ? Theme.marquee : Theme.gray)
+                if seen {
+                    // Already ranked it — can't be recommended this title.
+                    Text("Already seen")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                } else {
+                    Image(systemName: selected?.id == friend.id ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(selected?.id == friend.id ? Theme.marquee : Theme.gray)
+                }
             }
             .padding(.vertical, 8)
+            .opacity(seen ? 0.5 : 1)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(seen)
     }
 
     private var sentState: some View {
@@ -177,6 +197,11 @@ struct SendRecSheet: View {
 
     private func send() async {
         guard let selected, !sending else { return }
+        // Defensive: never send a rec for something they've already seen.
+        guard !seenByFriendIDs.contains(selected.id) else {
+            errorMessage = "\(firstName(selected.displayName, selected.username) ?? selected.username) has already seen this."
+            return
+        }
         errorMessage = nil
         sending = true
         defer { sending = false }
