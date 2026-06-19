@@ -330,6 +330,7 @@ struct SearchView: View {
         // active — only the import prompt drops away here (CIN-34).
         VStack(alignment: .leading, spacing: 6) {
             HStack { maybeSeenHeading; Spacer(); suggestionsViewToggle }
+            maybeSeenCaption
             let results = browseResults.filter {
                 matchesToggle($0) && !store.isWatched($0.tmdbID)
                     && !dismissedMaybeSeen.contains($0.tmdbID)
@@ -627,6 +628,23 @@ struct SearchView: View {
         }
     }
 
+    /// Tells people what this area is for — finding titles they've already
+    /// watched so they can rank them now — plus the grid gestures (CIN-33).
+    @ViewBuilder
+    private var maybeSeenCaption: some View {
+        if maybeSeenGrid {
+            Label("Rank what you've already watched — tap a poster to rank, hold to save, ✕ to skip.",
+                  systemImage: "hand.tap.fill")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+                .padding(.bottom, 2)
+        } else {
+            Text("Rank what you've already watched.")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+        }
+    }
+
     /// Grid/List switch for the suggestions area.
     private var suggestionsViewToggle: some View {
         Button {
@@ -668,6 +686,7 @@ struct SearchView: View {
     private var popularFallbackSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack { maybeSeenHeading; Spacer(); suggestionsViewToggle }
+            maybeSeenCaption
 
             if !importBannerHidden { importBanner }
 
