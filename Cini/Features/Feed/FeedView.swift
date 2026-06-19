@@ -831,7 +831,8 @@ struct FeedCard: View {
                 }
                 Button { onOpenComments(event, commentContext) } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "bubble.right")
+                        // Filled once there are comments, mirroring the heart.
+                        Image(systemName: commentCount > 0 ? "bubble.right.fill" : "bubble.right")
                         if commentCount > 0 {
                             Text("\(commentCount)").font(.subheadline.weight(.medium))
                         }

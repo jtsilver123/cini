@@ -1009,7 +1009,7 @@ struct MovieDetailView: View {
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "bubble.right")
+                        Image(systemName: row.commentCount > 0 ? "bubble.right.fill" : "bubble.right")
                         if row.commentCount > 0 {
                             Text("\(row.commentCount)").font(.caption).foregroundStyle(Theme.gray)
                         }

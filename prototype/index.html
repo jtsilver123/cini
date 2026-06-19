@@ -599,7 +599,7 @@ function renderFeed(){
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
         <div style="display:flex; gap:18px; margin-top:11px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); return n?`<span style="font-size:11px;font-weight:700;"> ${n}</span>`:"";})()}</button>
-          <button class="iconbtn" onclick="openComments('${e.id}')">${I("comment")}${comments.length?`<span style="font-size:11px;font-weight:700;"> ${comments.length}</span>`:""}</button>
+          <button class="iconbtn" onclick="openComments('${e.id}')">${comments.length?IF("comment"):I("comment")}${comments.length?`<span style="font-size:11px;font-weight:700;"> ${comments.length}</span>`:""}</button>
           <button class="iconbtn" onclick="share('${esc(m.t)} on Cini')">${I("send")}</button>
         </div>
         <div class="sub" style="margin-top:7px;">${e.when}</div>
@@ -1277,7 +1277,7 @@ function renderProfile(){
           <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
           <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
             <button class="iconbtn" onclick="toggleLike('${aid}')">${likeIcon(aid)}${likeN?`<span style="font-size:11px;font-weight:700;"> ${likeN}</span>`:""}</button>
-            <button class="iconbtn" onclick="openComments('${aid}')">${I("comment")}${cN?`<span style="font-size:11px;font-weight:700;"> ${cN}</span>`:""}</button>
+            <button class="iconbtn" onclick="openComments('${aid}')">${cN?IF("comment"):I("comment")}${cN?`<span style="font-size:11px;font-weight:700;"> ${cN}</span>`:""}</button>
             <button class="iconbtn" onclick="share('${esc(m.t)} on Cini')">${I("send")}</button>
           </div>
           <div class="sub" style="margin-top:6px;">${a.when}</div>
@@ -1532,7 +1532,7 @@ function renderDetail(){
         <div style="margin-top:7px; font-size:14px; line-height:1.45;"><b>Notes:</b> Saw it in IMAX twice. The arena scene is unreal.</div>
         <div style="display:flex; gap:18px; margin-top:9px;">
           <button class="iconbtn" onclick="toggleLike('note-maddy')">${likeIcon("note-maddy")}</button>
-          <button class="iconbtn" onclick="openComments('f1')">${I("comment")}</button>
+          <button class="iconbtn" onclick="openComments('f1')">${(S.comments['f1']||[]).length?IF("comment"):I("comment")}</button>
         </div></div>
       <div class="badge sm g">9.2</div>
     </div>` : `<div class="pad sub" style="padding-bottom:10px;">None of your friends have ranked this yet.</div>`;
@@ -1804,7 +1804,7 @@ function everyoneBlock(k){
         <div style="display:flex; gap:18px; margin-top:9px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('pub-${k}-${i}')">${likeIcon("pub-"+k+"-"+i)}</button>
           <span class="sub" style="font-size:12px; margin-left:-12px;">${r.likes + (S.liked["pub-"+k+"-"+i]?1:0)}</span>
-          <button class="iconbtn" onclick="openComments('f1')">${I("comment")}</button>
+          <button class="iconbtn" onclick="openComments('f1')">${(S.comments['f1']||[]).length?IF("comment"):I("comment")}</button>
         </div></div>
       <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
         <div class="badge sm ${scoreClass(r.score)}">${r.score.toFixed(1)}</div>
