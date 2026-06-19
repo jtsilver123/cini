@@ -916,7 +916,7 @@ function renderLists(){
       <button class="iconbtn" onclick="openSearchForRank()">${I("search",18)}</button>
     </div>
     ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
-      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="openMaybeSeen()">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
         <span style="color:var(--marquee);">${I("search",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">${S.category==="TV"?"Shows":"Movies"} you may have seen</div>
