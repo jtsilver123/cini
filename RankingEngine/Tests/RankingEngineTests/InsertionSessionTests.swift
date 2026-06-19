@@ -137,6 +137,19 @@ final class InsertionSessionTests: XCTestCase {
         XCTAssertEqual(ids.firstIndex(of: 99)!, ids.firstIndex(of: opponent)! + 1)
     }
 
+    func testTooToughTakesOnNearOpponentScore() {
+        // CIN-13: "too tough to call" lands the new title right beside the one
+        // it was compared against, so it takes on (very nearly) that score.
+        var list = makeList(loved: Array(1...20))
+        var session = list.beginInsertion(of: 99, sentiment: .loved)
+        let opponent = session.currentOpponent!
+        session.choose(.tooToughToCall)
+        list.commit(session)
+        let byID = Dictionary(uniqueKeysWithValues: list.scoredItems.map { ($0.id, $0.score) })
+        // Adjacent placement → within a single score step of the opponent.
+        XCTAssertLessThanOrEqual(abs(byID[99]! - byID[opponent]!), 0.2)
+    }
+
     func testRepeatedSkipsAcrossInsertionsKeepDistinctPositions() {
         // "Ties" from skipping still produce a strict total order.
         var list = makeList(loved: [1])
