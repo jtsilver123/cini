@@ -153,30 +153,46 @@ struct SwipeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Import your history")
-                Menu {
-                    // Grid first, then Cards — each with what it's best for.
-                    ForEach(Layout.allCases, id: \.self) { option in
-                        Button { withAnimation(.snappy) { layout = option } } label: {
-                            Label("\(option.label) · \(option.blurb)", systemImage: option.icon)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: layout.icon)
-                        Text(layout.label).font(.subheadline.weight(.semibold))
-                        Image(systemName: "chevron.down").font(.caption2)
-                    }
-                    .foregroundStyle(Theme.marquee)
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(Capsule().fill(Theme.fill))
-                }
-                .accessibilityLabel("View: \(layout.label)")
             }
+            // The view selector states WHAT EACH MODE IS FOR, in the open, so
+            // the find-to-watch vs rank-what-you've-watched split is obvious
+            // without opening a menu.
+            layoutPurposeToggle
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { suggestTV ? 1 : 0 },
                                    set: { suggestTV = $0 == 1 }))
         }
+    }
+
+    /// A two-segment toggle labeled by purpose: Cards = "Find to watch",
+    /// Grid = "Rank watched".
+    private var layoutPurposeToggle: some View {
+        HStack(spacing: 4) {
+            layoutSegment(.cards, icon: "rectangle.stack", title: "Find to watch")
+            layoutSegment(.grid, icon: "square.grid.2x2", title: "Rank watched")
+        }
+        .padding(4)
+        .background(Capsule().fill(Theme.fill))
+    }
+
+    private func layoutSegment(_ option: Layout, icon: String, title: String) -> some View {
+        let on = layout == option
+        return Button {
+            withAnimation(.snappy) { layout = option }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon).font(.caption.weight(.bold))
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(on ? Theme.background : Theme.gray)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(on ? Theme.marquee : .clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title)\(on ? ", selected" : "")")
     }
 
     /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the

@@ -583,30 +583,32 @@ struct OnboardingView: View {
     /// plus a line on what it's best for and that it's switchable on Recs.
     private func recsViewTeacher(isGrid: Bool) -> some View {
         VStack(spacing: 10) {
-            // The locked view toggle — both options shown, current one selected,
-            // a lock so they learn the control without changing it here.
+            // The locked view toggle — the SAME purpose-labeled control the Recs
+            // page uses, current one selected, a lock so they just learn it here.
             HStack(spacing: 0) {
-                ForEach([true, false], id: \.self) { grid in
+                ForEach([false, true], id: \.self) { grid in
                     let on = (grid == isGrid)
                     HStack(spacing: 5) {
                         Image(systemName: grid ? "square.grid.2x2" : "rectangle.stack")
-                        Text(grid ? "Grid" : "Cards").font(.subheadline.weight(.semibold))
+                            .font(.caption.weight(.bold))
+                        Text(grid ? "Rank watched" : "Find to watch")
+                            .font(.subheadline.weight(.semibold))
                     }
                     .foregroundStyle(on ? Theme.background : Theme.gray)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
                     .background(Capsule().fill(on ? Theme.marquee : .clear))
                 }
                 Image(systemName: "lock.fill")
                     .font(.caption2)
                     .foregroundStyle(Theme.gray)
-                    .padding(.leading, 6)
+                    .padding(.horizontal, 6)
             }
             .padding(4)
             .background(Capsule().fill(Theme.fill))
 
             Text(isGrid
-                 ? "Grid is best for ranking things you've watched. Find both views on your Recs page."
-                 : "Cards are best for finding new things to watch. Find both views on your Recs page.")
+                 ? "“Rank watched” is best for ranking things you've already seen. Find both views on your Recs page."
+                 : "“Find to watch” is best for discovering new things. Find both views on your Recs page.")
                 .font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
         }
