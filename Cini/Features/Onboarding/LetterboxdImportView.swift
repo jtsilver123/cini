@@ -143,7 +143,7 @@ struct LetterboxdImportView: View {
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
-                Text("Takes about 1 minute. Letterboxd's export only works from a computer — email yourself a link, do the export there, and it beams straight to your phone.")
+                Text("Takes about 1 minute. Bring your history from Letterboxd, IMDb, or Netflix — the export works best from a computer, so email yourself a link, do it there, and it beams straight to your phone.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -445,13 +445,11 @@ struct LetterboxdImportView: View {
 
     private func emailMyselfURL(code: String) -> URL {
         let body = [
-            "Open this on your computer:",
+            "Open this link on your computer to import your history:",
             "",
             transferLink(code: code),
             "",
-            "It walks you through grabbing your Letterboxd export and sends it straight to Cini on your phone.",
-            "",
-            "The link works for 30 minutes - grab a fresh one in the app if it expires.",
+            "It walks you through grabbing your Letterboxd, IMDb, or Netflix export and beams it straight to Cini on your phone. (Link works for 30 minutes — grab a fresh one in the app if it expires.)",
         ].joined(separator: "\n")
         var components = URLComponents(string: "mailto:")!
         components.queryItems = [

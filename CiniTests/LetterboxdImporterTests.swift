@@ -229,4 +229,36 @@ extension LetterboxdImporterTests {
         XCTAssertEqual(titles.first?.title, "2001: A Space Odyssey")
         XCTAssertEqual(titles.first?.year, 1968)
     }
+
+    // MARK: Netflix (CIN-25)
+
+    func testNetflixDetectionAndTVCollapse() {
+        let csv = """
+        Title,Date
+        "Seinfeld: Season 7: The Sponge","5/21/26"
+        "Seinfeld: Season 7: The Pool Guy","5/20/26"
+        "Stranger Things: Stranger Things 5: Chapter Eight: The Rightside Up","1/13/26"
+        "Inception","3/2/24"
+        "Noah Kahan: Out of Body","5/8/26"
+        """
+        XCTAssertTrue(LetterboxdImporter.isNetflixCSV(csv))
+        let titles = LetterboxdImporter.parseNetflix(csv)
+
+        // Seinfeld's two episodes collapse into one show with both dates.
+        let seinfeld = titles.filter { $0.title == "Seinfeld" }
+        XCTAssertEqual(seinfeld.count, 1)
+        XCTAssertEqual(seinfeld.first?.watchDates, ["2026-05-21", "2026-05-20"])
+
+        // Branded-season episode collapses to the show name.
+        XCTAssertTrue(titles.contains { $0.title == "Stranger Things" })
+        // A plain movie stays whole.
+        XCTAssertTrue(titles.contains { $0.title == "Inception" })
+        // A movie/special with a subtitle (no season marker) isn't truncated.
+        XCTAssertTrue(titles.contains { $0.title == "Noah Kahan: Out of Body" })
+    }
+
+    func testLetterboxdCSVIsNotMistakenForNetflix() {
+        let csv = "Date,Name,Year,Rating\n2024-01-01,Dune,2021,4.5"
+        XCTAssertFalse(LetterboxdImporter.isNetflixCSV(csv))
+    }
 }

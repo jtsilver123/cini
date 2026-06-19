@@ -95,11 +95,16 @@ enum LetterboxdImporter {
         } else {
             guard let text = String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .isoLatin1) else { throw ImportError.unreadableFile }
-            titles = parse(csv: text, assumeWatchlist: fileURL.lastPathComponent.lowercased().contains("watchlist"))
-            if titles.isEmpty {
-                // Not a CSV export — treat it as a plain list of titles
-                // (an Apple Notes export, a .txt, whatever).
-                titles = parseFreeText(text)
+            if isNetflixCSV(text) {
+                // Netflix viewing history — episodes collapse to one show.
+                titles = parseNetflix(text)
+            } else {
+                titles = parse(csv: text, assumeWatchlist: fileURL.lastPathComponent.lowercased().contains("watchlist"))
+                if titles.isEmpty {
+                    // Not a CSV export — treat it as a plain list of titles
+                    // (an Apple Notes export, a .txt, whatever).
+                    titles = parseFreeText(text)
+                }
             }
         }
 
@@ -379,6 +384,85 @@ enum LetterboxdImporter {
             }
             return entry
         }
+    }
+
+    // MARK: - Netflix viewing history (CIN-25)
+
+    /// Netflix exports `Title,Date`, with TV broken out per episode
+    /// ("Show: Season 7: The Sponge"). Detect that shape so it routes to the
+    /// Netflix parser instead of the Letterboxd/IMDb one.
+    static func isNetflixCSV(_ text: String) -> Bool {
+        guard let header = parseCSVRows(text).first else { return false }
+        let cols = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        return cols.contains("title") && cols.contains("date")
+            && !cols.contains("name") && !cols.contains("year") && !cols.contains("const")
+            && cols.count <= 3
+    }
+
+    /// Parse a Netflix viewing-history CSV. Collapses every episode of a show
+    /// into a single title (Netflix lists each episode separately), keeping all
+    /// watch dates, and parses Netflix's "M/d/yy" dates.
+    static func parseNetflix(_ csv: String) -> [ImportedTitle] {
+        let rows = parseCSVRows(csv)
+        guard let header = rows.first else { return [] }
+        let cols = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        guard let titleIdx = cols.firstIndex(of: "title") else { return [] }
+        let dateIdx = cols.firstIndex(of: "date")
+
+        var byKey: [String: ImportedTitle] = [:]
+        var order: [String] = []
+        for fields in rows.dropFirst() {
+            guard fields.indices.contains(titleIdx) else { continue }
+            let raw = fields[titleIdx].trimmingCharacters(in: .whitespaces)
+            guard !raw.isEmpty else { continue }
+            let title = netflixShowTitle(raw)
+            let k = normalize(title)
+            guard !k.isEmpty else { continue }
+            let date = dateIdx.flatMap { fields.indices.contains($0) ? netflixDate(fields[$0]) : nil }
+            if var existing = byKey[k] {
+                if let date { existing.watchDates.insert(date); existing.watchedOn = existing.watchDates.max() }
+                byKey[k] = existing
+            } else {
+                var entry = ImportedTitle(title: title, year: nil)
+                if let date { entry.watchDates = [date]; entry.watchedOn = date }
+                byKey[k] = entry
+                order.append(k)
+            }
+        }
+        return order.compactMap { byKey[$0] }
+    }
+
+    /// "Show: Season 7: The Sponge" → "Show"; "Inception" → "Inception".
+    /// A movie with a subtitle ("Noah Kahan: Out of Body") stays whole.
+    static func netflixShowTitle(_ raw: String) -> String {
+        let segments = raw.components(separatedBy: ": ")
+        guard segments.count >= 2 else { return raw }
+        // Show: Season: Episode (3+ parts) is unambiguously a series.
+        if segments.count >= 3 { return segments[0] }
+        // Two parts: only a series if the second looks like a season label.
+        return netflixIsSeasonLabel(segments[1]) ? segments[0] : raw
+    }
+
+    private static func netflixIsSeasonLabel(_ s: String) -> Bool {
+        let lower = s.lowercased()
+        let markers = ["season ", "series ", "volume ", "part ", "book ",
+                       "chapter ", "limited series", "collection"]
+        if markers.contains(where: { lower.hasPrefix($0) }) { return true }
+        // Branded season ending in a number, e.g. "Stranger Things 5".
+        return s.range(of: #" \d+$"#, options: .regularExpression) != nil
+    }
+
+    private static func netflixDate(_ raw: String) -> String? {
+        let t = raw.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return nil }
+        let parser = DateFormatter()
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "M/d/yy"
+        guard let date = parser.date(from: t) else { return nil }
+        let out = DateFormatter()
+        out.locale = Locale(identifier: "en_US_POSIX")
+        out.dateFormat = "yyyy-MM-dd"
+        return out.string(from: date)
     }
 
     /// RFC-4180-ish CSV: quoted fields, escaped quotes (""), newlines in quotes.
