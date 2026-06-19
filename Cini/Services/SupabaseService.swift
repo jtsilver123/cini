@@ -586,19 +586,24 @@ final class SupabaseService {
 
     /// Returns how many friends were actually asked (the RPC skips
     /// non-followed and blocked members silently).
-    func requestRecs(to recipients: [UUID], mediaKind: String?,
-                     genre: String?, note: String?) async -> Int {
+    func requestRecs(to recipients: [UUID], mediaKind: String?, genre: String?,
+                     decade: Int?, maxRuntime: Int?, streamingProvider: String?,
+                     note: String?) async -> Int {
         struct Params: Encodable {
             let p_recipients: [UUID]
             let p_media_kind: String?
             let p_genre: String?
             let p_note: String?
+            let p_decade: Int?
+            let p_max_runtime: Int?
+            let p_streaming_provider: String?
         }
         do {
             return try await client.rpc(
                 "request_recs",
                 params: Params(p_recipients: recipients, p_media_kind: mediaKind,
-                               p_genre: genre, p_note: note)
+                               p_genre: genre, p_note: note, p_decade: decade,
+                               p_max_runtime: maxRuntime, p_streaming_provider: streamingProvider)
             ).execute().value
         } catch {
             Self.logSwallowed("request_recs", error)
@@ -611,7 +616,7 @@ final class SupabaseService {
     func incomingRecRequests() async throws -> [RecRequestRow] {
         guard let me = currentUserID else { return [] }
         let rows: [RecRequestRow] = try await client.from("rec_requests")
-            .select("id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)")
+            .select("id, requester_id, media_kind, genre, note, decade, max_runtime, streaming_provider, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)")
             .eq("recipient_id", value: me)
             .order("created_at", ascending: false)
             .limit(20)
@@ -1705,14 +1710,19 @@ struct RecRequestRow: Decodable, Identifiable, Hashable {
     let mediaKind: String?
     let genre: String?
     let note: String?
+    var decade: Int?
+    var maxRuntime: Int?
+    var streamingProvider: String?
     let createdAt: Date
     let fulfilledAt: Date?
     let profiles: FeedEventRow.EmbeddedProfile?
 
     enum CodingKeys: String, CodingKey {
-        case id, genre, note, profiles
+        case id, genre, note, profiles, decade
         case requesterId = "requester_id"
         case mediaKind = "media_kind"
+        case maxRuntime = "max_runtime"
+        case streamingProvider = "streaming_provider"
         case createdAt = "created_at"
         case fulfilledAt = "fulfilled_at"
     }
@@ -1724,14 +1734,21 @@ struct RecRequestRow: Decodable, Identifiable, Hashable {
         func article(_ word: String) -> String {
             "aeiou".contains(word.lowercased().first ?? "x") ? "an" : "a"
         }
+        var base: String
         switch (genre, kind) {
         case let (genre?, kind?):
             let phrase = "\(genre.lowercased()) \(kind)"
-            return "\(article(phrase)) \(phrase)"
-        case let (genre?, nil): return "something \(genre.lowercased())"
-        case let (nil, kind?): return "\(article(kind)) \(kind)"
-        case (nil, nil): return "something good"
+            base = "\(article(phrase)) \(phrase)"
+        case let (genre?, nil): base = "something \(genre.lowercased())"
+        case let (nil, kind?): base = "\(article(kind)) \(kind)"
+        case (nil, nil): base = "something good"
         }
+        // Tack on the extra filters in plain language.
+        var extras: [String] = []
+        if let decade { extras.append("from the \(decade)s") }
+        if let maxRuntime { extras.append("under \(maxRuntime) min") }
+        if let streamingProvider { extras.append("on \(streamingProvider)") }
+        return extras.isEmpty ? base : base + " " + extras.joined(separator: ", ")
     }
 }
 

@@ -912,7 +912,9 @@ struct RequestRecsTool: Tool {
         let note = arguments.note.trimmingCharacters(in: .whitespaces)
         let sent = await SupabaseService.shared.requestRecs(
             to: [member.id], mediaKind: mediaKind,
-            genre: genre.isEmpty ? nil : genre, note: note.isEmpty ? nil : note)
+            genre: genre.isEmpty ? nil : genre,
+            decade: nil, maxRuntime: nil, streamingProvider: nil,
+            note: note.isEmpty ? nil : note)
         guard sent > 0 else {
             return "Couldn't ask — you can only request from people you follow. Offer to follow @\(member.username) first."
         }

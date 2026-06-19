@@ -18,8 +18,18 @@ struct RequestRecsSheet: View {
     @State private var selected: Set<UUID>
     @State private var mediaKind: String?     // nil = any, "movie", "tv"
     @State private var genre: String?         // nil = any
+    @State private var decade: Int?
+    @State private var maxRuntime: Int?       // max minutes
+    @State private var streamingProvider: String?
+    @State private var query = ""             // friend search
     @State private var note = ""
     @State private var sending = false
+
+    /// Common US services for the optional streaming filter.
+    private static let streamingProviders = [
+        "Netflix", "Hulu", "Max", "Disney+", "Amazon Prime Video",
+        "Apple TV+", "Peacock", "Paramount+",
+    ]
 
     init(recipientID: UUID? = nil, recipientUsername: String? = nil) {
         self.recipientID = recipientID
@@ -34,6 +44,19 @@ struct RequestRecsSheet: View {
     ]
 
     private var friends: [ProfileRow] { friendsCache.byTagFrequency }
+
+    /// Friends filtered by the search box — matches name OR username.
+    private var filteredFriends: [ProfileRow] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return friends }
+        return friends.filter {
+            $0.username.lowercased().contains(q) || $0.displayName.lowercased().contains(q)
+        }
+    }
+
+    private var allSelected: Bool {
+        !filteredFriends.isEmpty && filteredFriends.allSatisfy { selected.contains($0.id) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -80,11 +103,45 @@ struct RequestRecsSheet: View {
                             + Text(" for a rec"))
                             .font(.subheadline)
                     } else {
-                        section("WHO TO ASK")
+                        HStack {
+                            section("WHO TO ASK")
+                            Spacer()
+                            Button(allSelected ? "Clear all" : "Select all") {
+                                Haptics.tap()
+                                if allSelected {
+                                    filteredFriends.forEach { selected.remove($0.id) }
+                                } else {
+                                    filteredFriends.forEach { selected.insert($0.id) }
+                                }
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                            .buttonStyle(.plain)
+                        }
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                            TextField("Search friends", text: $query)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                            if !query.isEmpty {
+                                Button { query = "" } label: {
+                                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
                         VStack(spacing: 0) {
-                            ForEach(friends) { friend in
+                            ForEach(filteredFriends) { friend in
                                 friendRow(friend)
                                 Divider()
+                            }
+                            if filteredFriends.isEmpty {
+                                Text("No friends match \"\(query)\"")
+                                    .font(.subheadline).foregroundStyle(Theme.gray)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 14)
                             }
                         }
                     }
@@ -95,21 +152,35 @@ struct RequestRecsSheet: View {
                         typeChip("Movies", value: "movie")
                         typeChip("TV shows", value: "tv")
                     }
-                    Menu {
-                        Button("Any genre") { genre = nil }
-                        ForEach(Self.genres, id: \.self) { name in
-                            Button(name) { genre = name }
+                    // The same filters as your lists — genre, decade, runtime,
+                    // streaming — laid out as a tidy wrapping pill row.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            Menu {
+                                Button("Any genre") { genre = nil }
+                                ForEach(Self.genres, id: \.self) { name in
+                                    Button(name) { genre = name }
+                                }
+                            } label: { criteriaPill(genre ?? "Genre", active: genre != nil) }
+                            Menu {
+                                Button("Any decade") { decade = nil }
+                                ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { d in
+                                    Button("\(String(d))s") { decade = d }
+                                }
+                            } label: { criteriaPill(decade.map { "\(String($0))s" } ?? "Decade", active: decade != nil) }
+                            Menu {
+                                Button("Any runtime") { maxRuntime = nil }
+                                Button("Under 100 min") { maxRuntime = 100 }
+                                Button("Under 2 hours") { maxRuntime = 120 }
+                                Button("Under 2½ hours") { maxRuntime = 150 }
+                            } label: { criteriaPill(maxRuntime.map { "< \($0) min" } ?? "Runtime", active: maxRuntime != nil) }
+                            Menu {
+                                Button("Any service") { streamingProvider = nil }
+                                ForEach(Self.streamingProviders, id: \.self) { name in
+                                    Button(name) { streamingProvider = name }
+                                }
+                            } label: { criteriaPill(streamingProvider ?? "Streaming", active: streamingProvider != nil) }
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(genre ?? "Genre")
-                                .font(.subheadline.weight(.semibold))
-                            Image(systemName: "chevron.down").font(.caption)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .foregroundStyle(genre == nil ? Theme.ink : Theme.background)
-                        .background(Capsule().fill(genre == nil ? Theme.fill : Theme.marquee))
                     }
 
                     section("ADD A NOTE (OPTIONAL)")
@@ -158,6 +229,18 @@ struct RequestRecsSheet: View {
         .buttonStyle(.plain)
     }
 
+    /// A criteria pill (Genre/Decade/Runtime/Streaming) — filled when set.
+    private func criteriaPill(_ title: String, active: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text(title).font(.subheadline.weight(.semibold))
+            Image(systemName: "chevron.down").font(.caption2)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .foregroundStyle(active ? Theme.background : Theme.ink)
+        .background(Capsule().fill(active ? Theme.marquee : Theme.fill))
+    }
+
     private func typeChip(_ title: String, value: String?) -> some View {
         let isOn = mediaKind == value
         return Button {
@@ -192,6 +275,8 @@ struct RequestRecsSheet: View {
                 Task {
                     let count = await SupabaseService.shared.requestRecs(
                         to: Array(selected), mediaKind: mediaKind, genre: genre,
+                        decade: decade, maxRuntime: maxRuntime,
+                        streamingProvider: streamingProvider,
                         note: note.trimmingCharacters(in: .whitespacesAndNewlines))
                     sending = false
                     if count > 0 {
@@ -312,6 +397,18 @@ struct RespondPickerView: View {
                 movie.genres.contains { $0.caseInsensitiveCompare(genre) == .orderedSame }
             }
         }
+        if let decade = request.decade {
+            filtered = filtered.filter { movie in
+                guard let year = movie.releaseYear else { return false }
+                return (decade..<decade + 10).contains(year)
+            }
+        }
+        if let maxRuntime = request.maxRuntime {
+            filtered = filtered.filter { ($0.runtimeMinutes ?? .max) <= maxRuntime }
+        }
+        if let provider = request.streamingProvider {
+            filtered = filtered.filter { $0.streamingOn.contains(provider) }
+        }
         return filtered
     }
 
@@ -323,8 +420,10 @@ struct RespondPickerView: View {
     }
 
     private var filtersMissed: Bool {
-        (request.genre != nil || request.mediaKind != nil)
-            && matchingAsk.isEmpty && !allWatched.isEmpty
+        let hasCriteria = request.genre != nil || request.mediaKind != nil
+            || request.decade != nil || request.maxRuntime != nil
+            || request.streamingProvider != nil
+        return hasCriteria && matchingAsk.isEmpty && !allWatched.isEmpty
     }
 
     var body: some View {

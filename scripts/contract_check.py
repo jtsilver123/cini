@@ -92,7 +92,7 @@ READS = [
     ("my_performances", "favorite_performances", "tmdb_person_id, person_name, profile_path"),
     ("my_rank_details", "rankings", "watch_date, watched_with, watched_where, ranking_labels(labels(name))"),
     ("direct_recs", "direct_recs", "id, sender_id, movie_id, note, created_at, profiles!direct_recs_sender_id_fkey(username, display_name, avatar_url), movies!direct_recs_movie_id_fkey(*)"),
-    ("rec_requests", "rec_requests", "id, requester_id, media_kind, genre, note, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)"),
+    ("rec_requests", "rec_requests", "id, requester_id, media_kind, genre, note, decade, max_runtime, streaming_provider, created_at, fulfilled_at, profiles!rec_requests_requester_id_fkey(username, display_name, avatar_url)"),
     ("streaming_alerts", "streaming_alerts", "user_id, movie_id, notified_at"),
     ("pending_imports", "pending_imports", "status, path"),
     ("home_zip", "user_locations", "home_zip"),
