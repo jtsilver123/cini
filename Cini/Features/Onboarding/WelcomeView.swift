@@ -140,13 +140,10 @@ private struct CompareMock: View {
                            c1: Theme.velvet,
                            c2: Color(red: 0.91, green: 0.71, blue: 0.30))
             }
-            HStack(spacing: 6) {
-                Circle().fill(Theme.sentimentLoved).frame(width: 10, height: 10)
-                Circle().fill(Theme.sentimentFine).frame(width: 10, height: 10)
-                Circle().fill(Theme.sentimentDisliked).frame(width: 10, height: 10)
-                Spacer()
-            }
-            .padding(.top, 2)
+            Text("Tap the one you liked more")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(Theme.marquee)
+                .padding(.top, 2)
         }
     }
 }
