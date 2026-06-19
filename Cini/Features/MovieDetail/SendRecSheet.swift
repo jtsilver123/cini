@@ -18,8 +18,19 @@ struct SendRecSheet: View {
     /// they've already seen (CIN-35).
     @State private var seenByFriendIDs: Set<UUID> = []
 
+    @State private var query = ""
+
     /// Cache-first: friends you tag most show first, instantly.
     private var friends: [ProfileRow] { friendsCache.byTagFrequency }
+
+    /// Friends filtered by the search box — matches name OR username.
+    private var filteredFriends: [ProfileRow] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return friends }
+        return friends.filter {
+            $0.username.lowercased().contains(q) || $0.displayName.lowercased().contains(q)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -94,11 +105,37 @@ struct SendRecSheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
             } else {
+                // Search a specific friend by name or @username (CIN-23).
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                    TextField("Search friends", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !query.isEmpty {
+                        Button { query = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(friends) { friend in
+                        ForEach(filteredFriends) { friend in
                             friendRow(friend)
                             Divider()
+                        }
+                        if filteredFriends.isEmpty {
+                            Text("No friends match \"\(query)\"")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.gray)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 28)
                         }
                     }
                     .padding(.horizontal, 16)
