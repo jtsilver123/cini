@@ -211,7 +211,6 @@ final class RankingStore {
         lists[key] = kindList
         listChanged()
         watchlist.removeAll { $0.movieID == session.newItemID }
-        ImportQueue.shared.markRanked(session.newItemID)
         do {
             if let movie = movies[session.newItemID] {
                 // rank_insert FKs onto movies — the cache isn't optional.
@@ -246,6 +245,10 @@ final class RankingStore {
                 return nil
             }
         }
+        // Server confirmed — now it's safe to clear it from the import queue
+        // (doing this before the write would drop it from "pending to rate"
+        // even if the rank failed and we reverted).
+        ImportQueue.shared.markRanked(session.newItemID)
         // Tell friends who already love this title that you just rated it.
         let ratedID = session.newItemID
         Task { await supabase.notifyFriendsOfRating(movieID: ratedID) }

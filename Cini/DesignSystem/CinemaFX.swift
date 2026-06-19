@@ -202,6 +202,12 @@ struct Celebration: Identifiable, Equatable {
         title: "Welcome to Cini",
         subtitle: "Your screening room is ready.",
         icon: "popcorn.fill")
+
+    /// The very first title someone ranks — the moment the app "clicks."
+    static let firstRank = Celebration(
+        title: "Your first rank!",
+        subtitle: "Cini's learning your taste. Keep going.",
+        icon: "star.fill")
 }
 
 /// Fire-and-forget celebrations. Holds at most one at a time; firing a new one

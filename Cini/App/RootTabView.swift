@@ -51,6 +51,8 @@ final class TabRouter {
     /// Tapped push notification → the relevant content (consumed by FeedView).
     var pendingPushMovieID: Int?
     var pendingPushMember: MemberRef?
+    /// A tapped comment/mention push → open that comment thread (feed event id).
+    var pendingPushCommentEvent: UUID?
     /// A tapped watch-match / invite → open the Plan-a-Watch sheet.
     var pendingWatchPlan: WatchPlanContext?
 
@@ -62,6 +64,12 @@ final class TabRouter {
         // Rec requests land on the feed, where the "wants a rec" banner
         // offers the respond flow — the actor's profile would be a detour.
         if userInfo["kind"] as? String == "rec_request" { return }
+        // A streak nudge has no movie/actor of its own — send it to Recs,
+        // where ranking one title (the streak-saver) is one tap away.
+        if userInfo["kind"] as? String == "streak_reminder" {
+            selection = .swipe
+            return
+        }
         let movieID = (userInfo["movie_id"] as? Int)
             ?? (userInfo["movie_id"] as? NSNumber)?.intValue
             ?? (userInfo["movie_id"] as? String).flatMap(Int.init)
@@ -76,6 +84,13 @@ final class TabRouter {
         // friend, not the plain movie page.
         if kind == "watch_match" || kind == "watch_invite", let movieID, let actor {
             pendingWatchPlan = WatchPlanContext(movieID: movieID, friend: actor)
+            return
+        }
+        // A comment/mention opens the actual comment thread (the feed event),
+        // matching the in-app bell behavior — not just the movie page.
+        if kind == "comment" || kind == "mention",
+           let eventID = (userInfo["event_id"] as? String).flatMap(UUID.init) {
+            pendingPushCommentEvent = eventID
             return
         }
         if let movieID {

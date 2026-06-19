@@ -659,9 +659,12 @@ struct LogFlowView: View {
         let count = store.watchedCount
         let newStreak = appSession.profile?.streakWeeks ?? 0
 
-        // Pick a celebration: a ranked-count milestone wins over a streak bump.
+        // Pick a celebration: the very first rank is its own milestone moment,
+        // then ranked-count milestones, then a streak bump.
         let celebration: Celebration?
-        if CelebrationCenter.rankMilestones.contains(count) {
+        if count == 1 {
+            celebration = .firstRank
+        } else if CelebrationCenter.rankMilestones.contains(count) {
             celebration = .rankMilestone(count)
         } else if newStreak >= 2 && newStreak > priorStreak {
             celebration = .streak(newStreak)
@@ -672,12 +675,13 @@ struct LogFlowView: View {
         // When to attempt the App Store review prompt: once you've rated enough
         // to have an opinion worth asking about (10+), or you just hit a
         // celebration moment. Importers can jump past an exact milestone, so we
-        // don't require landing on 10 on the nose. Each call only *attempts* —
-        // ReviewPrompt's 3-per-year, 90-days-apart budget decides if it shows,
-        // so this never nags.
-        let reviewWorthy = celebration != nil || count >= 10
+        // don't require landing on 10 on the nose. The very first rank is a
+        // delight beat but FAR too early to ask for a review, so it's excluded.
+        // Each call only *attempts* — ReviewPrompt's 3-per-year, 90-days-apart
+        // budget decides if it shows, so this never nags.
+        let reviewWorthy = count >= 10 || (celebration != nil && count != 1)
 
-        guard reviewWorthy else { return }
+        guard celebration != nil || reviewWorthy else { return }
         Task {
             if let celebration {
                 try? await Task.sleep(for: .milliseconds(700))

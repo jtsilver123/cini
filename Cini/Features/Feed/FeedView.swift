@@ -72,6 +72,7 @@ struct FeedView: View {
             .onAppear { consumePush() }
             .onChange(of: tabRouter.pendingPushMovieID) { _, _ in consumePush() }
             .onChange(of: tabRouter.pendingPushMember) { _, _ in consumePush() }
+            .onChange(of: tabRouter.pendingPushCommentEvent) { _, _ in consumePush() }
             .onChange(of: tabRouter.pendingWatchPlan) { _, _ in consumePush() }
             .sheet(item: $watchPlanContext) { ctx in
                 PlanWatchSheet(context: ctx)
@@ -532,6 +533,10 @@ struct FeedView: View {
         if let member = tabRouter.pendingPushMember {
             tabRouter.pendingPushMember = nil
             memberTarget = member
+        }
+        if let eventID = tabRouter.pendingPushCommentEvent {
+            tabRouter.pendingPushCommentEvent = nil
+            commentsLink = CommentsLink(id: eventID)
         }
         if let plan = tabRouter.pendingWatchPlan {
             tabRouter.pendingWatchPlan = nil
@@ -1017,7 +1022,7 @@ struct FeedCard: View {
                         }
                     }
                     if savedByMe {
-                        miniStat("bookmark.fill", "Saved", Theme.marquee)
+                        miniStat("bookmark.fill", "Bookmarked", Theme.marquee)
                     }
                     Spacer(minLength: 0)
                 }

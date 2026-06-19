@@ -134,7 +134,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: n } = await supabase
       .from("notifications")
-      .select("id, recipient_id, kind, movie_id, actor_id, message, actor:profiles!notifications_actor_id_fkey(username, display_name), movies(title)")
+      .select("id, recipient_id, kind, movie_id, actor_id, event_id, message, actor:profiles!notifications_actor_id_fkey(username, display_name), movies(title)")
       .eq("id", notification_id)
       .maybeSingle();
     if (!n) return new Response("unknown notification", { status: 404 });
@@ -176,6 +176,9 @@ Deno.serve(async (req: Request) => {
       movie_id: n.movie_id,
       actor_id: n.actor_id,
       actor_username: (n.actor as any)?.username ?? null,
+      // Comment/mention pushes ride the feed event id so a tap lands on the
+      // actual comment thread, not just the movie page.
+      event_id: (n as any).event_id ?? null,
     };
 
     const jwt = await apnsJWT();
