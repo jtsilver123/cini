@@ -756,7 +756,7 @@ struct FeedCard: View {
     private var actionText: String {
         switch event.eventType {
         case "ranked":      return "ranked"
-        case "watchlisted": return "wants to watch"
+        case "watchlisted": return "bookmarked"
         case "noted":       return "wrote about"
         default:            return "shared an update"
         }
@@ -771,7 +771,7 @@ struct FeedCard: View {
         case "ranked":
             return Text(" ranked ") + title
         case "watchlisted":
-            return Text(" wants to watch ") + title
+            return Text(" bookmarked ") + title
         case "noted":
             return Text(" wrote about ") + title
         default:

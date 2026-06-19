@@ -587,7 +587,7 @@ function renderFeed(){
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
     const headline = e.kind==="ranked"
       ? `${name} ranked <b>${m.t}</b>`
-      : `${name} wants to watch <b>${m.t}</b>`;
+      : `${name} bookmarked <b>${m.t}</b>`;
     const comments=(S.comments[e.id]||[]);
     return `<div style="cursor:pointer; margin:0 14px 14px; padding:14px; border-radius:16px; position:relative; overflow:hidden;
         background:linear-gradient(90deg, var(--surface) 52%, rgba(29,23,25,.55) 75%, rgba(29,23,25,.25)), url('${IMG(m.bd||m.p)}') right center / auto 100% no-repeat;
@@ -1273,7 +1273,7 @@ function renderProfile(){
       <div style="margin-bottom:12px; padding:14px; border-radius:16px; position:relative; overflow:hidden; background:linear-gradient(90deg, var(--surface) 52%, rgba(29,23,25,.55) 75%, rgba(29,23,25,.25)), url('${IMG(m.bd||m.p)}') right center / auto 100% no-repeat; border:1px solid var(--hair); display:flex; gap:12px; align-items:flex-start; cursor:pointer;" onclick="if(!event.target.closest('button'))openDetail('${a.k}')">
         <div class="avatar ${av}" style="width:44px;height:44px;border:none;font-size:17px;">${(isSelf?name:handle)[0].toUpperCase()}</div>
         <div style="flex:1;">
-          <div style="font-size:14.5px;"><b>${isSelf?"You":"@"+handle}</b> ${a.kind==="ranked"?"ranked":"want to watch"} <b>${m.t}</b></div>
+          <div style="font-size:14.5px;"><b>${isSelf?"You":"@"+handle}</b> ${a.kind==="ranked"?"ranked":"bookmarked"} <b>${m.t}</b></div>
           <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
           <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
             <button class="iconbtn" onclick="toggleLike('${aid}')">${likeIcon(aid)}${likeN?`<span style="font-size:11px;font-weight:700;"> ${likeN}</span>`:""}</button>
@@ -2098,7 +2098,7 @@ function openComments(id){
     header = `<div style="display:flex; gap:12px; padding:2px 0 12px; border-bottom:1px solid var(--hair); margin-bottom:6px;">
       <button class="avatar ${e.av}" style="width:44px;height:44px;font-size:17px;border:none;" onclick="openMember('${e.u}')">${e.who[0].toUpperCase()}</button>
       <div style="flex:1;">
-        <div style="font-size:14.5px;"><button style="background:none;border:none;padding:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;" onclick="openMember('${e.u}')">${e.who}</button> ${e.kind==='ranked'?'ranked':'wants to watch'} <b>${m.t}</b></div>
+        <div style="font-size:14.5px;"><button style="background:none;border:none;padding:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;" onclick="openMember('${e.u}')">${e.who}</button> ${e.kind==='ranked'?'ranked':'bookmarked'} <b>${m.t}</b></div>
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
         ${e.note?`<div style="font-size:14px; margin-top:8px;"><b>Notes:</b> ${e.note}</div>`:""}
         <div style="display:flex; gap:16px; margin-top:10px; align-items:center;">
