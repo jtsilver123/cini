@@ -22,12 +22,12 @@ struct ProductTourView: View {
              body: "See what friends are ranking and get recs picked for your taste."),
         Stop(tab: .feed, title: "Rank anything",
              body: "Tap the gold + in the middle to find any movie or show and rank it — that's how Cini learns your taste."),
+        Stop(tab: .swipe, title: "Swipe to discover",
+             body: "Swipe right to save to Want to Watch, left to pass, or tap + to rank one you've seen. Flip to a grid anytime."),
         Stop(tab: .lists, title: "Your lists",
              body: "Everything you've ranked, each scored 1–10, plus your Want to Watch."),
-        Stop(tab: .leaderboard, title: "Leaderboard",
-             body: "See how your taste and activity stack up against your friends."),
         Stop(tab: .profile, title: "Your profile",
-             body: "Your stats, your top films, and your settings all live here."),
+             body: "Your stats, your top films, the leaderboard, and your settings all live here."),
     ]
 
     private var stop: Stop { stops[min(step, stops.count - 1)] }

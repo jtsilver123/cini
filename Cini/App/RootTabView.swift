@@ -108,7 +108,7 @@ struct RootTabView: View {
     @State private var profileTabIcon: UIImage?
 
     enum Tab: Hashable {
-        case feed, lists, search, leaderboard, profile
+        case feed, swipe, search, lists, profile
     }
 
     /// The center Search action, Beli-style: a solid marquee disc with a clean
@@ -225,9 +225,9 @@ struct RootTabView: View {
                 .tabItem { Label("Feed", systemImage: "newspaper") }
                 .tag(Tab.feed)
 
-            YourListsView()
-                .tabItem { Label("Your Lists", systemImage: "list.bullet") }
-                .tag(Tab.lists)
+            SwipeView()
+                .tabItem { Label("Swipe", systemImage: "rectangle.stack") }
+                .tag(Tab.swipe)
 
             SearchView()
                 .tabItem {
@@ -240,9 +240,9 @@ struct RootTabView: View {
                 }
                 .tag(Tab.search)
 
-            LeaderboardView()
-                .tabItem { Label("Leaderboard", systemImage: "trophy") }
-                .tag(Tab.leaderboard)
+            YourListsView()
+                .tabItem { Label("Your Lists", systemImage: "list.bullet") }
+                .tag(Tab.lists)
 
             ProfileView()
                 .tabItem {

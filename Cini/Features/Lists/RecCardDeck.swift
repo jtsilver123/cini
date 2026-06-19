@@ -13,6 +13,10 @@ struct RecCardDeck: View {
     var onUnsave: (Movie) -> Void = { _ in }
     /// Reload the deck once it's exhausted.
     var onRefresh: () -> Void = {}
+    /// Show a center "+" to rank the top card (for "I've seen this"). Used by
+    /// the Swipe tab; off elsewhere so the Recs decks are unchanged.
+    var showRank = false
+    var onRank: (Movie) -> Void = { _ in }
 
     @AppStorage("recs.demoSeen") private var demoSeen = false
     @State private var includeDemos = false
@@ -153,6 +157,22 @@ struct RecCardDeck: View {
             .disabled(index >= items.count)
             .accessibilityLabel("Pass")
 
+            // "I've seen this" → rank it (opens the comparison flow). The card
+            // stays; once ranked it's Watched and drops out on the next load.
+            if showRank {
+                Button { rankCurrent() } label: {
+                    Image(systemName: "plus")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 54, height: 54)
+                        .background(Circle().fill(Theme.marquee))
+                        .shadow(color: Theme.marquee.opacity(0.4), radius: 8, y: 3)
+                }
+                .buttonStyle(.plain)
+                .disabled(index >= items.count)
+                .accessibilityLabel("Rank this")
+            }
+
             Button { act(save: true) } label: {
                 Image(systemName: "heart.fill")
                     .font(.title.weight(.bold))
@@ -211,6 +231,13 @@ struct RecCardDeck: View {
         // Un-save if the undone action was a save.
         if last.saved, let movie = last.movie { onUnsave(movie) }
         withAnimation(.snappy) { index = last.index; drag = .zero; flyOff = 0 }
+    }
+
+    /// Rank the current top card (no swipe). Demo cards aren't rankable.
+    private func rankCurrent() {
+        guard index < items.count, case .rec(let c) = items[index] else { return }
+        Haptics.tap()
+        onRank(c.movie)
     }
 }
 

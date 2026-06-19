@@ -58,6 +58,7 @@ struct ProfileScreen: View {
     @State private var showImport = false
     @State private var showEditProfile = false
     @State private var showSettings = false
+    @State private var showLeaderboard = false
     @State private var showInviteSheet = false
     @State private var showSuggested = false
     @State private var suggested: [SuggestedMember] = []
@@ -154,6 +155,10 @@ struct ProfileScreen: View {
         }
         .navigationDestination(isPresented: $showSettings) {
             AccountSettingsView()
+        }
+        .sheet(isPresented: $showLeaderboard) {
+            LeaderboardView()
+                .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showInviteSheet) {
             InviteSheet()
@@ -299,6 +304,13 @@ struct ProfileScreen: View {
                 .lineLimit(1)
             Spacer()
             HStack(spacing: 18) {
+                // Leaderboard moved off the tab bar — it lives here now.
+                Button { showLeaderboard = true } label: {
+                    Image(systemName: "trophy").foregroundStyle(Theme.ink)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Leaderboard")
                 ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
                         .frame(width: 44, height: 44)
