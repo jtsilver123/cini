@@ -25,7 +25,7 @@ struct WhereToWatchSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Where to watch")
+            .navigationTitle("Watch")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

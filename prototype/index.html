@@ -1561,7 +1561,7 @@ function renderDetail(){
       <div style="margin-top:9px; font-size:14.5px;">${m.cert} | ${m.g.join(", ")}</div>
       <div class="sub" style="font-size:13.5px; margin-top:2px;">${m.y} · ${m.rt} · Dir. ${m.dir}</div>
     </div>
-    ${m.ov?`<div class="pad" style="margin-top:16px; font-size:14px; line-height:1.6; color:rgba(245,238,223,.9);">${m.ov}</div>`:""}
+    ${m.ov?`<div class="pad" style="margin-top:16px;"><div style="font-size:14px; line-height:1.6; color:rgba(245,238,223,.9); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${m.ov}</div>${m.ov.length>110?`<span onclick="this.previousElementSibling.style.webkitLineClamp='unset'; this.style.display='none';" style="color:var(--marquee); font-size:13px; font-weight:700; cursor:pointer;">More</span>`:""}</div>`:""}
     <div class="pad" style="margin-top:8px;">
       <button class="lnk" onclick="window.open('https://www.youtube.com/results?search_query=${encodeURIComponent(m.t+" trailer")}','_blank')">${IF("play",15)} Watch trailer</button>
     </div>
@@ -1581,7 +1581,7 @@ function renderDetail(){
       ${interestRow([["M","av1"]], "1 friend wants to watch", "'want'")}
     </div>
     <div class="row-scroll" style="margin-top:12px;">
-      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Where to Watch</button>
+      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Watch</button>
       <button class="pill out" onclick="openShowtimes('${k}')">🎟️ Showtimes</button>
       <button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Recommend</button>
     </div>
@@ -2064,7 +2064,7 @@ function openWatchSheet(k){
       <button class="pill ghost" onclick="window.open('${deepLink(name,m.t)}','_blank')">${I("play",13)} Watch</button>
     </div>`;
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Where to watch</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Watch</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div class="sub" style="font-weight:700; margin-bottom:4px;">STREAM</div>

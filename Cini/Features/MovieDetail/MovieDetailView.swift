@@ -362,7 +362,7 @@ struct MovieDetailView: View {
     private var actionPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
+                PillButton(title: "Watch", systemImage: "play.rectangle", style: .outlined) {
                     showWhereToWatch = true
                 }
                 if movie.mediaKind != "tv" {
@@ -463,7 +463,7 @@ struct MovieDetailView: View {
         .contentShape(Rectangle())
     }
 
-    /// Summary — the overview, clamped to four lines with a "more"
+    /// Summary — the overview, clamped to two lines with a "more"
     /// toggle, with the trailer link right where you decide to watch.
     @ViewBuilder
     private var summarySection: some View {
@@ -474,8 +474,9 @@ struct MovieDetailView: View {
                     Text(overview)
                         .font(.subheadline)
                         .foregroundStyle(Theme.ink.opacity(0.9))
-                        .lineLimit(summaryExpanded ? nil : 4)
-                    if overview.count > 220 {
+                        .lineLimit(summaryExpanded ? nil : 2)
+                    // ~2 lines of subheadline ≈ 110 chars; longer → offer "More".
+                    if overview.count > 110 {
                         Button(summaryExpanded ? "Less" : "More") {
                             Haptics.tap()
                             withAnimation(.snappy) { summaryExpanded.toggle() }
