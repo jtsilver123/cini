@@ -746,7 +746,9 @@ struct OnboardingView: View {
                     richDetail: true,
                     bookmarkCounts: recBookmarkCounts
                 )
-                .padding(.horizontal, 10)
+                // Match the Recs page's standard gutter so the onboarding deck
+                // has the same margin as the real Recs/Feed cards.
+                .screenHPadding()
             }
 
             Spacer(minLength: 8)
