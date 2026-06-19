@@ -37,10 +37,6 @@ final class TabRouter {
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?
 
-    /// Set before jumping to lists (Watched) to auto-open the "Movies you may
-    /// have seen" sheet — Search deep-links here so it stays focused.
-    var openProbablySeen = false
-
     /// Set before jumping to lists to open a specific custom list
     /// (agent receipt chips use this).
     var pendingCustomListID: UUID?

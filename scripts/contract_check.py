@@ -124,6 +124,7 @@ RPCS = [
     ("suggested_members", {"p_limit": 5}),
     ("members_from_emails", {"p_emails": ["nobody@example.com"]}),
     ("predicted_scores", {"p_movie_ids": [27205]}),
+    ("watchlist_counts", {"p_movie_ids": [27205]}),
     ("movie_top_labels", {"p_movie_id": 27205}),
     ("movie_page_stats", {"p_movie_id": 27205}),
     ("movie_public_notes", {"p_movie_id": 27205}),

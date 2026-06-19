@@ -1888,6 +1888,13 @@ struct NotificationsView: View {
         .contentShape(Rectangle())
         .onTapGesture { route(row) }
         .listRowBackground(Theme.background)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                let id = row.id
+                withAnimation { rows.removeAll { $0.id == id } }
+                Task { await SupabaseService.shared.deleteNotification(id) }
+            } label: { Label("Delete", systemImage: "trash") }
+        }
     }
 
     /// Deep-link a tapped notification to the area it's about.

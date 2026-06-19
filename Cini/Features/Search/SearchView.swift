@@ -582,8 +582,7 @@ struct SearchView: View {
     private var maybeSeenButton: some View {
         Button {
             Haptics.tap()
-            tabRouter.openProbablySeen = true
-            tabRouter.selection = .lists
+            tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "sparkle.magnifyingglass")
@@ -591,7 +590,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Movies you may have seen")
                         .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Rank titles you've already watched, fast")
+                    Text("Swipe titles you've already watched to rank them")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
                 Spacer(minLength: 8)
@@ -947,7 +946,7 @@ enum RecentSearches {
 /// The import-source brand marks as app-icon-style tiles — Letterboxd's three
 /// dots on a dark tile, IMDb's yellow tile, and Netflix's red "N" on black.
 /// Drawn in SwiftUI (no proprietary art bundled) but faithful to the icons.
-/// Used by `MaybeSeenView` (the relocated "Movies you may have seen" surface).
+/// Used by the Swipe tab's import banner.
 struct ImportSourceLogos: View {
     private let tile: CGFloat = 26
     private let radius: CGFloat = 6

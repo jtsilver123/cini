@@ -37,7 +37,6 @@ struct YourListsView: View {
     @State private var pendingDeleteRating: Movie?
     @State private var showAllPending = false
     @State private var showImport = false
-    @State private var showMaybeSeen = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
     // Friend Recs default to the swipe-card view (CIN-36); List stays available.
@@ -129,9 +128,6 @@ struct YourListsView: View {
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
             }
-            .sheet(isPresented: $showMaybeSeen) {
-                MaybeSeenView(startTV: category == .tvShows)
-            }
             .sheet(isPresented: $showFilterSheet) {
                 MovieFilterSheet(
                     filters: filtersBinding,
@@ -212,12 +208,6 @@ struct YourListsView: View {
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
             }
-            // Deep link from Search's "Movies you may have seen" button: land on
-            // Watched and auto-open the sheet (works even though this tab stays
-            // alive, so onAppear can miss the flag).
-            .onChange(of: tabRouter.openProbablySeen) { _, want in
-                if want { consumeProbablySeen() }
-            }
             // Category switch with a list of the OTHER kind selected: its
             // tab just vanished — deselect rather than render a ghost.
             .onChange(of: category) { _, newCategory in
@@ -266,21 +256,11 @@ struct YourListsView: View {
                     runtimeFilter = nil; streamingProviderFilter = nil
                     sortDescending = true   // drag offsets need canonical order
                 }
-                if tabRouter.openProbablySeen { consumeProbablySeen() }
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
             }
         }
-    }
-
-    /// Land on Watched and open "Movies you may have seen" (from Search's
-    /// deep-link button).
-    private func consumeProbablySeen() {
-        tabRouter.openProbablySeen = false
-        selectedListID = nil
-        subTab = .watched
-        showMaybeSeen = true
     }
 
     /// An agent receipt chip can deep-link straight into a custom list —

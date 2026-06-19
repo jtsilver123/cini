@@ -1615,6 +1615,27 @@ final class SupabaseService {
             .execute()
     }
 
+    /// Delete a single notification (swipe-to-delete in the bell).
+    func deleteNotification(_ id: UUID) async {
+        guard let me = currentUserID else { return }
+        _ = try? await client.from("notifications").delete()
+            .eq("id", value: id)
+            .eq("recipient_id", value: me)
+            .execute()
+    }
+
+    /// How many people have each title on their Want to Watch — privacy-safe
+    /// aggregate counts (the `watchlist_counts` RPC).
+    func watchlistCounts(movieIDs: [Int]) async -> [Int: Int] {
+        guard !movieIDs.isEmpty else { return [:] }
+        struct Row: Decodable { let movie_id: Int; let n: Int }
+        struct Params: Encodable { let p_movie_ids: [Int] }
+        let rows: [Row] = (try? await client.rpc("watchlist_counts",
+                                                 params: Params(p_movie_ids: movieIDs))
+            .execute().value) ?? []
+        return Dictionary(uniqueKeysWithValues: rows.map { ($0.movie_id, $0.n) })
+    }
+
     // MARK: - Detail page aggregates
 
     func communityScore(movieID: Int) async throws -> CommunityScore? {

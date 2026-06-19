@@ -17,6 +17,8 @@ struct TonightPickCard: View {
     var detail: String? = nil
     /// A short plot summary shown on the Swipe deck's richer card.
     var overview: String? = nil
+    /// How many people have bookmarked this title (shown as social proof).
+    var savedCount: Int? = nil
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
     var onOpen: (Movie) -> Void = { _ in }
@@ -86,6 +88,17 @@ struct TonightPickCard: View {
                 .padding(.horizontal, 9).padding(.vertical, 5)
                 .background(Capsule().fill(Theme.marquee))
                 .padding(12)
+            } else if let savedCount, savedCount > 0 {
+                // Social proof: how many people have bookmarked this title.
+                HStack(spacing: 4) {
+                    Image(systemName: "bookmark.fill")
+                    Text("\(savedCount.formattedCompact) saved")
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(Capsule().fill(.black.opacity(0.55)))
+                .padding(12)
             }
         }
         // Not feeling it tonight — dismiss for now.
@@ -152,7 +165,7 @@ struct TonightPickCard: View {
                 .strokeBorder(Theme.scoreGreen, lineWidth: 4).opacity(save)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
-            stamp("Save", "bookmark.fill", Theme.scoreGreen)
+            stamp("Bookmark", "bookmark.fill", Theme.scoreGreen)
                 .rotationEffect(.degrees(-10)).opacity(save)
             stamp("Dismiss", "xmark", Theme.scoreRed)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
@@ -278,5 +291,15 @@ struct TonightEmptyState: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
+    }
+}
+
+private extension Int {
+    /// Compact count for badges: 1200 -> "1.2k", 950 -> "950".
+    var formattedCompact: String {
+        guard self >= 1000 else { return "\(self)" }
+        let k = Double(self) / 1000
+        return (k >= 10 ? String(format: "%.0fk", k)
+                        : String(format: "%.1fk", k).replacingOccurrences(of: ".0k", with: "k"))
     }
 }

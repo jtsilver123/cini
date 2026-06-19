@@ -19,6 +19,8 @@ struct RecCardDeck: View {
     var onRank: (Movie) -> Void = { _ in }
     /// Taller cards with a metadata line + plot summary (the Swipe tab).
     var richDetail = false
+    /// Bookmark counts per tmdbID, shown as social proof on the cards.
+    var bookmarkCounts: [Int: Int] = [:]
 
     /// "2021 · 2h 12m" — year + runtime, when known.
     static func metaLine(_ movie: Movie) -> String {
@@ -46,7 +48,7 @@ struct RecCardDeck: View {
 
     private var demos: [DeckItem] {
         includeDemos ? [
-            .demo(id: 1, title: "Swipe right to save",
+            .demo(id: 1, title: "Swipe right to bookmark",
                   subtitle: "It lands on your Want to Watch list.", save: true),
             .demo(id: 2, title: "Swipe left to pass",
                   subtitle: "No one sees what you skip.", save: false),
@@ -109,6 +111,7 @@ struct RecCardDeck: View {
                 height: richDetail ? 300 : 220,
                 detail: richDetail ? Self.metaLine(c.movie) : nil,
                 overview: richDetail ? c.movie.overview : nil,
+                savedCount: bookmarkCounts[c.movie.tmdbID],
                 dragX: dragX,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
@@ -223,7 +226,7 @@ struct RecCardDeck: View {
         if case .rec(let c) = item {
             if save {
                 onSave(c.movie)
-                ToastCenter.shared.show("Saved to Want to Watch ✓")
+                ToastCenter.shared.show("Bookmarked ✓")
             }
             history.append((index, c.movie, save))
         } else {
@@ -356,7 +359,7 @@ struct FriendRecDeck: View {
             if let movie = rec.movies?.asMovie {
                 onSave(movie)
                 lastSaved = (index, movie)
-                ToastCenter.shared.show("Saved to Want to Watch ✓")
+                ToastCenter.shared.show("Bookmarked ✓")
             }
         } else {
             lastSaved = nil

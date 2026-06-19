@@ -1140,7 +1140,7 @@ function renderSearch(){
       : results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)
       : `
-      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="S.subTab='watched'; save(); go('lists'); openMaybeSeen();">
+      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="go('swipe')">
         <span style="color:var(--marquee);">${I("search",22)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14.5px;">Movies you may have seen</div>
@@ -1210,7 +1210,7 @@ const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched]
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
 let swipeIdx=0, swipeGrid=false, swipeTV=false, swipeImport=true;
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
-function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Saved to Want to Watch'); swipeIdx++; renderSwipe(); }
+function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Bookmarked'); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
 function renderSwipe(){
   const pool=swipePool();
@@ -2732,7 +2732,7 @@ function renderOnboarding(){
       </div>`;})()}
       <div style="display:flex; gap:30px; margin-top:4px;">
         <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;" onclick="toast('Passed')">&times;</button>
-        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;" onclick="toast('Saved to Want to Watch')">&#9829;</button>
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;" onclick="toast('Bookmarked')">&#9829;</button>
       </div>
       <button class="pill" style="justify-content:center; padding:13px; margin:10px 0 24px; width:100%; max-width:320px;" onclick="finishOnboarding()">Done</button>
     </div>`;

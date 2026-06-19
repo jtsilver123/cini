@@ -13,13 +13,25 @@ struct SwipeView: View {
 
     @State private var candidates: [YourListsView.RecCandidate] = []
     @State private var loaded = false
-    /// Cards is the default delight; Grid is the power view. Persisted so the
-    /// choice sticks between visits.
-    @AppStorage("swipe.gridMode") private var gridMode = false
+    /// Cards (the default delight), Grid (browse posters), or List (compact,
+    /// info-dense). Persisted so the choice sticks between visits.
+    private enum Layout: String, CaseIterable {
+        case cards, grid, list
+        var label: String { rawValue.capitalized }
+        var icon: String {
+            switch self {
+            case .cards: "rectangle.stack"
+            case .grid: "square.grid.2x2"
+            case .list: "list.bullet"
+            }
+        }
+    }
+    @AppStorage("swipe.layout") private var layout: Layout = .cards
     @State private var suggestTV = false
     @State private var dismissed: Set<Int> = []
     @State private var filters = MovieFilters()
     @State private var showFilterSheet = false
+    @State private var bookmarkCounts: [Int: Int] = [:]
     @AppStorage("swipe.importBannerHidden") private var importBannerHidden = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
@@ -105,19 +117,23 @@ struct SwipeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Import your history")
-                Button {
-                    withAnimation(.snappy) { gridMode.toggle() }
+                Menu {
+                    ForEach(Layout.allCases, id: \.self) { option in
+                        Button { withAnimation(.snappy) { layout = option } } label: {
+                            Label(option.label, systemImage: option.icon)
+                        }
+                    }
                 } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: gridMode ? "rectangle.stack" : "square.grid.2x2")
-                        Text(gridMode ? "Cards" : "Grid").font(.subheadline.weight(.semibold))
+                        Image(systemName: layout.icon)
+                        Text(layout.label).font(.subheadline.weight(.semibold))
+                        Image(systemName: "chevron.down").font(.caption2)
                     }
                     .foregroundStyle(Theme.marquee)
                     .padding(.horizontal, 12).padding(.vertical, 7)
                     .background(Capsule().fill(Theme.fill))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(gridMode ? "Show as cards" : "Show as grid")
+                .accessibilityLabel("View: \(layout.label)")
             }
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
@@ -173,46 +189,66 @@ struct SwipeView: View {
             Spacer()
         } else if visible.isEmpty {
             emptyState
-        } else if gridMode {
-            ScrollView {
-                SuggestionGrid(
-                    movies: visible.map(\.movie),
-                    onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
-                    onSave: { movie in
-                        guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                        Task { await store.toggleWatchlist(movie: movie) }
-                        ToastCenter.shared.show("Saved to Want to Watch ✓")
-                    },
-                    onDismiss: { movie in
-                        withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
-                    }
-                )
-                .screenHPadding()
-                .padding(.top, 8)
-            }
         } else {
-            RecCardDeck(
-                candidates: visible,
-                onOpen: { store.cache($0); detailMovie = $0 },
-                onLog: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
-                onSave: { m in
-                    if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
-                },
-                onUnsave: { m in
-                    if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
-                },
-                onRefresh: { Task { candidates = []; loaded = false; await load() } },
-                showRank: true,
-                onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
-                richDetail: true
-            )
-            // Reset the deck's position when switching Movies ↔ TV.
-            .id(suggestTV)
-            // Cards run wider than the standard gutter for an immersive,
-            // swipe-deck feel (the grid keeps the regular screen margin).
-            .padding(.horizontal, 10)
-            .padding(.top, 12)
-            Spacer(minLength: 0)
+            switch layout {
+            case .grid:
+                ScrollView {
+                    SuggestionGrid(
+                        movies: visible.map(\.movie),
+                        onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                        onSave: { movie in
+                            guard !store.isOnWatchlist(movie.tmdbID) else { return }
+                            Task { await store.toggleWatchlist(movie: movie) }
+                            ToastCenter.shared.show("Saved to Want to Watch ✓")
+                        },
+                        onDismiss: { movie in
+                            withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
+                        }
+                    )
+                    .screenHPadding()
+                    .padding(.top, 8)
+                }
+            case .list:
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(visible) { c in
+                            MovieSuggestionRow(
+                                movie: c.movie,
+                                onRank: { watchedCountAtRank = store.watchedCount; logMovie = c.movie },
+                                onOpen: { store.cache(c.movie); detailMovie = c.movie },
+                                onDismiss: { withAnimation(.snappy) { _ = dismissed.insert(c.movie.tmdbID) } },
+                                zoomNamespace: posterZoom)
+                            Divider()
+                        }
+                    }
+                    .screenHPadding()
+                    .padding(.top, 4)
+                }
+            case .cards:
+                RecCardDeck(
+                    candidates: visible,
+                    onOpen: { store.cache($0); detailMovie = $0 },
+                    onLog: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                    onSave: { m in
+                        if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                    },
+                    onUnsave: { m in
+                        if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                    },
+                    onRefresh: { Task { candidates = []; loaded = false; await load() } },
+                    showRank: true,
+                    onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                    richDetail: true,
+                    bookmarkCounts: bookmarkCounts
+                )
+                // Reset the deck's position when switching Movies ↔ TV.
+                .id(suggestTV)
+                // Cards run wider than the standard gutter for an immersive,
+                // swipe-deck feel (the other views keep the regular margin).
+                .padding(.horizontal, 10)
+                .padding(.top, 12)
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -283,6 +319,9 @@ struct SwipeView: View {
             }
         }
         loaded = true
+
+        // How many people have each title bookmarked — social proof on the cards.
+        bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
 
         // Fill in runtime, streaming, and a plot summary for the richer cards
         // (and so the genre/streaming filters have something to match) — in the
