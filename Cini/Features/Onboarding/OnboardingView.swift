@@ -624,9 +624,10 @@ struct OnboardingView: View {
 
     private var firstRankStep: some View {
         VStack(spacing: 14) {
-            Text("Rank your first movie or show")
+            Text("Rank your first movie/show")
                 .font(Theme.serif(30))
-                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .padding(.top, 26)
             recsViewTeacher(isGrid: true)
 

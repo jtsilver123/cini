@@ -1268,17 +1268,13 @@ function renderSwipe(){
           <div class="sub" style="font-size:12px; margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${m.ov||'Because you liked your top pick'}</div>
         </div>
       </div>
-      <div style="display:flex; gap:24px; align-items:flex-start;">
+      <div style="display:flex; gap:34px; align-items:flex-start;">
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
-          <button onclick="swipePass()" style="width:58px;height:58px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
+          <button onclick="swipePass()" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Pass</span>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
-          <button onclick="buzz(); openLog('${k}')" style="width:52px;height:52px;border-radius:50%;border:none;background:var(--marquee);color:#10100e;font-size:26px;font-weight:700;cursor:pointer;">+</button>
-          <span class="sub" style="font-size:11px; font-weight:600;">Seen it</span>
-        </div>
-        <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
-          <button onclick="swipeSave('${k}')" style="width:58px;height:58px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;">&#9829;</button>
+          <button onclick="swipeSave('${k}')" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--green);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("bookmark",24,2.2)}</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Bookmark</span>
         </div>
       </div>
@@ -2829,7 +2825,7 @@ function renderOnboarding(){
       </div>`;})()}
       <div style="display:flex; gap:30px; margin-top:4px;">
         <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;" onclick="toast('Passed')">&times;</button>
-        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;" onclick="toast('Bookmarked')">&#9829;</button>
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" onclick="toast('Bookmarked')">${I("bookmark",24,2.2)}</button>
       </div>
       <button class="pill" style="justify-content:center; padding:13px; margin:10px 0 24px; width:100%; max-width:320px;" onclick="finishOnboarding()">Done</button>
     </div>`;

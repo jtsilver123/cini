@@ -70,14 +70,11 @@ struct RecCardDeck: View {
             exhausted
         } else {
             ZStack {
-                // Peek of the next card behind the top one. It grows smoothly
-                // toward full size as the top card is swiped/flung away, so it's
-                // already in place when it becomes the front card (no "pop").
+                // The next card sits exactly behind the top one (same size, no
+                // peek), so nothing shows behind at rest — it's only revealed as
+                // the top card slides/flies away.
                 if index + 1 < items.count {
-                    let progress = min(abs(drag.width + flyOff) / 120, 1)
                     card(items[index + 1])
-                        .scaleEffect(0.96 + 0.04 * progress)
-                        .offset(y: 12 - 12 * progress)
                         .zIndex(0)
                 }
                 let top = items[index]
@@ -96,7 +93,7 @@ struct RecCardDeck: View {
                     )
                     .animation(.snappy, value: drag)
             }
-            .frame(height: richDetail ? 320 : 232)
+            .frame(height: richDetail ? 300 : 220)
         }
     }
 
@@ -133,7 +130,9 @@ struct RecCardDeck: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        .frame(height: 220)
+        // Match the rec card's height (taller in rich detail) so a real card
+        // peeking behind a demo card doesn't poke out top and bottom.
+        .frame(height: richDetail ? 300 : 220)
         .background(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous).fill(Theme.surface))
         .overlay(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))
@@ -165,19 +164,11 @@ struct RecCardDeck: View {
                 .disabled(index >= items.count)
                 .accessibilityLabel("Pass")
 
-            // "I've seen this" → rank it (opens the comparison flow). Labeled so
-            // it's obvious this is for titles you've WATCHED — distinct from the
-            // heart, which bookmarks to Want to Watch.
-            if showRank {
-                controlButton(action: { rankCurrent() },
-                              icon: "plus", size: 54, fg: .white,
-                              bg: Theme.marquee, caption: "Seen it")
-                    .disabled(index >= items.count)
-                    .accessibilityLabel("Rank this — you've seen it")
-            }
-
+            // Cards are for finding things to WATCH — bookmark or pass. (Ranking
+            // what you've seen lives in the grid view, so there's no rank button
+            // here.) The bookmark icon makes the Want-to-Watch action explicit.
             controlButton(action: { act(save: true) },
-                          icon: "heart.fill", size: 62, fg: .white,
+                          icon: "bookmark.fill", size: 62, fg: .white,
                           bg: Theme.scoreGreen, caption: "Bookmark")
                 .disabled(index >= items.count)
                 .accessibilityLabel("Bookmark to Want to Watch")
@@ -237,12 +228,17 @@ struct RecCardDeck: View {
             if index + 1 >= demos.count { demoSeen = true }
         }
         withAnimation(.easeIn(duration: 0.28)) { flyOff = save ? 700 : -700 }
-        // Advance after the card has flown off.
+        // Advance once the card has flown off. Reset position WITHOUT animation
+        // (and in the same transaction as the index bump) so the next card just
+        // appears at center instead of sliding back in from off-screen.
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(260))
-            index += 1
-            drag = .zero
-            flyOff = 0
+            try? await Task.sleep(for: .milliseconds(300))
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) {
+                index += 1
+                drag = .zero
+                flyOff = 0
+            }
         }
     }
 
@@ -253,12 +249,6 @@ struct RecCardDeck: View {
         withAnimation(.snappy) { index = last.index; drag = .zero; flyOff = 0 }
     }
 
-    /// Rank the current top card (no swipe). Demo cards aren't rankable.
-    private func rankCurrent() {
-        guard index < items.count, case .rec(let c) = items[index] else { return }
-        Haptics.tap()
-        onRank(c.movie)
-    }
 }
 
 /// CIN-36: the same swipe deck for Friend Recs. Swipe right to save to Want to
