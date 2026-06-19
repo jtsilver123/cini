@@ -1011,6 +1011,7 @@ struct CommentsSheet: View {
     var onCommentCountChange: (Int) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppSession.self) private var session
     @FocusState private var composerFocused: Bool
     @State private var comments: [CommentRow] = []
     @State private var draft = ""
@@ -1104,7 +1105,12 @@ struct CommentsSheet: View {
                         Divider().overlay(Theme.hairline)
                     }
                     HStack(spacing: 10) {
-                        TextField("Add a comment…", text: $draft, axis: .vertical)
+                        // Your avatar leads the composer, Beli-style — it's
+                        // clearly YOU about to comment.
+                        AvatarView(url: session.profile?.avatarURL, size: 32,
+                                   name: preferredName(session.profile?.displayName,
+                                                       session.profile?.username))
+                        TextField("Comment or tag a friend", text: $draft, axis: .vertical)
                             .focused($composerFocused)
                             .padding(10)
                             .background(RoundedRectangle(cornerRadius: 16).fill(Theme.fill))
