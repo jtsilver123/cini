@@ -271,6 +271,7 @@
     </span></div>
 
   <div class="screen" data-screen="feed" id="screen-feed"></div>
+  <div class="screen hidden" data-screen="swipe" id="screen-swipe"></div>
   <div class="screen hidden" data-screen="lists" id="screen-lists"></div>
   <div class="screen hidden" data-screen="search" id="screen-search"></div>
   <div class="screen hidden" data-screen="leaderboard" id="screen-leaderboard"></div>
@@ -289,13 +290,13 @@
     <button class="tab active" data-go="feed">
       <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="9" x2="13" y2="9"/><line x1="7" y1="13" x2="17" y2="13"/><line x1="7" y1="17" x2="17" y2="17"/></svg>
       Feed</button>
+    <button class="tab" data-go="swipe">
+      <svg viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="16" rx="2"/><rect x="2.5" y="7" width="3" height="10" rx="1"/><rect x="18.5" y="7" width="3" height="10" rx="1"/></svg>
+      Swipe</button>
+    <button class="tab center" onclick="openSearchForRank()"><span class="plus">+</span>Search</button>
     <button class="tab" data-go="lists">
       <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
       Your Lists</button>
-    <button class="tab center" onclick="openSearchForRank()"><span class="plus">+</span>Search</button>
-    <button class="tab" data-go="leaderboard">
-      <svg viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v6a5 5 0 0 1-10 0z"/><path d="M7 6H4a1 1 0 0 0-1 1 4 4 0 0 0 4 4"/><path d="M17 6h3a1 1 0 0 1 1 1 4 4 0 0 1-4 4"/></svg>
-      Leaderboard</button>
     <button class="tab" data-go="profile">
       <span class="me-av">J</span>
       Profile</button>
@@ -490,7 +491,7 @@ function deepLink(provider, title){
 /* ---------- Navigation: render only the active screen, keep scroll ---------- */
 let currentScreen="feed", detailKey="dune2", searchTab="movies";
 const RENDERERS = {
-  feed:renderFeed, lists:renderLists, search:renderSearchScreen,
+  feed:renderFeed, swipe:renderSwipe, lists:renderLists, search:renderSearchScreen,
   leaderboard:renderLeaderboard, profile:renderProfile, detail:renderDetail, chat:renderChat,
 };
 function render(){
@@ -1194,6 +1195,43 @@ const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched]
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
+let swipeIdx=0, swipeGrid=false, swipeTV=false;
+function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
+function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Saved to Want to Watch'); swipeIdx++; renderSwipe(); }
+function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
+function renderSwipe(){
+  const pool=swipePool();
+  const head=`<div class="pad" style="display:flex; align-items:center; padding-top:14px; padding-bottom:2px;">
+      <b style="font-size:21px;">Swipe</b><span class="spacer"></span>
+      <button class="pill out" onclick="swipeGrid=!swipeGrid; renderSwipe()">${swipeGrid?'Cards':'Grid'}</button></div>
+    <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:6px;">
+      <button class="pill ${swipeTV?'out':''}" onclick="swipeTV=false; renderSwipe()">Movies</button>
+      <button class="pill ${swipeTV?'':'out'}" onclick="swipeTV=true; renderSwipe()">TV Shows</button></div>`;
+  let body;
+  if(swipeGrid){
+    body=`<div class="pad" style="margin-top:8px;">${pool.map(k=>row(k,false)).join("")}</div>`;
+  } else if(swipeIdx>=pool.length){
+    body=`<div class="empty"><span style="color:var(--marquee);">${I("check",30)}</span><b>You're all caught up</b><span class="sub">Flip to a grid, or check back later for fresh picks.</span></div>`;
+  } else {
+    const k=pool[swipeIdx], m=MOVIES[k];
+    body=`<div class="pad" style="display:flex; flex-direction:column; align-items:center; gap:16px; margin-top:10px;">
+      <div onclick="openDetail('${k}')" style="width:240px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 14px 34px rgba(0,0,0,.34); cursor:pointer;">
+        <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>
+        <div style="padding:12px 14px;">
+          <div style="font-weight:700; font-size:16px;">${m.t}</div>
+          <div class="sub" style="font-size:12.5px; margin-top:2px;">Because you liked your top pick</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:26px; align-items:center;">
+        <button onclick="swipePass()" style="width:58px;height:58px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
+        <button onclick="buzz(); openLog('${k}')" style="width:52px;height:52px;border-radius:50%;border:none;background:var(--marquee);color:#10100e;font-size:26px;font-weight:700;cursor:pointer;">+</button>
+        <button onclick="swipeSave('${k}')" style="width:58px;height:58px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;">&#9829;</button>
+      </div>
+      <div class="sub" style="font-size:12px;">Swipe right to save, left to pass, + to rank one you've seen</div>
+    </div>`;
+  }
+  $("screen-swipe").innerHTML = head + body;
+}
 function renderLeaderboard(){
   const [label,copy,fn]=LB_META[S.lbMetric];
   const rows = fn(MEMBERS[0])===null
@@ -1316,6 +1354,7 @@ function renderProfile(){
       ${isSelf
         ? `<b style="font-size:21px;">${name}</b><span class="spacer"></span>
            <span style="display:flex; gap:18px;">
+             <button class="iconbtn" onclick="go('leaderboard')" aria-label="Leaderboard">${I("trophy",19)}</button>
              <button class="iconbtn" onclick="share('My Cini profile — @${handle}')">${I("share",19)}</button>
              <button class="iconbtn" onclick="openMenu()">${I("menu",19)}</button>
            </span>`
