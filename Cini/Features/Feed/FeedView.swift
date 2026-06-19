@@ -221,23 +221,18 @@ struct FeedView: View {
             showAskRecs = true
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "hand.wave")
+                Image(systemName: "sparkles")
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Ask friends for a rec")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                    Text("Pick friends, set the mood, get picks back")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                }
+                Text("Ask your friends for recs")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+            .background(Capsule().fill(Theme.fill))
+            .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
