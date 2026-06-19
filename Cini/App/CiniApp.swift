@@ -92,19 +92,37 @@ struct CiniApp: App {
         }
     }
 
-    /// Route a `cini://…` deep link from a shared trycini.com page.
+    /// Route a deep link into the app. Two shapes arrive here:
+    ///   • a `cini://…` custom scheme, used by the trycini.com pages' in-page
+    ///     "Open Cini" buttons (same-domain taps can't fire a Universal Link); and
+    ///   • a Universal Link `https://trycini.com/i|/l…`, which iOS hands straight
+    ///     to the installed app — no Safari, no "address is invalid" detour —
+    ///     when an invite/list link is tapped from Messages, Mail, etc.
     private func handleURL(_ url: URL) {
-        guard url.scheme == "cini",
-              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
-        if url.host == "list" {
-            // cini://list?id=<uuid> → open that list (if it's viewable). Signed
-            // out, stash it and open once they're in the app.
+        guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+
+        let isList: Bool
+        let isInvite: Bool
+        if url.scheme == "cini" {
+            isList = url.host == "list"
+            isInvite = !isList   // cini://invite (or bare cini://) → invite
+        } else if url.scheme == "https",
+                  url.host == "trycini.com" || url.host == "www.trycini.com" {
+            isList = url.path.hasPrefix("/l")
+            isInvite = url.path.hasPrefix("/i")
+        } else {
+            return
+        }
+
+        if isList {
+            // /l?id=<uuid> → open that list (if it's viewable). Signed out,
+            // stash it and open once they're in the app.
             guard let idStr = comps.queryItems?.first(where: { $0.name == "id" })?.value,
                   let id = UUID(uuidString: idStr) else { return }
             if session.isAuthenticated { openList(id) } else { pendingListID = id }
             return
         }
-        handleInvite(comps)
+        if isInvite { handleInvite(comps) }
     }
 
     /// Fetch + present a shared list, or explain why it can't open.
@@ -203,6 +221,11 @@ struct CiniApp: App {
             .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }
             .onOpenURL { handleURL($0) }
+            // Universal Links (https://trycini.com/i|/l) arrive as a browsing
+            // user activity; route them through the same handler.
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { handleURL(url) }
+            }
             // A shared list link (cini://list?id=) opens the list right here.
             .sheet(item: $sharedList) { list in
                 NavigationStack {

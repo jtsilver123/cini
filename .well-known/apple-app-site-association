@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "VRPVPJAN9G.app.cini.ios",
+        "paths": [ "/i/*", "/l/*" ]
+      }
+    ]
+  }
+}

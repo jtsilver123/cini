@@ -56,6 +56,12 @@ targets:
       path: Cini/Resources/Cini.entitlements
       properties:
         aps-environment: production
+        # Universal Links: trycini.com invite/list links open straight in the
+        # app when installed (apple-app-site-association is served from the
+        # site's /.well-known/). Needs the Associated Domains capability on the
+        # App ID at signing time.
+        com.apple.developer.associated-domains:
+          - applinks:trycini.com
     scheme:
       testTargets:
         - CiniTests

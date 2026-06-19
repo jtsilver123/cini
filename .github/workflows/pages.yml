@@ -49,6 +49,11 @@ jobs:
           mkdir -p _site/l
           cp l/index.html _site/l/index.html
           cp favicon.png _site/l/favicon.png
+          # Apple App Site Association — lets iOS open invite/list links
+          # (/i/*, /l/*) straight in the app via Universal Links. Served from
+          # /.well-known/ with no file extension over https.
+          mkdir -p _site/.well-known
+          cp .well-known/apple-app-site-association _site/.well-known/apple-app-site-association
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
