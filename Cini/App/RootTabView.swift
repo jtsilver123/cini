@@ -41,6 +41,11 @@ final class TabRouter {
     /// so "Movies you may have seen" lands on the movies deck, etc.
     var pendingRecsTV: Bool?
 
+    /// Set before jumping to Recs to preselect the layout: grid (true) for
+    /// "things you've watched" (from Watched), cards (false) for "find things
+    /// to watch" (from Want to Watch).
+    var pendingRecsGrid: Bool?
+
     /// Set before jumping to lists to open a specific custom list
     /// (agent receipt chips use this).
     var pendingCustomListID: UUID?

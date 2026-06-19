@@ -934,7 +934,7 @@ function renderLists(){
     </div>`:""}
     ${S.ui.reorder && sub==="watched"?`<div class="pad" style="margin-top:10px; color:var(--marquee); font-size:12.5px; font-weight:700;">Reorder mode — use the arrows; scores update automatically</div>`:""}
     ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
-      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="swipeGrid=true; go('swipe')">
         <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">${S.category==="TV"?"Shows":"Movies"} you may have seen</div>
@@ -943,7 +943,7 @@ function renderLists(){
       </div>
     </div>`:""}
     ${sub==="watchlist"?`<div class="pad" style="margin-top:8px;">
-      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="swipeGrid=false; go('swipe')">
         <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">Find ${S.category==="TV"?"shows":"movies"} to watch</div>
@@ -1163,7 +1163,7 @@ function renderSearch(){
       : results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)
       : `
-      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="go('swipe')">
+      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="swipeGrid=true; go('swipe')">
         <span style="color:var(--marquee);">${I("search",22)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14.5px;">Movies you may have seen</div>
@@ -1247,14 +1247,15 @@ function renderSwipe(){
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px; align-items:center;">
       <button class="iconbtn" onclick="openFilters()" aria-label="Filters and sort" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:7px; margin-right:2px;">${I("sliders",17)}</button>
       ${["Streaming","Genre","Runtime","Decade"].map(p=>`<button class="pill out" onclick="openFilters()">${p}</button>`).join("")}</div>`;
+  const noteHTML=`<div class="pad" style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gray); font-size:12px; font-weight:600;">${I("stack",14)} ${swipeGrid?`Tap a poster to rank a ${swipeTV?"show":"movie"} you've seen`:`Swipe to find a ${swipeTV?"show":"movie"} to watch, or + to rank one you've seen`}</div>`;
   let body;
   if(swipeGrid){
-    body=`<div class="pad" style="margin-top:8px;">${pool.map(k=>row(k,false)).join("")}</div>`;
+    body=noteHTML+`<div class="pad" style="margin-top:8px;">${pool.map(k=>row(k,false)).join("")}</div>`;
   } else if(swipeIdx>=pool.length){
     body=`<div class="empty"><span style="color:var(--marquee);">${I("check",30)}</span><b>You're all caught up</b><span class="sub">Flip to a grid, or check back later for fresh picks.</span></div>`;
   } else {
     const k=pool[swipeIdx], m=MOVIES[k];
-    body=`<div class="pad" style="display:flex; flex-direction:column; align-items:center; gap:16px; margin-top:10px;">
+    body=noteHTML+`<div class="pad" style="display:flex; flex-direction:column; align-items:center; gap:16px; margin-top:10px;">
       <div onclick="openDetail('${k}')" style="width:240px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 14px 34px rgba(0,0,0,.34); cursor:pointer;">
         <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>
         <div style="padding:12px 14px;">
@@ -2786,7 +2787,7 @@ function renderOnboarding(){
   else if(obStep===9) body=`
     <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
-      <div class="sub">Tap one you've seen to rank it — or skip for now.</div>
+      <div class="sub">This grid is the fast way to rank things you've watched — tap any you've seen, or skip for now.</div>
       <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
         ${Object.keys(MOVIES).slice(0,6).map(k=>`
           <div style="cursor:pointer; opacity:${obRanked?.55:1};" onclick="obRanked=true; renderOnboarding(); toast('Ranked! Tap Continue to keep going.');">
@@ -2799,7 +2800,7 @@ function renderOnboarding(){
   else body=`
     <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Meet your Recs</div>
-      <div class="sub" style="padding:0 4px;">Swipe right to bookmark a pick, left to pass, or tap + to rank one you've seen. This is your Recs tab.</div>
+      <div class="sub" style="padding:0 4px;">Swiping is the best way to find new things to watch: right to bookmark, left to pass, or + to rank one you've seen. This is your Recs tab.</div>
       ${(()=>{const ks=Object.keys(MOVIES); const k=ks[6]||ks[0]; const m=MOVIES[k]; return `
       <div style="width:196px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 12px 30px rgba(0,0,0,.32); margin-top:4px;">
         <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>

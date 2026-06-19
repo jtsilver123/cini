@@ -44,6 +44,8 @@ struct OnboardingView: View {
     @State private var showImport = false
     @State private var importStartsWithPaste = false
     @State private var starters: [Movie] = []
+    /// Movies vs TV toggle on the grid + card onboarding steps (mirrors Recs).
+    @State private var onbTV = false
     @State private var logMovie: Movie?
     @State private var notifsEnabled = false
     @State private var showNotifReask = false
@@ -140,11 +142,13 @@ struct OnboardingView: View {
                 firstName = parts.first ?? ""
                 lastName = parts.count > 1 ? parts[1] : ""
             }
-            // Iconic, instantly-recognizable films so the first rank is easy —
-            // Godfather, Star Wars, Avengers, etc. (curated TMDB ids, fetched +
-            // validated in parallel) rather than whatever's merely trending.
+            // Iconic, instantly-recognizable titles so the first rank is easy —
+            // movies (positive ids) AND shows (negative ids, the app's TV
+            // convention) so the Movies/TV toggle has a full grid either way.
             let iconicIDs = [238, 278, 155, 680, 11, 27205, 603, 13, 157336,
-                             597, 329, 120, 24428, 550, 496243, 98]
+                             597, 329, 120, 24428, 550, 496243, 98,
+                             -1396, -1399, -66732, -1668, -2316, -1398,
+                             -94605, -95396, -82856, -76331, -60625, -456]
             let fetched = await withTaskGroup(of: Movie?.self) { group in
                 for id in iconicIDs {
                     group.addTask { try? await TMDBService.shared.details(for: id) }
@@ -574,17 +578,30 @@ struct OnboardingView: View {
 
     // MARK: 5 — Rank your first movie
 
+    /// Starters / rec candidates filtered to the Movies/TV toggle.
+    private var visibleStarters: [Movie] {
+        starters.filter { onbTV ? $0.mediaKind == "tv" : $0.mediaKind != "tv" }
+    }
+    private var visibleRecCandidates: [YourListsView.RecCandidate] {
+        recCandidates.filter { onbTV ? $0.movie.mediaKind == "tv" : $0.movie.mediaKind != "tv" }
+    }
+
     private var firstRankStep: some View {
         VStack(spacing: 14) {
             Text("Rank your first movie or show")
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 26)
-            Text("Pick anything you've seen — the first one is quick and easy.")
+            Text("Tap a poster to rank a \(onbTV ? "show" : "movie") you've seen — the grid's the fast way to log what you've watched.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+
+            SegmentedPillControl(
+                segments: ["Movies", "TV Shows"],
+                selection: Binding(get: { onbTV ? 1 : 0 }, set: { onbTV = $0 == 1 }))
+                .padding(.horizontal, 24)
 
             if starters.isEmpty {
                 // Posters come from TMDB; if that didn't load (e.g. no network
@@ -601,7 +618,7 @@ struct OnboardingView: View {
                     // Shared grid (CIN-33): tap to rank, ✕ to dismiss, hold to
                     // save to Want to Watch.
                     SuggestionGrid(
-                        movies: starters,
+                        movies: visibleStarters,
                         onRank: { logMovie = $0 },
                         onSave: { movie in
                             guard !store.isOnWatchlist(movie.tmdbID) else { return }
@@ -652,18 +669,24 @@ struct OnboardingView: View {
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 24)
-            Text("Swipe right to bookmark a pick, left to pass, or tap + to rank one you've seen. This is your Recs tab.")
+            Text("Swiping is the best way to find new things to watch: swipe right to bookmark a \(onbTV ? "show" : "movie"), left to pass, or tap + to rank one you've seen.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 30)
 
+            SegmentedPillControl(
+                segments: ["Movies", "TV Shows"],
+                selection: Binding(get: { onbTV ? 1 : 0 }, set: { onbTV = $0 == 1 }))
+                .padding(.horizontal, 24)
+
             Spacer(minLength: 8)
 
             if !recsLoaded {
                 ProgressView()
-            } else if recCandidates.isEmpty {
-                // Rare (offline / no posters) — don't trap them on an empty deck.
+            } else if visibleRecCandidates.isEmpty {
+                // Rare (offline / no posters / none of this kind) — don't trap
+                // them on an empty deck.
                 VStack(spacing: 8) {
                     Image(systemName: "sparkles").font(.title).foregroundStyle(Theme.gray)
                     Text("More picks once you've ranked a few")
@@ -676,7 +699,7 @@ struct OnboardingView: View {
                 // The shared swipe deck — its built-in practice cards teach the
                 // gesture first, then real picks follow.
                 RecCardDeck(
-                    candidates: recCandidates,
+                    candidates: visibleRecCandidates,
                     onOpen: { _ in },
                     onLog: { logMovie = $0 },
                     onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },

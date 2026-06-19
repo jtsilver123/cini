@@ -14,16 +14,23 @@ struct SwipeView: View {
 
     @State private var candidates: [YourListsView.RecCandidate] = []
     @State private var loaded = false
-    /// Cards (the default delight), Grid (browse posters), or List (compact,
-    /// info-dense). Persisted so the choice sticks between visits.
+    /// Grid (pick from posters — best for ranking things you've watched) or
+    /// Cards (the swipe deck — best for finding things to watch). Persisted so
+    /// the choice sticks, and auto-selected by the deep link that opened Recs.
     private enum Layout: String, CaseIterable {
-        case cards, grid, list
+        case grid, cards
         var label: String { rawValue.capitalized }
         var icon: String {
             switch self {
-            case .cards: "rectangle.stack"
             case .grid: "square.grid.2x2"
-            case .list: "list.bullet"
+            case .cards: "rectangle.stack"
+            }
+        }
+        /// One-line "what it's for," shown in the layout menu.
+        var blurb: String {
+            switch self {
+            case .grid: "Best for ranking what you've watched"
+            case .cards: "Best for finding what to watch"
             }
         }
     }
@@ -108,15 +115,23 @@ struct SwipeView: View {
             .task { await load() }
             // A deep link (e.g. "Movies you may have seen") can ask Recs to
             // preselect Movies or TV — honor it whether the tab is new or alive.
-            .onAppear { consumePendingMediaKind() }
-            .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumePendingMediaKind() }
+            .onAppear { consumeDeepLink() }
+            .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumeDeepLink() }
+            .onChange(of: tabRouter.pendingRecsGrid) { _, _ in consumeDeepLink() }
         }
     }
 
-    private func consumePendingMediaKind() {
-        guard let wantTV = tabRouter.pendingRecsTV else { return }
-        tabRouter.pendingRecsTV = nil
-        suggestTV = wantTV
+    /// Honor a deep link into Recs: it can preselect the media kind AND the
+    /// layout (grid for "things you've watched", cards for "find to watch").
+    private func consumeDeepLink() {
+        if let wantTV = tabRouter.pendingRecsTV {
+            tabRouter.pendingRecsTV = nil
+            suggestTV = wantTV
+        }
+        if let wantGrid = tabRouter.pendingRecsGrid {
+            tabRouter.pendingRecsGrid = nil
+            withAnimation(.snappy) { layout = wantGrid ? .grid : .cards }
+        }
     }
 
     private var header: some View {
@@ -134,9 +149,10 @@ struct SwipeView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Import your history")
                 Menu {
+                    // Grid first, then Cards — each with what it's best for.
                     ForEach(Layout.allCases, id: \.self) { option in
                         Button { withAnimation(.snappy) { layout = option } } label: {
-                            Label(option.label, systemImage: option.icon)
+                            Label("\(option.label) · \(option.blurb)", systemImage: option.icon)
                         }
                     }
                 } label: {
@@ -204,6 +220,15 @@ struct SwipeView: View {
         .padding(.top, 6)
     }
 
+    /// A small instructional note above the grid/deck, adapting to the toggle.
+    private func modeNote(_ text: String) -> some View {
+        Label(text, systemImage: "hand.tap")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.gray)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+    }
+
     @ViewBuilder
     private var content: some View {
         if !loaded {
@@ -216,40 +241,28 @@ struct SwipeView: View {
             switch layout {
             case .grid:
                 ScrollView {
-                    SuggestionGrid(
-                        movies: visible.map(\.movie),
-                        onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
-                        onSave: { movie in
-                            guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                            Task { await store.toggleWatchlist(movie: movie) }
-                            ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
-                        },
-                        onDismiss: { movie in
-                            withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
-                        }
-                    )
+                    VStack(spacing: 8) {
+                        modeNote("Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen")
+                        SuggestionGrid(
+                            movies: visible.map(\.movie),
+                            onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                            onSave: { movie in
+                                guard !store.isOnWatchlist(movie.tmdbID) else { return }
+                                Task { await store.toggleWatchlist(movie: movie) }
+                                ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
+                            },
+                            onDismiss: { movie in
+                                withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
+                            }
+                        )
+                    }
                     .screenHPadding()
                     .padding(.top, 8)
                     .id("recsTop")
                 }
-            case .list:
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(visible) { c in
-                            MovieSuggestionRow(
-                                movie: c.movie,
-                                onRank: { watchedCountAtRank = store.watchedCount; logMovie = c.movie },
-                                onOpen: { store.cache(c.movie); detailMovie = c.movie },
-                                onDismiss: { withAnimation(.snappy) { _ = dismissed.insert(c.movie.tmdbID) } },
-                                zoomNamespace: posterZoom)
-                            Divider()
-                        }
-                    }
-                    .screenHPadding()
-                    .padding(.top, 4)
-                    .id("recsTop")
-                }
             case .cards:
+                modeNote("Swipe to find a \(suggestTV ? "show" : "movie") to watch, or tap + to rank one you've seen")
+                    .padding(.top, 8)
                 RecCardDeck(
                     candidates: visible,
                     onOpen: { store.cache($0); detailMovie = $0 },

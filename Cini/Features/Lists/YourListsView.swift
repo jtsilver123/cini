@@ -1003,8 +1003,10 @@ struct YourListsView: View {
     private var maybeSeenBar: some View {
         Button {
             Haptics.tap()
-            // Land on Recs with the SAME media kind the user is browsing here.
+            // Land on Recs with the SAME media kind, in GRID mode — best for
+            // picking out things you've already watched.
             tabRouter.pendingRecsTV = (category == .tvShows)
+            tabRouter.pendingRecsGrid = true
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
@@ -1034,7 +1036,9 @@ struct YourListsView: View {
     private var findToWatchBar: some View {
         Button {
             Haptics.tap()
+            // Land on Recs in CARDS mode — best for swiping to find new things.
             tabRouter.pendingRecsTV = (category == .tvShows)
+            tabRouter.pendingRecsGrid = false
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
