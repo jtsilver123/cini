@@ -73,7 +73,7 @@ struct AuthView: View {
     private var signInScreen: some View {
         VStack(spacing: 18) {
             header("Welcome back", "Sign in to pick up your rankings.")
-            authField("Email or phone (non-US include \"+\")", text: $email, keyboard: .emailAddress)
+            authField("Email, phone, or username", text: $email, keyboard: .emailAddress)
             authField("Password", text: $password, secure: true)
             primaryButton("Sign in", loading: isWorking,
                           disabled: email.isEmpty || password.count < 6) {
@@ -307,18 +307,29 @@ struct AuthView: View {
         do {
             if id.contains("@") {
                 try await SupabaseService.shared.signIn(email: id, password: password)
-            } else {
+            } else if isPhoneLike(id) {
                 // Phone login matches on the last 10 digits server-side, so any
                 // plausible number works — non-US users include their "+" code.
                 guard PhoneNumber.digits(id).count >= 7 else {
-                    errorMessage = "Enter a valid email or phone number."
+                    errorMessage = "Enter a valid email, phone, or username."
                     return
                 }
                 try await SupabaseService.shared.signInWithPhone(phone: id, password: password)
+            } else {
+                // Anything with letters is treated as a username (a leading "@"
+                // is fine — it's stripped server-side).
+                try await SupabaseService.shared.signInWithUsername(username: id, password: password)
             }
         } catch {
             errorMessage = friendly(error)
         }
+    }
+
+    /// True when the identifier is only digits and phone separators (so it's a
+    /// phone number, not a username). Usernames contain letters or underscores.
+    private func isPhoneLike(_ s: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "+0123456789()-. ")
+        return !s.isEmpty && s.unicodeScalars.allSatisfy { allowed.contains($0) }
     }
 
     /// Phone step → email step, but first confirm the number isn't already on

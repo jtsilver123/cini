@@ -43,10 +43,22 @@ final class SupabaseService {
     /// session we adopt — no OTP, and the client never sees phone→email.
     func signInWithPhone(phone: String, password: String) async throws {
         struct Body: Encodable { let phone: String; let password: String }
+        try await loginViaFunction(Body(phone: phone, password: password))
+    }
+
+    /// Log in with a username + password. Same `phone-login` edge function and
+    /// guarantees as phone login: the username→account lookup runs server-side
+    /// (service role), so the client never sees username→email.
+    func signInWithUsername(username: String, password: String) async throws {
+        struct Body: Encodable { let username: String; let password: String }
+        try await loginViaFunction(Body(username: username, password: password))
+    }
+
+    /// Shared tail for the edge-function logins: invoke, then adopt the session.
+    private func loginViaFunction<B: Encodable>(_ body: B) async throws {
         struct Tokens: Decodable { let access_token: String; let refresh_token: String }
         let tokens: Tokens = try await client.functions.invoke(
-            "phone-login",
-            options: FunctionInvokeOptions(body: Body(phone: phone, password: password)))
+            "phone-login", options: FunctionInvokeOptions(body: body))
         try await client.auth.setSession(accessToken: tokens.access_token,
                                          refreshToken: tokens.refresh_token)
     }
