@@ -268,12 +268,25 @@ struct LetterboxdImportView: View {
                     .floatingCard()
                 }
 
-                PillButton(title: "Start ranking", systemImage: "arrow.right") {
+                PillButton(title: pendingToRank ? "Start ranking" : "Done",
+                           systemImage: pendingToRank ? "arrow.right" : "checkmark") {
+                    // Land in My Lists → Watched, where the freshly-queued titles
+                    // wait to be ranked (CIN-26). Watchlist-only imports just close.
+                    if pendingToRank {
+                        TabRouter.shared.pendingListsTab = .watched
+                        TabRouter.shared.selection = .lists
+                    }
                     dismiss()
                 }
             }
             .padding(20)
         }
+    }
+
+    /// True when the import queued titles to rank (so "Start ranking" should
+    /// jump to My Lists → Watched). Watchlist-only/pasted imports don't.
+    private var pendingToRank: Bool {
+        !pastedToWatchlist && !(result?.watched.isEmpty ?? true)
     }
 
     private func summaryRow(icon: String, count: Int, label: String, detail: String?) -> some View {
