@@ -73,4 +73,37 @@ final class SnapshotRenderTests: XCTestCase {
 
         try render("component-gallery", size: CGSize(width: 360, height: 320), gallery)
     }
+
+    // MARK: - Feed card with a note (CIN-20)
+
+    /// A ranked feed event that carries the author's note, so the Beli-style
+    /// "Notes:" line under the ranking can be eyeballed.
+    private func mockRankedEvent(note: String?, spoiler: Bool = false) -> FeedEventRow {
+        FeedEventRow(
+            id: UUID(),
+            userId: UUID(),
+            eventType: "ranked",
+            movieId: 27205,
+            createdAt: Date(),
+            payload: .init(score: 6.8),
+            profiles: .init(username: "william", displayName: "William", avatarUrl: nil),
+            movies: MovieRow(
+                tmdbId: 27205, mediaKind: "movie", title: "Santo Taco",
+                releaseYear: 2023, posterPath: nil, backdropPath: nil,
+                genres: ["Comedy"], certification: nil, runtimeMinutes: nil,
+                director: nil, overview: nil),
+            likes: [.init(count: 1)],
+            comments: [.init(count: 0)],
+            note: note,
+            noteContainsSpoilers: spoiler)
+    }
+
+    func testFeedCardWithNote() throws {
+        let card = FeedCard(event: mockRankedEvent(
+            note: "It was rich — I'd just come here by myself, eat 15 of these and be happy."))
+            .environment(RankingStore())
+            .padding(16)
+
+        try render("feed-card-note", size: CGSize(width: 380, height: 240), card)
+    }
 }

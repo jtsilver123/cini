@@ -111,6 +111,7 @@ READS = [
     ("my_likes", "likes", "event_id"),
     ("my_comment_likes", "comment_likes", "comment_id"),
     ("member_note", "notes", "body"),
+    ("feed_notes", "notes", "user_id, movie_id, body, contains_spoilers"),
     ("comments", "comments", "*, profiles!comments_user_id_fkey(username, display_name, avatar_url), comment_likes(count)"),
     ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
     ("community_score", "movie_community_scores", "*"),

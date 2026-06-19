@@ -612,8 +612,9 @@ struct FeedView: View {
             events = cached
         }
         if let fresh = try? await SupabaseService.shared.feed() {
-            events = fresh
-            FeedDiskCache.save(fresh)
+            let withNotes = await SupabaseService.shared.attachNotes(to: fresh)
+            events = withNotes
+            FeedDiskCache.save(withNotes)
         }
         likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
@@ -685,6 +686,7 @@ struct FeedCard: View {
     @State private var likeInFlight = false
     @State private var heartPop = false
     @State private var likeCount = 0
+    @State private var spoilerRevealed = false
 
     private var movie: Movie? { event.movies?.asMovie }
     /// Count shown on the comment button.
@@ -779,6 +781,39 @@ struct FeedCard: View {
         }
     }
 
+    /// The note shown under a ranking. Spoilers blur behind a tap-to-reveal
+    /// chip; otherwise the note reads as a plain quote (tapping the chip wins
+    /// its own tap, so it never falls through to the card's open-movie gesture).
+    @ViewBuilder
+    private func noteView(_ note: String) -> some View {
+        if event.noteContainsSpoilers == true && !spoilerRevealed {
+            Button {
+                Haptics.tap()
+                withAnimation(.snappy) { spoilerRevealed = true }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "eye.slash")
+                    Text("Contains spoilers — tap to reveal")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.gray)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+            }
+            .buttonStyle(.plain)
+        } else {
+            // Bold "Notes:" lead-in, exactly like the movie page's notes wall.
+            (Text("Notes: ").bold() + Text(note))
+                .font(.subheadline)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
@@ -815,6 +850,12 @@ struct FeedCard: View {
                 if event.eventType == "ranked", let score = event.payload?.score {
                     ScoreBadge(score: score, size: 44)
                 }
+            }
+
+            // The author's note on this rating, Beli-style. Spoiler notes stay
+            // blurred behind a tap, exactly like the movie page's notes wall.
+            if let note = event.note, !note.isEmpty {
+                noteView(note)
             }
 
             HStack(spacing: 18) {

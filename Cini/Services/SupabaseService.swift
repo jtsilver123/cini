@@ -1207,6 +1207,48 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Attach each author's public note to their `ranked` feed events, matched
+    /// by (author, movie) in one query — feed_events don't carry the note
+    /// inline. `is_private = false` plus RLS keep this to notes the viewer is
+    /// allowed to read, so private notes never leak onto the feed.
+    func attachNotes(to events: [FeedEventRow]) async -> [FeedEventRow] {
+        let ranked = events.enumerated().filter {
+            $0.element.eventType == "ranked" && $0.element.movieId != nil
+        }
+        guard !ranked.isEmpty else { return events }
+        let userIDs = Array(Set(ranked.map(\.element.userId)))
+        let movieIDs = Array(Set(ranked.compactMap(\.element.movieId)))
+        struct Row: Decodable {
+            let userId: UUID
+            let movieId: Int
+            let body: String
+            let containsSpoilers: Bool?
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"
+                case movieId = "movie_id"
+                case body
+                case containsSpoilers = "contains_spoilers"
+            }
+        }
+        let rows: [Row] = (try? await client.from("notes")
+            .select("user_id, movie_id, body, contains_spoilers")
+            .in("user_id", values: userIDs)
+            .in("movie_id", values: movieIDs)
+            .eq("is_private", value: false)
+            .execute().value) ?? []
+        var byKey: [String: Row] = [:]
+        for r in rows { byKey["\(r.userId.uuidString)-\(r.movieId)"] = r }
+
+        var result = events
+        for (idx, event) in ranked {
+            guard let mid = event.movieId,
+                  let note = byKey["\(event.userId.uuidString)-\(mid)"] else { continue }
+            result[idx].note = note.body
+            result[idx].noteContainsSpoilers = note.containsSpoilers ?? false
+        }
+        return result
+    }
+
     /// "What people think → Everyone": every visible rating of this movie
     /// that has a public note, hearts/comments riding the ranked event.
     func publicNotes(movieID: Int) async throws -> [PublicNoteRow] {
@@ -1855,6 +1897,11 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
     // as a single-element array of {count}. Nil when a query doesn't select them.
     let likes: [CountRow]?
     let comments: [CountRow]?
+    // The author's public note for this title, attached client-side after the
+    // feed loads (feed_events don't store it inline) so a ranking shows its
+    // note Beli-style. Persisted in the disk cache so cold start keeps them.
+    var note: String?
+    var noteContainsSpoilers: Bool?
 
     var likeCount: Int { likes?.first?.count ?? 0 }
     var commentCount: Int { comments?.first?.count ?? 0 }
@@ -1883,6 +1930,10 @@ struct FeedEventRow: Codable, Identifiable, Hashable {
         case eventType = "event_type"
         case movieId = "movie_id"
         case createdAt = "created_at"
+        // Not columns on feed_events — absent from the server response (decode
+        // to nil) and only written to the disk cache.
+        case note
+        case noteContainsSpoilers = "note_contains_spoilers"
     }
 }
 
