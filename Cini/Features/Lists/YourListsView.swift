@@ -395,7 +395,7 @@ struct YourListsView: View {
             segments: ["Movies", "TV Shows"],
             selection: Binding(get: { category == .tvShows ? 1 : 0 },
                                set: { category = $0 == 1 ? .tvShows : .movies }))
-            .padding(.horizontal, 16)
+            .screenHPadding()
     }
 
     private var subTabs: some View {
@@ -456,7 +456,7 @@ struct YourListsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 16)
+            .screenHPadding()
         }
         .padding(.top, 10)
     }
@@ -469,7 +469,7 @@ struct YourListsView: View {
                 Text("List").tag(false)
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
+            .screenHPadding()
             .padding(.bottom, 8)
 
             if friendRecsCardMode { friendRecsCards } else { friendRecsAsList }
@@ -492,7 +492,7 @@ struct YourListsView: View {
     private var friendRecsCards: some View {
         Group {
             if !directRecsLoaded {
-                SearchSkeleton(kind: .titles, rows: 3).padding(.horizontal, 16)
+                SearchSkeleton(kind: .titles, rows: 3).screenHPadding()
             } else if directRecs.isEmpty {
                 friendRecsEmptyState
             } else {
@@ -508,7 +508,7 @@ struct YourListsView: View {
                     },
                     onPass: { passingRec = $0 }
                 )
-                .padding(.horizontal, 16)
+                .screenHPadding()
                 .padding(.top, 8)
             }
         }
@@ -639,7 +639,7 @@ struct YourListsView: View {
         }
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
-        .padding(.horizontal, 16)
+        .screenHPadding()
     }
 
     private var hasActiveFilters: Bool {
@@ -692,7 +692,7 @@ struct YourListsView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
+        .screenHPadding()
         .padding(.bottom, 6)
     }
 
@@ -1188,7 +1188,7 @@ struct YourListsView: View {
                 Text("List").tag(false)
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
+            .screenHPadding()
             .padding(.bottom, 8)
 
             if recsCardMode { recsCards } else { recsAsList }
@@ -1202,7 +1202,7 @@ struct YourListsView: View {
                 emptyList("No recs match these filters — loosen one, or follow more friends.")
             } else if !recsLoaded && recCandidates.isEmpty {
                 SearchSkeleton(kind: .titles, rows: 3)
-                    .padding(.horizontal, 16)
+                    .screenHPadding()
             } else {
                 RecCardDeck(
                     candidates: filteredRecs,
@@ -1222,7 +1222,7 @@ struct YourListsView: View {
                 )
                 // Reset the deck when the filters change the candidate set.
                 .id("\(genreFilter ?? "")-\(decadeFilter ?? 0)-\(runtimeFilter ?? 0)-\(streamingProviderFilter ?? "")")
-                .padding(.horizontal, 16)
+                .screenHPadding()
                 .padding(.top, 8)
             }
         }
@@ -1253,7 +1253,7 @@ struct YourListsView: View {
                 emptyList("No recs match these filters — loosen one, or follow more friends.")
             } else if !recsLoaded && recCandidates.isEmpty {
                 SearchSkeleton(kind: .titles, rows: 6)
-                    .padding(.horizontal, 16)
+                    .screenHPadding()
                     .frame(maxHeight: .infinity, alignment: .top)
             }
         }

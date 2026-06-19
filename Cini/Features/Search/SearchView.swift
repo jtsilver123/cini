@@ -66,7 +66,7 @@ struct SearchView: View {
                     searchFields
                     if tab == 0 { browseRow }
                 }
-                .padding(.horizontal, 16)
+                .screenHPadding()
                 .padding(.top, 8)
                 .padding(.bottom, 12)
                 .background(Theme.background)
@@ -99,7 +99,7 @@ struct SearchView: View {
                             membersSection
                         }
                     }
-                    .padding(.horizontal, 16)
+                    .screenHPadding()
                 }
                 .scrollDismissesKeyboard(.immediately)
             }

@@ -56,6 +56,13 @@ extension View {
         frame(maxWidth: maxWidth)
             .frame(maxWidth: .infinity)
     }
+
+    /// The standard left/right screen margin (`Theme.screenH`). Use this for a
+    /// screen's outermost content gutter so every tab lines up — never a bare
+    /// `.padding(.horizontal, 16/20)` for the top-level margin.
+    func screenHPadding() -> some View {
+        padding(.horizontal, Theme.screenH)
+    }
 }
 
 // MARK: - Pill buttons

@@ -102,6 +102,12 @@ enum Theme {
     static let rCard: CGFloat = 16      // cards, list rows, surfaces
     static let rHero: CGFloat = 22      // sheets / floating hero cards
 
+    // MARK: Layout
+    /// The single left/right screen margin (Beli-style). Every tab's content
+    /// gutter uses this so margins never drift between screens. Apply via the
+    /// `.screenHPadding()` modifier rather than hard-coding a number.
+    static let screenH: CGFloat = 20
+
     // MARK: Elevation
 
     /// Card shadow — heavy in the screening room, feather-light by day.

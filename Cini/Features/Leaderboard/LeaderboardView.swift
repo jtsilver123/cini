@@ -38,13 +38,13 @@ struct LeaderboardView: View {
 
                     filters
                 }
-                .padding(.horizontal, 16)
+                .screenHPadding()
                 .padding(.top, 16)
                 .padding(.bottom, 12)
                 .background(Theme.background)
                 ScrollView {
                     rankedRows
-                        .padding(.horizontal, 16)
+                        .screenHPadding()
                 }
                 .refreshable { await load() }
             }

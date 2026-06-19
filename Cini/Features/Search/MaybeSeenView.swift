@@ -57,7 +57,8 @@ struct MaybeSeenView: View {
                         }
                     }
                 }
-                .padding(16)
+                .padding(.vertical, 16)
+                .screenHPadding()
             }
             .nativeContentWidth()
             .background(Theme.background)

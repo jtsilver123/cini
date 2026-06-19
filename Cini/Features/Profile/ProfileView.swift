@@ -86,7 +86,7 @@ struct ProfileScreen: View {
         VStack(spacing: 0) {
             if isSelf {
                 header
-                    .padding(.horizontal, 16)
+                    .screenHPadding()
                     .padding(.top, 8)
                     .padding(.bottom, 10)
                     .background(Theme.background)
@@ -96,7 +96,8 @@ struct ProfileScreen: View {
                 // shape of the page, never zeros and blanks.
                 if !loaded && profile == nil {
                     ProfileSkeleton()
-                        .padding(16)
+                        .padding(.vertical, 16)
+                        .screenHPadding()
                 } else {
                     VStack(spacing: 18) {
                         identity
@@ -109,7 +110,8 @@ struct ProfileScreen: View {
                         statCards
                         profileTabs
                     }
-                    .padding(16)
+                    .padding(.vertical, 16)
+                    .screenHPadding()
                 }
             }
             .refreshable { await load() }
@@ -1676,7 +1678,7 @@ struct MemberListsView: View {
                 selection: Binding(get: { category == .tvShows ? 1 : 0 },
                                    set: { category = $0 == 1 ? .tvShows : .movies
                                           if !tabs.contains(subTab) { subTab = .watched } }))
-                .padding(.horizontal, 16).padding(.top, 10)
+                .screenHPadding().padding(.top, 10)
             subTabsRow.padding(.top, 12)
             Divider().padding(.top, 6)
             switch active {
@@ -1720,7 +1722,7 @@ struct MemberListsView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
+        .screenHPadding()
     }
 }
 

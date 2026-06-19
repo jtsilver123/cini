@@ -46,13 +46,13 @@ struct FeedView: View {
                     header
                     feedSearchBar
                 }
-                .padding(.horizontal, 20)
+                .screenHPadding()
                 .padding(.bottom, 12)
                 .background(Theme.background)
                 ScrollViewReader { proxy in
                     ScrollView {
                         yourFeed
-                            .padding(.horizontal, 20)
+                            .screenHPadding()
                             .id("feedTop")
                     }
                     .refreshable { await loadFeed(); await loadTonightStack(force: true) }
@@ -366,7 +366,7 @@ struct FeedView: View {
                     .padding(.top, 6)
                     // Break out of the feed's inset so the stories scroll
                     // edge-to-edge (Instagram-style) instead of clipping at the margin.
-                    .padding(.horizontal, -20)
+                    .padding(.horizontal, -Theme.screenH)
             }
 
             // Anything that needs you first — one banner at a time, never a stack.
