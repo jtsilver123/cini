@@ -2787,7 +2787,15 @@ function renderOnboarding(){
   else if(obStep===9) body=`
     <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
-      <div class="sub">This grid is the fast way to rank things you've watched — tap any you've seen, or skip for now.</div>
+      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 0;">
+        <div style="display:inline-flex; background:var(--surface-2); border-radius:999px; padding:4px;">
+          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 13px; border-radius:999px; background:var(--marquee); color:var(--bg); font-size:13px; font-weight:700;">${I("stack",14)} Grid</span>
+          <span style="padding:6px 13px; color:var(--gray); font-size:13px; font-weight:700;">Cards</span>
+        </div>
+        <span style="color:var(--gray); font-size:13px;">${I("lock",13)||"🔒"}</span>
+      </div>
+      <div class="sub">Grid view is best for ranking things you've already watched.</div>
+      <div class="sub" style="font-size:11.5px; margin-top:-4px;">Both live on your Recs page — switch with this button anytime.</div>
       <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
         ${Object.keys(MOVIES).slice(0,6).map(k=>`
           <div style="cursor:pointer; opacity:${obRanked?.55:1};" onclick="obRanked=true; renderOnboarding(); toast('Ranked! Tap Continue to keep going.');">
@@ -2800,7 +2808,15 @@ function renderOnboarding(){
   else body=`
     <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Meet your Recs</div>
-      <div class="sub" style="padding:0 4px;">Swiping is the best way to find new things to watch: right to bookmark, left to pass, or + to rank one you've seen. This is your Recs tab.</div>
+      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 0;">
+        <div style="display:inline-flex; background:var(--surface-2); border-radius:999px; padding:4px;">
+          <span style="padding:6px 13px; color:var(--gray); font-size:13px; font-weight:700;">Grid</span>
+          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 13px; border-radius:999px; background:var(--marquee); color:var(--bg); font-size:13px; font-weight:700;">${I("stack",14)} Cards</span>
+        </div>
+        <span style="color:var(--gray); font-size:13px;">${I("lock",13)}</span>
+      </div>
+      <div class="sub" style="padding:0 4px;">Card view is best for finding new things to watch — swipe right to bookmark, left to pass, or + to rank one you've seen.</div>
+      <div class="sub" style="font-size:11.5px; margin-top:-6px;">Both live on your Recs page — switch with this button anytime.</div>
       ${(()=>{const ks=Object.keys(MOVIES); const k=ks[6]||ks[0]; const m=MOVIES[k]; return `
       <div style="width:196px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 12px 30px rgba(0,0,0,.32); margin-top:4px;">
         <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>

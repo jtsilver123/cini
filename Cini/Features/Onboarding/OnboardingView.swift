@@ -578,6 +578,43 @@ struct OnboardingView: View {
 
     // MARK: 5 — Rank your first movie
 
+    /// A Recs-style teaching block for the onboarding grid/card steps: the same
+    /// view-toggle control the Recs page uses, shown LOCKED to this step's mode,
+    /// plus a line on what it's best for and that it's switchable on Recs.
+    private func recsViewTeacher(isGrid: Bool) -> some View {
+        VStack(spacing: 10) {
+            // The locked view toggle — both options shown, current one selected,
+            // a lock so they learn the control without changing it here.
+            HStack(spacing: 0) {
+                ForEach([true, false], id: \.self) { grid in
+                    let on = (grid == isGrid)
+                    HStack(spacing: 5) {
+                        Image(systemName: grid ? "square.grid.2x2" : "rectangle.stack")
+                        Text(grid ? "Grid" : "Cards").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(on ? Theme.background : Theme.gray)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Capsule().fill(on ? Theme.marquee : .clear))
+                }
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.gray)
+                    .padding(.leading, 6)
+            }
+            .padding(4)
+            .background(Capsule().fill(Theme.fill))
+
+            Text(isGrid
+                 ? "Grid view is best for ranking things you've already watched."
+                 : "Card view is best for finding new things to watch.")
+                .font(.subheadline).foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center).padding(.horizontal, 30)
+            Text("Both live on your Recs page — tap the view button to switch anytime.")
+                .font(.caption).foregroundStyle(Theme.gray.opacity(0.85))
+                .multilineTextAlignment(.center).padding(.horizontal, 30)
+        }
+    }
+
     /// Starters / rec candidates filtered to the Movies/TV toggle.
     private var visibleStarters: [Movie] {
         starters.filter { onbTV ? $0.mediaKind == "tv" : $0.mediaKind != "tv" }
@@ -592,11 +629,7 @@ struct OnboardingView: View {
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 26)
-            Text("Tap a poster to rank a \(onbTV ? "show" : "movie") you've seen — the grid's the fast way to log what you've watched.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            recsViewTeacher(isGrid: true)
 
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
@@ -669,11 +702,7 @@ struct OnboardingView: View {
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 24)
-            Text("Swiping is the best way to find new things to watch: swipe right to bookmark a \(onbTV ? "show" : "movie"), left to pass, or tap + to rank one you've seen.")
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 30)
+            recsViewTeacher(isGrid: false)
 
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
