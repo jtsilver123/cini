@@ -54,10 +54,13 @@ final class SupabaseService {
         try await loginViaFunction(Body(username: username, password: password))
     }
 
+    /// Session tokens returned by the login edge function. Declared at type
+    /// scope — Swift forbids a local type inside a generic function.
+    private struct LoginTokens: Decodable { let access_token: String; let refresh_token: String }
+
     /// Shared tail for the edge-function logins: invoke, then adopt the session.
     private func loginViaFunction<B: Encodable>(_ body: B) async throws {
-        struct Tokens: Decodable { let access_token: String; let refresh_token: String }
-        let tokens: Tokens = try await client.functions.invoke(
+        let tokens: LoginTokens = try await client.functions.invoke(
             "phone-login", options: FunctionInvokeOptions(body: body))
         try await client.auth.setSession(accessToken: tokens.access_token,
                                          refreshToken: tokens.refresh_token)
