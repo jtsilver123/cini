@@ -37,6 +37,7 @@ struct YourListsView: View {
     @State private var pendingDeleteRating: Movie?
     @State private var showAllPending = false
     @State private var showImport = false
+    @State private var showMaybeSeen = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
     // Friend Recs default to the swipe-card view (CIN-36); List stays available.
@@ -132,6 +133,9 @@ struct YourListsView: View {
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
             }
+            .sheet(isPresented: $showMaybeSeen) {
+                MaybeSeenView(startTV: category == .tvShows)
+            }
             .sheet(isPresented: $showRecPicker) {
                 SendRecMoviePicker()
             }
@@ -202,6 +206,12 @@ struct YourListsView: View {
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
             }
+            // Deep link from Search's "Movies you may have seen" button: land on
+            // Watched and auto-open the sheet (works even though this tab stays
+            // alive, so onAppear can miss the flag).
+            .onChange(of: tabRouter.openProbablySeen) { _, want in
+                if want { consumeProbablySeen() }
+            }
             // Category switch with a list of the OTHER kind selected: its
             // tab just vanished — deselect rather than render a ghost.
             .onChange(of: category) { _, newCategory in
@@ -250,11 +260,21 @@ struct YourListsView: View {
                     runtimeFilter = nil; streamingProviderFilter = nil
                     sortDescending = true   // drag offsets need canonical order
                 }
+                if tabRouter.openProbablySeen { consumeProbablySeen() }
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
             }
         }
+    }
+
+    /// Land on Watched and open "Movies you may have seen" (from Search's
+    /// deep-link button).
+    private func consumeProbablySeen() {
+        tabRouter.openProbablySeen = false
+        selectedListID = nil
+        subTab = .watched
+        showMaybeSeen = true
     }
 
     /// An agent receipt chip can deep-link straight into a custom list —
@@ -881,6 +901,11 @@ struct YourListsView: View {
 
     private var watchedList: some View {
         List {
+            // Quick way into "Movies/Shows you may have seen" to rank your
+            // back-catalog. Hidden in reorder mode and while searching the list.
+            if !reorderMode && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+                maybeSeenBar
+            }
             if !pendingEntries.isEmpty && !reorderMode
                 && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
                 pendingSection
@@ -946,6 +971,34 @@ struct YourListsView: View {
                 }
             }
         }
+    }
+
+    /// Entry bar into "Movies/Shows you may have seen" (a List row styled as a
+    /// card). Adapts its label to the active category.
+    private var maybeSeenBar: some View {
+        Button {
+            Haptics.tap()
+            showMaybeSeen = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.title3).foregroundStyle(Theme.marquee)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(category == .movies ? "Movies" : "Shows") you may have seen")
+                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Rank what you've already watched, fast")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Theme.background)
+        .listRowSeparator(.hidden)
     }
 
     private var otherCategory: MediaCategory {

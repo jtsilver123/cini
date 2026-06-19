@@ -901,8 +901,35 @@ function renderLists(){
       <span class="spacer"></span>
       <button class="iconbtn" onclick="openSearchForRank()">${I("search",18)}</button>
     </div>
+    ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="openMaybeSeen()">
+        <span style="color:var(--marquee);">${I("search",20)}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:14px;">${S.category==="TV"?"Shows":"Movies"} you may have seen</div>
+          <div class="sub" style="margin-top:1px;">Rank what you've already watched, fast</div>
+        </div><span class="sub">${I("chevR",16)}</span>
+      </div>
+    </div>`:""}
     <div style="margin-top:4px;">${content}</div>
 `;
+}
+function openMaybeSeen(){
+  const tv = S.category==="TV";
+  const rows = Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)).map(k=>row(k,false)).join("");
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">${tv?"Shows":"Movies"} you may have seen</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="margin-bottom:10px;">Tap a title to rank something you've already watched.</div>
+      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px; margin-bottom:8px;" onclick="closeOverlay(); openImport()">
+        <span style="color:var(--marquee);">${I("download",22)}</span>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:14.5px;">Import from Letterboxd or IMDb</div>
+          <div class="sub" style="margin-top:1px;">Bring your whole history at once</div>
+        </div><span class="sub">${I("chevR",16)}</span>
+      </div>
+      ${rows}
+    </div>`);
 }
 let _recPick=null;
 function openSendRec(k){
@@ -1099,15 +1126,13 @@ function renderSearch(){
       : results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)
       : `
-      <h2 class="section">MOVIES YOU MAY HAVE SEEN</h2>
-      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px; margin-bottom:4px;" onclick="openImport()">
-        <span style="color:var(--marquee);">${I("download",22)}</span>
+      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="S.subTab='watched'; save(); go('lists'); openMaybeSeen();">
+        <span style="color:var(--marquee);">${I("search",22)}</span>
         <div style="flex:1;">
-          <div style="font-weight:700; font-size:14.5px;">Import from Letterboxd or IMDb</div>
-          <div class="sub" style="margin-top:1px;">Imports land in My Lists → Watched → Pending — favorites first</div>
+          <div style="font-weight:700; font-size:14.5px;">Movies you may have seen</div>
+          <div class="sub" style="margin-top:1px;">Rank titles you've already watched - opens in My Lists</div>
         </div><span class="sub">${I("chevR",16)}</span>
-      </div>
-      ${Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)).slice(0,4).map(k=>row(k,false)).join("")}`}
+      </div>`}
     </div>`;
 }
 function renderSearchKeepFocus(){

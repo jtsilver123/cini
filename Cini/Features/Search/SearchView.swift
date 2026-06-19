@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Center tab: Movies · Members search, year/decade filter, quick pills,
-/// recents, and popular "Movies you may have seen" suggestions.
+/// Center tab: Movies · Members search, year/decade filter, quick pills, and
+/// recents. "Movies you may have seen" now lives in the Watched area — a button
+/// here deep-links into it so Search stays focused on finding a title.
 struct SearchView: View {
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
@@ -16,21 +17,15 @@ struct SearchView: View {
     @State private var contactsChecked = false
     @State private var showInvite = false
     @State private var recents: [Movie] = RecentSearches.load()
-    @State private var maybeSeen: [Movie] = []
     @State private var dismissedMaybeSeen: Set<Int> = []
-    // "Movies / TV shows you may have seen" toggle (CIN-34) — filters both the
-    // cold-start suggestions and the browse results to the chosen kind.
+    // "Movies / TV shows" toggle (CIN-34) — filters the browse results to the
+    // chosen kind.
     @State private var suggestTV = false
-    // Grid (new default) vs list for the suggestions area (CIN-33).
+    // Grid (new default) vs list for the browse results (CIN-33).
     @AppStorage("search.suggestionsGrid") private var maybeSeenGrid = true
     // Watched count captured when a rank starts, so we can confirm "added to
     // Watched" once the rank flow closes.
     @State private var watchedCountAtRank = 0
-    @State private var showAllMaybeSeen = false
-    @State private var showImport = false
-    // Once dismissed, the import banner stays hidden (a toast points the user to
-    // where import lives). Persisted so it doesn't nag every visit.
-    @AppStorage("cini.search.importBannerHidden") private var importBannerHidden = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
@@ -91,7 +86,7 @@ struct SearchView: View {
                                 browseSection
                             } else {
                                 recentsSection
-                                maybeSeenSection
+                                maybeSeenButton
                             }
                         } else if isSearching, !query.trimmingCharacters(in: .whitespaces).isEmpty {
                             SearchSkeleton(kind: .members)
@@ -119,14 +114,10 @@ struct SearchView: View {
             }) { movie in
                 LogFlowView(movie: movie)
             }
-            .sheet(isPresented: $showImport) {
-                LetterboxdImportView()
-            }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
                     .zoomDestination(id: movie.tmdbID, in: posterZoom)
             }
-            .task { await loadSuggestions() }
             // The system search tab keeps this view alive, so onAppear
             // alone can miss router flags set while it exists — watch for
             // changes too.
@@ -586,13 +577,35 @@ struct SearchView: View {
 
     /// Popular-title suggestions for cold start. Imported titles waiting to
     /// be ranked live in Your Lists → Watched → Pending, not here.
-    private var visibleMaybeSeen: [Movie] {
-        maybeSeen.filter {
-            !dismissedMaybeSeen.contains($0.tmdbID) && !store.isWatched($0.tmdbID) && matchesToggle($0)
+    /// Deep-links into the Watched area's "Movies you may have seen" sheet,
+    /// keeping Search itself focused on finding a specific title.
+    private var maybeSeenButton: some View {
+        Button {
+            Haptics.tap()
+            tabRouter.openProbablySeen = true
+            tabRouter.selection = .lists
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .font(.title3).foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Movies you may have seen")
+                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Rank titles you've already watched, fast")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(14)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .floatingCard(cornerRadius: 16)
+        .padding(.top, 4)
     }
 
-    /// Movies vs TV, per the heading toggle.
+    /// Movies vs TV, per the browse heading toggle.
     private func matchesToggle(_ movie: Movie) -> Bool {
         suggestTV ? movie.mediaKind == "tv" : movie.mediaKind != "tv"
     }
@@ -677,86 +690,6 @@ struct SearchView: View {
             Text(" you may have seen").foregroundStyle(Theme.ink)
         }
         .font(.headline)
-    }
-
-    private var maybeSeenSection: some View {
-        popularFallbackSection
-    }
-
-    private var popularFallbackSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack { maybeSeenHeading; Spacer(); suggestionsViewToggle }
-            maybeSeenCaption
-
-            if !importBannerHidden { importBanner }
-
-            let cap = showAllMaybeSeen ? 100 : (maybeSeenGrid ? 12 : 4)
-            suggestions(Array(visibleMaybeSeen.prefix(cap)))
-
-            if visibleMaybeSeen.count > cap && !showAllMaybeSeen {
-                seeAllButton(count: visibleMaybeSeen.count)
-            }
-        }
-        .padding(.top, 8)
-    }
-
-    /// Import prompt with the source logos and an X to dismiss. Dismissing
-    /// hides it for good and toasts where import still lives.
-    private var importBanner: some View {
-        Button {
-            showImport = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.title3)
-                    .foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Import your history")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.ink)
-                    Text("Bring your ratings from Letterboxd, IMDb, or Netflix")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                        .fixedSize(horizontal: false, vertical: true)
-                    ImportSourceLogos().padding(.top, 3)
-                }
-                Spacer(minLength: 18)   // leave room for the X
-            }
-            .padding(14)
-        }
-        .buttonStyle(.plain)
-        .floatingCard(cornerRadius: 16)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                Haptics.tap()
-                withAnimation { importBannerHidden = true }
-                ToastCenter.shared.show("You can import anytime from your profile menu")
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.gray)
-                    .padding(10)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss import suggestion")
-        }
-        .padding(.vertical, 6)
-    }
-
-    private func seeAllButton(count: Int) -> some View {
-        Button {
-            withAnimation { showAllMaybeSeen = true }
-        } label: {
-            HStack {
-                Text("See All (\(count))").font(.subheadline.weight(.semibold))
-                Spacer()
-                Image(systemName: "chevron.down")
-            }
-            .foregroundStyle(Theme.marquee)
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 4)
     }
 
     // MARK: Data
@@ -857,13 +790,6 @@ struct SearchView: View {
                 completedQuery = text
             }
         }
-    }
-
-    private func loadSuggestions() async {
-        guard maybeSeen.isEmpty else { return }
-        // Seeded from Letterboxd/IMDb import (onboarding) + popular titles.
-        maybeSeen = (try? await TMDBService.shared.popular()) ?? []
-        for movie in maybeSeen { store.cache(movie) }
     }
 
     /// Optimistic follow toggle that REVERTS on failure — a swallowed
@@ -1021,7 +947,8 @@ enum RecentSearches {
 /// The import-source brand marks as app-icon-style tiles — Letterboxd's three
 /// dots on a dark tile, IMDb's yellow tile, and Netflix's red "N" on black.
 /// Drawn in SwiftUI (no proprietary art bundled) but faithful to the icons.
-private struct ImportSourceLogos: View {
+/// Used by `MaybeSeenView` (the relocated "Movies you may have seen" surface).
+struct ImportSourceLogos: View {
     private let tile: CGFloat = 26
     private let radius: CGFloat = 6
 
