@@ -940,8 +940,35 @@ struct MovieFilters: Equatable {
         if let decade, let year = movie.releaseYear,
            !(decade..<decade + 10).contains(year) { return false }
         if let runtime, let minutes = movie.runtimeMinutes, minutes > runtime { return false }
-        if let streamingProvider, !movie.streamingOn.contains(streamingProvider) { return false }
+        if let streamingProvider,
+           !movie.streamingOn.contains(where: { Self.canonicalProvider($0) == streamingProvider }) { return false }
         return true
+    }
+
+    /// The major streaming services, in a sensible order — keeps the filter
+    /// clean instead of listing TMDB's dozens of regional/ad-tier variants.
+    static let majorProviders = ["Netflix", "Max", "Hulu", "Disney+",
+                                 "Prime Video", "Apple TV+", "Paramount+", "Peacock"]
+
+    /// Fold a raw TMDB provider name into one of the majors (or nil to drop the
+    /// long tail of channels and "with Ads" duplicates).
+    static func canonicalProvider(_ name: String) -> String? {
+        let n = name.lowercased()
+        if n.contains("netflix") { return "Netflix" }
+        if n.contains("disney") { return "Disney+" }
+        if n.contains("hulu") { return "Hulu" }
+        if n.contains("paramount") { return "Paramount+" }
+        if n.contains("peacock") { return "Peacock" }
+        if n.contains("apple") { return "Apple TV+" }
+        if n.contains("prime") { return "Prime Video" }
+        if n.contains("hbo") || n == "max" { return "Max" }
+        return nil
+    }
+
+    /// The clean, ordered set of providers present in a list of movies.
+    static func presentProviders(in movies: [Movie]) -> [String] {
+        let present = Set(movies.flatMap { $0.streamingOn.compactMap(canonicalProvider) })
+        return majorProviders.filter(present.contains)
     }
 }
 
@@ -959,9 +986,10 @@ struct MovieFilterBar: View {
         Array(Set(movies.flatMap(\.genres))).sorted()
     }
 
-    /// Providers that actually appear in this list, for the Streaming filter.
+    /// Providers that actually appear in this list, for the Streaming filter —
+    /// folded into the majors so the list stays clean.
     private var providers: [String] {
-        Array(Set(movies.flatMap(\.streamingOn))).sorted()
+        MovieFilters.presentProviders(in: movies)
     }
 
     var body: some View {
@@ -1135,7 +1163,7 @@ struct MovieFilterSheet: View {
     }
 
     private var genres: [String] { Array(Set(movies.flatMap(\.genres))).sorted() }
-    private var providers: [String] { Array(Set(movies.flatMap(\.streamingOn))).sorted() }
+    private var providers: [String] { MovieFilters.presentProviders(in: movies) }
     private let runtimeOptions: [(label: String, value: Int)] =
         [("Under 100 min", 100), ("Under 2 hours", 120), ("Under 2½ hours", 150)]
     private var decades: [Int] { Array(stride(from: 2020, through: 1950, by: -10)) }
