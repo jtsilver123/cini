@@ -912,47 +912,60 @@ enum RecentSearches {
     }
 }
 
-/// The import-source brand marks, drawn in SwiftUI — we don't ship the
-/// proprietary logo art, but these read at a glance: Letterboxd's three dots,
-/// IMDb's yellow chip, and Netflix's red "N".
+/// The import-source brand marks as app-icon-style tiles — Letterboxd's three
+/// dots on a dark tile, IMDb's yellow tile, and Netflix's red "N" on black.
+/// Drawn in SwiftUI (no proprietary art bundled) but faithful to the icons.
 private struct ImportSourceLogos: View {
+    private let tile: CGFloat = 26
+    private let radius: CGFloat = 6
+
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             letterboxd
             imdb
             netflix
         }
-        .frame(height: 16)
     }
 
-    /// Letterboxd: orange / green / blue dots.
+    private func tileBackground(_ color: Color) -> some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(color)
+            .frame(width: tile, height: tile)
+    }
+
+    /// Letterboxd: orange / green / blue dots on a charcoal tile.
     private var letterboxd: some View {
-        HStack(spacing: 3) {
-            Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
-            Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33))
-            Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
-        }
-        .frame(width: 42, height: 13)
-        .accessibilityLabel("Letterboxd")
+        tileBackground(Color(red: 0.13, green: 0.16, blue: 0.19))
+            .overlay {
+                HStack(spacing: 1) {
+                    Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00)).frame(width: 6, height: 6)
+                    Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33)).frame(width: 6, height: 6)
+                    Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96)).frame(width: 6, height: 6)
+                }
+            }
+            .accessibilityLabel("Letterboxd")
     }
 
-    /// IMDb: black "IMDb" on the brand yellow chip.
+    /// IMDb: black "IMDb" on the brand yellow tile.
     private var imdb: some View {
-        Text("IMDb")
-            .font(.system(size: 11, weight: .heavy))
-            .foregroundStyle(.black)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(RoundedRectangle(cornerRadius: 3)
-                .fill(Color(red: 0.96, green: 0.77, blue: 0.09)))
+        tileBackground(Color(red: 0.96, green: 0.77, blue: 0.09))
+            .overlay {
+                Text("IMDb")
+                    .font(.system(size: 9, weight: .heavy))
+                    .foregroundStyle(.black)
+                    .minimumScaleFactor(0.5)
+            }
             .accessibilityLabel("IMDb")
     }
 
-    /// Netflix: the bold red "N".
+    /// Netflix: the red "N" on a black tile.
     private var netflix: some View {
-        Text("N")
-            .font(.system(size: 17, weight: .heavy))
-            .foregroundStyle(Color(red: 0.90, green: 0.03, blue: 0.08))
+        tileBackground(.black)
+            .overlay {
+                Text("N")
+                    .font(.system(size: 17, weight: .heavy))
+                    .foregroundStyle(Color(red: 0.90, green: 0.03, blue: 0.08))
+            }
             .accessibilityLabel("Netflix")
     }
 }
