@@ -151,57 +151,59 @@ struct RecCardDeck: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 28) {
-            Button { undo() } label: {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(history.isEmpty ? Theme.gray.opacity(0.4) : Theme.gold)
-                    .frame(width: 46, height: 46)
-                    .background(Circle().fill(Theme.fill))
-            }
-            .buttonStyle(.plain)
-            .disabled(history.isEmpty)
-            .accessibilityLabel("Undo")
+        HStack(alignment: .top, spacing: 24) {
+            controlButton(action: { undo() },
+                          icon: "arrow.uturn.backward", size: 46,
+                          fg: history.isEmpty ? Theme.gray.opacity(0.4) : Theme.gold,
+                          bg: Theme.fill, caption: nil)
+                .disabled(history.isEmpty)
+                .accessibilityLabel("Undo")
 
-            Button { act(save: false) } label: {
-                Image(systemName: "xmark")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 62, height: 62)
-                    .background(Circle().fill(Theme.scoreRed))
-                    .shadow(color: Theme.scoreRed.opacity(0.4), radius: 8, y: 3)
-            }
-            .buttonStyle(.plain)
-            .disabled(index >= items.count)
-            .accessibilityLabel("Pass")
-
-            // "I've seen this" → rank it (opens the comparison flow). The card
-            // stays; once ranked it's Watched and drops out on the next load.
-            if showRank {
-                Button { rankCurrent() } label: {
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 54, height: 54)
-                        .background(Circle().fill(Theme.marquee))
-                        .shadow(color: Theme.marquee.opacity(0.4), radius: 8, y: 3)
-                }
-                .buttonStyle(.plain)
+            controlButton(action: { act(save: false) },
+                          icon: "xmark", size: 62, fg: .white,
+                          bg: Theme.scoreRed, caption: "Pass")
                 .disabled(index >= items.count)
-                .accessibilityLabel("Rank this")
+                .accessibilityLabel("Pass")
+
+            // "I've seen this" → rank it (opens the comparison flow). Labeled so
+            // it's obvious this is for titles you've WATCHED — distinct from the
+            // heart, which bookmarks to Want to Watch.
+            if showRank {
+                controlButton(action: { rankCurrent() },
+                              icon: "plus", size: 54, fg: .white,
+                              bg: Theme.marquee, caption: "Seen it")
+                    .disabled(index >= items.count)
+                    .accessibilityLabel("Rank this — you've seen it")
             }
 
-            Button { act(save: true) } label: {
-                Image(systemName: "heart.fill")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 62, height: 62)
-                    .background(Circle().fill(Theme.scoreGreen))
-                    .shadow(color: Theme.scoreGreen.opacity(0.4), radius: 8, y: 3)
+            controlButton(action: { act(save: true) },
+                          icon: "heart.fill", size: 62, fg: .white,
+                          bg: Theme.scoreGreen, caption: "Bookmark")
+                .disabled(index >= items.count)
+                .accessibilityLabel("Bookmark to Want to Watch")
+        }
+    }
+
+    /// A circular action button with an optional caption beneath it, so the
+    /// deck spells out what each gesture does (Pass / Seen it / Bookmark).
+    private func controlButton(action: @escaping () -> Void, icon: String,
+                               size: CGFloat, fg: Color, bg: Color,
+                               caption: String?) -> some View {
+        VStack(spacing: 5) {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(size >= 60 ? .title.weight(.bold) : .title2.weight(.bold))
+                    .foregroundStyle(fg)
+                    .frame(width: size, height: size)
+                    .background(Circle().fill(bg))
+                    .shadow(color: bg.opacity(bg == Theme.fill ? 0 : 0.4), radius: 8, y: 3)
             }
             .buttonStyle(.plain)
-            .disabled(index >= items.count)
-            .accessibilityLabel("Bookmark to Want to Watch")
+            if let caption {
+                Text(caption)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+            }
         }
     }
 
