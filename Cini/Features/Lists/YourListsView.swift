@@ -24,6 +24,9 @@ struct YourListsView: View {
     @State private var recsLoaded = false
     // Recs default to the swipe-card view (CIN-28); List stays available.
     @AppStorage("recs.cardMode") private var recsCardMode = true
+    // A rec the user is currently ranking — so we can confirm "moved to
+    // Watched" once the rank flow closes (CIN-30).
+    @State private var pendingRecLog: Movie?
     @State private var watchingRows: [WatchingRow] = []
     @State private var watchingLoaded = false
     @State private var showWatchingInfo = false
@@ -111,7 +114,15 @@ struct YourListsView: View {
                     .presentationDetents([.height(150)])
                     .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie, onDismiss: {
+                // Ranked a rec → it's now in Watched; confirm where it went.
+                if let m = pendingRecLog {
+                    if store.isWatched(m.tmdbID) {
+                        ToastCenter.shared.show("Moved to your Watched list ✓")
+                    }
+                    pendingRecLog = nil
+                }
+            }) { movie in
                 LogFlowView(movie: movie)
             }
             .sheet(isPresented: $showImport) {
@@ -1035,7 +1046,9 @@ struct YourListsView: View {
     }
 
     private var filteredRecs: [RecCandidate] {
-        recCandidates.filter { passesFilters($0.movie) }
+        // Once you've rated a rec it's no longer a rec — drop it so it doesn't
+        // linger in either the card deck or the list (CIN-30).
+        recCandidates.filter { !store.isWatched($0.movie.tmdbID) && passesFilters($0.movie) }
     }
 
     /// Recs: friends' loves weighted by taste match, then TMDB-similar to the
@@ -1069,7 +1082,7 @@ struct YourListsView: View {
                 RecCardDeck(
                     candidates: filteredRecs,
                     onOpen: { detailMovie = $0 },
-                    onLog: { logMovie = $0 },
+                    onLog: { pendingRecLog = $0; logMovie = $0 },
                     onSave: { m in
                         if !store.isOnWatchlist(m.tmdbID) {
                             Task { await store.toggleWatchlist(movie: m) }
@@ -1097,6 +1110,7 @@ struct YourListsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     WatchlistRowView(movie: candidate.movie,
                                      predicted: predicted[candidate.movie.tmdbID]) {
+                        pendingRecLog = candidate.movie
                         logMovie = candidate.movie
                     }
                     Text(candidate.reason)

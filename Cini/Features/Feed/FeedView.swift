@@ -560,6 +560,8 @@ struct FeedView: View {
         for pick in picks {
             if cards.count >= 3 { break }
             if skip.contains(pick.movieId) { continue }
+            // Already rated it? It's not a "watch tonight" pick anymore.
+            if store.isWatched(pick.movieId) { continue }
             guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                   movie.posterPath != nil else { continue }
             // Must be streamable — keep only picks on a streaming service, and
