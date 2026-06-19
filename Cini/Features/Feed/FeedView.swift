@@ -718,6 +718,11 @@ struct FeedCard: View {
     /// Live comment count from the presenter (updated when a comment is
     /// added/removed in the pushed thread); falls back to the server count.
     var commentCountOverride: Int? = nil
+    /// Optional moderation actions. When provided, an ellipsis menu appears in
+    /// the header — used on the movie page's "What people think" wall, which can
+    /// surface strangers' posts. The feed leaves these nil (no menu).
+    var onReport: (() -> Void)? = nil
+    var onBlock: (() -> Void)? = nil
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
@@ -887,6 +892,27 @@ struct FeedCard: View {
                 // Score sits where every list row puts it.
                 if event.eventType == "ranked", let score = event.payload?.score {
                     ScoreBadge(score: score, size: 44)
+                }
+                if onReport != nil || onBlock != nil {
+                    Menu {
+                        if let onReport {
+                            Button(role: .destructive, action: onReport) {
+                                Label("Report this post", systemImage: "flag")
+                            }
+                        }
+                        if let onBlock {
+                            Button(role: .destructive, action: onBlock) {
+                                Label("Block @\(actorUsername)", systemImage: "hand.raised")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.gray)
+                            .padding(.leading, 4)
+                            .frame(height: 44)
+                            .contentShape(Rectangle())
+                    }
                 }
             }
 

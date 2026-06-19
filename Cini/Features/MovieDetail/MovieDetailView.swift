@@ -35,7 +35,6 @@ struct MovieDetailView: View {
     @State private var showDeleteRatingConfirm = false
     @State private var showRewatchSheet = false
     @State private var showEditDetails = false
-    @State private var revealedSpoilers: Set<UUID> = []
     @State private var showWhereToWatch = false
     @State private var showShowtimes = false
     @State private var showSendRec = false
@@ -47,7 +46,6 @@ struct MovieDetailView: View {
     @State private var publicNotes: [PublicNoteRow] = []
     @State private var publicNotesLoaded = false
     @State private var blockCandidate: PublicNoteRow?
-    @State private var heartsInFlight: Set<UUID> = []
     @State private var commentsTarget: CommentsTarget?
     @State private var watchlistFriends: [WatchlistFriendRow] = []
     @State private var watchingFriends: [WatchingFriendRow] = []
@@ -898,160 +896,55 @@ struct MovieDetailView: View {
                     }
                 }
                 ForEach(publicNotes) { row in
-                    publicNoteRow(row)
-                    Divider()
+                    if let event = feedEvent(from: row) {
+                        // Same card as the feed, so people can like/comment here
+                        // too (CIN-27). Report/block ride along for moderation.
+                        FeedCard(
+                            event: event,
+                            initiallyLiked: row.likedByMe,
+                            onOpenMember: { memberTarget = $0 },
+                            onOpenComments: { ev, ctx in
+                                commentsTarget = CommentsTarget(id: ev.id, context: ctx)
+                            },
+                            onReport: {
+                                Task {
+                                    let ok = await SupabaseService.shared.report(
+                                        kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)")
+                                    if ok { ToastCenter.shared.show("Reported — we'll review it") }
+                                    else { ToastCenter.shared.saveFailed() }
+                                }
+                            },
+                            onBlock: { blockCandidate = row }
+                        )
+                        Divider()
+                    }
                 }
             }
         }
         .padding(.horizontal, 16)
     }
 
-    private func publicNoteRow(_ row: PublicNoteRow) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Button {
-                    memberTarget = MemberRef(id: row.userId, username: row.username)
-                } label: {
-                    HStack(spacing: 12) {
-                        AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44,
-                                   name: row.displayName?.isEmpty == false ? row.displayName : row.username)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(firstName(row.displayName, row.username) ?? row.username)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Theme.ink)
-                                .lineLimit(1)
-                            Text("@\(row.username)").font(.caption).foregroundStyle(Theme.gray)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 8)
-                    }
-                }
-                .buttonStyle(.plain)
-                Spacer()
-                ScoreBadge(score: row.score, size: 44)
-                // Moderation lives on every piece of public content.
-                Menu {
-                    Button(role: .destructive) {
-                        Task {
-                            let ok = await SupabaseService.shared.report(
-                                kind: "note", subjectID: "\(row.userId)/\(movie.tmdbID)")
-                            if ok { ToastCenter.shared.show("Reported — we'll review it") }
-                            else { ToastCenter.shared.saveFailed() }
-                        }
-                    } label: {
-                        Label("Report this note", systemImage: "flag")
-                    }
-                    Button(role: .destructive) {
-                        blockCandidate = row
-                    } label: {
-                        Label("Block @\(row.username)", systemImage: "hand.raised")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                        .padding(10)
-                        .contentShape(Rectangle())
-                }
-            }
-
-            if row.containsSpoilers == true && !revealedSpoilers.contains(row.id) {
-                Button {
-                    Haptics.tap()
-                    withAnimation(.snappy) { _ = revealedSpoilers.insert(row.id) }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "eye.slash")
-                        Text("Contains spoilers — tap to reveal")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
-                }
-                .buttonStyle(.plain)
-            } else {
-                (Text("Notes: ").bold() + Text(row.note))
-                    .font(.subheadline)
-            }
-
-            // Heart + comment, exactly where the feed puts them.
-            HStack(spacing: 18) {
-                Button {
-                    toggleHeart(on: row)
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: row.likedByMe ? "heart.fill" : "heart")
-                            .foregroundStyle(row.likedByMe ? .red : Theme.ink)
-                        if row.likeCount > 0 {
-                            Text("\(row.likeCount)").font(.caption).foregroundStyle(Theme.gray)
-                        }
-                    }
-                }
-                Button {
-                    if let eventId = row.eventId {
-                        commentsTarget = CommentsTarget(
-                            id: eventId,
-                            context: CommentContext(
-                                actorId: row.userId,
-                                username: row.username,
-                                displayName: row.displayName,
-                                avatarUrl: row.avatarUrl,
-                                movie: movie,
-                                actionText: "ranked",
-                                score: row.score,
-                                note: row.note,
-                                containsSpoilers: row.containsSpoilers ?? false,
-                                createdAt: row.rankedAt,
-                                likeCount: row.likeCount,
-                                commentCount: row.commentCount,
-                                likedByMe: row.likedByMe
-                            )
-                        )
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: row.commentCount > 0 ? "bubble.right.fill" : "bubble.right")
-                        if row.commentCount > 0 {
-                            Text("\(row.commentCount)").font(.caption).foregroundStyle(Theme.gray)
-                        }
-                    }
-                }
-                Spacer()
-                Text(row.rankedAt.formatted(.dateTime.month(.wide).year()))
-                    .font(.caption)
-                    .foregroundStyle(Theme.gray)
-            }
-            .font(.body)
-            .foregroundStyle(Theme.ink)
-            .buttonStyle(.plain)
-            .disabled(row.eventId == nil)
-        }
-        .padding(.vertical, 6)
-    }
-
-    /// Optimistic heart, reverted if the call fails. One in flight per
-    /// note — rapid double-taps can't race the server.
-    private func toggleHeart(on row: PublicNoteRow) {
-        guard let eventId = row.eventId,
-              let index = publicNotes.firstIndex(where: { $0.id == row.id }),
-              heartsInFlight.insert(row.id).inserted else { return }
-        Haptics.tap()
-        let wasLiked = publicNotes[index].likedByMe
-        publicNotes[index].likedByMe.toggle()
-        publicNotes[index].likeCount += wasLiked ? -1 : 1
-        Task {
-            defer { heartsInFlight.remove(row.id) }
-            do { try await SupabaseService.shared.toggleLike(eventID: eventId) }
-            catch {
-                if let i = publicNotes.firstIndex(where: { $0.id == row.id }) {
-                    publicNotes[i].likedByMe = wasLiked
-                    publicNotes[i].likeCount += wasLiked ? 1 : -1
-                }
-                ToastCenter.shared.saveFailed()
-            }
-        }
+    /// Build a feed-style event from a public note so the "What people think"
+    /// wall renders with the same FeedCard as the feed (CIN-27).
+    private func feedEvent(from note: PublicNoteRow) -> FeedEventRow? {
+        guard let eventId = note.eventId else { return nil }
+        let row = MovieRow(
+            tmdbId: movie.tmdbID, mediaKind: movie.mediaKind, title: movie.title,
+            releaseYear: movie.releaseYear, posterPath: movie.posterPath,
+            backdropPath: movie.backdropPath, genres: movie.genres,
+            certification: movie.certification, runtimeMinutes: movie.runtimeMinutes,
+            director: movie.director, overview: movie.overview)
+        return FeedEventRow(
+            id: eventId, userId: note.userId, eventType: "ranked",
+            movieId: movie.tmdbID, createdAt: note.rankedAt,
+            payload: .init(score: note.score),
+            profiles: .init(username: note.username, displayName: note.displayName,
+                            avatarUrl: note.avatarUrl),
+            movies: row,
+            likes: [.init(count: note.likeCount)],
+            comments: [.init(count: note.commentCount)],
+            note: note.note,
+            noteContainsSpoilers: note.containsSpoilers ?? false)
     }
 
     // MARK: Data
