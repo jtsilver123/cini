@@ -13,6 +13,7 @@ struct FeedView: View {
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var memberTarget: MemberRef?
+    @State private var likersTarget: LikersTarget?
     @State private var commentsLink: CommentsLink?
     /// Live comment counts reported back from open threads, keyed by event id.
     @State private var commentCountOverrides: [UUID: Int] = [:]
@@ -105,6 +106,9 @@ struct FeedView: View {
             }
             .navigationDestination(item: $memberTarget) { member in
                 MemberProfileView(userID: member.id, username: member.username)
+            }
+            .sheet(item: $likersTarget) { target in
+                LikersSheet(eventID: target.id, onOpenMember: { memberTarget = $0 })
             }
             .navigationDestination(item: $commentsLink) { link in
                 CommentsSheet(
@@ -428,7 +432,8 @@ struct FeedView: View {
                     onQuickAdd: { logMovie = $0 },
                     onOpenMember: { memberTarget = $0 },
                     onOpenComments: { ev, ctx in commentsLink = CommentsLink(id: ev.id, context: ctx) },
-                    commentCountOverride: commentCountOverrides[event.id]
+                    commentCountOverride: commentCountOverrides[event.id],
+                    onShowLikers: { likersTarget = LikersTarget(id: $0) }
                 )
             }
         }
@@ -695,6 +700,70 @@ enum FeedDiskCache {
 // MARK: - Activity card
 
 /// Lightweight navigation handle for a member profile.
+/// Wraps a feed event id so the "who liked this" sheet is presentable.
+struct LikersTarget: Identifiable, Hashable { let id: UUID }
+
+/// Bottom sheet listing everyone who liked a post (CIN feed likes modal).
+struct LikersSheet: View {
+    let eventID: UUID
+    var onOpenMember: (MemberRef) -> Void = { _ in }
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var likers: [ProfileRow] = []
+    @State private var loaded = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if !loaded {
+                    SearchSkeleton(kind: .members, rows: 4)
+                        .padding(.horizontal, 16)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else if likers.isEmpty {
+                    Text("No likes yet")
+                        .font(.subheadline).foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(likers) { person in
+                        Button {
+                            dismiss()
+                            onOpenMember(MemberRef(id: person.id, username: person.username))
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(url: person.avatarUrl.flatMap(URL.init), size: 42,
+                                           name: preferredName(person.displayName, person.username))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(firstName(person.displayName, person.username) ?? person.username)
+                                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                                    Text("@\(person.username)").font(.caption).foregroundStyle(Theme.gray)
+                                }
+                                Spacer()
+                                Image(systemName: "heart.fill").font(.caption).foregroundStyle(.red)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Theme.background)
+                    }
+                    .listStyle(.plain)
+                }
+            }
+            .background(Theme.background)
+            .navigationTitle(loaded && !likers.isEmpty ? "Liked by \(likers.count)" : "Likes")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .task {
+            likers = await SupabaseService.shared.likers(eventID: eventID)
+            loaded = true
+        }
+    }
+}
+
 struct MemberRef: Identifiable, Hashable {
     let id: UUID
     let username: String
@@ -725,6 +794,8 @@ struct FeedCard: View {
     /// surface strangers' posts. The feed leaves these nil (no menu).
     var onReport: (() -> Void)? = nil
     var onBlock: (() -> Void)? = nil
+    /// Tapping the like count opens the "who liked this" sheet.
+    var onShowLikers: (UUID) -> Void = { _ in }
 
     @Environment(RankingStore.self) private var store
     @State private var liked = false
@@ -925,13 +996,14 @@ struct FeedCard: View {
             }
 
             HStack(spacing: 18) {
-                Button {
-                    toggleLike()
-                } label: {
-                    HStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    Button { toggleLike() } label: {
                         Image(systemName: liked ? "heart.fill" : "heart")
                             .foregroundStyle(liked ? .red : Theme.ink)
-                        if likeCount > 0 {
+                    }
+                    // Tap the count to see who liked it.
+                    if likeCount > 0 {
+                        Button { onShowLikers(event.id) } label: {
                             Text("\(likeCount)").font(.subheadline.weight(.medium))
                         }
                     }

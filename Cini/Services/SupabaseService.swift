@@ -1295,6 +1295,22 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Everyone who liked a feed event — for the "who liked this" sheet.
+    func likers(eventID: UUID) async -> [ProfileRow] {
+        struct Row: Decodable { let userId: UUID
+            enum CodingKeys: String, CodingKey { case userId = "user_id" } }
+        let rows: [Row] = (try? await client.from("likes")
+            .select("user_id")
+            .eq("event_id", value: eventID)
+            .execute().value) ?? []
+        let ids = rows.map(\.userId)
+        guard !ids.isEmpty else { return [] }
+        return (try? await client.from("profiles")
+            .select()
+            .in("id", values: ids)
+            .execute().value) ?? []
+    }
+
     /// One member's public note for a movie — used by the comments header on a
     /// feed post, since feed events don't carry the note inline. RLS hides
     /// private notes and anything from members you can't view, so this only ever
