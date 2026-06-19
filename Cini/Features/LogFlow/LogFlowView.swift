@@ -541,11 +541,12 @@ struct LogFlowView: View {
     private func resultCard(_ scored: ScoredItem<Int>) -> some View {
         let profile = appSession.profile
         let name = (profile?.displayName.isEmpty == false ? profile!.displayName : (profile?.username ?? ""))
+        let ticketName = firstName(profile?.displayName, profile?.username) ?? name
         return VStack(spacing: 16) {
             RankTicket(
                 movie: movie,
                 rank: scored.rank,
-                name: name,
+                name: ticketName,
                 handle: profile?.username ?? "",
                 streakWeeks: profile?.streakWeeks ?? 0,
                 poster: { PosterView(url: movie.posterURL, width: 150) },
@@ -687,7 +688,7 @@ struct LogFlowView: View {
            let (data, _) = try? await URLSession.shared.data(from: url) {
             avatar = UIImage(data: data)
         }
-        let name = (profile?.displayName.isEmpty == false ? profile!.displayName : (profile?.username ?? ""))
+        let name = firstName(profile?.displayName, profile?.username) ?? ""
         let card = RankShareCard(movie: movie, scored: scored, poster: poster,
                                  name: name, handle: profile?.username ?? "",
                                  avatar: avatar, streakWeeks: profile?.streakWeeks ?? 0)
