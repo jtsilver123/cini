@@ -406,10 +406,12 @@ struct WatchingControl: View {
             Spacer()
             Button { if value > 1 { onSet(value - 1) } } label: { Image(systemName: "minus.circle.fill") }
                 .buttonStyle(.plain).foregroundStyle(value > 1 ? Theme.marquee : Theme.gray.opacity(0.4))
+                .accessibilityLabel("Decrease \(label)")
             Text("\(value)")
                 .font(.subheadline.weight(.bold)).monospacedDigit().frame(minWidth: 28)
             Button { if value < cap { onSet(value + 1) } } label: { Image(systemName: "plus.circle.fill") }
                 .buttonStyle(.plain).foregroundStyle(value < cap ? Theme.marquee : Theme.gray.opacity(0.4))
+                .accessibilityLabel("Increase \(label)")
         }
         .font(.title3)
     }

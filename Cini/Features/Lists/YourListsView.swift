@@ -9,7 +9,6 @@ struct YourListsView: View {
     @State private var importQueue = ImportQueue.shared
 
     @State private var category: MediaCategory = .movies
-    @State private var showCategorySheet = false
     @State private var subTab: SubTab = .watched
     // Sort + filters persist across launches — the list stays the way
     // the user left it.
@@ -107,15 +106,16 @@ struct YourListsView: View {
                     if !reorderMode { filterBar }
                     if showListSearch { listSearchField }
                 }
-                listContent
+                ScrollViewReader { proxy in
+                    listContent
+                        // Re-tapping the Your Lists tab jumps back to the top.
+                        .onChange(of: tabRouter.retap[.lists]) { _, _ in
+                            withAnimation(.snappy) { proxy.scrollTo("listsTop", anchor: .top) }
+                        }
+                }
             }
             .nativeContentWidth()
             .background(Theme.background)
-            .sheet(isPresented: $showCategorySheet) {
-                CategorySheet(selection: $category)
-                    .presentationDetents([.height(150)])
-                    .presentationDragIndicator(.visible)
-            }
             .fullScreenCover(item: $logMovie, onDismiss: {
                 // Ranked a rec → it's now in Watched; confirm where it went.
                 if let m = pendingRecLog {
@@ -210,6 +210,11 @@ struct YourListsView: View {
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
             }
+            // Deep links can arrive while this tab is already alive (.onAppear
+            // won't re-fire), so observe the flags too — mirrors the custom-list
+            // handling above.
+            .onChange(of: tabRouter.pendingListsTab) { _, _ in consumePendingListsTab() }
+            .onChange(of: tabRouter.pendingReorder) { _, _ in consumePendingReorder() }
             // Category switch with a list of the OTHER kind selected: its
             // tab just vanished — deselect rather than render a ghost.
             .onChange(of: category) { _, newCategory in
@@ -223,41 +228,8 @@ struct YourListsView: View {
             }
             .onAppear {
                 consumePendingCustomList()
-                if let pending = tabRouter.pendingListsTab {
-                    tabRouter.pendingListsTab = nil
-                    subTab = pending
-                    selectedListID = nil
-                    // A deep link wins over the hide preference.
-                    if !visibleDefaultTabs.contains(pending) {
-                        var hidden = hiddenTabs
-                        hidden.remove(pending.rawValue)
-                        hiddenTabsRaw = hidden.sorted().joined(separator: ",")
-                    }
-                    // Land where the content is: the profile count spans
-                    // both categories, so "Watched (1)" must never open
-                    // onto an empty Movies view when the 1 is a show.
-                    // (Only once the store is real — a half-loaded store
-                    // must not steer the category.)
-                    if store.isLoaded {
-                        if pending == .watched, watchedCount(in: category) == 0,
-                           watchedCount(in: otherCategory) > 0 {
-                            category = otherCategory
-                        }
-                        if pending == .watchlist, watchlistCount(in: category) == 0,
-                           watchlistCount(in: otherCategory) > 0 {
-                            category = otherCategory
-                        }
-                    }
-                }
-                if tabRouter.pendingReorder {
-                    tabRouter.pendingReorder = false
-                    subTab = .watched
-                    reorderMode = true
-                    listQuery = ""; showListSearch = false
-                    genreFilter = nil; decadeFilter = nil
-                    runtimeFilter = nil; streamingProviderFilter = nil
-                    sortDescending = true   // drag offsets need canonical order
-                }
+                consumePendingListsTab()
+                consumePendingReorder()
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
@@ -280,6 +252,48 @@ struct YourListsView: View {
                 }
             }
         }
+    }
+
+    /// A deep link asked for a specific sub-tab (e.g. the profile's
+    /// "Watched (N)" count). Consumed from both onAppear and onChange so it
+    /// works whether the tab was just created or is already alive.
+    private func consumePendingListsTab() {
+        guard let pending = tabRouter.pendingListsTab else { return }
+        tabRouter.pendingListsTab = nil
+        subTab = pending
+        selectedListID = nil
+        // A deep link wins over the hide preference.
+        if !visibleDefaultTabs.contains(pending) {
+            var hidden = hiddenTabs
+            hidden.remove(pending.rawValue)
+            hiddenTabsRaw = hidden.sorted().joined(separator: ",")
+        }
+        // Land where the content is: the profile count spans both categories,
+        // so "Watched (1)" must never open onto an empty Movies view when the 1
+        // is a show. (Only once the store is real — a half-loaded store must
+        // not steer the category.)
+        if store.isLoaded {
+            if pending == .watched, watchedCount(in: category) == 0,
+               watchedCount(in: otherCategory) > 0 {
+                category = otherCategory
+            }
+            if pending == .watchlist, watchlistCount(in: category) == 0,
+               watchlistCount(in: otherCategory) > 0 {
+                category = otherCategory
+            }
+        }
+    }
+
+    /// A deep link asked to reorder the Watched list — same dual-entry pattern.
+    private func consumePendingReorder() {
+        guard tabRouter.pendingReorder else { return }
+        tabRouter.pendingReorder = false
+        subTab = .watched
+        reorderMode = true
+        listQuery = ""; showListSearch = false
+        genreFilter = nil; decadeFilter = nil
+        runtimeFilter = nil; streamingProviderFilter = nil
+        sortDescending = true   // drag offsets need canonical order
     }
 
     /// Selecting a list also lands on its category — a TV list's tab
@@ -492,6 +506,7 @@ struct YourListsView: View {
 
     private var friendRecsAsList: some View {
         List {
+            listTopAnchor
             if !directRecsLoaded {
                 SearchSkeleton(kind: .titles, rows: 5)
                     .listRowSeparator(.hidden)
@@ -550,6 +565,7 @@ struct YourListsView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Dismiss rec")
                     }
                     if let movie = rec.movies?.asMovie {
                         WatchlistRowView(movie: movie, predicted: predicted[movie.tmdbID]) {
@@ -588,6 +604,7 @@ struct YourListsView: View {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(10)
@@ -652,12 +669,23 @@ struct YourListsView: View {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Search this list")
         }
         .screenHPadding()
         .padding(.vertical, 8)
     }
 
     // MARK: - Content
+
+    /// A zero-height first row each List carries so re-tapping the tab can
+    /// scroll back to the top regardless of which list is showing.
+    private var listTopAnchor: some View {
+        Color.clear
+            .frame(height: 0)
+            .listRowBackground(Theme.background)
+            .listRowSeparator(.hidden)
+            .id("listsTop")
+    }
 
     @ViewBuilder
     private var listContent: some View {
@@ -687,6 +715,7 @@ struct YourListsView: View {
     /// One of the user's own lists, inline — same rows, swipe to remove.
     private var customListContent: some View {
         List {
+            listTopAnchor
             if !customListLoaded {
                 ListSkeleton(rows: 6)
                     .listRowBackground(Theme.background)
@@ -795,7 +824,12 @@ struct YourListsView: View {
     /// Watched as "Pending"; the goal is to rank it down to zero, at which
     /// point the section disappears.
     private var pendingEntries: [ImportQueue.Entry] {
-        importQueue.entries.filter { !store.isWatched($0.movieID) }
+        // Scope to the current category — Movies and TV are equal-but-separate,
+        // so the Pending section (and its count badge) inside a category-scoped
+        // Watched list must never mix the two. TV ids are negative.
+        importQueue.entries.filter {
+            !store.isWatched($0.movieID) && ((category == .tvShows) == ($0.movieID < 0))
+        }
     }
 
     @ViewBuilder
@@ -862,6 +896,7 @@ struct YourListsView: View {
 
     private var watchedList: some View {
         List {
+            listTopAnchor
             // Quick way into "Movies/Shows you may have seen" to rank your
             // back-catalog. Hidden in reorder mode and while searching the list.
             if !reorderMode && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -1002,6 +1037,7 @@ struct YourListsView: View {
     /// how a title lands here; swipe to stop.
     private var watchingList: some View {
         List {
+            listTopAnchor
             Button { showWatchingInfo = true } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "info.circle")
@@ -1074,6 +1110,7 @@ struct YourListsView: View {
 
     private var watchlistList: some View {
         List {
+            listTopAnchor
             ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
                     // Prefetched at launch — badges render instantly.
@@ -1149,6 +1186,7 @@ struct YourListsView: View {
 
     private var recsAsList: some View {
         List {
+            listTopAnchor
             ForEach(filteredRecs) { candidate in
                 VStack(alignment: .leading, spacing: 4) {
                     WatchlistRowView(movie: candidate.movie,
@@ -1401,31 +1439,6 @@ struct WatchlistRowView: View {
 }
 
 // MARK: - Category bottom sheet
-
-struct CategorySheet: View {
-    @Binding var selection: MediaCategory
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text("Choose a category").font(.title3.weight(.bold))
-                Spacer()
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark").foregroundStyle(Theme.ink)
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close")
-            }
-            CategoryChips(selection: $selection) { _ in dismiss() }
-            Spacer()
-        }
-        .padding(20)
-    }
-}
-
 
 /// Zero-state "Send a rec": pick one of your ranked titles, then hand off
 /// to the same Recommend sheet the movie page uses.

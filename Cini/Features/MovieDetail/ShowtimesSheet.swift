@@ -59,6 +59,7 @@ struct ShowtimesSheet: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isLocating)
+                .accessibilityLabel("Use my location")
                 TextField("Zipcode", text: $zipcode)
                     .keyboardType(.numberPad)
                 Button("Search") { Task { await search() } }

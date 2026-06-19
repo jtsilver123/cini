@@ -67,7 +67,7 @@ struct SuggestionGrid: View {
             // Hold for the "save it instead" path.
             .contextMenu {
                 Button { onRank(movie) } label: { Label("Rank it", systemImage: "star") }
-                Button { onSave(movie) } label: { Label("Save to Want to Watch", systemImage: "bookmark") }
+                Button { onSave(movie) } label: { Label("Bookmark to Want to Watch", systemImage: "bookmark") }
                 Button(role: .destructive) { onDismiss(movie) } label: {
                     Label("Not interested", systemImage: "xmark")
                 }

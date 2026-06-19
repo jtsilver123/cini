@@ -382,6 +382,7 @@ struct WatchedWithPicker: View {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
                 }
             }
             .padding(10)

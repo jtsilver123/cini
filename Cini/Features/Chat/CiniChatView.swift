@@ -214,8 +214,14 @@ struct CiniChatAvailableView: View {
         }
         .sheet(isPresented: $showReviewPicker) {
             ChatReviewPicker(title: "Review a movie") { movie in
+                // Let the picker finish dismissing before presenting the log
+                // cover — two presentations in one runloop can swallow the
+                // second on device.
                 showReviewPicker = false
-                logMovie = movie
+                Task {
+                    try? await Task.sleep(for: .milliseconds(350))
+                    logMovie = movie
+                }
             }
             .presentationDetents([.medium, .large])
         }
@@ -253,6 +259,7 @@ struct CiniChatAvailableView: View {
                         Image(systemName: "xmark.circle.fill")
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Remove attached title")
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.marquee)
@@ -276,6 +283,7 @@ struct CiniChatAvailableView: View {
                         .background(Circle().fill(Theme.fill))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Attach a title")
                 Spacer()
                 Button {
                     Task { await send() }
@@ -287,6 +295,7 @@ struct CiniChatAvailableView: View {
                         .background(Circle().fill(Theme.marquee))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Send")
                 .disabled((draft.trimmingCharacters(in: .whitespaces).isEmpty
                            && attachedMovie == nil) || isThinking || session == nil)
             }

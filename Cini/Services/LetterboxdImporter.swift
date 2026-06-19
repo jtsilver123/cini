@@ -455,14 +455,20 @@ enum LetterboxdImporter {
     private static func netflixDate(_ raw: String) -> String? {
         let t = raw.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return nil }
+        // Netflix localizes the viewing-activity date to the account's region,
+        // so a US export reads M/d/yy but others read d/M/yy (and some yyyy-MM-dd).
+        // Try each; the title still imports as watched even if no date parses —
+        // only the diary date is at stake.
         let parser = DateFormatter()
         parser.locale = Locale(identifier: "en_US_POSIX")
-        parser.dateFormat = "M/d/yy"
-        guard let date = parser.date(from: t) else { return nil }
         let out = DateFormatter()
         out.locale = Locale(identifier: "en_US_POSIX")
         out.dateFormat = "yyyy-MM-dd"
-        return out.string(from: date)
+        for format in ["M/d/yy", "d/M/yy", "yyyy-MM-dd", "M/d/yyyy", "d/M/yyyy"] {
+            parser.dateFormat = format
+            if let date = parser.date(from: t) { return out.string(from: date) }
+        }
+        return nil
     }
 
     /// RFC-4180-ish CSV: quoted fields, escaped quotes (""), newlines in quotes.

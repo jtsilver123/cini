@@ -116,6 +116,7 @@ struct SendRecSheet: View {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
                     }
                 }
                 .padding(.horizontal, 12)

@@ -294,7 +294,17 @@ private struct FeatureDetailSheet: View {
             } else {
                 PillButton(title: canUnlock ? "Unlock now" : "Invite a friend to unlock", style: .filled) {
                     dismiss()
-                    if canUnlock { onUnlock() } else { onInvite() }
+                    // onUnlock presents nothing; onInvite opens a sibling sheet
+                    // on the parent, so it must wait for THIS sheet to finish
+                    // dismissing — two presentations in one runloop drop one.
+                    if canUnlock {
+                        onUnlock()
+                    } else {
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            onInvite()
+                        }
+                    }
                 }
             }
         }

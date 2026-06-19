@@ -294,7 +294,7 @@ struct ArtworkQuickActions: View {
                         .background(Circle().fill(.black.opacity(0.45)))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(store.isOnWatchlist(movie.tmdbID) ? "On your watchlist" : "Add to watchlist")
+                .accessibilityLabel(store.isOnWatchlist(movie.tmdbID) ? "On your Want to Watch" : "Bookmark to Want to Watch")
             }
         }
         .font(.title3)
@@ -560,7 +560,7 @@ struct SaveToListSheet: View {
                             .lineLimit(1)
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark.circle.fill")
-                            Text("Saved to Want to Watch")
+                            Text("Bookmarked to Want to Watch")
                         }
                         .font(.caption)
                         .foregroundStyle(Theme.scoreGreen)

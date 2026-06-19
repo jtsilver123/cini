@@ -254,6 +254,7 @@ struct OnboardingView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Add profile photo")
                 if isUploadingPhoto {
                     ProgressView().controlSize(.small)
                 } else {
@@ -592,7 +593,7 @@ struct OnboardingView: View {
                         onSave: { movie in
                             guard !store.isOnWatchlist(movie.tmdbID) else { return }
                             Task { await store.toggleWatchlist(movie: movie) }
-                            ToastCenter.shared.show("Saved to Want to Watch ✓")
+                            ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
                         },
                         onDismiss: { movie in
                             withAnimation(.snappy) { starters.removeAll { $0.tmdbID == movie.tmdbID } }

@@ -619,7 +619,7 @@ struct SearchView: View {
                 onSave: { movie in
                     guard !store.isOnWatchlist(movie.tmdbID) else { return }
                     Task { await store.toggleWatchlist(movie: movie) }
-                    ToastCenter.shared.show("Saved to Want to Watch ✓")
+                    ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
                 },
                 onDismiss: { movie in
                     withAnimation(.snappy) { _ = dismissedMaybeSeen.insert(movie.tmdbID) }
@@ -845,7 +845,7 @@ struct MovieSuggestionRow: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
-                    ? "Remove from Want to Watch" : "Save to Want to Watch")
+                    ? "Remove from Want to Watch" : "Bookmark to Want to Watch")
                 if let onDismiss {
                     Button(action: onDismiss) {
                         Image(systemName: "xmark").foregroundStyle(Theme.gray)

@@ -201,7 +201,7 @@ struct RecCardDeck: View {
             }
             .buttonStyle(.plain)
             .disabled(index >= items.count)
-            .accessibilityLabel("Save to Want to Watch")
+            .accessibilityLabel("Bookmark to Want to Watch")
         }
     }
 
@@ -347,7 +347,7 @@ struct FriendRecDeck: View {
                     .frame(width: 62, height: 62).background(Circle().fill(Theme.scoreGreen))
                     .shadow(color: Theme.scoreGreen.opacity(0.4), radius: 8, y: 3)
             }
-            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Save to Want to Watch")
+            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Bookmark to Want to Watch")
         }
     }
 

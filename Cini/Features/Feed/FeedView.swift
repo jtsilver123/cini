@@ -193,6 +193,11 @@ struct FeedView: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Notifications")
+                // Opening the list marks everything read server-side, but the
+                // feed stays mounted (a push) so loadFeed()'s .task never
+                // re-fires — clear the dot optimistically on tap so it can't
+                // linger until a manual refresh.
+                .simultaneousGesture(TapGesture().onEnded { unreadCount = 0 })
                 Menu {
                     Button {
                         showSettings = true
@@ -619,16 +624,16 @@ struct FeedView: View {
     /// from the deck (remembered so it won't resurface as a pick today).
     private func saveTonight(_ item: TonightCardItem) {
         if store.isOnWatchlist(item.movie.tmdbID) {
-            // Already saved — just confirm.
+            // Already bookmarked — just confirm.
             Haptics.success()
-            ToastCenter.shared.show("Saved to Want to Watch")
+            ToastCenter.shared.show("Bookmarked to Want to Watch")
         } else {
             // toggleWatchlist provides its own haptic and a failure toast/revert;
             // only claim success once it actually lands.
             Task {
                 await store.toggleWatchlist(movie: item.movie)
                 if store.isOnWatchlist(item.movie.tmdbID) {
-                    ToastCenter.shared.show("Saved to Want to Watch")
+                    ToastCenter.shared.show("Bookmarked to Want to Watch")
                 }
             }
         }
@@ -757,6 +762,7 @@ struct LikersSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Close")
                 }
             }
         }
@@ -1037,14 +1043,17 @@ struct FeedCard: View {
                     Image(systemName: liked ? "heart.fill" : "heart")
                         .foregroundStyle(liked ? .red : Theme.ink)
                 }
+                .accessibilityLabel(liked ? "Unlike" : "Like")
                 Button { onOpenComments(event, commentContext) } label: {
                     Image(systemName: "bubble.right").foregroundStyle(Theme.ink)
                 }
+                .accessibilityLabel("Comments")
                 if let movie {
                     ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
                         Image(systemName: "paperplane")
                             .foregroundStyle(Theme.ink)
                     }
+                    .accessibilityLabel("Share")
                 }
             }
             .font(.body)
@@ -1287,6 +1296,7 @@ struct CommentsSheet: View {
                                         ? Theme.gray.opacity(0.4) : Theme.marquee)
                         }
                         .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .accessibilityLabel("Post comment")
                     }
                     .padding(12)
                 }
@@ -1715,7 +1725,7 @@ struct ReleaseCalendarView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
-                        ? "Remove from Want to Watch" : "Save to Want to Watch")
+                        ? "Remove from Want to Watch" : "Bookmark to Want to Watch")
                 }
             }
             .contentShape(Rectangle())
@@ -1759,8 +1769,6 @@ struct NotificationsView: View {
     @State private var detailMovie: Movie?
     @State private var memberTarget: MemberRef?
     @State private var commentsLink: CommentsLink?
-    @State private var showImport = false
-    @State private var showRankSheet = false
     @State private var showRespondRecs = false
     @State private var resolvedFollowReqs: [UUID: Bool] = [:]   // actorId → accepted
 
@@ -1906,6 +1914,11 @@ struct NotificationsView: View {
     private func route(_ row: NotificationRow) {
         if row.kind == "rec_request" {
             showRespondRecs = true
+        } else if row.kind == "streak_reminder" {
+            // No movie/actor of its own — send them to Recs, where ranking the
+            // streak-saver is one tap away (matches the push tap behavior).
+            dismiss()
+            tabRouter.selection = .swipe
         } else if (row.kind == "comment" || row.kind == "mention"), let eventId = row.eventId {
             // Land on the actual comment thread, not just the movie page.
             commentsLink = CommentsLink(id: eventId)

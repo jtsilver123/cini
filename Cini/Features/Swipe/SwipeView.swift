@@ -10,6 +10,7 @@ import SwiftUI
 /// save / pass / rank gestures are identical to everywhere else in the app.
 struct SwipeView: View {
     @Environment(RankingStore.self) private var store
+    @Environment(TabRouter.self) private var tabRouter
 
     @State private var candidates: [YourListsView.RecCandidate] = []
     @State private var loaded = false
@@ -63,7 +64,14 @@ struct SwipeView: View {
                         .screenHPadding()
                         .padding(.bottom, 4)
                 }
-                content
+                ScrollViewReader { proxy in
+                    content
+                        // Re-tapping the Recs tab jumps the grid/list back to
+                        // the top (the cards layout has nothing to scroll).
+                        .onChange(of: tabRouter.retap[.swipe]) { _, _ in
+                            withAnimation(.snappy) { proxy.scrollTo("recsTop", anchor: .top) }
+                        }
+                }
             }
             .nativeContentWidth()
             .background(Theme.background)
@@ -199,7 +207,7 @@ struct SwipeView: View {
                         onSave: { movie in
                             guard !store.isOnWatchlist(movie.tmdbID) else { return }
                             Task { await store.toggleWatchlist(movie: movie) }
-                            ToastCenter.shared.show("Saved to Want to Watch ✓")
+                            ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
                         },
                         onDismiss: { movie in
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
@@ -207,6 +215,7 @@ struct SwipeView: View {
                     )
                     .screenHPadding()
                     .padding(.top, 8)
+                    .id("recsTop")
                 }
             case .list:
                 ScrollView {
@@ -223,6 +232,7 @@ struct SwipeView: View {
                     }
                     .screenHPadding()
                     .padding(.top, 4)
+                    .id("recsTop")
                 }
             case .cards:
                 RecCardDeck(

@@ -93,30 +93,37 @@ struct ProfileScreen: View {
                     .padding(.bottom, 10)
                     .background(Theme.background)
             }
-            ScrollView {
-                // A member profile opens with nothing cached — show the
-                // shape of the page, never zeros and blanks.
-                if !loaded && profile == nil {
-                    ProfileSkeleton()
+            ScrollViewReader { proxy in
+                ScrollView {
+                    // A member profile opens with nothing cached — show the
+                    // shape of the page, never zeros and blanks.
+                    if !loaded && profile == nil {
+                        ProfileSkeleton()
+                            .padding(.vertical, 16)
+                            .screenHPadding()
+                    } else {
+                        VStack(spacing: 18) {
+                            identity
+                            topThree
+                            if isSelf, !rankings.isEmpty { shareTopFiveButton }
+                            if isSelf, session.availableUnlocks > 0 { unlockBanner }
+                            statRow
+                            buttonRow
+                            listRows
+                            statCards
+                            profileTabs
+                        }
                         .padding(.vertical, 16)
                         .screenHPadding()
-                } else {
-                    VStack(spacing: 18) {
-                        identity
-                        topThree
-                        if isSelf, !rankings.isEmpty { shareTopFiveButton }
-                        if isSelf, session.availableUnlocks > 0 { unlockBanner }
-                        statRow
-                        buttonRow
-                        listRows
-                        statCards
-                        profileTabs
+                        .id("profileTop")
                     }
-                    .padding(.vertical, 16)
-                    .screenHPadding()
+                }
+                .refreshable { await load() }
+                // Re-tapping the Profile tab jumps back to the top.
+                .onChange(of: tabRouter.retap[.profile]) { _, _ in
+                    withAnimation(.snappy) { proxy.scrollTo("profileTop", anchor: .top) }
                 }
             }
-            .refreshable { await load() }
         }
         .nativeContentWidth()
         .background(Theme.background)
@@ -587,6 +594,7 @@ struct ProfileScreen: View {
                             .overlay(Circle().strokeBorder(Theme.marquee, lineWidth: 1.2))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Suggested members")
                 }
                 if showSuggested {
                     suggestedStrip
@@ -1274,6 +1282,7 @@ struct ActivityMovieRow: View {
                         .foregroundStyle(Theme.ink)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Rank \(movie.title)")
             }
             Button {
                 bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
@@ -1283,6 +1292,7 @@ struct ActivityMovieRow: View {
                     .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(store.isOnWatchlist(movie.tmdbID) ? "On your Want to Watch" : "Bookmark to Want to Watch")
         }
         .sheet(isPresented: $showSaveSheet) {
             SaveToListSheet(movie: movie)
@@ -1380,6 +1390,7 @@ struct RankedListScreen: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Search this list")
                 }
                 .padding(.bottom, 2)
                 // Same filter pills as My Lists — on anyone's list.
@@ -1398,6 +1409,7 @@ struct RankedListScreen: View {
                                 Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("Clear search")
                         }
                     }
                     .padding(10)
