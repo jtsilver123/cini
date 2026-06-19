@@ -140,7 +140,9 @@ struct SwipeView: View {
             )
             // Reset the deck's position when switching Movies ↔ TV.
             .id(suggestTV)
-            .screenHPadding()
+            // Cards run wider than the standard gutter for an immersive,
+            // swipe-deck feel (the grid keeps the regular screen margin).
+            .padding(.horizontal, 10)
             .padding(.top, 12)
             Spacer(minLength: 0)
         }

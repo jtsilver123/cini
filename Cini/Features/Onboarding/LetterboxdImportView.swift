@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import MessageUI
 
 /// Letterboxd / IMDb import. Accepts the actual Letterboxd export ZIP
 /// (or any single CSV), matches every title against TMDB with live
@@ -33,6 +34,7 @@ struct LetterboxdImportView: View {
     @State private var detailsImportFailed = false
     @State private var importTask: Task<Void, Never>?
     @State private var linkCopied = false
+    @State private var mailDraft: MailDraft?
 
     enum Phase {
         case pick, working, summary
@@ -73,6 +75,10 @@ struct LetterboxdImportView: View {
                         Button(phase == .summary ? "Done" : "Cancel") { dismiss() }
                     }
                 }
+            }
+            .sheet(item: $mailDraft) { draft in
+                MailComposeView(draft: draft)
+                    .ignoresSafeArea()
             }
             .sheet(isPresented: $showPaste) {
                 NavigationStack {
@@ -443,6 +449,26 @@ struct LetterboxdImportView: View {
         return link
     }
 
+    private static let emailSubject = "Your Cini import link"
+
+    /// Rich HTML body (bold links/steps) for the in-app composer.
+    private func emailHTMLBody(code: String) -> String {
+        let link = transferLink(code: code)
+        return """
+        <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;">
+          <p>Open this link <b>on your computer</b> to bring your history into Cini:</p>
+          <p><a href="\(link)" style="font-weight:700;">\(link)</a></p>
+          <ol>
+            <li>Open the link on your computer.</li>
+            <li>Grab your export from <b>Letterboxd</b>, <b>IMDb</b>, or <b>Netflix</b> and drop it in.</li>
+            <li>Your movies and shows beam straight to Cini on your phone.</li>
+          </ol>
+          <p style="color:#666;font-size:13px;"><i>This link works for 30 minutes — grab a fresh one in the app if it expires.</i></p>
+        </div>
+        """
+    }
+
+    /// Plain-text fallback (mailto can't do bold) when no Mail account is set up.
     private func emailMyselfURL(code: String) -> URL {
         let body = [
             "Open this link on your computer to import your history:",
@@ -453,7 +479,7 @@ struct LetterboxdImportView: View {
         ].joined(separator: "\n")
         var components = URLComponents(string: "mailto:")!
         components.queryItems = [
-            URLQueryItem(name: "subject", value: "Your Cini import link"),
+            URLQueryItem(name: "subject", value: Self.emailSubject),
             URLQueryItem(name: "body", value: body),
         ]
         return components.url ?? URL(string: "mailto:")!
@@ -468,7 +494,15 @@ struct LetterboxdImportView: View {
         transferCode = code
         linkCopied = false
         if thenOpenEmail {
-            openURL(emailMyselfURL(code: code))
+            // The in-app composer lets us send a nicely formatted (bold) email;
+            // fall back to a plain mailto if no Mail account is set up.
+            if MFMailComposeViewController.canSendMail() {
+                mailDraft = MailDraft(subject: Self.emailSubject,
+                                      htmlBody: emailHTMLBody(code: code),
+                                      to: SupabaseService.shared.currentEmail.map { [$0] } ?? [])
+            } else {
+                openURL(emailMyselfURL(code: code))
+            }
         } else {
             UIPasteboard.general.string = transferLink(code: code)
             linkCopied = true
@@ -668,5 +702,44 @@ struct ImportHandoffBadge: View {
                             .strokeBorder(Theme.marquee.opacity(0.55), lineWidth: 1)))
         }
         .accessibilityLabel("Import from Letterboxd or Netflix into Cini")
+    }
+}
+
+// MARK: - Native mail composer (HTML so the import email can use bold)
+
+struct MailDraft: Identifiable {
+    let id = UUID()
+    let subject: String
+    let htmlBody: String
+    var to: [String] = []
+}
+
+/// Wraps `MFMailComposeViewController` so the import link can go out as a
+/// formatted HTML email (bold link + steps) instead of a flat mailto.
+struct MailComposeView: UIViewControllerRepresentable {
+    let draft: MailDraft
+    @Environment(\.dismiss) private var dismiss
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    func makeUIViewController(context: Context) -> MFMailComposeViewController {
+        let vc = MFMailComposeViewController()
+        vc.mailComposeDelegate = context.coordinator
+        vc.setSubject(draft.subject)
+        if !draft.to.isEmpty { vc.setToRecipients(draft.to) }
+        vc.setMessageBody(draft.htmlBody, isHTML: true)
+        return vc
+    }
+
+    func updateUIViewController(_ controller: MFMailComposeViewController, context: Context) {}
+
+    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        func mailComposeController(_ controller: MFMailComposeViewController,
+                                   didFinishWith result: MFMailComposeResult,
+                                   error: Error?) {
+            dismiss()
+        }
     }
 }

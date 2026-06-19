@@ -30,6 +30,22 @@ struct SuggestionGrid: View {
         VStack(spacing: 6) {
             Button { onRank(movie) } label: {
                 PosterView(url: movie.posterURL, width: posterWidth)
+                    // Save to Want to Watch — a visible bookmark (top-left),
+                    // so it isn't hidden behind a long-press.
+                    .overlay(alignment: .topLeading) {
+                        if !ranked {
+                            Button { onSave(movie) } label: {
+                                Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                                    .padding(5)
+                                    .background(Circle().fill(.black.opacity(0.55)))
+                            }
+                            .buttonStyle(.plain)
+                            .padding(5)
+                            .accessibilityLabel("Save \(movie.title) to Want to Watch")
+                        }
+                    }
                     .overlay(alignment: .topTrailing) {
                         if !ranked {
                             Button { onDismiss(movie) } label: {

@@ -323,7 +323,7 @@ struct ProfileScreen: View {
                 .font(.title2.weight(.bold))
                 .lineLimit(1)
             Spacer()
-            HStack(spacing: 18) {
+            HStack(spacing: 8) {
                 // Leaderboard moved off the tab bar — it lives here now.
                 Button { showLeaderboard = true } label: {
                     Image(systemName: "trophy").foregroundStyle(Theme.ink)
