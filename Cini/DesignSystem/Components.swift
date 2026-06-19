@@ -996,14 +996,22 @@ struct MovieFilterBar: View {
     }
 
     var body: some View {
-        // Loose glass capsules in a scroll row render with artifacts
-        // (worst in light mode) — Liquid Glass wants its elements grouped
-        // in one container.
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer { bar }
-        } else {
-            bar
+        Group {
+            // Loose glass capsules in a scroll row render with artifacts
+            // (worst in light mode) — Liquid Glass wants its elements grouped
+            // in one container.
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer { bar }
+            } else {
+                bar
+            }
         }
+        // Hard cap to the offered width. The inner horizontal ScrollView (and,
+        // on iOS 26, the GlassEffectContainer) otherwise report their full
+        // content width as ideal, so a caller's negative horizontal padding can
+        // make this row wider than the screen and shove the whole view off both
+        // edges. This guarantees the row never exceeds its container.
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var bar: some View {

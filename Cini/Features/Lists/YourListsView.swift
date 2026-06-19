@@ -99,12 +99,10 @@ struct YourListsView: View {
                 subTabs
                 // Filters are first-class on EVERY personal list — the
                 // defaults and your own lists alike.
-                if selectedListID != nil {
-                    if !reorderMode { filterBar }
+                if (selectedListID != nil || subTab != .friendRecs), !reorderMode {
+                    filterBar
                     if showListSearch { listSearchField }
-                } else if subTab != .friendRecs {
-                    if !reorderMode { filterBar }
-                    if showListSearch { listSearchField }
+                    sortSearchRow
                 }
                 ScrollViewReader { proxy in
                     listContent
@@ -137,7 +135,7 @@ struct YourListsView: View {
                     sortDescending: $sortDescending,
                     sortHighLabel: sortHighLabel,
                     sortLowLabel: sortLowLabel,
-                    showSort: showsSortControl)   // sort lives inside this sheet
+                    showSort: false)   // sort is its own row (Beli-style), not here
                 .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showRecPicker) {
@@ -593,23 +591,33 @@ struct YourListsView: View {
 
     private var listSearchField: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
-            TextField("Search this list", text: $listQuery)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !listQuery.isEmpty {
-                Button {
-                    listQuery = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                TextField("Search your list", text: $listQuery)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                if !listQuery.isEmpty {
+                    Button {
+                        listQuery = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
             }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+            // "Close" dismisses the field (Beli-style).
+            Button("Close") {
+                withAnimation(.snappy) { showListSearch = false; listQuery = "" }
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.marquee)
+            .buttonStyle(.plain)
         }
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
         .screenHPadding()
+        .padding(.bottom, 4)
     }
 
     private var hasActiveFilters: Bool {
@@ -642,13 +650,55 @@ struct YourListsView: View {
     private var sortHighLabel: String { subTab == .watched ? "Highest score" : "Newest" }
     private var sortLowLabel: String { subTab == .watched ? "Lowest score" : "Oldest" }
 
-    /// The filter icon sits inline at the head of the quick filter pills
-    /// (Streaming · Genre · Runtime · Decade) and opens the full filter + sort
-    /// sheet. (Search lives in the ⋯ menu, so it doesn't fight the scroll row.)
+    /// Row 1 — the filter icon inline at the head of the quick filter pills
+    /// (Streaming · Genre · Runtime · Decade); the icon opens the full sheet.
     private var filterBar: some View {
         MovieFilterBar(filters: filtersBinding,
                        movies: Array(store.movies.values),
                        onFilterTap: { showFilterSheet = true })
+    }
+
+    /// Row 2 (Beli-style) — sort on the left, a search toggle on the right.
+    private var sortSearchRow: some View {
+        HStack {
+            if showsSortControl { sortMenu } else { Spacer().frame(height: 1) }
+            Spacer()
+            Button {
+                withAnimation(.snappy) {
+                    showListSearch.toggle()
+                    if !showListSearch { listQuery = "" }
+                }
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(showListSearch ? Theme.marquee : Theme.ink)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search this list")
+        }
+        .screenHPadding()
+        .padding(.bottom, 6)
+    }
+
+    /// Score (watched) or Date added — the metric the list is sorted on.
+    private var sortMetricLabel: String { subTab == .watched ? "Score" : "Date added" }
+
+    /// Tappable sort control: shows the metric with up/down arrows; the menu
+    /// flips between high→low (or newest→oldest).
+    private var sortMenu: some View {
+        Menu {
+            Button { sortDescending = true } label: {
+                Label(sortHighLabel, systemImage: sortDescending ? "checkmark" : "arrow.down")
+            }
+            Button { sortDescending = false } label: {
+                Label(sortLowLabel, systemImage: sortDescending ? "arrow.up" : "checkmark")
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
+                Text(sortMetricLabel).font(.subheadline.weight(.bold))
+            }
+            .foregroundStyle(Theme.marquee)
+        }
     }
 
     // MARK: - Content

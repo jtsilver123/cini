@@ -236,6 +236,7 @@ struct OnboardingView: View {
     // MARK: 1 — Create your profile (name + @handle + photo, one screen)
 
     private var profileStep: some View {
+        VStack(spacing: 0) {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 16) {
                 Text("Create your profile")
@@ -258,26 +259,31 @@ struct OnboardingView: View {
                 if isUploadingPhoto {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Add a photo · optional").font(.caption).foregroundStyle(Theme.gray)
+                    // A nudge: photos lift engagement, so show that most people add one.
+                    Text("Add a photo · 85% of members do")
+                        .font(.caption).foregroundStyle(Theme.gray)
                 }
 
                 VStack(spacing: 10) {
-                    TextField("First name", text: $firstName)
-                        .textContentType(.givenName)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.next)
-                        .focused($focus, equals: .firstName)
-                        .onSubmit { focus = .lastName }
-                        .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
-                    TextField("Last name · optional", text: $lastName)
-                        .textContentType(.familyName)
-                        .textInputAutocapitalization(.words)
-                        .submitLabel(.next)
-                        .focused($focus, equals: .lastName)
-                        .onSubmit { focus = .username }
-                        .padding(14)
-                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                    // First + last sit side by side to save a row.
+                    HStack(spacing: 10) {
+                        TextField("First name", text: $firstName)
+                            .textContentType(.givenName)
+                            .textInputAutocapitalization(.words)
+                            .submitLabel(.next)
+                            .focused($focus, equals: .firstName)
+                            .onSubmit { focus = .lastName }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                        TextField("Last name", text: $lastName)
+                            .textContentType(.familyName)
+                            .textInputAutocapitalization(.words)
+                            .submitLabel(.next)
+                            .focused($focus, equals: .lastName)
+                            .onSubmit { focus = .username }
+                            .padding(14)
+                            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface2))
+                    }
 
                     HStack(spacing: 4) {
                         Text("@").foregroundStyle(Theme.gray)
@@ -320,13 +326,15 @@ struct OnboardingView: View {
             .padding(.bottom, 16)
         }
         .scrollDismissesKeyboard(.interactively)
-        .safeAreaInset(edge: .bottom) {
-            PillButton(title: saving ? "Saving…" : "Continue") { Task { await saveUsername() } }
-                .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty
-                          || !usernameValid || availability == .taken || saving)
-                .padding(.horizontal, 28).padding(.vertical, 10)
-                .background(.thinMaterial)
+        // Continue is pinned in the VStack (not a safeAreaInset) so the animated
+        // step transition can't clip it off the bottom — it's always tappable.
+        PillButton(title: saving ? "Saving…" : "Continue") { Task { await saveUsername() } }
+            .disabled(firstName.trimmingCharacters(in: .whitespaces).isEmpty
+                      || !usernameValid || availability == .taken || saving)
+            .padding(.horizontal, 28)
+            .padding(.top, 8)
         }
+        .background(Theme.background)
         .sheet(isPresented: $showCropPicker) {
             CropImagePicker { image in Task { await uploadPhoto(image) } }
                 .ignoresSafeArea()
@@ -386,7 +394,7 @@ struct OnboardingView: View {
         .alert("Who's \(founderFirstName)?", isPresented: $showFounderInfo) {
             Button("Got it", role: .cancel) {}
         } message: {
-            Text("Hey, I'm \(founderFirstName). I love movies and TV, and I'm a little obsessed with tracking and ranking everything I watch. I built Cini for my friends and family, and to see what making an app is like as someone who can't really code. Everyone starts out following me so your feed has great picks from day one, and you can unfollow any time.")
+            Text("Hey, I'm \(founderFirstName) — I built Cini because I'm obsessed with ranking everything I watch. You start out following me so your feed has great picks from day one; unfollow any time.")
         }
     }
 

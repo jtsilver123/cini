@@ -157,9 +157,11 @@ struct SwipeView: View {
                                    set: { suggestTV = $0 == 1 }))
             // Filter icon inline with the quick filter pills — same format as
             // My Lists / the profile list. The icon opens the full filter sheet.
+            // NOTE: no negative horizontal padding here — it makes this greedy
+            // horizontal scroll report a width wider than the screen, which
+            // forces the whole header (and view) off both edges.
             MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
                            onFilterTap: { showFilterSheet = true })
-                .padding(.horizontal, -Theme.screenH)
         }
     }
 

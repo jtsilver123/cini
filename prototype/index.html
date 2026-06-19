@@ -920,11 +920,17 @@ function renderLists(){
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
     ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
-      <button class="iconbtn" onclick="openFilters()" aria-label="Filters and sort" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:8px;">${I("sliders",18)}</button>
+      <button class="iconbtn" onclick="openFilters()" aria-label="Filters" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:8px;">${I("sliders",18)}</button>
       <div class="row-scroll" style="flex:1; margin:0;">${["Streaming","Genre","Runtime","Decade"].map(p=>`<button class="pill out" onclick="openFilters()">${p}</button>`).join("")}</div>
     </div>`:""}
-    ${S.ui.showSearch?`<div class="pad" style="margin-top:10px;">
-      <div class="searchfield">${I("search",16)}<input id="listQ" placeholder="Search this list" value="${esc(S.ui.listQ)}" oninput="S.ui.listQ=this.value; save(); renderListsKeepFocus()"></div>
+    ${S.ui.showSearch&&!S.ui.reorder?`<div class="pad" style="margin-top:10px; display:flex; align-items:center; gap:8px;">
+      <div class="searchfield" style="flex:1;">${I("search",16)}<input id="listQ" placeholder="Search your list" value="${esc(S.ui.listQ)}" oninput="S.ui.listQ=this.value; save(); renderListsKeepFocus()"></div>
+      <button style="border:none;background:none;color:var(--marquee);font-weight:600;font-size:14px;cursor:pointer;" onclick="S.ui.showSearch=false; S.ui.listQ=''; save(); render()">Close</button>
+    </div>`:""}
+    ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:8px; display:flex; align-items:center;">
+      <button style="border:none;background:none;color:var(--marquee);font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" onclick="S.ui.sortDesc=!(S.ui.sortDesc!==false); save(); render()">↕ ${sub==="watched"?"Score":"Date Added"}</button>
+      <span class="spacer"></span>
+      <button class="iconbtn" onclick="S.ui.showSearch=!S.ui.showSearch; if(!S.ui.showSearch)S.ui.listQ=''; save(); render()" aria-label="Search this list" style="color:${S.ui.showSearch?'var(--marquee)':'var(--ink)'};">${I("search",18)}</button>
     </div>`:""}
     ${S.ui.reorder && sub==="watched"?`<div class="pad" style="margin-top:10px; color:var(--marquee); font-size:12.5px; font-weight:700;">Reorder mode — use the arrows; scores update automatically</div>`:""}
     ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
@@ -2696,7 +2702,7 @@ function renderOnboarding(){
       <div class="avatar av1" style="width:120px; height:120px; font-size:42px;">J</div>
       <div>
         <div style="font-size:18px; font-weight:700;">Jake will help you find your next favorite</div>
-        <button style="background:none;border:none;color:var(--marquee);font:inherit;font-weight:600;cursor:pointer;margin-top:6px;" onclick="toast(&quot;Hey, I'm Jake. I love movies and TV, and I'm a little obsessed with tracking and ranking everything I watch. I built Cini for my friends and family, and to see what making an app is like as someone who can't really code. Everyone starts out following me so your feed has great picks from day one, and you can unfollow any time.&quot;)">Who's Jake?</button>
+        <button style="background:none;border:none;color:var(--marquee);font:inherit;font-weight:600;cursor:pointer;margin-top:6px;" onclick="toast(&quot;Hey, I'm Jake — I built Cini because I'm obsessed with ranking everything I watch. You start out following me so your feed has great picks from day one; unfollow any time.&quot;)">Who's Jake?</button>
       </div>
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px; width:100%; max-width:320px;" onclick="obNext()">Get started</button>
     </div>`;
@@ -2704,8 +2710,11 @@ function renderOnboarding(){
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:12px; padding:0 30px; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:32px; font-weight:700;">Create your profile</div>
       <div id="obInit" class="avatar av1" style="width:84px; height:84px; font-size:30px; margin:0 auto; cursor:pointer;" onclick="toast('Photo picker opens here')">${obInitials()||"+"}</div>
-      <div class="sub" style="font-size:12px; margin-top:-6px;">Add a photo (optional)</div>
-      <input id="obFull" value="${obFullName}" placeholder="Your name" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;" oninput="obFullName=this.value; if($('obInit'))$('obInit').textContent=obInitials()||'+';">
+      <div class="sub" style="font-size:12px; margin-top:-6px;">Add a photo · 85% of members do</div>
+      <div style="display:flex; gap:10px;">
+        <input id="obFirst" value="${(obFullName||'').split(' ')[0]||''}" placeholder="First name" style="flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;" oninput="obFullName=(this.value+' '+($('obLast')?.value||'')).trim(); if($('obInit'))$('obInit').textContent=obInitials()||'+';">
+        <input id="obLast" value="${(obFullName||'').split(' ').slice(1).join(' ')}" placeholder="Last name" style="flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;" oninput="obFullName=(($('obFirst')?.value||'')+' '+this.value).trim(); if($('obInit'))$('obInit').textContent=obInitials()||'+';">
+      </div>
       <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px;">
         <span class="sub">@</span>
         <input id="obUser" value="${obName}" placeholder="username" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;" oninput="obName=this.value.toLowerCase(); $('obCheck').style.opacity=obValid()?1:0; $('obGo').style.opacity=obValid()?1:.5; const b=$('obBar'); if(b){b.style.width=(Math.min(obName.length/3,1)*100)+'%'; b.style.background=obName.length>=3?'var(--green)':'var(--marquee)';}">
