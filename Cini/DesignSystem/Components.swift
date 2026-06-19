@@ -1048,7 +1048,7 @@ struct MovieFilterBar: View {
                     showStreamingPicker = true
                 }
                 Menu {
-                    Button("All Genres") { filters.genre = nil }
+                    Button("Any Genre") { filters.genre = nil }
                     ForEach(genres, id: \.self) { genre in
                         Button(genre) { filters.genre = genre }
                     }
@@ -1056,7 +1056,7 @@ struct MovieFilterBar: View {
                     FilterPill(title: filters.genre ?? "Genre")
                 }
                 Menu {
-                    Button("Any runtime") { filters.runtime = nil }
+                    Button("Any Runtime") { filters.runtime = nil }
                     Button("Under 100 min") { filters.runtime = 100 }
                     Button("Under 2 hours") { filters.runtime = 120 }
                     Button("Under 2½ hours") { filters.runtime = 150 }
@@ -1064,7 +1064,7 @@ struct MovieFilterBar: View {
                     FilterPill(title: filters.runtime.map { "< \($0) min" } ?? "Runtime")
                 }
                 Menu {
-                    Button("All Decades") { filters.decade = nil }
+                    Button("Any Decade") { filters.decade = nil }
                     ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { decade in
                         Button("\(String(decade))s") { filters.decade = decade }
                     }

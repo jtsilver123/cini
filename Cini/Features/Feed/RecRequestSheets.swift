@@ -168,7 +168,7 @@ struct RequestRecsSheet: View {
     /// stay visible no matter how far you scroll the people picker.
     private var criteriaHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            section("WHAT KIND OF THING? (OPTIONAL)")
+            section("WHAT KIND OF REC? (OPTIONAL)")
             HStack(spacing: 8) {
                 typeChip("Anything", value: nil)
                 typeChip("Movies", value: "movie")

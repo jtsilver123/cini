@@ -605,12 +605,9 @@ struct OnboardingView: View {
             .background(Capsule().fill(Theme.fill))
 
             Text(isGrid
-                 ? "Grid view is best for ranking things you've already watched."
-                 : "Card view is best for finding new things to watch.")
+                 ? "Grid is best for ranking things you've watched. Find both views on your Recs page."
+                 : "Cards are best for finding new things to watch. Find both views on your Recs page.")
                 .font(.subheadline).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 30)
-            Text("Both live on your Recs page — tap the view button to switch anytime.")
-                .font(.caption).foregroundStyle(Theme.gray.opacity(0.85))
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
         }
     }
@@ -642,7 +639,7 @@ struct OnboardingView: View {
                 Spacer()
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 40)).foregroundStyle(Theme.gray)
-                Text("We couldn't load suggestions — jump in below, then use the gold + to rank anything.")
+                Text("We couldn't load suggestions. Search for anything you've watched and tap + to rank it.")
                     .font(.subheadline).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center).padding(.horizontal, 36)
                 Spacer()

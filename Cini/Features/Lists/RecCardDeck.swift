@@ -151,11 +151,11 @@ struct RecCardDeck: View {
     }
 
     private var controls: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .bottom, spacing: 24) {
             controlButton(action: { undo() },
                           icon: "arrow.uturn.backward", size: 46,
                           fg: history.isEmpty ? Theme.gray.opacity(0.4) : Theme.gold,
-                          bg: Theme.fill, caption: nil)
+                          bg: Theme.fill, caption: "Undo")
                 .disabled(history.isEmpty)
                 .accessibilityLabel("Undo")
 
@@ -211,7 +211,7 @@ struct RecCardDeck: View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.circle").font(.largeTitle).foregroundStyle(Theme.gray)
             Text("You're all caught up").font(.subheadline.weight(.bold))
-            Text("Refresh for a fresh set, or adjust your filters.")
+            Text("Pull in new picks, or adjust your filters.")
                 .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
             PillButton(title: "Refresh recs", systemImage: "arrow.clockwise") {
                 history.removeAll(); index = 0; onRefresh()

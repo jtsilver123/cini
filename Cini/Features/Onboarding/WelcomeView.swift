@@ -30,7 +30,7 @@ struct WelcomeView: View {
                         .foregroundStyle(Theme.ink)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 28)
-                    Text("No star ratings — just pick which you liked more, and Cini orders your movies and shows by your own taste.")
+                    Text("No star ratings. Just pick which you liked more, and Cini ranks everything by your taste.")
                         .font(.callout)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)

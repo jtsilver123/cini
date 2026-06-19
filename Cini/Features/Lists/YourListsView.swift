@@ -153,7 +153,7 @@ struct YourListsView: View {
             .alert("Currently Watching", isPresented: $showWatchingInfo) {
                 Button("Got it", role: .cancel) {}
             } message: {
-                Text("A show lands here when you tap “I'm watching this” on its page. It leaves when you rank it (you finished) or tap Stop. Friends can see what you're binging.")
+                Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Stop. Friends can see what you're watching.")
             }
             .sheet(isPresented: $showEditLists, onDismiss: {
                 Task { customLists = (try? await SupabaseService.shared.myLists()) ?? [] }

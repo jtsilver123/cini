@@ -64,7 +64,12 @@ struct SwipeView: View {
                 header
                     .screenHPadding()
                     .padding(.top, 8)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, 8)
+                    .background(Theme.background)
+                // Pills sit just outside the screen gutter so they align with
+                // the header chrome instead of being double-indented.
+                filterPills
+                    .padding(.bottom, 6)
                     .background(Theme.background)
                 if !importBannerHidden {
                     importBanner
@@ -171,14 +176,17 @@ struct SwipeView: View {
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { suggestTV ? 1 : 0 },
                                    set: { suggestTV = $0 == 1 }))
-            // Filter icon inline with the quick filter pills — same format as
-            // My Lists / the profile list. The icon opens the full filter sheet.
-            // NOTE: no negative horizontal padding here — it makes this greedy
-            // horizontal scroll report a width wider than the screen, which
-            // forces the whole header (and view) off both edges.
-            MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
-                           onFilterTap: { showFilterSheet = true })
         }
+    }
+
+    /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the
+    /// header's screen gutter — the bar self-insets, so wrapping it in
+    /// screenHPadding too would double-indent the pills. No negative padding:
+    /// that makes this greedy horizontal scroll report a width wider than the
+    /// screen and shoves the whole view off both edges.
+    private var filterPills: some View {
+        MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
+                       onFilterTap: { showFilterSheet = true })
     }
 
     /// Dismissible nudge to bring a full history over — same look as the import

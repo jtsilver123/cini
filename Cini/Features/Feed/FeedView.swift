@@ -359,7 +359,7 @@ struct FeedView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
-                Text("It's been on your list a while — tonight's the night?")
+                Text("It's been on your list a while. Watch it tonight?")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
             }
