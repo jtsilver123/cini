@@ -111,6 +111,9 @@ struct LeaderboardView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .padding(.vertical, 10)
+                    // Make the WHOLE row tappable, not just the avatar/text —
+                    // the Spacer gap has no content to hit-test without this.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 Divider()
