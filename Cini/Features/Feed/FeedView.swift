@@ -36,6 +36,9 @@ struct FeedView: View {
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
+    /// Trending titles, shown as a "Popular on Cini" shelf so a feed with few
+    /// friends still has something fresh to rank/bookmark (new-user retention).
+    @State private var popularMovies: [Movie] = []
 
     var body: some View {
         NavigationStack {
@@ -67,6 +70,7 @@ struct FeedView: View {
             .task { await loadFeed() }
             .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
             .task(id: store.isLoaded) { await loadTonightStack() }
+            .task(id: store.isLoaded) { await loadPopular() }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
             .onAppear { consumePush() }
@@ -169,6 +173,9 @@ struct FeedView: View {
             Text("cini")
                 .font(Theme.wordmark)
                 .foregroundStyle(Theme.marquee)
+            if let weeks = session.profile?.streakWeeks, weeks > 0 {
+                streakPill(weeks, atRisk: session.profile?.streakAtRisk ?? false)
+            }
             Spacer()
             HStack(spacing: 2) {
                 // Search now lives in the dedicated bar below the header.
@@ -236,6 +243,72 @@ struct FeedView: View {
             .foregroundStyle(Theme.ink)
         }
         .padding(.top, 8)
+    }
+
+    /// "Popular on Cini" — a horizontal poster shelf of trending titles with
+    /// the standard (+)/bookmark quick actions, so even a friendless feed has
+    /// something to do. Reuses ArtworkQuickActions so the placements can't drift.
+    private var popularOnCiniShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "flame.fill").foregroundStyle(Theme.marquee)
+                Text("Popular on Cini")
+                    .font(.headline).foregroundStyle(Theme.ink)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(popularMovies.prefix(12)) { movie in
+                        VStack(alignment: .leading, spacing: 6) {
+                            PosterView(url: movie.posterURL, width: 116)
+                                .overlay(alignment: .bottomTrailing) {
+                                    ArtworkQuickActions(movie: movie, onLog: { logMovie = $0 })
+                                        .font(.body)
+                                        .padding(6)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    store.cache(movie)
+                                    detailMovie = movie
+                                }
+                            Text(movie.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .lineLimit(1)
+                                .frame(width: 116, alignment: .leading)
+                        }
+                    }
+                }
+                // Edge-to-edge scroll like the watching stories.
+                .padding(.horizontal, Theme.screenH)
+            }
+            .padding(.horizontal, -Theme.screenH)
+        }
+    }
+
+    /// Always-visible streak badge — the habit anchor. Glanceable count of
+    /// consecutive ranking weeks; a soft gold chip normally, flipping to a
+    /// solid gold fill when the streak's about to lapse. Tapping goes to rank.
+    private func streakPill(_ weeks: Int, atRisk: Bool) -> some View {
+        Button {
+            Haptics.tap()
+            tabRouter.selection = .search
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "flame.fill")
+                    .font(.caption2)
+                Text("\(weeks)")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(atRisk ? Theme.background : Theme.gold)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule().fill(atRisk ? Theme.gold : Theme.gold.opacity(0.14))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(weeks)-week ranking streak\(atRisk ? ", ending soon" : "")")
     }
 
     /// "What should I watch?" aimed at your actual friends: pick people,
@@ -411,6 +484,14 @@ struct FeedView: View {
 
             askForRecsRow
 
+            // Popular on Cini — keeps a thin/new feed alive with fresh titles
+            // to rank or bookmark. Shown while friend activity is sparse (the
+            // lone-user case); fades out naturally once the feed fills in.
+            if feedLoaded, events.count < 3, !popularMovies.isEmpty {
+                popularOnCiniShelf
+                    .padding(.top, 4)
+            }
+
             // Beli-style unlock progress — until everything's unlocked.
             if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
                 FeedUnlockCard()
@@ -523,6 +604,14 @@ struct FeedView: View {
                 detailMovie = movie
             }
         }
+    }
+
+    /// Load trending titles for the "Popular on Cini" shelf, dropping anything
+    /// already ranked so it only ever surfaces fresh things to act on.
+    private func loadPopular() async {
+        guard popularMovies.isEmpty else { return }
+        guard let trending = try? await TMDBService.shared.trending() else { return }
+        popularMovies = trending.filter { $0.posterPath != nil && !store.isWatched($0.tmdbID) }
     }
 
     private func consumePush() {
