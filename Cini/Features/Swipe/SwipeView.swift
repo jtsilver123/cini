@@ -21,6 +21,7 @@ struct SwipeView: View {
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var watchedCountAtRank = 0
+    @State private var showImport = false
     @Namespace private var posterZoom
 
     /// The current pool minus dismissed / already-watched, filtered to the
@@ -57,15 +58,27 @@ struct SwipeView: View {
                 MovieDetailView(movie: movie)
                     .zoomDestination(id: movie.tmdbID, in: posterZoom)
             }
+            .sheet(isPresented: $showImport) {
+                LetterboxdImportView()
+            }
             .task { await load() }
         }
     }
 
     private var header: some View {
         VStack(spacing: 12) {
-            HStack {
+            HStack(spacing: 10) {
                 Text("Swipe").font(Theme.pageHeader)
                 Spacer()
+                Button { showImport = true } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                        .padding(8)
+                        .background(Circle().fill(Theme.fill))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Import your history")
                 Button {
                     withAnimation(.snappy) { gridMode.toggle() }
                 } label: {

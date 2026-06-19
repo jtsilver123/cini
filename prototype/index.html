@@ -1203,6 +1203,7 @@ function renderSwipe(){
   const pool=swipePool();
   const head=`<div class="pad" style="display:flex; align-items:center; padding-top:14px; padding-bottom:2px;">
       <b style="font-size:21px;">Swipe</b><span class="spacer"></span>
+      <button class="iconbtn" onclick="openImport()" aria-label="Import" style="margin-right:8px;">${I("download",20)}</button>
       <button class="pill out" onclick="swipeGrid=!swipeGrid; renderSwipe()">${swipeGrid?'Cards':'Grid'}</button></div>
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:6px;">
       <button class="pill ${swipeTV?'out':''}" onclick="swipeTV=false; renderSwipe()">Movies</button>
