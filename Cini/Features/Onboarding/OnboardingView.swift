@@ -442,7 +442,23 @@ struct OnboardingView: View {
             .disabled(!usernameValid || availability == .taken || saving)
             .padding(.bottom, 36)
         }
-        .onAppear { focusAfterTransition(.username) }
+        .onAppear {
+            // Pre-fill a suggested handle from their name (Beli-style) — they
+            // can edit it, and the note above says it's changeable later.
+            if username.isEmpty, suggestedUsername.count >= 3 {
+                username = suggestedUsername
+                checkAvailability()
+            }
+            focusAfterTransition(.username)
+        }
+    }
+
+    /// A handle guess from the entered name: "janedoe", trimmed to 20 chars.
+    private var suggestedUsername: String {
+        let base = (firstName + lastName)
+            .lowercased()
+            .filter { $0.isLowercase || $0.isNumber }
+        return String(base.prefix(20))
     }
 
     private var usernameHint: String {

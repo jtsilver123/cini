@@ -60,6 +60,7 @@ struct AccountSettingsView: View {
 // MARK: - Manage account (the account-specific editors + delete)
 
 private struct ManageAccountScreen: View {
+    @Environment(AppSession.self) private var session
     @State private var currentPhone = ""
     @State private var loaded = false
     @State private var showDeleteConfirm = false
@@ -69,6 +70,8 @@ private struct ManageAccountScreen: View {
     var body: some View {
         Form {
             Section {
+                navRow("Change username", systemImage: "at",
+                       value: session.profile.map { "@\($0.username)" }) { ChangeUsernameScreen() }
                 navRow("Change email", systemImage: "envelope",
                        value: SupabaseService.shared.currentEmail) { ChangeEmailScreen() }
                 navRow("Change phone number", systemImage: "phone",
@@ -380,6 +383,93 @@ private struct ChangeEmailScreen: View {
             newEmail = ""
         } catch {
             errorMessage = "Couldn't start the email change — try again."
+        }
+    }
+}
+
+// MARK: - Change username
+
+private struct ChangeUsernameScreen: View {
+    @Environment(AppSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    @State private var username = ""
+    @State private var availability: Availability = .unknown
+    @State private var availabilityTask: Task<Void, Never>?
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    private enum Availability { case unknown, checking, available, taken }
+
+    private var current: String { session.profile?.username ?? "" }
+    private var valid: Bool {
+        username.range(of: "^[a-z0-9_]{3,20}$", options: .regularExpression) != nil
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                HStack(spacing: 4) {
+                    Text("@").foregroundStyle(Theme.gray)
+                    TextField("username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onChange(of: username) { _, new in
+                            username = new.lowercased().filter { $0.isLowercase || $0.isNumber || $0 == "_" }
+                            checkAvailability()
+                        }
+                    switch availability {
+                    case .available: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                    case .taken: Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.scoreRed)
+                    case .checking: ProgressView().controlSize(.small)
+                    case .unknown: EmptyView()
+                    }
+                }
+            } footer: {
+                Text("3–20 characters: lowercase letters, numbers, and underscores. Your old @handle stops working once you change it.")
+            }
+            Section {
+                Button { Task { await save() } } label: {
+                    HStack {
+                        Text(saving ? "Saving…" : "Save username")
+                        if saving { Spacer(); ProgressView() }
+                    }
+                }
+                .disabled(!valid || username == current || availability == .taken || saving)
+                if let errorMessage { Text(errorMessage).font(.caption).foregroundStyle(Theme.scoreRed) }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .nativeContentWidth()
+        .background(Theme.background)
+        .navigationTitle("Change username")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { if username.isEmpty { username = current } }
+    }
+
+    private func checkAvailability() {
+        availabilityTask?.cancel()
+        guard valid, username != current else { availability = .unknown; return }
+        availability = .checking
+        let candidate = username
+        availabilityTask = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            let free = await SupabaseService.shared.usernameAvailable(candidate)
+            guard candidate == username else { return }
+            availability = free ? .available : .taken
+        }
+    }
+
+    private func save() async {
+        saving = true; errorMessage = nil
+        defer { saving = false }
+        do {
+            try await SupabaseService.shared.updateProfile(ProfileUpdate(username: username))
+            await session.loadProfile()
+            ToastCenter.shared.show("Username updated to @\(username)")
+            dismiss()
+        } catch {
+            errorMessage = "Couldn't change your username — it may be taken. Try another."
         }
     }
 }
