@@ -281,11 +281,11 @@ struct TonightEmptyState: View {
                     .foregroundStyle(Theme.marquee)
                 Text("That's tonight's picks for now")
                     .font(.subheadline.weight(.bold))
-                Text("Keep swiping to find more to watch.")
+                Text("Head to Recs to find more to watch.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                PillButton(title: "Go to Swipe", systemImage: "rectangle.stack") { onSwipe() }
+                PillButton(title: "Go to Recs", systemImage: "rectangle.stack") { onSwipe() }
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)

@@ -974,6 +974,8 @@ struct YourListsView: View {
     private var maybeSeenBar: some View {
         Button {
             Haptics.tap()
+            // Land on Recs with the SAME media kind the user is browsing here.
+            tabRouter.pendingRecsTV = (category == .tvShows)
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
@@ -984,6 +986,36 @@ struct YourListsView: View {
                     Text("\(category == .movies ? "Movies" : "Shows") you may have seen")
                         .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
                     Text("Rank what you've already watched, fast")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(Theme.background)
+        .listRowSeparator(.hidden)
+    }
+
+    /// Entry bar into Recs from the Want to Watch list — the discovery
+    /// counterpart to "you may have seen". Mirrors that bar's styling and
+    /// carries the active media kind over to the Recs deck.
+    private var findToWatchBar: some View {
+        Button {
+            Haptics.tap()
+            tabRouter.pendingRecsTV = (category == .tvShows)
+            tabRouter.selection = .swipe
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "sparkles")
+                    .font(.title3).foregroundStyle(Theme.marquee)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Find \(category == .movies ? "movies" : "shows") to watch")
+                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Swipe through recs picked for your taste")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
                 Spacer()
@@ -1111,6 +1143,12 @@ struct YourListsView: View {
     private var watchlistList: some View {
         List {
             listTopAnchor
+            // Discovery callout — mirrors "you may have seen" on Watched.
+            // Hidden while searching the list to keep results clean.
+            if listQuery.trimmingCharacters(in: .whitespaces).isEmpty
+                && !filteredWatchlist.isEmpty {
+                findToWatchBar
+            }
             ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
                     // Prefetched at launch — badges render instantly.

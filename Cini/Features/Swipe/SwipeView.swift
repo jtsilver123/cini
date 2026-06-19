@@ -99,7 +99,17 @@ struct SwipeView: View {
                 .presentationDetents([.medium, .large])
             }
             .task { await load() }
+            // A deep link (e.g. "Movies you may have seen") can ask Recs to
+            // preselect Movies or TV — honor it whether the tab is new or alive.
+            .onAppear { consumePendingMediaKind() }
+            .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumePendingMediaKind() }
         }
+    }
+
+    private func consumePendingMediaKind() {
+        guard let wantTV = tabRouter.pendingRecsTV else { return }
+        tabRouter.pendingRecsTV = nil
+        suggestTV = wantTV
     }
 
     private var header: some View {
@@ -253,9 +263,9 @@ struct SwipeView: View {
                 )
                 // Reset the deck's position when switching Movies ↔ TV.
                 .id(suggestTV)
-                // Cards run wider than the standard gutter for an immersive,
-                // swipe-deck feel (the other views keep the regular margin).
-                .padding(.horizontal, 10)
+                // Match the app's standard screen gutter so the deck lines up
+                // with the grid/list views and doesn't run to the screen edge.
+                .screenHPadding()
                 .padding(.top, 12)
                 Spacer(minLength: 0)
             }

@@ -1055,7 +1055,16 @@ struct MovieFilterBar: View {
         }
         .task {
             if providerLogos.isEmpty {
-                providerLogos = await TMDBService.shared.providerLogos()
+                // Fold raw TMDB names ("HBO Max") to canonical ("Max") so the
+                // logo lookup matches the canonical provider options.
+                let raw = await TMDBService.shared.providerLogos()
+                var canonical: [String: URL] = [:]
+                for (name, url) in raw {
+                    if let key = MovieFilters.canonicalProvider(name), canonical[key] == nil {
+                        canonical[key] = url
+                    }
+                }
+                providerLogos = canonical
             }
         }
     }
@@ -1148,6 +1157,8 @@ struct MovieFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: MovieFilters
     @State private var draftSortDescending: Bool
+    /// Provider name → logo URL (TMDB), for the Streaming section.
+    @State private var providerLogos: [String: URL] = [:]
 
     init(filters: Binding<MovieFilters>, movies: [Movie],
          sortDescending: Binding<Bool>, sortHighLabel: String, sortLowLabel: String,
@@ -1186,8 +1197,7 @@ struct MovieFilterSheet: View {
                         draft.runtime = picked.flatMap { l in runtimeOptions.first { $0.label == l }?.value }
                     }
                     if !providers.isEmpty {
-                        section("Streaming", systemImage: "tv", selection: draft.streamingProvider,
-                                options: providers, label: { $0 }) { draft.streamingProvider = $0 }
+                        streamingSection
                     }
                 }
                 .padding(20)
@@ -1203,6 +1213,75 @@ struct MovieFilterSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom) { footer }
+            .task {
+                if providerLogos.isEmpty {
+                    // TMDB keys logos by raw name ("HBO Max"); our options are
+                    // canonical ("Max"). Fold so the lookup actually hits.
+                    let raw = await TMDBService.shared.providerLogos()
+                    var canonical: [String: URL] = [:]
+                    for (name, url) in raw {
+                        if let key = MovieFilters.canonicalProvider(name), canonical[key] == nil {
+                            canonical[key] = url
+                        }
+                    }
+                    providerLogos = canonical
+                }
+            }
+        }
+    }
+
+    /// The Streaming section, like `section(...)` but with each provider's logo
+    /// shown beside its name (matching the streaming picker elsewhere).
+    private var streamingSection: some View {
+        DisclosureGroup {
+            VStack(spacing: 0) {
+                ForEach(providers, id: \.self) { name in
+                    Button {
+                        withAnimation(.snappy) {
+                            draft.streamingProvider = (draft.streamingProvider == name) ? nil : name
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            providerLogo(name)
+                            Text(name).foregroundStyle(Theme.ink)
+                            Spacer()
+                            if draft.streamingProvider == name {
+                                Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider()
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "tv").foregroundStyle(Theme.marquee).frame(width: 24)
+                Text("Streaming").font(.headline).foregroundStyle(Theme.ink)
+                if let selection = draft.streamingProvider {
+                    Text(selection)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+            }
+        }
+        .tint(Theme.marquee)
+    }
+
+    @ViewBuilder
+    private func providerLogo(_ name: String) -> some View {
+        if let url = providerLogos[name] {
+            CachedAsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                RoundedRectangle(cornerRadius: 6).fill(Theme.fill)
+            }
+            .frame(width: 26, height: 26)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        } else {
+            RoundedRectangle(cornerRadius: 6).fill(Theme.fill).frame(width: 26, height: 26)
         }
     }
 

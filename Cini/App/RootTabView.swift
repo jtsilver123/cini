@@ -37,6 +37,10 @@ final class TabRouter {
     /// Set before jumping to lists to land on a specific subtab.
     var pendingListsTab: YourListsView.SubTab?
 
+    /// Set before jumping to Recs to preselect Movies (false) or TV (true),
+    /// so "Movies you may have seen" lands on the movies deck, etc.
+    var pendingRecsTV: Bool?
+
     /// Set before jumping to lists to open a specific custom list
     /// (agent receipt chips use this).
     var pendingCustomListID: UUID?
