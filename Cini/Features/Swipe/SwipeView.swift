@@ -157,6 +157,9 @@ struct SwipeView: View {
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { suggestTV ? 1 : 0 },
                                    set: { suggestTV = $0 == 1 }))
+            // Quick filter pills — same format as My Lists / the profile list.
+            MovieFilterBar(filters: $filters, movies: candidates.map(\.movie))
+                .padding(.horizontal, -Theme.screenH)
         }
     }
 

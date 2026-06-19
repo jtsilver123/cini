@@ -135,9 +135,9 @@ struct YourListsView: View {
                     filters: filtersBinding,
                     movies: Array(store.movies.values),
                     sortDescending: $sortDescending,
-                    sortHighLabel: subTab == .watched ? "Highest score" : "Newest",
-                    sortLowLabel: subTab == .watched ? "Lowest score" : "Oldest",
-                    showSort: selectedListID == nil && subTab != .recs)
+                    sortHighLabel: sortHighLabel,
+                    sortLowLabel: sortLowLabel,
+                    showSort: showsSortControl)   // sort lives inside this sheet
                 .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showRecPicker) {
@@ -634,45 +634,62 @@ struct YourListsView: View {
         )
     }
 
-    /// Beli-style: one Filters button (with an active-count badge) opens the
-    /// full filter sheet; the search toggle sits opposite it.
+    /// Whether the Highest/Lowest sort applies to the current list (it lives
+    /// inside the filter sheet that the filter icon opens).
+    private var showsSortControl: Bool {
+        selectedListID == nil && (subTab == .watched || subTab == .watchlist)
+    }
+    private var sortHighLabel: String { subTab == .watched ? "Highest score" : "Newest" }
+    private var sortLowLabel: String { subTab == .watched ? "Lowest score" : "Oldest" }
+
+    /// A compact filter icon (opens the full sheet, where Sort also lives) + the
+    /// search toggle, with the quick filter pills below. Mirrors the profile
+    /// list and the Recs page.
     private var filterBar: some View {
         let count = filtersBinding.wrappedValue.activeCount
-        return HStack(spacing: 10) {
-            Button {
-                Haptics.tap()
-                showFilterSheet = true
-            } label: {
-                HStack(spacing: 6) {
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 14) {
+                Button {
+                    Haptics.tap()
+                    showFilterSheet = true
+                } label: {
                     Image(systemName: "line.3.horizontal.decrease")
-                    Text("Filters").font(.subheadline.weight(.semibold))
-                    if count > 0 {
-                        Text("\(count)")
-                            .font(.caption2.weight(.bold)).foregroundStyle(Theme.background)
-                            .frame(minWidth: 18, minHeight: 18)
-                            .background(Circle().fill(Theme.marquee))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(count > 0 ? Theme.background : Theme.ink)
+                        .padding(8)
+                        .background(Circle().fill(count > 0 ? Theme.marquee : Theme.fill))
+                        .overlay(alignment: .topTrailing) {
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(Theme.marquee)
+                                    .frame(minWidth: 15, minHeight: 15)
+                                    .background(Circle().fill(Theme.background))
+                                    .offset(x: 4, y: -4)
+                            }
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Filters and sort")
+
+                Spacer()
+                Button {
+                    withAnimation(.snappy) {
+                        showListSearch.toggle()
+                        if !showListSearch { listQuery = "" }
                     }
+                } label: {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
                 }
-                .foregroundStyle(Theme.ink)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule().fill(Theme.fill))
-                .overlay(Capsule().strokeBorder(count > 0 ? Theme.marquee : Theme.hairline, lineWidth: 1))
+                .buttonStyle(.plain)
+                .accessibilityLabel("Search this list")
             }
-            .buttonStyle(.plain)
-            Spacer()
-            Button {
-                withAnimation(.snappy) {
-                    showListSearch.toggle()
-                    if !showListSearch { listQuery = "" }
-                }
-            } label: {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Search this list")
+            .screenHPadding()
+
+            // Quick filter pills (Streaming · Genre · Runtime · Decade).
+            MovieFilterBar(filters: filtersBinding, movies: Array(store.movies.values))
         }
-        .screenHPadding()
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Content

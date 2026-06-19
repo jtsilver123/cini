@@ -46,6 +46,9 @@ struct SearchView: View {
         case trending = "Trending"
         case releases = "Releases"
 
+        /// User-facing label (Releases reads better as "Release Date").
+        var label: String { self == .releases ? "Release Date" : rawValue }
+
         var icon: String {
             switch self {
             case .popular: "flame"
@@ -283,22 +286,38 @@ struct SearchView: View {
         }
     }
 
-    /// Release Date · Popular · Trending — browse without typing.
+    /// A single sort-style selector to browse without typing — Popular,
+    /// Trending, or Release Date (replaces the old row of toggle buttons).
     private var browseRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+        HStack {
+            Menu {
                 ForEach(BrowseKind.allCases, id: \.self) { kind in
-                    PillButton(title: kind.rawValue, systemImage: kind.icon,
-                               style: browse == kind ? .filled : .outlined) {
-                        withAnimation(.snappy) {
-                            browse = browse == kind ? nil : kind
-                        }
+                    Button {
+                        withAnimation(.snappy) { browse = kind }
                         Task { await loadBrowse() }
+                    } label: {
+                        Label(kind.label, systemImage: browse == kind ? "checkmark" : kind.icon)
                     }
                 }
+                if browse != nil {
+                    Divider()
+                    Button("Clear", role: .destructive) {
+                        withAnimation(.snappy) { browse = nil }
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
+                    Text(browse?.label ?? "Browse").font(.subheadline.weight(.semibold))
+                    Image(systemName: "chevron.down").font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(Theme.marquee)
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Capsule().fill(Theme.fill))
             }
+            .accessibilityLabel("Browse by: \(browse?.label ?? "choose")")
+            Spacer()
         }
-        .scrollClipDisabled()
     }
 
     private func noResultsMessage(_ text: String) -> some View {
