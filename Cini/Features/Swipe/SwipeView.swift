@@ -65,12 +65,19 @@ struct SwipeView: View {
                         .padding(.bottom, 4)
                 }
                 ScrollViewReader { proxy in
-                    content
-                        // Re-tapping the Recs tab jumps the grid/list back to
-                        // the top (the cards layout has nothing to scroll).
-                        .onChange(of: tabRouter.retap[.swipe]) { _, _ in
-                            withAnimation(.snappy) { proxy.scrollTo("recsTop", anchor: .top) }
-                        }
+                    // The VStack is essential: the cards layout returns the deck
+                    // PLUS a Spacer, and a bare multi-view tuple inside a
+                    // ScrollViewReader overlaps instead of stacking — which made
+                    // the card balloon past the screen edge. The VStack restores
+                    // normal vertical stacking for every layout.
+                    VStack(spacing: 0) {
+                        content
+                    }
+                    // Re-tapping the Recs tab jumps the grid/list back to the
+                    // top (the cards layout has nothing to scroll).
+                    .onChange(of: tabRouter.retap[.swipe]) { _, _ in
+                        withAnimation(.snappy) { proxy.scrollTo("recsTop", anchor: .top) }
+                    }
                 }
             }
             .nativeContentWidth()
@@ -117,15 +124,6 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Recs").font(Theme.pageHeader)
                 Spacer()
-                Button { showFilterSheet = true } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(filters.isActive ? Theme.background : Theme.marquee)
-                        .padding(8)
-                        .background(Circle().fill(filters.isActive ? Theme.marquee : Theme.fill))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Filter")
                 Button { showImport = true } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.subheadline.weight(.semibold))
@@ -157,8 +155,10 @@ struct SwipeView: View {
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { suggestTV ? 1 : 0 },
                                    set: { suggestTV = $0 == 1 }))
-            // Quick filter pills — same format as My Lists / the profile list.
-            MovieFilterBar(filters: $filters, movies: candidates.map(\.movie))
+            // Filter icon inline with the quick filter pills — same format as
+            // My Lists / the profile list. The icon opens the full filter sheet.
+            MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
+                           onFilterTap: { showFilterSheet = true })
                 .padding(.horizontal, -Theme.screenH)
         }
     }

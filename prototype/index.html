@@ -351,6 +351,7 @@ const ICONS = {
   chevL:'<polyline points="14 5 7 12 14 19"/>',
   chevR:'<polyline points="9 5 16 12 9 19"/>',
   chevD:'<polyline points="6 9 12 15 18 9"/>',
+  stack:'<rect x="6" y="4" width="12" height="16" rx="2"/><rect x="2.5" y="7" width="3" height="10" rx="1"/><rect x="18.5" y="7" width="3" height="10" rx="1"/>',
   dice:'<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="15" r="1.2" fill="currentColor" stroke="none"/>',
   download:'<path d="M12 3v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>',
   shield:'<path d="M12 3l8 3v6c0 4.4-3.4 8-8 9-4.6-1-8-4.6-8-9V6z"/>',
@@ -929,7 +930,7 @@ function renderLists(){
     ${S.ui.reorder && sub==="watched"?`<div class="pad" style="margin-top:10px; color:var(--marquee); font-size:12.5px; font-weight:700;">Reorder mode — use the arrows; scores update automatically</div>`:""}
     ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
       <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
-        <span style="color:var(--marquee);">${I("search",20)}</span>
+        <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">${S.category==="TV"?"Shows":"Movies"} you may have seen</div>
           <div class="sub" style="margin-top:1px;">Rank what you've already watched, fast</div>
@@ -938,7 +939,7 @@ function renderLists(){
     </div>`:""}
     ${sub==="watchlist"?`<div class="pad" style="margin-top:8px;">
       <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
-        <span style="color:var(--marquee);">${I("spark",20)}</span>
+        <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">Find ${S.category==="TV"?"shows":"movies"} to watch</div>
           <div class="sub" style="margin-top:1px;">Swipe through recs picked for your taste</div>
@@ -1002,15 +1003,16 @@ function openAskRecs(){
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Ask for Recs</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="sub" style="margin-bottom:6px;">WHO TO ASK</div>
+      <div class="sub" style="margin-bottom:6px;">WHAT KIND OF THING? (OPTIONAL)</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        ${["Anything","Movies","TV shows"].map((t,i)=>`<button id="asktype-${i}" class="pill ghost" onclick="setAskType('${t}', this)">${t}</button>`).join("")}
+        ${["Genre","Decade","Runtime","Streaming"].map(p=>`<button class="pill out" onclick="toast('${p} filter')">${p} ${I("chevD",11)}</button>`).join("")}
+      </div>
+      <div class="sub" style="margin:14px 0 6px;">WHO TO ASK</div>
       ${MEMBERS.map(p=>`<div class="erow" onclick="toggleAskPick('${p.u}', this)">
         <div class="avatar ${p.av}" style="width:36px;height:36px;font-size:14px;">${p.n[0]}</div>
         <span style="flex:1; font-weight:600;">${p.n} <span class="sub">@${p.u}</span></span>
       </div>`).join("")}
-      <div class="sub" style="margin:12px 0 6px;">WHAT KIND OF THING? (OPTIONAL)</div>
-      <div style="display:flex; gap:8px;">
-        ${["Anything","Movies","TV shows"].map((t,i)=>`<button id="asktype-${i}" class="pill ghost" onclick="setAskType('${t}', this)">${t}</button>`).join("")}
-      </div>
       <input id="askNote" placeholder="Add a note (optional) — e.g. movie night with my sister"
         style="width:100%; margin-top:12px; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font-size:14px; outline:none;">
       <button class="pill" style="width:100%; justify-content:center; margin-top:12px;"
@@ -1150,9 +1152,6 @@ function renderSearch(){
         <div class="searchfield">${I("search",17)}<input id="searchInput" placeholder="Search movie, genre, mood" value="${esc(searchQ)}" oninput="searchQ=this.value; renderSearchKeepFocus()">
           ${searchQ?`<button class="iconbtn" style="color:var(--gray);" onclick="searchQ=''; render();">${I("x",15)}</button>`:""}</div>
       </div>
-      <div class="pad" style="margin-top:12px; display:flex;">
-        <button class="pill" onclick="openBrowseSort()">${I("sliders",15)} ${({releases:"Release Date",popular:"Popular",trending:"Trending"})[searchBrowse]||"Browse"} ${I("chevD",13)}</button>
-      </div>
     </div>
     <div id="searchResults">${results===null&&searchBrowse
       ? browseList()
@@ -1235,13 +1234,13 @@ function renderSwipe(){
   const pool=swipePool();
   const head=`<div class="pad" style="display:flex; align-items:center; padding-top:14px; padding-bottom:2px;">
       <b style="font-size:21px;">Recs</b><span class="spacer"></span>
-      <button class="iconbtn" onclick="openFilters()" aria-label="Filter" style="margin-right:8px;">${I("sliders",20)}</button>
       <button class="iconbtn" onclick="openImport()" aria-label="Import" style="margin-right:8px;">${I("download",20)}</button>
       <button class="pill out" onclick="swipeGrid=!swipeGrid; renderSwipe()">${swipeGrid?'Cards':'Grid'}</button></div>
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:6px;">
       <button class="pill ${swipeTV?'out':''}" onclick="swipeTV=false; renderSwipe()">Movies</button>
       <button class="pill ${swipeTV?'':'out'}" onclick="swipeTV=true; renderSwipe()">TV Shows</button></div>
-    <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px;">
+    <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px; align-items:center;">
+      <button class="iconbtn" onclick="openFilters()" aria-label="Filters and sort" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:7px; margin-right:2px;">${I("sliders",17)}</button>
       ${["Streaming","Genre","Runtime","Decade"].map(p=>`<button class="pill out" onclick="openFilters()">${p}</button>`).join("")}</div>`;
   let body;
   if(swipeGrid){

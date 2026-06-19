@@ -978,6 +978,9 @@ struct MovieFilterBar: View {
     @Binding var filters: MovieFilters
     /// The movies being filtered — the genre and provider menus derive from them.
     var movies: [Movie]
+    /// When set, a leading filter icon (inline with the pills) runs this —
+    /// used on My Lists / Recs to open the full filter+sort sheet.
+    var onFilterTap: (() -> Void)? = nil
 
     @State private var providerLogos: [String: URL] = [:]
     @State private var showStreamingPicker = false
@@ -1006,7 +1009,22 @@ struct MovieFilterBar: View {
     private var bar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                if filters.isActive {
+                // Optional leading filter icon, inline with the pills — opens
+                // the full filter + sort sheet (My Lists / Recs).
+                if let onFilterTap {
+                    Button {
+                        Haptics.tap()
+                        onFilterTap()
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(filters.isActive ? Theme.background : Theme.ink)
+                            .padding(9)
+                            .background(Circle().fill(filters.isActive ? Theme.marquee : Theme.fill))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Filters and sort")
+                } else if filters.isActive {
                     Button {
                         withAnimation(.snappy) { filters = MovieFilters() }
                     } label: {

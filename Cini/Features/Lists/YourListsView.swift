@@ -642,54 +642,29 @@ struct YourListsView: View {
     private var sortHighLabel: String { subTab == .watched ? "Highest score" : "Newest" }
     private var sortLowLabel: String { subTab == .watched ? "Lowest score" : "Oldest" }
 
-    /// A compact filter icon (opens the full sheet, where Sort also lives) + the
-    /// search toggle, with the quick filter pills below. Mirrors the profile
-    /// list and the Recs page.
+    /// The filter icon sits inline at the head of the quick filter pills
+    /// (Streaming · Genre · Runtime · Decade) and opens the full filter + sort
+    /// sheet; the search toggle trails the row. Mirrors the Recs page.
     private var filterBar: some View {
-        let count = filtersBinding.wrappedValue.activeCount
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 14) {
-                Button {
-                    Haptics.tap()
-                    showFilterSheet = true
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(count > 0 ? Theme.background : Theme.ink)
-                        .padding(8)
-                        .background(Circle().fill(count > 0 ? Theme.marquee : Theme.fill))
-                        .overlay(alignment: .topTrailing) {
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(Theme.marquee)
-                                    .frame(minWidth: 15, minHeight: 15)
-                                    .background(Circle().fill(Theme.background))
-                                    .offset(x: 4, y: -4)
-                            }
-                        }
+        HStack(spacing: 6) {
+            MovieFilterBar(filters: filtersBinding,
+                           movies: Array(store.movies.values),
+                           onFilterTap: { showFilterSheet = true })
+            Button {
+                withAnimation(.snappy) {
+                    showListSearch.toggle()
+                    if !showListSearch { listQuery = "" }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Filters and sort")
-
-                Spacer()
-                Button {
-                    withAnimation(.snappy) {
-                        showListSearch.toggle()
-                        if !showListSearch { listQuery = "" }
-                    }
-                } label: {
-                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Search this list")
+            } label: {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
             }
-            .screenHPadding()
-
-            // Quick filter pills (Streaming · Genre · Runtime · Decade).
-            MovieFilterBar(filters: filtersBinding, movies: Array(store.movies.values))
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search this list")
+            .padding(.trailing, Theme.screenH)
         }
-        .padding(.vertical, 6)
+        // MovieFilterBar already carries its own vertical padding; just a small
+        // bottom gap so the "you may have seen" card sits cleanly beneath it.
+        .padding(.bottom, 2)
     }
 
     // MARK: - Content
@@ -996,7 +971,7 @@ struct YourListsView: View {
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "sparkle.magnifyingglass")
+                Image(systemName: "rectangle.stack")
                     .font(.title3).foregroundStyle(Theme.marquee)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {
@@ -1026,7 +1001,7 @@ struct YourListsView: View {
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: "sparkles")
+                Image(systemName: "rectangle.stack")
                     .font(.title3).foregroundStyle(Theme.marquee)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 2) {

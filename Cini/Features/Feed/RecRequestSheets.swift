@@ -95,8 +95,13 @@ struct RequestRecsSheet: View {
     }
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        VStack(spacing: 0) {
+            // Always visible at the top — what kind of rec you're after — so it
+            // never gets buried under a long friend list.
+            criteriaHeader
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
                     if let recipientUsername, recipientID != nil {
                         (Text("Asking ") + Text("@\(recipientUsername)").bold()
                             + Text(" for a rec"))
@@ -146,43 +151,6 @@ struct RequestRecsSheet: View {
                         }
                     }
 
-                    section("WHAT KIND OF THING? (OPTIONAL)")
-                    HStack(spacing: 8) {
-                        typeChip("Anything", value: nil)
-                        typeChip("Movies", value: "movie")
-                        typeChip("TV shows", value: "tv")
-                    }
-                    // The same filters as your lists — genre, decade, runtime,
-                    // streaming — laid out as a tidy wrapping pill row.
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            Menu {
-                                Button("Any genre") { genre = nil }
-                                ForEach(Self.genres, id: \.self) { name in
-                                    Button(name) { genre = name }
-                                }
-                            } label: { criteriaPill(genre ?? "Genre", active: genre != nil) }
-                            Menu {
-                                Button("Any decade") { decade = nil }
-                                ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { d in
-                                    Button("\(String(d))s") { decade = d }
-                                }
-                            } label: { criteriaPill(decade.map { "\(String($0))s" } ?? "Decade", active: decade != nil) }
-                            Menu {
-                                Button("Any runtime") { maxRuntime = nil }
-                                Button("Under 100 min") { maxRuntime = 100 }
-                                Button("Under 2 hours") { maxRuntime = 120 }
-                                Button("Under 2½ hours") { maxRuntime = 150 }
-                            } label: { criteriaPill(maxRuntime.map { "< \($0) min" } ?? "Runtime", active: maxRuntime != nil) }
-                            Menu {
-                                Button("Any service") { streamingProvider = nil }
-                                ForEach(Self.streamingProviders, id: \.self) { name in
-                                    Button(name) { streamingProvider = name }
-                                }
-                            } label: { criteriaPill(streamingProvider ?? "Streaming", active: streamingProvider != nil) }
-                        }
-                    }
-
                     section("ADD A NOTE (OPTIONAL)")
                     TextField("e.g. something for movie night with my sister", text: $note, axis: .vertical)
                         .lineLimit(2...4)
@@ -193,6 +161,51 @@ struct RequestRecsSheet: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
+        }
+    }
+
+    /// The "what kind of thing" filters — pinned above the friend list so they
+    /// stay visible no matter how far you scroll the people picker.
+    private var criteriaHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            section("WHAT KIND OF THING? (OPTIONAL)")
+            HStack(spacing: 8) {
+                typeChip("Anything", value: nil)
+                typeChip("Movies", value: "movie")
+                typeChip("TV shows", value: "tv")
+            }
+            // The same filters as your lists — genre, decade, runtime, streaming.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Menu {
+                        Button("Any genre") { genre = nil }
+                        ForEach(Self.genres, id: \.self) { name in
+                            Button(name) { genre = name }
+                        }
+                    } label: { criteriaPill(genre ?? "Genre", active: genre != nil) }
+                    Menu {
+                        Button("Any decade") { decade = nil }
+                        ForEach(Array(stride(from: 2020, through: 1950, by: -10)), id: \.self) { d in
+                            Button("\(String(d))s") { decade = d }
+                        }
+                    } label: { criteriaPill(decade.map { "\(String($0))s" } ?? "Decade", active: decade != nil) }
+                    Menu {
+                        Button("Any runtime") { maxRuntime = nil }
+                        Button("Under 100 min") { maxRuntime = 100 }
+                        Button("Under 2 hours") { maxRuntime = 120 }
+                        Button("Under 2½ hours") { maxRuntime = 150 }
+                    } label: { criteriaPill(maxRuntime.map { "< \($0) min" } ?? "Runtime", active: maxRuntime != nil) }
+                    Menu {
+                        Button("Any service") { streamingProvider = nil }
+                        ForEach(Self.streamingProviders, id: \.self) { name in
+                            Button(name) { streamingProvider = name }
+                        }
+                    } label: { criteriaPill(streamingProvider ?? "Streaming", active: streamingProvider != nil) }
+                }
+            }
+        }
+        .padding(16)
+        .background(Theme.background)
     }
 
     private func section(_ title: String) -> some View {

@@ -547,14 +547,12 @@ struct ProfileScreen: View {
                 stat(hasCounts ? "\(followerCount)" : "—", "Followers")
                 stat(hasCounts ? "\(followingCount)" : "—", "Following")
             }
-            // On another member's profile, Rank on Cini sits inline as a third
-            // stat (Beli-style). Your own profile keeps it in the card below.
-            if !isSelf {
-                Button { Haptics.tap(); showLeaderboard = true } label: {
-                    stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
-                }
-                .buttonStyle(.plain)
+            // Rank on Cini sits inline as a third stat (Beli-style) on every
+            // profile — including your own, even though the stat card repeats it.
+            Button { Haptics.tap(); showLeaderboard = true } label: {
+                stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
             }
+            .buttonStyle(.plain)
         }
     }
 

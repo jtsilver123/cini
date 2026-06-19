@@ -319,16 +319,16 @@ struct FeedView: View {
             showAskRecs = true
         } label: {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
+                AvatarView(url: session.profile?.avatarURL, size: 26,
+                           name: preferredName(session.profile?.displayName,
+                                               session.profile?.username))
                 Text("Ask your friends for recs")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 13)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
             .background(Capsule().fill(Theme.fill))
             .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
         }
