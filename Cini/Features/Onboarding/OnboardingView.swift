@@ -646,6 +646,13 @@ struct OnboardingView: View {
                     .font(.subheadline).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center).padding(.horizontal, 36)
                 Spacer()
+            } else if visibleStarters.isEmpty {
+                // Toggled to a kind with nothing left — nudge to the other tab.
+                Spacer()
+                Text("No \(onbTV ? "shows" : "movies") here — try the \(onbTV ? "Movies" : "TV Shows") tab above.")
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center).padding(.horizontal, 36)
+                Spacer()
             } else {
                 ScrollView(showsIndicators: false) {
                     // Shared grid (CIN-33): tap to rank, ✕ to dismiss, hold to
