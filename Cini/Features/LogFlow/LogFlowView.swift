@@ -638,7 +638,6 @@ struct LogFlowView: View {
     private func celebrateIfMilestone() {
         let count = store.watchedCount
         let newStreak = appSession.profile?.streakWeeks ?? 0
-        let score = scored?.score ?? 0
 
         // Pick a celebration: a ranked-count milestone wins over a streak bump.
         let celebration: Celebration?
@@ -650,13 +649,13 @@ struct LogFlowView: View {
             celebration = nil
         }
 
-        // The review prompt's "spots": a milestone, a new streak high, or a
-        // standout score (a new all-time favorite). A 9+ only counts once
-        // there's enough ranked for the relative score to mean something — a
-        // 9 on your 2nd rank is noise, not a favorite. Each just *attempts*;
-        // the 3-per-year budget decides whether it actually shows.
-        let standoutMinRanked = 15
-        let reviewWorthy = celebration != nil || (score >= 9.0 && count >= standoutMinRanked)
+        // When to attempt the App Store review prompt: once you've rated enough
+        // to have an opinion worth asking about (10+), or you just hit a
+        // celebration moment. Importers can jump past an exact milestone, so we
+        // don't require landing on 10 on the nose. Each call only *attempts* —
+        // ReviewPrompt's 3-per-year, 90-days-apart budget decides if it shows,
+        // so this never nags.
+        let reviewWorthy = celebration != nil || count >= 10
 
         guard reviewWorthy else { return }
         Task {
