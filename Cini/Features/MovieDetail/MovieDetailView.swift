@@ -230,6 +230,9 @@ struct MovieDetailView: View {
             MemberProfileView(userID: member.id, username: member.username)
         }
         .task { await loadEverything() }
+        // Pull-to-refresh, like the feed and profiles — re-pull scores,
+        // friends, your details and availability for this title.
+        .refreshable { await loadEverything() }
     }
 
     // MARK: Sections
