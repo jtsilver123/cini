@@ -60,5 +60,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tail -300
 
+      - name: Upload UI snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-snapshots
+          path: snapshots/**
+          if-no-files-found: warn
+
       - name: Engine tests (macOS)
         run: swift test --package-path RankingEngine
