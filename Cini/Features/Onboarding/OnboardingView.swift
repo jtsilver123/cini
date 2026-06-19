@@ -10,8 +10,8 @@ import SwiftUI
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
 ///   4. Stay in the loop — notifications opt-in (re-asked after the first rank)
 ///   5. Rank your first movie — a poster grid of iconic titles (required)
-///   6. Save what to watch — a swipe deck of picks based on what they ranked,
-///      teaching the swipe-to-bookmark gesture used throughout the app
+///   6. Meet your Recs — a swipe deck of picks based on what they ranked,
+///      teaching the swipe-to-bookmark gesture (mirrors the Recs tab)
 ///
 /// Finishing hands off to the one-time ProductTourView (wired in CiniApp).
 /// Shown once (per account) when an authenticated user has zero rankings.
@@ -47,6 +47,7 @@ struct OnboardingView: View {
     /// Personalized picks for the post-rank "save what to watch" tutorial,
     /// built from the title they just ranked (similar + trending fallback).
     @State private var recCandidates: [YourListsView.RecCandidate] = []
+    @State private var recBookmarkCounts: [Int: Int] = [:]
     @State private var recsLoaded = false
     /// The founder everyone auto-follows — introduced on the "You're in!" screen
     /// (Beli's "Judy"). Fetched so the avatar/name stay accurate.
@@ -626,15 +627,15 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 6 — Save what to watch (swipe deck of personalized picks)
+    // MARK: 6 — Meet your Recs (swipe deck of personalized picks)
 
     private var recTutorialStep: some View {
         VStack(spacing: 14) {
-            Text("Save what to watch next")
+            Text("Meet your Recs")
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 24)
-            Text("Swipe right to save a pick to your Want to Watch, left to pass. This is how Cini hands you recommendations everywhere.")
+            Text("Swipe right to bookmark a pick, left to pass, or tap + to rank one you've seen. This is your Recs tab.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -663,9 +664,13 @@ struct OnboardingView: View {
                     onLog: { logMovie = $0 },
                     onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
                     onUnsave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
-                    onRefresh: { Task { await loadOnboardingRecs(force: true) } }
+                    onRefresh: { Task { await loadOnboardingRecs(force: true) } },
+                    showRank: true,
+                    onRank: { logMovie = $0 },
+                    richDetail: true,
+                    bookmarkCounts: recBookmarkCounts
                 )
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 10)
             }
 
             Spacer(minLength: 8)
@@ -715,6 +720,7 @@ struct OnboardingView: View {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
             }
         }
+        recBookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
         recsLoaded = true
     }
 }
