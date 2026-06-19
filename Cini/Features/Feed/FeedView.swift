@@ -41,16 +41,17 @@ struct FeedView: View {
             // Header, search, and the pill row stay frozen; only the
             // feed itself scrolls underneath.
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
                     header
+                    feedSearchBar
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 20)
                 .padding(.bottom, 12)
                 .background(Theme.background)
                 ScrollViewReader { proxy in
                     ScrollView {
                         yourFeed
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 20)
                             .id("feedTop")
                     }
                     .refreshable { await loadFeed(); await loadTonightStack(force: true) }
@@ -139,6 +140,25 @@ struct FeedView: View {
 
     // MARK: Header: serif wordmark + calendar / bell / hamburger
 
+    /// A frozen, tappable search bar styled like the Search tab's field —
+    /// tapping it jumps to the Search tab (which auto-focuses the real field).
+    private var feedSearchBar: some View {
+        Button {
+            tabRouter.openMembersSearch = false
+            tabRouter.selection = .search
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                Text("Search movies, shows, members")
+                    .foregroundStyle(Theme.gray)
+                Spacer()
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var header: some View {
         HStack {
             Text("cini")
@@ -146,15 +166,7 @@ struct FeedView: View {
                 .foregroundStyle(Theme.marquee)
             Spacer()
             HStack(spacing: 4) {
-                Button {
-                    tabRouter.selection = .search
-                } label: {
-                    Image(systemName: "magnifyingglass")
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Search")
+                // Search now lives in the dedicated bar below the header.
                 NavigationLink {
                     ReleaseCalendarView()
                 } label: {
@@ -348,9 +360,9 @@ struct FeedView: View {
             if !hideWatchingStories {
                 FriendsWatchingShelf(rows: friendsWatchingRows, onTap: { watchingStory = $0 })
                     .padding(.top, 6)
-                    // Break out of the feed's 16pt inset so the stories scroll
+                    // Break out of the feed's inset so the stories scroll
                     // edge-to-edge (Instagram-style) instead of clipping at the margin.
-                    .padding(.horizontal, -16)
+                    .padding(.horizontal, -20)
             }
 
             // Anything that needs you first — one banner at a time, never a stack.
