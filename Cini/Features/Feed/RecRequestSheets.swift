@@ -95,9 +95,8 @@ struct RequestRecsSheet: View {
     }
 
     private var content: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
                     if let recipientUsername, recipientID != nil {
                         (Text("Asking ") + Text("@\(recipientUsername)").bold()
                             + Text(" for a rec"))
@@ -191,8 +190,8 @@ struct RequestRecsSheet: View {
                 }
                 .padding(16)
             }
-            sendBar
-        }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) { sendBar }
     }
 
     private func section(_ title: String) -> some View {
