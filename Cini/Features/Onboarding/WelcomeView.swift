@@ -141,9 +141,10 @@ private struct CompareMock: View {
                            c2: Color(red: 0.91, green: 0.71, blue: 0.30))
             }
             Text("Tap the one you liked more")
-                .font(.system(size: 9.5, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.marquee)
-                .padding(.top, 2)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
         }
     }
 }
