@@ -804,8 +804,18 @@ struct FeedCard: View {
     @State private var spoilerRevealed = false
 
     private var movie: Movie? { event.movies?.asMovie }
+    /// Whether the current user has this title on their Want to Watch.
+    private var savedByMe: Bool { movie.map { store.isOnWatchlist($0.tmdbID) } ?? false }
     /// Count shown on the comment button.
     private var commentCount: Int { commentCountOverride ?? event.commentCount }
+
+    /// A small colored social-proof chip (icon + value).
+    private func miniStat(_ icon: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).font(.caption).foregroundStyle(color)
+            Text(text).font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+        }
+    }
     /// The post context handed to the comment thread's header.
     private var commentContext: CommentContext {
         CommentContext(
@@ -994,27 +1004,38 @@ struct FeedCard: View {
                 noteView(note)
             }
 
-            HStack(spacing: 18) {
-                HStack(spacing: 6) {
-                    Button { toggleLike() } label: {
-                        Image(systemName: liked ? "heart.fill" : "heart")
-                            .foregroundStyle(liked ? .red : Theme.ink)
-                    }
-                    // Tap the count to see who liked it.
+            // Social proof — small colored indicators for likes / comments /
+            // your save, each tapping through to the relevant place (Beli-style).
+            if likeCount > 0 || commentCount > 0 || savedByMe {
+                HStack(spacing: 14) {
                     if likeCount > 0 {
                         Button { onShowLikers(event.id) } label: {
-                            Text("\(likeCount)").font(.subheadline.weight(.medium))
+                            miniStat("heart.fill", "\(likeCount)", .red)
                         }
                     }
+                    if commentCount > 0 {
+                        Button { onOpenComments(event, commentContext) } label: {
+                            miniStat("bubble.right.fill", "\(commentCount)", Theme.marquee)
+                        }
+                    }
+                    if savedByMe {
+                        miniStat("bookmark.fill", "Saved", Theme.marquee)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+
+            // The big icons reflect only what YOU did: the heart fills when you
+            // like; comment and share are actions, never filled by others.
+            HStack(spacing: 22) {
+                Button { toggleLike() } label: {
+                    Image(systemName: liked ? "heart.fill" : "heart")
+                        .foregroundStyle(liked ? .red : Theme.ink)
                 }
                 Button { onOpenComments(event, commentContext) } label: {
-                    HStack(spacing: 6) {
-                        // Filled once there are comments, mirroring the heart.
-                        Image(systemName: commentCount > 0 ? "bubble.right.fill" : "bubble.right")
-                        if commentCount > 0 {
-                            Text("\(commentCount)").font(.subheadline.weight(.medium))
-                        }
-                    }
+                    Image(systemName: "bubble.right").foregroundStyle(Theme.ink)
                 }
                 if let movie {
                     ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
