@@ -146,7 +146,7 @@ struct SendRecSheet: View {
 
             // Note + send pinned at the bottom
             VStack(spacing: 10) {
-                TextField("Add a note (optional) — why they'll love it", text: $note, axis: .vertical)
+                TextField("Add a note (optional)", text: $note, axis: .vertical)
                     .lineLimit(1...3)
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
@@ -197,7 +197,7 @@ struct SendRecSheet: View {
                 Spacer()
                 if seen {
                     // Already ranked it — can't be recommended this title.
-                    Text("Already seen")
+                    Text("Already ranked")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.gray)
                 } else {

@@ -418,23 +418,6 @@ struct FeedView: View {
         return "\(who) + \(pendingAsks.count - 1) more want recs from you"
     }
 
-    /// Not a field — every search entry point opens the one Search screen.
-    private var searchBar: some View {
-        Button {
-            tabRouter.selection = .search
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
-                Text("Search a movie, member, etc.")
-                    .foregroundStyle(Theme.gray)
-                Spacer()
-            }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
-        }
-        .buttonStyle(.plain)
-    }
-
     // MARK: Feed
 
     private var yourFeed: some View {
@@ -2036,7 +2019,7 @@ struct NotificationsView: View {
         case "like": text = "**\(who)** liked your activity on **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
-        case "watchlist_showing": text = "**\(movie)** from your watchlist is playing near you 🎬"
+        case "watchlist_showing": text = "**\(movie)** from your Want to Watch list is playing near you 🎬"
         case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"

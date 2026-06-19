@@ -17,7 +17,7 @@ struct LeaderboardView: View {
     private struct Metric { let name: String; let key: String; let copy: String }
     private let metricDefs: [Metric] = [
         Metric(name: "Watched", key: "watched", copy: "Number of movies on your watched list"),
-        Metric(name: "Influence", key: "influence", copy: "How often your rankings convert to friends' watchlist adds"),
+        Metric(name: "Influence", key: "influence", copy: "How often a friend bookmarks something to Want to Watch after you rank it"),
         Metric(name: "Notes", key: "notes", copy: "Number of public notes you've written"),
     ]
     private var metrics: [String] { metricDefs.map(\.name) }

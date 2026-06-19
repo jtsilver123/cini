@@ -428,7 +428,7 @@ struct SearchView: View {
                 .foregroundStyle(Theme.gray)
                 .padding(.top, 10)
             if suggested.isEmpty {
-                Text("Suggestions appear as more members join — invite your crew to get it going.")
+                Text("Suggestions appear as members join — invite your crew!")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .padding(.vertical, 12)

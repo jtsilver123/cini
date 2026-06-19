@@ -363,7 +363,7 @@ struct MovieDetailView: View {
     private var actionPills: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                PillButton(title: "Watch", systemImage: "play.rectangle", style: .outlined) {
+                PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
                     showWhereToWatch = true
                 }
                 if movie.mediaKind != "tv" {
@@ -408,7 +408,7 @@ struct MovieDetailView: View {
                         badge: friendAverage.map { ScoreBadge(score: $0, count: friends.count, size: 60) },
                         emptyIcon: "person.2",
                         title: "Friend Score",
-                        subtitle: friends.isEmpty ? "No friends have ranked it yet"
+                        subtitle: friends.isEmpty ? "No friends yet"
                                                   : "What your friends think"
                     )
                 }
@@ -423,7 +423,7 @@ struct MovieDetailView: View {
                         emptyTint: scoresLocked ? Theme.marquee : Theme.gray,
                         title: "Average Score",
                         subtitle: scoresLocked ? "Invite a friend to unlock"
-                                  : (community == nil ? "Be the first on Cini to rank it"
+                                  : (community == nil ? "Be the first to rank it"
                                                       : "What all of Cini thinks")
                     )
                 }

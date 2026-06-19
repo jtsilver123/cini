@@ -108,8 +108,10 @@ struct CiniChatAvailableView: View {
     }
 
     /// Starter chips built from the user's own shelf, not generic prompts.
+    /// (The concierge bar already offers "What should I watch tonight?", so it's
+    /// not repeated here.)
     private var starters: [String] {
-        var chips = ["What should I watch tonight?"]
+        var chips: [String] = []
         if let top = store.watchedItems.first.flatMap({ store.movie($0.id) }) {
             chips.append("Something like \(top.title) but I haven't seen")
         }

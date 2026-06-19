@@ -480,28 +480,6 @@ struct YourListsView: View {
         }
     }
 
-    private var friendRecsEmptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
-            Text("No recs from friends yet").font(.subheadline.weight(.semibold))
-            Text("When a friend taps Recommend on a title and picks you, it lands here with their note.")
-                .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
-            HStack(spacing: 10) {
-                PillButton(title: "Find friends", systemImage: "person.badge.plus") {
-                    tabRouter.openMembersSearch = true
-                    tabRouter.selection = .search
-                }
-                PillButton(title: "Send a rec", systemImage: "paperplane", style: .outlined) {
-                    showRecPicker = true
-                }
-            }
-            .padding(.top, 4)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .padding(.horizontal, 24)
-    }
-
     private var friendRecsAsList: some View {
         List {
             listTopAnchor
@@ -526,7 +504,7 @@ struct YourListsView: View {
                             tabRouter.openMembersSearch = true
                             tabRouter.selection = .search
                         }
-                        PillButton(title: "Send a rec", systemImage: "paperplane",
+                        PillButton(title: "Recommend", systemImage: "paperplane",
                                    style: .outlined) {
                             showRecPicker = true
                         }
@@ -1563,7 +1541,7 @@ struct SendRecMoviePicker: View {
                 }
             }
             .background(Theme.background)
-            .navigationTitle("Send a Rec")
+            .navigationTitle("Recommend")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

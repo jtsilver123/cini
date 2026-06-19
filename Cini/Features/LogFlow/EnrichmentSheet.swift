@@ -63,7 +63,7 @@ struct EnrichmentCard: View {
                 Button {
                     onOkay()
                 } label: {
-                    Text("Okay")
+                    Text("Start ranking")
                         .font(.title3.weight(.bold))
                         .foregroundStyle(Theme.marquee)
                         .frame(maxWidth: .infinity)

@@ -276,7 +276,7 @@ struct LogFlowView: View {
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
-            PillButton(title: onWatchlist ? "On your Want to Watch ✓" : "Add to Want to Watch",
+            PillButton(title: onWatchlist ? "On your Want to Watch list ✓" : "Add to Want to Watch",
                        systemImage: "bookmark") {
                 if !onWatchlist { Task { await store.toggleWatchlist(movie: movie) } }
                 dismiss()

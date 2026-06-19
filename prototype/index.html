@@ -874,7 +874,7 @@ function renderLists(){
         <span class="sub">When a friend taps Recommend on a movie and picks you, it lands here with their note.</span>
         <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
           <button class="pill" onclick="searchTab='members'; go('search')">${I("users",15)} Find friends</button>
-          <button class="pill out" onclick="S.subTab='watched'; save(); go('lists'); toast('Pick a title, then tap Recommend on its page')">${I("send",15)} Send a rec</button>
+          <button class="pill out" onclick="S.subTab='watched'; save(); go('lists'); toast('Pick a title, then tap Recommend on its page')">${I("send",15)} Recommend</button>
         </div></div>`
       : S.friendRecs.map(r=>{
         const m=MOVIES[r.k]; if(!m) return "";
@@ -1702,7 +1702,7 @@ function renderDetail(){
       ${interestRow([["M","av1"]], "1 friend wants to watch", "'want'")}
     </div>
     <div class="row-scroll" style="margin-top:12px;">
-      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Watch</button>
+      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Where to Watch</button>
       <button class="pill out" onclick="openShowtimes('${k}')">🎟️ Showtimes</button>
       <button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Recommend</button>
     </div>
@@ -2045,7 +2045,7 @@ function logCards(){
           <span style="flex:1;">Stealth mode<div class="sub" style="margin-top:1px;">Hide this activity from the feed</div></span>
           <button class="switch" onclick="this.classList.toggle('on')"></button>
         </div>
-        ${log.stage==="enrich"?`<button style="width:100%; border:none; background:none; color:var(--marquee); font-size:18px; font-weight:800; padding:15px 0 4px; cursor:pointer;" onclick="startCompare()">Okay</button>`:""}
+        ${log.stage==="enrich"?`<button style="width:100%; border:none; background:none; color:var(--marquee); font-size:18px; font-weight:800; padding:15px 0 4px; cursor:pointer;" onclick="startCompare()">Start ranking</button>`:""}
       </div>`;
   }
 
@@ -2212,7 +2212,7 @@ function openWatchSheet(k){
       <button class="pill ghost" onclick="window.open('${deepLink(name,m.t)}','_blank')">${I("play",13)} Watch</button>
     </div>`;
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Watch</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Where to Watch</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div class="sub" style="font-weight:700; margin-bottom:4px;">STREAM</div>

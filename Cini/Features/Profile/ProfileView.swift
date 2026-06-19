@@ -1159,7 +1159,7 @@ struct ProfileScreen: View {
                 HStack(spacing: 0) {
                     sentimentStat(taste.lovedCount, Theme.sentimentLoved, "Liked")
                     sentimentStat(taste.fineCount, Theme.sentimentFine, "Fine")
-                    sentimentStat(taste.dislikedCount, Theme.sentimentDisliked, "Didn't")
+                    sentimentStat(taste.dislikedCount, Theme.sentimentDisliked, "Disliked")
                 }
                 ForEach(taste.topGenres, id: \.name) { genre in
                     HStack(spacing: 10) {

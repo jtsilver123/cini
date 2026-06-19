@@ -33,7 +33,7 @@ struct RewatchSheet: View {
                 Spacer()
             }
 
-            PillButton(title: saving ? "Saving…" : "Save to diary") {
+            PillButton(title: saving ? "Saving…" : "Save to Diary") {
                 guard !saving else { return }
                 saving = true
                 Task {
