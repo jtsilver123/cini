@@ -2778,7 +2778,7 @@ function renderOnboarding(){
   else if(obStep===9) body=`
     <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
-      <div class="sub">Tap one you've seen to rank it. You need at least one to continue.</div>
+      <div class="sub">Tap one you've seen to rank it — or skip for now.</div>
       <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
         ${Object.keys(MOVIES).slice(0,6).map(k=>`
           <div style="cursor:pointer; opacity:${obRanked?.55:1};" onclick="obRanked=true; renderOnboarding(); toast('Ranked! Tap Continue to keep going.');">
@@ -2786,7 +2786,7 @@ function renderOnboarding(){
             <div style="font-size:11px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${MOVIES[k].t}</div>
           </div>`).join("")}
       </div>
-      <button class="pill" style="justify-content:center; padding:13px; margin:8px 0 24px; opacity:${obRanked?1:.5};" onclick="if(obRanked)obNext(); else toast('Rank one title to continue')">Continue${obRanked?" · 1 ranked":""}</button>
+      <button class="pill" style="justify-content:center; padding:13px; margin:8px 0 24px;" onclick="obNext()">${obRanked?"Continue · 1 ranked":"Skip for now"}</button>
     </div>`;
   else body=`
     <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px 24px 0; text-align:center; overflow-y:auto;">

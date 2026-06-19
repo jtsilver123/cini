@@ -617,26 +617,29 @@ struct OnboardingView: View {
                 }
             }
 
-            // Ranking the first title is required — once they've ranked one,
-            // "Continue" leads into the recommendations tutorial.
+            // Ranking the first title is encouraged but no longer required —
+            // once they've ranked one, "Continue" leads into the rec tutorial;
+            // otherwise a gentle nudge plus a skip so no one ever gets stuck.
             if store.watchedCount > 0 {
                 PillButton(title: "Continue · \(store.watchedCount) ranked", style: .filled) { advance() }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 24)
             } else if starters.isEmpty {
-                // No posters loaded (offline) — we can't make them rank from an
-                // empty grid, so let them through to explore and rank in search.
+                // No posters loaded (offline) — let them through to explore.
                 Button("Start exploring") { finishOnboarding() }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.gray)
                     .padding(.bottom, 24)
             } else {
-                // No skip: a gentle nudge stands in for the button until they
-                // rank their first one.
-                Label("Tap a poster to rank your first", systemImage: "hand.tap")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .padding(.bottom, 24)
+                VStack(spacing: 12) {
+                    Label("Tap a poster to rank your first", systemImage: "hand.tap")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                    Button("Skip for now") { advance() }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .padding(.bottom, 24)
             }
         }
     }

@@ -28,50 +28,53 @@ struct SuggestionGrid: View {
     private func card(_ movie: Movie) -> some View {
         let ranked = store.isWatched(movie.tmdbID)
         VStack(spacing: 6) {
-            Button { onRank(movie) } label: {
-                PosterView(url: movie.posterURL, width: posterWidth)
-                    // Save to Want to Watch — a visible bookmark (top-left),
-                    // so it isn't hidden behind a long-press.
-                    .overlay(alignment: .topLeading) {
-                        if !ranked {
-                            Button { onSave(movie) } label: {
-                                Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
-                                    .padding(5)
-                                    .background(Circle().fill(.black.opacity(0.55)))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(5)
-                            .accessibilityLabel("Save \(movie.title) to Want to Watch")
+            // The poster's rank tap is a gesture (NOT a Button) so the bookmark
+            // and ✕ can sit on top as their own buttons. Nesting Buttons inside
+            // a Button's label breaks hit-testing — taps got swallowed and
+            // ranking "glitched out."
+            PosterView(url: movie.posterURL, width: posterWidth)
+                .overlay { if ranked { rankedStamp } }
+                // Save to Want to Watch — a visible bookmark (top-left).
+                .overlay(alignment: .topLeading) {
+                    if !ranked {
+                        Button { onSave(movie) } label: {
+                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                                .padding(5)
+                                .background(Circle().fill(.black.opacity(0.55)))
                         }
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .accessibilityLabel("Bookmark \(movie.title) to Want to Watch")
                     }
-                    .overlay(alignment: .topTrailing) {
-                        if !ranked {
-                            Button { onDismiss(movie) } label: {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(5)
-                                    .background(Circle().fill(.black.opacity(0.55)))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(5)
-                            .accessibilityLabel("Dismiss \(movie.title)")
-                        }
-                    }
-                    .overlay { if ranked { rankedStamp } }
-            }
-            .buttonStyle(.plain)
-            .disabled(ranked)
-            // Hold for the "save it instead" path.
-            .contextMenu {
-                Button { onRank(movie) } label: { Label("Rank it", systemImage: "star") }
-                Button { onSave(movie) } label: { Label("Bookmark to Want to Watch", systemImage: "bookmark") }
-                Button(role: .destructive) { onDismiss(movie) } label: {
-                    Label("Not interested", systemImage: "xmark")
                 }
-            }
+                .overlay(alignment: .topTrailing) {
+                    if !ranked {
+                        Button { onDismiss(movie) } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(5)
+                                .background(Circle().fill(.black.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .accessibilityLabel("Dismiss \(movie.title)")
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { if !ranked { onRank(movie) } }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Rank \(movie.title)")
+                // Hold for the "save it instead" path.
+                .contextMenu {
+                    Button { onRank(movie) } label: { Label("Rank it", systemImage: "star") }
+                    Button { onSave(movie) } label: { Label("Bookmark to Want to Watch", systemImage: "bookmark") }
+                    Button(role: .destructive) { onDismiss(movie) } label: {
+                        Label("Not interested", systemImage: "xmark")
+                    }
+                }
 
             Text(movie.title)
                 .font(.caption2.weight(.semibold))
