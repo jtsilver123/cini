@@ -31,6 +31,7 @@ struct YourListsView: View {
     @State private var showWatchingInfo = false
     @State private var predicted: [Int: Double] = [:]
     @State private var showListSearch = false
+    @State private var showFilterSheet = false
     @State private var listQuery = ""
     @State private var reorderMode = false
     @State private var pendingDeleteRating: Movie?
@@ -99,14 +100,11 @@ struct YourListsView: View {
                 // Filters are first-class on EVERY personal list — the
                 // defaults and your own lists alike.
                 if selectedListID != nil {
-                    if !reorderMode { filterRow }
+                    if !reorderMode { filterBar }
                     if showListSearch { listSearchField }
                 } else if subTab != .friendRecs {
-                    if !reorderMode { filterRow }
+                    if !reorderMode { filterBar }
                     if showListSearch { listSearchField }
-                    // Recs are relevance-ordered; a date/score sort there
-                    // would lie about what the toggle does.
-                    if subTab != .recs { sortRow }
                 }
                 listContent
             }
@@ -133,6 +131,16 @@ struct YourListsView: View {
             }
             .sheet(isPresented: $showMaybeSeen) {
                 MaybeSeenView(startTV: category == .tvShows)
+            }
+            .sheet(isPresented: $showFilterSheet) {
+                MovieFilterSheet(
+                    filters: filtersBinding,
+                    movies: Array(store.movies.values),
+                    sortDescending: $sortDescending,
+                    sortHighLabel: subTab == .watched ? "Highest score" : "Newest",
+                    sortLowLabel: subTab == .watched ? "Lowest score" : "Oldest",
+                    showSort: selectedListID == nil && subTab != .recs)
+                .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showRecPicker) {
                 SendRecMoviePicker()
@@ -627,21 +635,29 @@ struct YourListsView: View {
         )
     }
 
-    private var filterRow: some View {
-        MovieFilterBar(filters: filtersBinding, movies: Array(store.movies.values))
-    }
-
-    private var sortRow: some View {
-        HStack {
+    /// Beli-style: one Filters button (with an active-count badge) opens the
+    /// full filter sheet; the search toggle sits opposite it.
+    private var filterBar: some View {
+        let count = filtersBinding.wrappedValue.activeCount
+        return HStack(spacing: 10) {
             Button {
-                sortDescending.toggle()
+                Haptics.tap()
+                showFilterSheet = true
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text(subTab == .watched ? "Score" : "Date Added")
+                HStack(spacing: 6) {
+                    Image(systemName: "line.3.horizontal.decrease")
+                    Text("Filters").font(.subheadline.weight(.semibold))
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.caption2.weight(.bold)).foregroundStyle(Theme.background)
+                            .frame(minWidth: 18, minHeight: 18)
+                            .background(Circle().fill(Theme.marquee))
+                    }
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.marquee)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Capsule().fill(Theme.fill))
+                .overlay(Capsule().strokeBorder(count > 0 ? Theme.marquee : Theme.hairline, lineWidth: 1))
             }
             .buttonStyle(.plain)
             Spacer()
@@ -656,7 +672,7 @@ struct YourListsView: View {
             .buttonStyle(.plain)
         }
         .screenHPadding()
-        .padding(.bottom, 6)
+        .padding(.vertical, 8)
     }
 
     // MARK: - Content

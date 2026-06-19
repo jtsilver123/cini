@@ -887,11 +887,8 @@ function renderLists(){
       ${[["watched",`Watched${pendingKeys.length?` <span style="background:var(--marquee); color:var(--bg); font-size:10.5px; font-weight:800; border-radius:999px; padding:1px 6px; vertical-align:1px;">${pendingKeys.length}</span>`:""}`],["watchlist","Want to Watch"],["watching","Watching"],["recs","Recs"],["shared","Friend Recs"]].filter(([k])=>!(S.hiddenTabs||[]).includes(k) && !(k==="watching" && S.category!=="TV")).map(([k,l])=>
         `<button class="subtab ${sub===k?"active":""}" onclick="setSubTab('${k}')">${l}</button>`).join("")}
     </div>
-    ${sub!=="shared"&&!S.ui.reorder?`<div class="row-scroll" style="margin-top:12px;">
-      <button class="pill ghost" onclick="toast('Genre filter — wired in the app')">Genre ${I("chevD",12)}</button>
-      <button class="pill ghost" onclick="toast('Decade filter — wired in the app')">Decade ${I("chevD",12)}</button>
-      <button class="pill ghost" onclick="toast('Streaming filter — wired in the app')">Streaming ${I("chevD",12)}</button>
-      <button class="pill ghost" onclick="toast('Runtime filter — wired in the app')">Runtime</button>
+    ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:12px;">
+      <button class="pill" onclick="openFilters()">${I("sliders",14)} Filters</button>
     </div>`:""}
     ${S.ui.showSearch?`<div class="pad" style="margin-top:10px;">
       <div class="searchfield">${I("search",16)}<input id="listQ" placeholder="Search this list" value="${esc(S.ui.listQ)}" oninput="S.ui.listQ=this.value; save(); renderListsKeepFocus()"></div>
@@ -2302,6 +2299,29 @@ function openMemberMenu(handle){
     <div class="sheet-body">
       <div class="erow" onclick="closeOverlay(); toast('Reported for review')"><span style="flex:1;">Report member</span></div>
       <div class="erow" style="border-bottom:none; color:var(--red);" onclick="closeOverlay(); toast('Blocked')"><span style="flex:1;">Block member</span></div>
+    </div>`);
+}
+let _filterSort=0;
+function openFilters(){
+  const seg=(i,l)=>`<button class="pill ${_filterSort===i?'':'out'}" onclick="_filterSort=${i}; openFilters()">${l}</button>`;
+  const sec=(label,opts)=>`<div style="border-top:1px solid var(--hair); padding:13px 0;">
+      <div style="font-weight:700; margin-bottom:9px;">${label}</div>
+      <div class="row-scroll">${opts.map(o=>`<button class="pill out" onclick="toast('${o}')">${o}</button>`).join("")}</div></div>`;
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Filters</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div style="font-weight:700; margin-bottom:9px;">Sort by</div>
+      <div style="display:flex; gap:8px;">${seg(0,'Highest score')}${seg(1,'Lowest score')}</div>
+      ${sec('Genre',['Drama','Comedy','Sci-Fi','Horror','Action','Thriller'])}
+      ${sec('Decade',['2020s','2010s','2000s','1990s','1980s'])}
+      ${sec('Streaming',['Netflix','Max','Hulu','Disney+','Prime'])}
+      ${sec('Runtime',['Under 100 min','Under 2 hours','Under 2.5 hours'])}
+      <div style="display:flex; align-items:center; margin-top:16px;">
+        <button class="lnk" onclick="toast('Filters cleared')">Clear all</button>
+        <span class="spacer"></span>
+        <button class="pill" onclick="closeOverlay(); toast('Filters applied')">Apply</button>
+      </div>
     </div>`);
 }
 function openImport(){

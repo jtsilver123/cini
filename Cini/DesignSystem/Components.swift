@@ -1093,3 +1093,162 @@ struct MovieFilterBar: View {
         }
     }
 }
+
+// MARK: - Beli-style filter sheet
+
+extension MovieFilters {
+    /// How many filters are set — drives the "Apply (N)" button and the badge.
+    var activeCount: Int {
+        [genre != nil, decade != nil, runtime != nil, streamingProvider != nil].filter { $0 }.count
+    }
+}
+
+/// A Beli-style filter sheet: a Sort segment up top, then expandable sections
+/// (Genre, Decade, Runtime, Streaming) with the current pick shown inline, and
+/// a Clear all / Apply (N) footer. Edits a local draft and only commits on
+/// Apply, so backing out leaves the list untouched.
+struct MovieFilterSheet: View {
+    @Binding var filters: MovieFilters
+    var movies: [Movie]
+    @Binding var sortDescending: Bool
+    /// Labels for the two sort directions (contextual: score vs date).
+    var sortHighLabel: String
+    var sortLowLabel: String
+    /// Hidden where order is fixed (e.g. relevance-ranked Recs).
+    var showSort: Bool = true
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: MovieFilters
+    @State private var draftSortDescending: Bool
+
+    init(filters: Binding<MovieFilters>, movies: [Movie],
+         sortDescending: Binding<Bool>, sortHighLabel: String, sortLowLabel: String,
+         showSort: Bool = true) {
+        _filters = filters
+        self.movies = movies
+        _sortDescending = sortDescending
+        self.sortHighLabel = sortHighLabel
+        self.sortLowLabel = sortLowLabel
+        self.showSort = showSort
+        _draft = State(initialValue: filters.wrappedValue)
+        _draftSortDescending = State(initialValue: sortDescending.wrappedValue)
+    }
+
+    private var genres: [String] { Array(Set(movies.flatMap(\.genres))).sorted() }
+    private var providers: [String] { Array(Set(movies.flatMap(\.streamingOn))).sorted() }
+    private let runtimeOptions: [(label: String, value: Int)] =
+        [("Under 100 min", 100), ("Under 2 hours", 120), ("Under 2½ hours", 150)]
+    private var decades: [Int] { Array(stride(from: 2020, through: 1950, by: -10)) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    if showSort { sortSection }
+                    section("Genre", systemImage: "theatermasks", selection: draft.genre,
+                            options: genres, label: { $0 }) { draft.genre = $0 }
+                    section("Decade", systemImage: "calendar",
+                            selection: draft.decade.map { "\(String($0))s" },
+                            options: decades.map { "\(String($0))s" }, label: { $0 }) { picked in
+                        draft.decade = picked.flatMap { Int($0.dropLast()) }
+                    }
+                    section("Runtime", systemImage: "clock",
+                            selection: draft.runtime.flatMap { v in runtimeOptions.first { $0.value == v }?.label },
+                            options: runtimeOptions.map(\.label), label: { $0 }) { picked in
+                        draft.runtime = picked.flatMap { l in runtimeOptions.first { $0.label == l }?.value }
+                    }
+                    if !providers.isEmpty {
+                        section("Streaming", systemImage: "tv", selection: draft.streamingProvider,
+                                options: providers, label: { $0 }) { draft.streamingProvider = $0 }
+                    }
+                }
+                .padding(20)
+            }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Close")
+                }
+            }
+            .safeAreaInset(edge: .bottom) { footer }
+        }
+    }
+
+    private var sortSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Sort by").font(.headline).foregroundStyle(Theme.ink)
+            Picker("Sort", selection: $draftSortDescending) {
+                Text(sortHighLabel).tag(true)
+                Text(sortLowLabel).tag(false)
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    /// One expandable section. `selection` is the currently-picked option label
+    /// (nil = none); picking the same one again clears it.
+    @ViewBuilder
+    private func section(_ title: String, systemImage: String, selection: String?,
+                         options: [String], label: @escaping (String) -> String,
+                         set: @escaping (String?) -> Void) -> some View {
+        DisclosureGroup {
+            VStack(spacing: 0) {
+                ForEach(options, id: \.self) { option in
+                    Button {
+                        withAnimation(.snappy) { set(selection == option ? nil : option) }
+                    } label: {
+                        HStack {
+                            Text(label(option)).foregroundStyle(Theme.ink)
+                            Spacer()
+                            if selection == option {
+                                Image(systemName: "checkmark").foregroundStyle(Theme.marquee)
+                            }
+                        }
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider()
+                }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage).foregroundStyle(Theme.marquee).frame(width: 24)
+                Text(title).font(.headline).foregroundStyle(Theme.ink)
+                if let selection {
+                    Text(selection)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+            }
+        }
+        .tint(Theme.marquee)
+    }
+
+    private var footer: some View {
+        HStack {
+            Button("Clear all") { withAnimation(.snappy) { draft = MovieFilters() } }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(draft.isActive ? Theme.marquee : Theme.gray)
+                .disabled(!draft.isActive)
+            Spacer()
+            Button {
+                filters = draft
+                sortDescending = draftSortDescending
+                dismiss()
+            } label: {
+                Text(draft.activeCount > 0 ? "Apply (\(draft.activeCount))" : "Apply")
+                    .font(.headline).foregroundStyle(.white)
+                    .padding(.horizontal, 34).padding(.vertical, 14)
+                    .background(Capsule().fill(Theme.velvet))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 12)
+        .background(.thinMaterial)
+    }
+}
