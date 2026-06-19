@@ -20,6 +20,7 @@ struct SwipeView: View {
     @State private var dismissed: Set<Int> = []
     @State private var filters = MovieFilters()
     @State private var showFilterSheet = false
+    @AppStorage("swipe.importBannerHidden") private var importBannerHidden = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var watchedCountAtRank = 0
@@ -45,6 +46,11 @@ struct SwipeView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 10)
                     .background(Theme.background)
+                if !importBannerHidden {
+                    importBanner
+                        .screenHPadding()
+                        .padding(.bottom, 4)
+                }
                 content
             }
             .nativeContentWidth()
@@ -102,11 +108,13 @@ struct SwipeView: View {
                 Button {
                     withAnimation(.snappy) { gridMode.toggle() }
                 } label: {
-                    Image(systemName: gridMode ? "rectangle.stack" : "square.grid.2x2")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
-                        .padding(8)
-                        .background(Circle().fill(Theme.fill))
+                    HStack(spacing: 5) {
+                        Image(systemName: gridMode ? "rectangle.stack" : "square.grid.2x2")
+                        Text(gridMode ? "Cards" : "Grid").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.marquee)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.fill))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(gridMode ? "Show as cards" : "Show as grid")
@@ -116,6 +124,45 @@ struct SwipeView: View {
                 selection: Binding(get: { suggestTV ? 1 : 0 },
                                    set: { suggestTV = $0 == 1 }))
         }
+    }
+
+    /// Dismissible nudge to bring a full history over — same look as the import
+    /// banner elsewhere.
+    private var importBanner: some View {
+        Button { showImport = true } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.title3).foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Import your history")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Text("Bring your ratings from Letterboxd, IMDb, or Netflix")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ImportSourceLogos().padding(.top, 3)
+                }
+                Spacer(minLength: 18)
+            }
+            .padding(14)
+        }
+        .buttonStyle(.plain)
+        .floatingCard(cornerRadius: 16)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Haptics.tap()
+                withAnimation { importBannerHidden = true }
+                ToastCenter.shared.show("You can import anytime from the icon up top")
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(10)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss import suggestion")
+        }
+        .padding(.top, 6)
     }
 
     @ViewBuilder

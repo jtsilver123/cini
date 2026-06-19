@@ -1208,7 +1208,7 @@ const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched]
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
-let swipeIdx=0, swipeGrid=false, swipeTV=false;
+let swipeIdx=0, swipeGrid=false, swipeTV=false, swipeImport=true;
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
 function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Saved to Want to Watch'); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
@@ -1246,7 +1246,14 @@ function renderSwipe(){
       <div class="sub" style="font-size:12px;">Swipe right to save, left to pass, + to rank one you've seen</div>
     </div>`;
   }
-  $("screen-swipe").innerHTML = head + body;
+  const banner = swipeImport ? `<div class="pad" style="margin-top:10px;">
+    <div class="card" style="display:flex; gap:12px; align-items:center; padding:13px 15px; position:relative; cursor:pointer;" onclick="openImport()">
+      <span style="color:var(--marquee);">${I("download",22)}</span>
+      <div style="flex:1;"><div style="font-weight:700; font-size:14px;">Import your history</div>
+        <div class="sub" style="margin-top:1px;">Bring your ratings from Letterboxd, IMDb, or Netflix</div></div>
+      <button class="iconbtn" style="position:absolute; top:6px; right:8px; color:var(--gray);" onclick="event.stopPropagation(); swipeImport=false; renderSwipe();">${I("x",15)}</button>
+    </div></div>` : "";
+  $("screen-swipe").innerHTML = head + banner + body;
 }
 function renderLeaderboard(){
   const [label,copy,fn]=LB_META[S.lbMetric];
