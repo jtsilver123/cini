@@ -106,6 +106,12 @@ struct YourListsView: View {
                 }
                 ScrollViewReader { proxy in
                     listContent
+                        // Let the zero-height scroll-to-top anchor actually be
+                        // zero. Without this, SwiftUI clamps every row (the
+                        // anchor included) to the ~44pt default minimum, leaving
+                        // a phantom gap above the first card. Real rows are taller
+                        // than their content min, so they're unaffected.
+                        .environment(\.defaultMinListRowHeight, 0)
                         // Re-tapping the Your Lists tab jumps back to the top.
                         .onChange(of: tabRouter.retap[.lists]) { _, _ in
                             withAnimation(.snappy) { proxy.scrollTo("listsTop", anchor: .top) }
