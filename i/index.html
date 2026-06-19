@@ -35,15 +35,12 @@
   <div class="tagline">EVERY FILM · RANKED</div>
   <h1><span class="who" id="who">A friend</span> invited you to Cini</h1>
   <p class="lede">Rank every movie &amp; show through quick head-to-head comparisons — no star ratings, just your taste, perfectly ordered. You'll follow each other automatically.</p>
-  <!-- App Store is the primary, always-reliable action: most invite
-       recipients are new, and a real https link never throws Safari's
-       "address is invalid" error the way a raw cini:// scheme does when the
-       app isn't installed. "Open in Cini" is the smart secondary for people
-       who already have it. -->
-  <a class="cta primary" id="getBtn" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini on the App Store</a>
-  <a class="cta ghost" id="openBtn" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Open in Cini</a>
-  <p class="note">New here? Tap “Get Cini.” Already have the app? Tap “Open in Cini” —
-    you'll follow <b id="handle">your friend</b> automatically.</p>
+  <!-- One smart CTA: open the app for people who have Cini, send everyone
+       else to the App Store. Its href is the store, so with no JavaScript (or
+       no app) the button still just works. -->
+  <a class="cta primary" id="openBtn" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Open Cini</a>
+  <p class="note">Have the app? This opens it and you'll follow
+    <b id="handle">your friend</b> automatically. New here? It takes you to the App Store.</p>
 </div>
 <script>
   var STORE = 'https://apps.apple.com/us/app/cini-rank-every-film/id6778975898';
@@ -55,14 +52,14 @@
   }
   var deeplink = 'cini://invite' + (u ? '?u=' + encodeURIComponent(u) : '');
 
-  // "Open in Cini": try the app, fall back to the App Store. If the app opens,
-  // the page is backgrounded and we cancel the fallback; if it isn't installed
-  // we land on the store instead of leaving the visitor stranded on an error.
+  // Try the app, fall back to the App Store. If the app opens, the page is
+  // backgrounded and we cancel the fallback; if it isn't installed we land on
+  // the store instead of leaving the visitor stranded on an error.
   document.getElementById('openBtn').addEventListener('click', function (e) {
     e.preventDefault();
     var fallback = setTimeout(function () {
       if (!document.hidden) window.location = STORE;
-    }, 1500);
+    }, 1200);
     var cancel = function () { clearTimeout(fallback); };
     window.addEventListener('pagehide', cancel);
     document.addEventListener('visibilitychange', function () {
