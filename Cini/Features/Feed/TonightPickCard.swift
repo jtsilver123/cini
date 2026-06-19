@@ -27,14 +27,22 @@ struct TonightPickCard: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                Theme.surface
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: height)
-            .clipped()
+            // The container is a flexible Color.clear (it takes exactly the
+            // offered width); the image fills it as an overlay. Sizing the image
+            // directly with scaledToFill + frame(maxWidth:.infinity) made a 16:9
+            // backdrop report ~height×16/9 (~533pt) wide — wider than the screen —
+            // which pushed the whole feed/Recs view off the left edge.
+            Color.clear
+                .overlay {
+                    CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        Theme.surface
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .clipped()
 
             LinearGradient(colors: [.clear, .black.opacity(0.25), .black.opacity(0.88)],
                            startPoint: .top, endPoint: .bottom)
@@ -69,6 +77,9 @@ struct TonightPickCard: View {
             .frame(maxWidth: overview == nil ? 220 : 270, alignment: .leading)
             .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
         }
+        // Cap the whole card to the offered width — belt-and-suspenders so no
+        // child (image/text) can ever make it wider than its container.
+        .frame(maxWidth: .infinity)
         .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous))
         // A thin marquee rim so the daily pick reads as the premium,

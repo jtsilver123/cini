@@ -93,6 +93,12 @@ struct RecCardDeck: View {
                     )
                     .animation(.snappy, value: drag)
             }
+            // Hard-cap the deck to the offered width. Without this, the card's
+            // full-bleed image reports its large intrinsic width up through the
+            // ZStack, making the deck — and the whole Recs view — wider than the
+            // screen (everything shifts off the left edge). maxWidth:.infinity
+            // forces the deck to take exactly the width it's offered.
+            .frame(maxWidth: .infinity)
             .frame(height: richDetail ? 300 : 220)
         }
     }
