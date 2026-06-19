@@ -131,6 +131,23 @@ struct LogFlowView: View {
                 }
             }
         }
+        // Result page: a plain X to leave (replaces the old "Done" button).
+        .overlay(alignment: .topTrailing) {
+            if phase == .result {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(11)
+                        .background(Circle().fill(.black.opacity(0.4)))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 6)
+                .padding(.trailing, 16)
+                .transition(.opacity)
+                .accessibilityLabel("Close")
+            }
+        }
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
         .alert("Discard this ranking?", isPresented: $showDiscardConfirm) {
@@ -570,9 +587,8 @@ struct LogFlowView: View {
             // Actions arrive with the score, not before — the reveal is the
             // moment; sharing is the reward.
             if scoreRevealed {
-                HStack(spacing: 10) {
-                    // Solid gold capsule (was a translucent/outlined "glass"
-                    // style that read as a clear, barely-visible button).
+                // Just the gold Share capsule, centered — leaving is the X up top.
+                Group {
                     if let shareImage {
                         ShareLink(
                             item: shareImage,
@@ -588,11 +604,9 @@ struct LogFlowView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    // Outlined so it's a clear secondary to the gold Share —
-                    // not two competing filled buttons.
-                    PillButton(title: "Done", style: .outlined) { dismiss() }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: 300)
+                .frame(maxWidth: .infinity)   // center the capsule
                 .padding(.bottom, 24)
                 .transition(.opacity)
             }
