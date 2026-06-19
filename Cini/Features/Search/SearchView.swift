@@ -20,6 +20,9 @@ struct SearchView: View {
     @State private var dismissedMaybeSeen: Set<Int> = []
     @State private var showAllMaybeSeen = false
     @State private var showImport = false
+    // Once dismissed, the import banner stays hidden (a toast points the user to
+    // where import lives). Persisted so it doesn't nag every visit.
+    @AppStorage("cini.search.importBannerHidden") private var importBannerHidden = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var searchTask: Task<Void, Never>?
@@ -571,29 +574,7 @@ struct SearchView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Movies you may have seen").font(.headline)
 
-            Button {
-                showImport = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.title3)
-                        .foregroundStyle(Theme.marquee)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Import from Letterboxd or IMDb")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.ink)
-                        Text("Queue your whole history to rank — favorites first")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
-                }
-                .padding(14)
-            }
-            .buttonStyle(.plain)
-            .floatingCard(cornerRadius: 16)
-            .padding(.vertical, 6)
+            if !importBannerHidden { importBanner }
 
             ForEach(visibleMaybeSeen.prefix(showAllMaybeSeen ? 100 : 4)) { movie in
                 MovieSuggestionRow(
@@ -611,6 +592,50 @@ struct SearchView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// Import prompt with the source logos and an X to dismiss. Dismissing
+    /// hides it for good and toasts where import still lives.
+    private var importBanner: some View {
+        Button {
+            showImport = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.title3)
+                    .foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Import your history")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                    Text("Bring your ratings from Letterboxd, IMDb, or Netflix")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ImportSourceLogos().padding(.top, 3)
+                }
+                Spacer(minLength: 18)   // leave room for the X
+            }
+            .padding(14)
+        }
+        .buttonStyle(.plain)
+        .floatingCard(cornerRadius: 16)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Haptics.tap()
+                withAnimation { importBannerHidden = true }
+                ToastCenter.shared.show("You can import anytime from your profile menu")
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(10)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss import suggestion")
+        }
+        .padding(.vertical, 6)
     }
 
     private func seeAllButton(count: Int) -> some View {
@@ -884,5 +909,50 @@ enum RecentSearches {
         if let data = try? JSONEncoder().encode(Array(movies.prefix(10))) {
             UserDefaults.standard.set(data, forKey: key)
         }
+    }
+}
+
+/// The import-source brand marks, drawn in SwiftUI — we don't ship the
+/// proprietary logo art, but these read at a glance: Letterboxd's three dots,
+/// IMDb's yellow chip, and Netflix's red "N".
+private struct ImportSourceLogos: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            letterboxd
+            imdb
+            netflix
+        }
+        .frame(height: 16)
+    }
+
+    /// Letterboxd: orange / green / blue dots.
+    private var letterboxd: some View {
+        HStack(spacing: 3) {
+            Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
+            Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33))
+            Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
+        }
+        .frame(width: 42, height: 13)
+        .accessibilityLabel("Letterboxd")
+    }
+
+    /// IMDb: black "IMDb" on the brand yellow chip.
+    private var imdb: some View {
+        Text("IMDb")
+            .font(.system(size: 11, weight: .heavy))
+            .foregroundStyle(.black)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(RoundedRectangle(cornerRadius: 3)
+                .fill(Color(red: 0.96, green: 0.77, blue: 0.09)))
+            .accessibilityLabel("IMDb")
+    }
+
+    /// Netflix: the bold red "N".
+    private var netflix: some View {
+        Text("N")
+            .font(.system(size: 17, weight: .heavy))
+            .foregroundStyle(Color(red: 0.90, green: 0.03, blue: 0.08))
+            .accessibilityLabel("Netflix")
     }
 }
