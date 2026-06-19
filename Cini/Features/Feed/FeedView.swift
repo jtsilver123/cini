@@ -1704,65 +1704,12 @@ struct NotificationsView: View {
                 .padding(.vertical, 32)
                 .listRowBackground(Theme.background)
             }
-            ForEach(rows) { row in
-                HStack(spacing: 12) {
-                    Button {
-                        if let actorId = row.actorId, let actor = row.actor {
-                            memberTarget = MemberRef(id: actorId, username: actor.username)
-                        }
-                    } label: {
-                        AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
-                           name: preferredName(row.actor?.displayName, row.actor?.username))
-                    }
-                    .buttonStyle(.plain)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(headline(row)).font(.subheadline).lineLimit(3)
-                        Text(row.createdAt.formatted(.relative(presentation: .named)))
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                    Spacer()
-                    if row.kind == "follow_request", let actorId = row.actorId {
-                        if let accepted = resolvedFollowReqs[actorId] {
-                            Text(accepted ? "Accepted" : "Declined")
-                                .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
-                        } else {
-                            HStack(spacing: 8) {
-                                Button("Accept") { respondFollow(actorId, accept: true) }
-                                    .font(.caption.weight(.bold)).foregroundStyle(.white)
-                                    .padding(.horizontal, 12).padding(.vertical, 6)
-                                    .background(Capsule().fill(Theme.velvet))
-                                Button("Decline") { respondFollow(actorId, accept: false) }
-                                    .font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    } else {
-                        if let path = row.movies?.posterPath {
-                            PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
-                        }
-                        if row.readAt == nil {
-                            Circle().fill(Theme.marquee).frame(width: 8, height: 8)
-                        }
-                    }
-                }
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    if row.kind == "rec_request" {
-                        showRespondRecs = true
-                    } else if let movieId = row.movieId, let stub = row.movies {
-                        detailMovie = Movie(tmdbID: movieId,
-                                            mediaKind: movieId < 0 ? "tv" : "movie",
-                                            title: stub.title,
-                                            releaseYear: nil, posterPath: stub.posterPath,
-                                            backdropPath: nil, genres: [], certification: nil,
-                                            runtimeMinutes: nil, director: nil, overview: nil)
-                    } else if let actorId = row.actorId, let actor = row.actor {
-                        memberTarget = MemberRef(id: actorId, username: actor.username)
-                    }
-                }
-                .listRowBackground(Theme.background)
+            // Beli-style grouping: unread first under "New", the rest "Earlier".
+            if !unread.isEmpty {
+                Section("New") { ForEach(unread) { notificationRow($0) } }
+            }
+            if !earlier.isEmpty {
+                Section("Earlier") { ForEach(earlier) { notificationRow($0) } }
             }
         }
         .listStyle(.plain)
@@ -1778,21 +1725,81 @@ struct NotificationsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink {
-                    NotificationPreferencesView()
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("Notification settings")
-            }
-        }
         .task {
             rows = (try? await SupabaseService.shared.notifications()) ?? []
             loaded = true
             await SupabaseService.shared.markNotificationsRead()
             try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        }
+    }
+
+    /// Unread (what's new since last visit) vs already-seen. Rows are fetched
+    /// before they're marked read, so this reflects state on open.
+    private var unread: [NotificationRow] { rows.filter { $0.readAt == nil } }
+    private var earlier: [NotificationRow] { rows.filter { $0.readAt != nil } }
+
+    @ViewBuilder
+    private func notificationRow(_ row: NotificationRow) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                if let actorId = row.actorId, let actor = row.actor {
+                    memberTarget = MemberRef(id: actorId, username: actor.username)
+                }
+            } label: {
+                AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
+                   name: preferredName(row.actor?.displayName, row.actor?.username))
+            }
+            .buttonStyle(.plain)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(headline(row)).font(.subheadline).lineLimit(3)
+                Text(row.createdAt.formatted(.relative(presentation: .named)))
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+            }
+            Spacer()
+            if row.kind == "follow_request", let actorId = row.actorId {
+                if let accepted = resolvedFollowReqs[actorId] {
+                    Text(accepted ? "Accepted" : "Declined")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                } else {
+                    HStack(spacing: 8) {
+                        Button("Accept") { respondFollow(actorId, accept: true) }
+                            .font(.caption.weight(.bold)).foregroundStyle(.white)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.velvet))
+                        Button("Decline") { respondFollow(actorId, accept: false) }
+                            .font(.caption.weight(.bold)).foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                if let path = row.movies?.posterPath {
+                    PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
+                }
+                if row.readAt == nil {
+                    Circle().fill(Theme.marquee).frame(width: 8, height: 8)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture { route(row) }
+        .listRowBackground(Theme.background)
+    }
+
+    /// Deep-link a tapped notification to the area it's about.
+    private func route(_ row: NotificationRow) {
+        if row.kind == "rec_request" {
+            showRespondRecs = true
+        } else if let movieId = row.movieId, let stub = row.movies {
+            detailMovie = Movie(tmdbID: movieId,
+                                mediaKind: movieId < 0 ? "tv" : "movie",
+                                title: stub.title,
+                                releaseYear: nil, posterPath: stub.posterPath,
+                                backdropPath: nil, genres: [], certification: nil,
+                                runtimeMinutes: nil, director: nil, overview: nil)
+        } else if let actorId = row.actorId, let actor = row.actor {
+            memberTarget = MemberRef(id: actorId, username: actor.username)
         }
     }
 
