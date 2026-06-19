@@ -288,7 +288,7 @@ struct CiniChatAvailableView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled((draft.trimmingCharacters(in: .whitespaces).isEmpty
-                           && attachedMovie == nil) || isThinking)
+                           && attachedMovie == nil) || isThinking || session == nil)
             }
         }
         .padding(14)

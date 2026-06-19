@@ -116,7 +116,7 @@ struct LeaderboardView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                Divider()
+                if index < rows.count - 1 { Divider() }   // no dangling line after the last row
             }
 
             if rows.isEmpty {

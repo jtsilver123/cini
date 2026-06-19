@@ -68,7 +68,8 @@ final class TabRouter {
         let kind = userInfo["kind"] as? String
         let actor: MemberRef? = {
             guard let actorID = (userInfo["actor_id"] as? String).flatMap(UUID.init),
-                  let username = userInfo["actor_username"] as? String else { return nil }
+                  let username = (userInfo["actor_username"] as? String)?
+                      .trimmingCharacters(in: .whitespaces), !username.isEmpty else { return nil }
             return MemberRef(id: actorID, username: username)
         }()
         // A watch-match / invite opens the Plan-a-Watch sheet for that title +

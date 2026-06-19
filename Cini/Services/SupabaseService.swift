@@ -286,6 +286,7 @@ final class SupabaseService {
                                      params: Params(p_movie_id: movieID, p_watch_by: date)).execute()
         } catch {
             Self.logSwallowed("set_watch_by", error)
+            await MainActor.run { ToastCenter.shared.saveFailed() }
         }
     }
 
@@ -297,6 +298,7 @@ final class SupabaseService {
                                      params: Params(p_movie_id: movieID, p_note: note)).execute()
         } catch {
             Self.logSwallowed("set_watchlist_note", error)
+            await MainActor.run { ToastCenter.shared.saveFailed() }
         }
     }
 

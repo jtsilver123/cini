@@ -21,9 +21,11 @@ struct CustomListsScreen: View {
                     Button("Create") {
                         Task {
                             let name = newName.trimmingCharacters(in: .whitespaces)
-                            guard !name.isEmpty,
-                                  await store.createList(name: name, mediaKind: "movie") != nil
-                            else { return }
+                            guard !name.isEmpty else { return }
+                            guard await store.createList(name: name, mediaKind: "movie") != nil else {
+                                ToastCenter.shared.saveFailed()
+                                return
+                            }
                             newName = ""
                             // Reconcile from the shared cache so the
                             // add-to-list picker sees it too.

@@ -63,6 +63,7 @@ struct WhereToWatchSheet: View {
                             let url = Self.deepLink(provider: provider.providerName, title: movie.title)
                                 ?? providers?.link.flatMap(URL.init)
                             if let url { UIApplication.shared.open(url) }
+                            else { ToastCenter.shared.show("Couldn't open \(provider.providerName)") }
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "play.circle")

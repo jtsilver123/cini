@@ -43,10 +43,12 @@ struct RewatchSheet: View {
                         Haptics.success()
                         ToastCenter.shared.show("Added to your Diary")
                         onLogged()
+                        dismiss()
                     } catch {
+                        // Keep the sheet open so the user can retry.
                         ToastCenter.shared.saveFailed()
+                        saving = false
                     }
-                    dismiss()
                 }
             }
             .frame(maxWidth: .infinity)
