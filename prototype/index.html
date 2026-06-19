@@ -2457,7 +2457,7 @@ function revealWords(full, acts){
 }
 
 /* =================== ONBOARDING (first run) =================== */
-let obStep=0, obName="", obFullName="", obPhone="", obPw="";
+let obStep=0, obName="", obFullName="", obPhone="", obPw="", obRanked=false;
 function obValid(){ return /^[a-z0-9_.]{3,30}$/.test(obName); }
 function obInitials(){ return obFullName.trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase(); }
 function obPhoneDigits(){ return obPhone.replace(/\D/g,"").slice(-10); }
@@ -2467,7 +2467,7 @@ function obPwLen(){ return obPw.length>=8 && obPw.length<=20; }
 function obPwMix(){ return /[a-zA-Z]/.test(obPw) && /[0-9]/.test(obPw) && /[^a-zA-Z0-9\s]/.test(obPw); }
 function obPwValid(){ return obPwLen() && obPwMix(); }
 function renderOnboarding(){
-  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9].map(i=>
+  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9,10].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
   let body="";
   if(obStep===0) body=`
@@ -2519,49 +2519,41 @@ function renderOnboarding(){
       <div class="serif" style="font-size:38px; font-weight:700;">You're in!</div>
       <div class="avatar av1" style="width:120px; height:120px; font-size:42px;">J</div>
       <div>
-        <div style="font-size:18px; font-weight:700;">Jake thinks you have great taste</div>
-        <button style="background:none;border:none;color:var(--marquee);font:inherit;font-weight:600;cursor:pointer;margin-top:6px;" onclick="toast('Jake founded Cini and lives for movies — everyone starts following him so your feed has great picks. Unfollow any time.')">Who's Jake?</button>
+        <div style="font-size:18px; font-weight:700;">Jake will help you find your next favorite</div>
+        <button style="background:none;border:none;color:var(--marquee);font:inherit;font-weight:600;cursor:pointer;margin-top:6px;" onclick="toast(&quot;Hey, I'm Jake. I love movies and TV, and I'm a little obsessed with tracking and ranking everything I watch. I built Cini for my friends and family, and to see what making an app is like as someone who can't really code. Everyone starts out following me so your feed has great picks from day one, and you can unfollow any time.&quot;)">Who's Jake?</button>
       </div>
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px; width:100%; max-width:320px;" onclick="obNext()">Get started</button>
-      <button style="background:none;border:none;color:var(--gray);font:inherit;font-weight:600;cursor:pointer;" onclick="toast('Enter their @username on the next screen and you’ll follow each other')">Invited by someone else?</button>
     </div>`;
   else if(obStep===5) body=`
-    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
-      <div class="serif" style="font-size:32px; font-weight:700;">Claim your @</div>
-      <div class="sub">This is how friends find and follow you.</div>
-      <input id="obFull" value="${obFullName}" placeholder="Your name" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;"
-        oninput="obFullName=this.value;">
-      <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border-radius:12px; padding:13px;">
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:12px; padding:0 30px; text-align:center; overflow-y:auto;">
+      <div class="serif" style="font-size:32px; font-weight:700;">Create your profile</div>
+      <div id="obInit" class="avatar av1" style="width:84px; height:84px; font-size:30px; margin:0 auto; cursor:pointer;" onclick="toast('Photo picker opens here')">${obInitials()||"+"}</div>
+      <div class="sub" style="font-size:12px; margin-top:-6px;">Add a photo (optional)</div>
+      <input id="obFull" value="${obFullName}" placeholder="Your name" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;" oninput="obFullName=this.value; if($('obInit'))$('obInit').textContent=obInitials()||'+';">
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px;">
         <span class="sub">@</span>
-        <input id="obUser" value="${obName}" placeholder="username" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;"
-          oninput="obName=this.value.toLowerCase(); $('obCheck').style.opacity=obValid()?1:0; $('obGo').style.opacity=obValid()?1:.5; const b=$('obBar'); if(b){b.style.width=(Math.min(obName.length/3,1)*100)+'%'; b.style.background=obName.length>=3?'var(--green)':'var(--marquee)';}">
+        <input id="obUser" value="${obName}" placeholder="username" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;" oninput="obName=this.value.toLowerCase(); $('obCheck').style.opacity=obValid()?1:0; $('obGo').style.opacity=obValid()?1:.5; const b=$('obBar'); if(b){b.style.width=(Math.min(obName.length/3,1)*100)+'%'; b.style.background=obName.length>=3?'var(--green)':'var(--marquee)';}">
         <span id="obCheck" class="gtxt" style="opacity:${obValid()?1:0}; transition:.2s;">${I("check",17,2.4)}</span>
       </div>
       <div style="height:4px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden;">
-        <div id="obBar" style="height:100%; border-radius:999px; transition:width .2s, background .2s;
-          width:${Math.min(obName.length/3,1)*100}%; background:${obName.length>=3?"var(--green)":"var(--marquee)"};"></div>
+        <div id="obBar" style="height:100%; border-radius:999px; transition:width .2s, background .2s; width:${Math.min(obName.length/3,1)*100}%; background:${obName.length>=3?"var(--green)":"var(--marquee)"};"></div>
       </div>
-      <div class="sub" style="font-size:11.5px;">At least 3 characters — lowercase letters, numbers, underscores.</div>
-      <button id="obGo" class="pill" style="justify-content:center; padding:13px; opacity:${obValid()?1:.5};" onclick="if(obValid())obNext(); else toast('Pick a valid username first')">That's me</button>
+      <div class="sub" style="font-size:11.5px;">At least 3 characters: lowercase letters, numbers, underscores.</div>
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px;">
+        <span class="sub">@</span>
+        <input placeholder="Friend who invited you (optional)" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit;">
+      </div>
+      <button id="obGo" class="pill" style="justify-content:center; padding:13px; opacity:${obValid()?1:.5};" onclick="if(obValid())obNext(); else toast('Pick a valid username first')">Continue</button>
     </div>`;
   else if(obStep===6) body=`
-    <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; padding:0 32px; text-align:center;">
-      <div class="serif" style="font-size:30px; font-weight:700;">Add a profile photo</div>
-      <div class="sub" style="line-height:1.5;">Show the face behind the reviews. Skip it — your initials stand in until you do.</div>
-      <div class="avatar av1" style="width:132px; height:132px; font-size:46px; margin:6px auto; cursor:pointer;"
-        onclick="toast('Photo picker opens here')">${obInitials()||"+"}</div>
-      <button class="pill" style="justify-content:center; padding:13px;" onclick="obNext()">Add a photo</button>
-      <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Not now</button>
-    </div>`;
-  else if(obStep===7) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 32px; text-align:center;">
-      <div style="font-size:48px;">👥</div>
+      <div style="font-size:48px;">&#128101;</div>
       <div class="serif" style="font-size:30px; font-weight:700;">Find your friends</div>
       <div class="sub" style="line-height:1.5;">See their takes before you commit a night, compare taste, and trade recs. Every friend who joins also unlocks a feature for you.</div>
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px;" onclick="toast('Contacts permission + invite list opens here'); obNext();">Find friends</button>
       <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Maybe later</button>
     </div>`;
-  else if(obStep===8) body=`
+  else if(obStep===7) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 30px; text-align:center;">
       <div style="display:flex; align-items:center; justify-content:center; gap:12px;">
         <div style="display:flex; padding:11px 13px; background:#1A2128; border-radius:14px;">
@@ -2569,31 +2561,64 @@ function renderOnboarding(){
           <div style="width:22px;height:22px;border-radius:50%;background:#00E054;margin-left:-7px;"></div>
           <div style="width:22px;height:22px;border-radius:50%;background:#40BCF4;margin-left:-7px;"></div>
         </div>
-        <span style="color:var(--gray); font-weight:800;">\u2192</span>
+        <span style="color:var(--gray); font-weight:800;">&rarr;</span>
         <div class="serif" style="color:var(--marquee); font-size:21px; padding:5px 15px; background:#121011; border:1px solid rgba(232,182,76,.55); border-radius:14px;">cini</div>
       </div>
       <div class="serif" style="font-size:32px; font-weight:700;">Bring your history</div>
-      <div class="sub" style="line-height:1.5;">Already track movies somewhere? Cini queues your whole history so you can rank it — favorites first.</div>
+      <div class="sub" style="line-height:1.5;">Already track movies somewhere? Cini queues your whole history so you can rank it, favorites first.</div>
       <button class="pill" style="justify-content:center; padding:13px; margin-top:8px;" onclick="finishOnboarding(); openImport();">Import Letterboxd or IMDb</button>
       <button class="pill out" style="justify-content:center; padding:13px;" onclick="finishOnboarding(); openImport(); importPaste();">Paste from Apple Notes</button>
       <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer; margin-top:10px;" onclick="obNext()">I'm starting fresh</button>
     </div>`;
-  else body=`
+  else if(obStep===8) body=`
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:0 32px; text-align:center;">
+      <div class="serif" style="font-size:32px; font-weight:700;">Stay in the loop</div>
+      <div class="sub" style="line-height:1.5;">Get a heads-up when a friend ranks something, sends you a rec, or replies to you.</div>
+      <div style="width:100%; max-width:320px; display:flex; gap:12px; align-items:center; padding:12px; background:var(--surface); border:1px solid var(--hair); border-radius:18px; box-shadow:0 8px 24px rgba(0,0,0,.28);">
+        <div style="width:42px;height:42px;border-radius:11px;background:var(--marquee);display:flex;align-items:center;justify-content:center;font-size:20px;">&#127916;</div>
+        <div style="flex:1; text-align:left; min-width:0;">
+          <div style="font-weight:700; font-size:14px;">Cini</div>
+          <div class="sub" style="font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">@maya ranked Dune: Part Two</div>
+        </div>
+        <div class="sub" style="font-size:11px;">now</div>
+      </div>
+      <button class="pill" style="justify-content:center; padding:13px; width:100%; max-width:320px;" onclick="toast('Notifications permission prompt appears here'); obNext();">Turn on notifications</button>
+      <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Maybe later</button>
+    </div>`;
+  else if(obStep===9) body=`
     <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
-      <div class="sub">Pick anything you've seen — your first one takes zero comparisons.</div>
+      <div class="sub">Tap one you've seen to rank it. You need at least one to continue.</div>
       <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
         ${Object.keys(MOVIES).slice(0,6).map(k=>`
-          <div style="cursor:pointer;" onclick="finishOnboarding(); openLog('${k}')">
+          <div style="cursor:pointer; opacity:${obRanked?.55:1};" onclick="obRanked=true; renderOnboarding(); toast('Ranked! Tap Continue to keep going.');">
             <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(MOVIES[k].p)}');"></div>
             <div style="font-size:11px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${MOVIES[k].t}</div>
           </div>`).join("")}
       </div>
-      <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer; padding:16px 0 24px;" onclick="finishOnboarding()">I'll explore first</button>
+      <button class="pill" style="justify-content:center; padding:13px; margin:8px 0 24px; opacity:${obRanked?1:.5};" onclick="if(obRanked)obNext(); else toast('Rank one title to continue')">Continue${obRanked?" · 1 ranked":""}</button>
+    </div>`;
+  else body=`
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
+      <div class="serif" style="font-size:28px; font-weight:700;">Save what to watch next</div>
+      <div class="sub" style="padding:0 4px;">Swipe right to save a pick to Want to Watch, left to pass. This is how Cini hands you recommendations everywhere.</div>
+      ${(()=>{const ks=Object.keys(MOVIES); const k=ks[6]||ks[0]; const m=MOVIES[k]; return `
+      <div style="width:196px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 12px 30px rgba(0,0,0,.32); margin-top:4px;">
+        <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>
+        <div style="padding:10px 12px; text-align:left;">
+          <div style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.t}</div>
+          <div class="sub" style="font-size:12px;">Because you liked your first pick</div>
+        </div>
+      </div>`;})()}
+      <div style="display:flex; gap:30px; margin-top:4px;">
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;" onclick="toast('Passed')">&times;</button>
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;font-size:22px;cursor:pointer;" onclick="toast('Saved to Want to Watch')">&#9829;</button>
+      </div>
+      <button class="pill" style="justify-content:center; padding:13px; margin:10px 0 24px; width:100%; max-width:320px;" onclick="finishOnboarding()">Done</button>
     </div>`;
   $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
 }
-function obNext(){ buzz(); obStep++; if(obStep>9){ finishOnboarding(); return; } renderOnboarding(); }
+function obNext(){ buzz(); obStep++; if(obStep>10){ finishOnboarding(); return; } renderOnboarding(); }
 function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
 
 /* =================== BOOT =================== */
