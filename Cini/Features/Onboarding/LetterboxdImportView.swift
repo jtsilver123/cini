@@ -16,7 +16,9 @@ struct LetterboxdImportView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var phase: Phase = .pick
-    @State private var importWatchlist = true
+    // Watchlist always comes along now (the toggle was removed) — Letterboxd
+    // watchlist → your Want to Watch list.
+    private let importWatchlist = true
     @State private var result: LetterboxdImporter.Result?
     @State private var transferCode: String?
     @State private var transferTask: Task<Void, Never>?
@@ -148,17 +150,6 @@ struct LetterboxdImportView: View {
                     .padding(.horizontal, 8)
 
                 desktopCard
-
-                Toggle(isOn: $importWatchlist) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Also import my watchlist").font(.subheadline.weight(.semibold))
-                        Text("Letterboxd watchlist → your Want to Watch list")
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                }
-                .tint(Theme.marquee)
-                .padding(.horizontal, 4)
 
                 HStack(spacing: 22) {
                     Button {

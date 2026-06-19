@@ -80,8 +80,12 @@ enum LetterboxdImporter {
         onProgress: @escaping @MainActor (Progress) -> Void
     ) async throws -> Result {
         await onProgress(.reading)
-        guard fileURL.startAccessingSecurityScopedResource() else { throw ImportError.unreadableFile }
-        defer { fileURL.stopAccessingSecurityScopedResource() }
+        // Picker URLs are security-scoped and need access granted; files in our
+        // own sandbox (e.g. a desktop-transfer download saved to tmp) are NOT
+        // scoped and return false here — that's fine, only an actual read
+        // failure is fatal. (Treating false as fatal broke the upload import.)
+        let scoped = fileURL.startAccessingSecurityScopedResource()
+        defer { if scoped { fileURL.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: fileURL) else { throw ImportError.unreadableFile }
 
         var titles: [ImportedTitle]
