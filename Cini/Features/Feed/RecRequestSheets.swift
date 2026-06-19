@@ -140,7 +140,7 @@ struct RequestRecsSheet: View {
                 AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 38,
                            name: preferredName(friend.displayName, friend.username))
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                    Text(firstName(friend.displayName, friend.username) ?? friend.username)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
@@ -243,7 +243,7 @@ struct RespondRecSheet: View {
                                 )
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("**@\(request.profiles?.username ?? "someone")** wants \(request.criteriaText)")
+                                    Text("**\(firstName(request.profiles?.displayName, request.profiles?.username) ?? "someone")** wants \(request.criteriaText)")
                                         .font(.subheadline)
                                     if let note = request.note {
                                         Text("“\(note)”").font(.caption).italic()
@@ -330,7 +330,7 @@ struct RespondPickerView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("**@\(request.profiles?.username ?? "someone")** wants \(request.criteriaText)")
+                Text("**\(firstName(request.profiles?.displayName, request.profiles?.username) ?? "someone")** wants \(request.criteriaText)")
                     .font(.subheadline).lineLimit(2)
                 if let askNote = request.note {
                     Text("“\(askNote)”").font(.caption).italic().foregroundStyle(Theme.gray)

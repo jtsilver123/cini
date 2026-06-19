@@ -159,7 +159,7 @@ struct ProfileScreen: View {
         }
         .sheet(isPresented: $showTop5Share) {
             TopFiveShareSheet(
-                name: profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (profile?.username ?? ""),
+                name: firstName(profile?.displayName, profile?.username) ?? "",
                 handle: profile?.username ?? "",
                 avatarURL: profile?.avatarURL,
                 movieEntries: topEntries("movie"),
@@ -171,9 +171,9 @@ struct ProfileScreen: View {
         .sheet(isPresented: $showMatchShare) {
             if let pct = matchPct {
                 TasteMatchShareSheet(
-                    viewerName: session.profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (session.profile?.username ?? "You"),
+                    viewerName: firstName(session.profile?.displayName, session.profile?.username) ?? "You",
                     viewerAvatarURL: session.profile?.avatarURL,
-                    memberName: profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? (profile?.username ?? ""),
+                    memberName: firstName(profile?.displayName, profile?.username) ?? "",
                     memberHandle: profile?.username ?? "",
                     memberAvatarURL: profile?.avatarURL,
                     matchPct: Int(pct))
@@ -292,7 +292,7 @@ struct ProfileScreen: View {
 
     private var header: some View {
         HStack {
-            Text(profile.flatMap { $0.displayName.isEmpty ? nil : $0.displayName } ?? "Profile")
+            Text(firstName(profile?.displayName, profile?.username) ?? "Profile")
                 .font(.title2.weight(.bold))
                 .lineLimit(1)
             Spacer()
@@ -653,7 +653,7 @@ struct ProfileScreen: View {
                             VStack(spacing: 6) {
                                 AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 56,
                                            name: member.displayName.isEmpty ? member.username : member.displayName)
-                                Text(member.displayName.isEmpty ? member.username : member.displayName)
+                                Text(firstName(member.displayName, member.username) ?? member.username)
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(Theme.ink)
                                     .lineLimit(1)

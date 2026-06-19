@@ -108,7 +108,7 @@ struct FollowListScreen: View {
         } label: {
             MemberRow(
                 avatarURL: member.avatarUrl.flatMap(URL.init),
-                title: member.displayName.isEmpty ? member.username : member.displayName,
+                title: firstName(member.displayName, member.username) ?? member.username,
                 subtitle: "@\(member.username)"
             ) {
                 if member.id != session.profile?.id {

@@ -913,7 +913,7 @@ struct MovieDetailView: View {
                         AvatarView(url: row.avatarUrl.flatMap(URL.init), size: 44,
                                    name: row.displayName?.isEmpty == false ? row.displayName : row.username)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(preferredName(row.displayName, row.username) ?? row.username)
+                            Text(firstName(row.displayName, row.username) ?? row.username)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
                                 .lineLimit(1)
@@ -1223,7 +1223,7 @@ struct MovieDetailView: View {
                                 AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
                                            name: preferredName(friend.displayName, friend.username))
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                    Text(firstName(friend.displayName, friend.username) ?? friend.username)
                                         .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                                     Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)
                                 }
@@ -1269,7 +1269,7 @@ struct MovieDetailView: View {
                                 AvatarView(url: friend.avatarUrl.flatMap { URL(string: $0) }, size: 40,
                                            name: preferredName(friend.displayName, friend.username))
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                                    Text(firstName(friend.displayName, friend.username) ?? friend.username)
                                         .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                                     Text(friend.caughtUp ? "All caught up"
                                          : (episodeLabel(season: friend.season, episode: friend.episode) ?? "Watching now"))

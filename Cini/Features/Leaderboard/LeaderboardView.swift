@@ -286,7 +286,7 @@ struct InviteSheet: View {
             AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 44,
                        name: member.displayName.isEmpty ? member.username : member.displayName)
             VStack(alignment: .leading, spacing: 2) {
-                Text(member.displayName.isEmpty ? member.username : member.displayName)
+                Text(firstName(member.displayName, member.username) ?? member.username)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
                 Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
             }

@@ -483,7 +483,7 @@ struct SearchView: View {
         } label: {
             MemberRow(
                 avatarURL: member.avatarUrl.flatMap(URL.init),
-                title: member.displayName.isEmpty ? member.username : member.displayName,
+                title: firstName(member.displayName, member.username) ?? member.username,
                 subtitle: reason,
                 subtitleColor: Theme.scoreGreen
             ) {
@@ -511,7 +511,7 @@ struct SearchView: View {
                 } label: {
                     MemberRow(
                         avatarURL: member.avatarUrl.flatMap(URL.init),
-                        title: member.displayName.isEmpty ? member.username : member.displayName,
+                        title: firstName(member.displayName, member.username) ?? member.username,
                         subtitle: "@\(member.username)"
                     ) {
                         PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",

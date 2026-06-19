@@ -861,6 +861,20 @@ func preferredName(_ displayName: String?, _ username: String?) -> String? {
     return username
 }
 
+/// The name to LEAD WITH when referencing a user in copy — their FIRST name
+/// (first word of the display name), falling back to the username when they
+/// never set a display name. Cini uses first names everywhere a person is
+/// referenced (feed, recs, lists, profiles…); full names appear only on the
+/// outward-facing web invite page. Avatar initials still take the full name via
+/// `preferredName`, so two-letter monograms keep working.
+func firstName(_ displayName: String?, _ username: String?) -> String? {
+    if let displayName, !displayName.isEmpty,
+       let first = displayName.split(separator: " ").first {
+        return String(first)
+    }
+    return username
+}
+
 struct AvatarView: View {
     let url: URL?
     var size: CGFloat = 44

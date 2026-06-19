@@ -1069,7 +1069,7 @@ struct CommentsSheet: View {
                     // "Replying to <name>" context, with a cancel ✕.
                     if let replyingTo {
                         HStack(spacing: 8) {
-                            Text("Replying to \(preferredName(replyingTo.profiles?.displayName, replyingTo.profiles?.username) ?? "member")")
+                            Text("Replying to \(firstName(replyingTo.profiles?.displayName, replyingTo.profiles?.username) ?? "member")")
                                 .font(.caption).foregroundStyle(Theme.gray)
                             Spacer()
                             Button { cancelReply() } label: {
@@ -1188,7 +1188,7 @@ struct CommentsSheet: View {
                         Button {
                             onOpenMember(MemberRef(id: c.actorId, username: c.username))
                         } label: {
-                            Text(preferredName(c.displayName, c.username) ?? c.username)
+                            Text(firstName(c.displayName, c.username) ?? c.username)
                                 .bold().foregroundStyle(Theme.ink)
                         }
                         .buttonStyle(.plain)
@@ -1290,7 +1290,7 @@ struct CommentsSheet: View {
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(preferredName(comment.profiles?.displayName, comment.profiles?.username) ?? "member")
+                    Text(firstName(comment.profiles?.displayName, comment.profiles?.username) ?? "member")
                         .font(.caption.weight(.bold))
                         .lineLimit(1)
                     Text(comment.createdAt.formatted(.relative(presentation: .named)))

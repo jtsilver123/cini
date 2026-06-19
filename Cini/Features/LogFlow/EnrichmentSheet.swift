@@ -124,7 +124,7 @@ struct EnrichmentCard: View {
                                 if isOn { draft.watchedWith.remove(friend.id) }
                                 else { draft.watchedWith.insert(friend.id) }
                             } label: {
-                                Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
+                                Text(firstName(friend.displayName, friend.username) ?? friend.username)
                                     .font(.subheadline)
                                     .foregroundStyle(isOn ? Theme.background : Theme.ink)
                                     .padding(.horizontal, 14)
@@ -527,7 +527,7 @@ struct FriendThinkRow: View {
                         AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 44,
                                    name: preferredName(friend.displayName, friend.username))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(preferredName(friend.displayName, friend.username) ?? friend.username)
+                            Text(firstName(friend.displayName, friend.username) ?? friend.username)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.ink)
                             Text("@\(friend.username)").font(.caption).foregroundStyle(Theme.gray)

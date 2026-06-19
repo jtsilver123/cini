@@ -138,7 +138,7 @@ struct SendRecSheet: View {
                 AvatarView(url: friend.avatarUrl.flatMap(URL.init), size: 42,
                            name: friend.displayName.isEmpty ? friend.username : friend.displayName)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(friend.displayName.isEmpty ? friend.username : friend.displayName)
+                    Text(firstName(friend.displayName, friend.username) ?? friend.username)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
@@ -164,7 +164,7 @@ struct SendRecSheet: View {
                 .foregroundStyle(Theme.marquee)
             Text("Sent!").font(Theme.serif(28))
             if let selected {
-                Text("@\(selected.username) just got your rec for \(movie.title).")
+                Text("\(firstName(selected.displayName, selected.username) ?? selected.username) just got your rec for \(movie.title).")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
