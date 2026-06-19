@@ -51,6 +51,7 @@ struct LogFlowView: View {
     // then the score springs in (score screen) — Beli's flow, our brand.
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
+    @State private var choosing = false   // guards against double-tapping a comparison
     @State private var showDiscardConfirm = false
     /// The streak before this rank committed — lets the reveal tell a streak
     /// that just *advanced* from one that merely held.
@@ -65,7 +66,8 @@ struct LogFlowView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(0.55)
+            // Lighter scrim so you can still see the title/list you're ranking.
+            Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture { if phase == .sentiment { cancel() } }
 
@@ -469,7 +471,9 @@ struct LogFlowView: View {
     }
 
     private func choose(_ choice: ComparisonChoice) {
-        guard var current = session else { return }
+        // Block a second tap landing on the same comparison before it advances.
+        guard !choosing, var current = session else { return }
+        choosing = true
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         withAnimation(.snappy(duration: 0.18)) {
             current.choose(choice)
@@ -479,6 +483,7 @@ struct LogFlowView: View {
         if current.isComplete {
             commit(current)
         }
+        Task { try? await Task.sleep(for: .milliseconds(200)); choosing = false }
     }
 
     private func commit(_ finished: InsertionSession<Int>) {

@@ -83,7 +83,7 @@ struct NotificationPreferencesView: View {
         .background(Theme.background)
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: SupabaseService.shared.currentUserID) {
             muted = await SupabaseService.shared.mutedNotificationKinds()
             loaded = true
         }

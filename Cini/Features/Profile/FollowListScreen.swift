@@ -12,6 +12,7 @@ struct FollowListScreen: View {
 
     @State private var members: [ProfileRow] = []
     @State private var iFollow: Set<UUID> = []
+    @State private var followInFlight: Set<UUID> = []
     @State private var loaded = false
 
     var body: some View {
@@ -123,6 +124,9 @@ struct FollowListScreen: View {
     }
 
     private func toggleFollow(_ id: UUID) async {
+        // One in flight per member — rapid taps can't follow-then-unfollow.
+        guard followInFlight.insert(id).inserted else { return }
+        defer { followInFlight.remove(id) }
         Haptics.tap()
         // Optimistic flip, reverted if the call fails.
         if iFollow.contains(id) {
