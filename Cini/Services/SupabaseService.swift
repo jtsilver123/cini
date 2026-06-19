@@ -1647,6 +1647,15 @@ final class SupabaseService {
         ).execute().value
     }
 
+    /// Titles Cini members are ranking/bookmarking most over the last 2 weeks —
+    /// the "Trending" search filter (CIN-34). Returns tmdb ids, most active first.
+    func trendingTitles() async -> [Int] {
+        struct Row: Decodable { let movieId: Int
+            enum CodingKeys: String, CodingKey { case movieId = "movie_id" } }
+        let rows: [Row] = (try? await client.rpc("trending_titles").execute().value) ?? []
+        return rows.map(\.movieId)
+    }
+
     func globalRank(userID: UUID) async throws -> Int {
         struct Params: Encodable { let p_user: UUID }
         return try await client.rpc("global_rank", params: Params(p_user: userID)).execute().value

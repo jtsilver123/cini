@@ -104,6 +104,40 @@ final class TMDBService {
         return page.results.map(\.asMovie)
     }
 
+    /// The classics most people have actually seen — sorted by vote count, so
+    /// the all-time, widely-watched titles surface first (CIN-34 "Popular").
+    func mostWatched() async throws -> [Movie] {
+        let q = [URLQueryItem(name: "sort_by", value: "vote_count.desc")]
+        async let moviePage: SearchPage = get("/discover/movie", query: q)
+        async let tvPage: TVListPage = get("/discover/tv", query: q)
+        let movies = (try await moviePage).results.map(\.asMovie)
+        let shows = ((try? await tvPage)?.results ?? []).map(\.asMovie)
+        return movies + shows
+    }
+
+    /// Titles that are out NOW — recently released (on or before today),
+    /// newest first, with enough votes to be real (CIN-34 "Release").
+    func nowOut() async throws -> [Movie] {
+        let today = ISO8601DateFormatter.dateOnly.string(from: Date())
+        let movieQ = [
+            URLQueryItem(name: "sort_by", value: "primary_release_date.desc"),
+            URLQueryItem(name: "primary_release_date.lte", value: today),
+            URLQueryItem(name: "vote_count.gte", value: "40"),
+        ]
+        let tvQ = [
+            URLQueryItem(name: "sort_by", value: "first_air_date.desc"),
+            URLQueryItem(name: "first_air_date.lte", value: today),
+            URLQueryItem(name: "vote_count.gte", value: "20"),
+        ]
+        async let moviePage: SearchPage = get("/discover/movie", query: movieQ)
+        async let tvPage: TVListPage = get("/discover/tv", query: tvQ)
+        let movies = (try await moviePage).results.map(\.asMovie)
+        let shows = ((try? await tvPage)?.results ?? []).map(\.asMovie)
+        var merged = movies + shows
+        merged.sort { ($0.releaseDateFull ?? "") > ($1.releaseDateFull ?? "") }
+        return merged
+    }
+
     /// Similar titles for movies AND shows (negative ids → /tv/).
     func similar(to movieID: Int) async throws -> [Movie] {
         if movieID < 0 {

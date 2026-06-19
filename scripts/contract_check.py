@@ -150,6 +150,7 @@ RPCS = [
     ("set_watch_by", {"p_movie_id": 2, "p_watch_by": None}),
     ("referral_count", {}),
     ("unlocked_features", {}),
+    ("trending_titles", {}),
     # Pass the demo's own number, not "" — set_phone('') means "clear my
     # number" and would DELETE the demo's user_phones row on every run,
     # breaking App Review's "log in with phone". This input is idempotent.

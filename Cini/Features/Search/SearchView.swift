@@ -18,6 +18,9 @@ struct SearchView: View {
     @State private var recents: [Movie] = RecentSearches.load()
     @State private var maybeSeen: [Movie] = []
     @State private var dismissedMaybeSeen: Set<Int> = []
+    // "Movies / TV shows you may have seen" toggle (CIN-34) — filters both the
+    // cold-start suggestions and the browse results to the chosen kind.
+    @State private var suggestTV = false
     @State private var showAllMaybeSeen = false
     @State private var showImport = false
     // Once dismissed, the import banner stays hidden (a toast points the user to
@@ -39,15 +42,15 @@ struct SearchView: View {
 
     /// One-tap browsing for people who don't want to type.
     enum BrowseKind: String, CaseIterable {
-        case releases = "Release Date"
         case popular = "Popular"
         case trending = "Trending"
+        case releases = "Releases"
 
         var icon: String {
             switch self {
-            case .releases: "calendar"
             case .popular: "flame"
             case .trending: "chart.line.uptrend.xyaxis"
+            case .releases: "calendar"
             }
         }
     }
@@ -312,15 +315,21 @@ struct SearchView: View {
 
     @ViewBuilder
     private var browseSection: some View {
-        if browseResults.isEmpty {
-            if browseLoaded {
-                noResultsMessage("Couldn't load these right now — pull to refresh or try again.")
+        // The heading (with the Movies/TV toggle) stays even when a filter is
+        // active — only the import prompt drops away here (CIN-34).
+        VStack(alignment: .leading, spacing: 6) {
+            maybeSeenHeading
+            let results = browseResults.filter { matchesToggle($0) && !store.isWatched($0.tmdbID) }
+            if results.isEmpty {
+                if browseLoaded {
+                    Text("Nothing here right now — try another filter.")
+                        .font(.subheadline).foregroundStyle(Theme.gray)
+                        .padding(.vertical, 12)
+                } else {
+                    SearchSkeleton(kind: .titles)
+                }
             } else {
-                SearchSkeleton(kind: .titles)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                ForEach(browseResults) { movie in
+                ForEach(results) { movie in
                     MovieSuggestionRow(
                         movie: movie,
                         onRank: { logMovie = movie },
@@ -331,6 +340,7 @@ struct SearchView: View {
                 }
             }
         }
+        .padding(.top, 8)
     }
 
     private func loadBrowse() async {
@@ -339,14 +349,21 @@ struct SearchView: View {
         browseLoaded = false
         var result: [Movie]
         switch kind {
-        case .releases:
-            result = (try? await TMDBService.shared.upcoming()) ?? []
-            // Soonest first — it's a release calendar, not a chart.
-            result.sort { ($0.releaseDateFull ?? "") < ($1.releaseDateFull ?? "") }
         case .popular:
-            result = (try? await TMDBService.shared.popular()) ?? []
+            // Classics most people have actually seen.
+            result = (try? await TMDBService.shared.mostWatched()) ?? []
         case .trending:
-            result = (try? await TMDBService.shared.trending()) ?? []
+            // What Cini members are rating/bookmarking right now.
+            let ids = await SupabaseService.shared.trendingTitles()
+            let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
+            var byID: [Int: Movie] = [:]
+            for row in rows { byID[row.tmdbId] = row.asMovie }
+            result = ids.compactMap { byID[$0] }   // preserve activity order
+            // Fall back to TMDB buzz if Cini activity is still thin.
+            if result.count < 5 { result = (try? await TMDBService.shared.trending()) ?? result }
+        case .releases:
+            // Only titles that are actually out now, newest first.
+            result = (try? await TMDBService.shared.nowOut()) ?? []
         }
         guard browse == kind else { return }   // user switched mid-flight
         browseResults = result
@@ -563,7 +580,33 @@ struct SearchView: View {
     /// Popular-title suggestions for cold start. Imported titles waiting to
     /// be ranked live in Your Lists → Watched → Pending, not here.
     private var visibleMaybeSeen: [Movie] {
-        maybeSeen.filter { !dismissedMaybeSeen.contains($0.tmdbID) && !store.isWatched($0.tmdbID) }
+        maybeSeen.filter {
+            !dismissedMaybeSeen.contains($0.tmdbID) && !store.isWatched($0.tmdbID) && matchesToggle($0)
+        }
+    }
+
+    /// Movies vs TV, per the heading toggle.
+    private func matchesToggle(_ movie: Movie) -> Bool {
+        suggestTV ? movie.mediaKind == "tv" : movie.mediaKind != "tv"
+    }
+
+    /// "**Movies** you may have seen" — the leading word is a bold toggle that
+    /// flips Movies ↔ TV shows and re-filters the suggestions (CIN-34).
+    private var maybeSeenHeading: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.snappy) { suggestTV.toggle() }
+            } label: {
+                HStack(spacing: 3) {
+                    Text(suggestTV ? "TV shows" : "Movies").fontWeight(.heavy)
+                    Image(systemName: "arrow.left.arrow.right").font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+            Text(" you may have seen").foregroundStyle(Theme.ink)
+        }
+        .font(.headline)
     }
 
     private var maybeSeenSection: some View {
@@ -572,7 +615,7 @@ struct SearchView: View {
 
     private var popularFallbackSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Movies you may have seen").font(.headline)
+            maybeSeenHeading
 
             if !importBannerHidden { importBanner }
 
