@@ -9,6 +9,8 @@ struct TonightPickCard: View {
     var reason: String?
     var service: String?               // streaming service it's on, e.g. "Netflix"
     var serviceLogo: URL?              // that service's logo (TMDB), shown in the badge
+    /// Off for the Recs deck, which reuses this card without the daily badge.
+    var showTonightBadge: Bool = true
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
     var onOpen: (Movie) -> Void = { _ in }
@@ -57,15 +59,17 @@ struct TonightPickCard: View {
                 .strokeBorder(Theme.marquee.opacity(0.45), lineWidth: 1)
         )
         .overlay(alignment: .topLeading) {
-            HStack(spacing: 5) {
-                Image(systemName: "moon.stars.fill")
-                Text("TONIGHT'S PICK").tracking(1.5)
+            if showTonightBadge {
+                HStack(spacing: 5) {
+                    Image(systemName: "moon.stars.fill")
+                    Text("TONIGHT'S PICK").tracking(1.5)
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(Theme.background)
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(Capsule().fill(Theme.marquee))
+                .padding(12)
             }
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(Theme.background)
-            .padding(.horizontal, 9).padding(.vertical, 5)
-            .background(Capsule().fill(Theme.marquee))
-            .padding(12)
         }
         // Not feeling it tonight — dismiss for now.
         .overlay(alignment: .topTrailing) {

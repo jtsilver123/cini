@@ -22,6 +22,8 @@ struct YourListsView: View {
     @State private var logMovie: Movie?
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
+    // Recs default to the swipe-card view (CIN-28); List stays available.
+    @AppStorage("recs.cardMode") private var recsCardMode = true
     @State private var watchingRows: [WatchingRow] = []
     @State private var watchingLoaded = false
     @State private var showWatchingInfo = false
@@ -1041,18 +1043,56 @@ struct YourListsView: View {
     /// pills above (genre/decade/runtime/streaming/language) apply here too,
     /// so "what should I watch tonight?" is just Recs + a couple of taps.
     private var recsList: some View {
-        List {
-            Button {
-                guard let pick = filteredRecs.randomElement() else { return }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                detailMovie = pick.movie
-            } label: {
-                Label("Surprise me", systemImage: "dice")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.marquee)
+        VStack(spacing: 0) {
+            // Cards (new default) vs the classic list.
+            Picker("View", selection: $recsCardMode) {
+                Text("Cards").tag(true)
+                Text("List").tag(false)
             }
-            .listRowBackground(Theme.background)
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
 
+            if recsCardMode { recsCards } else { recsAsList }
+        }
+        .task { await loadRecs() }
+    }
+
+    private var recsCards: some View {
+        Group {
+            if recsLoaded && filteredRecs.isEmpty {
+                emptyList("No recs match these filters — loosen one, or follow more friends.")
+            } else if !recsLoaded && recCandidates.isEmpty {
+                SearchSkeleton(kind: .titles, rows: 3)
+                    .padding(.horizontal, 16)
+            } else {
+                RecCardDeck(
+                    candidates: filteredRecs,
+                    onOpen: { detailMovie = $0 },
+                    onLog: { logMovie = $0 },
+                    onSave: { m in
+                        if !store.isOnWatchlist(m.tmdbID) {
+                            Task { await store.toggleWatchlist(movie: m) }
+                        }
+                    },
+                    onUnsave: { m in
+                        if store.isOnWatchlist(m.tmdbID) {
+                            Task { await store.toggleWatchlist(movie: m) }
+                        }
+                    },
+                    onRefresh: { Task { recCandidates = []; recsLoaded = false; await loadRecs() } }
+                )
+                // Reset the deck when the filters change the candidate set.
+                .id("\(genreFilter ?? "")-\(decadeFilter ?? 0)-\(runtimeFilter ?? 0)-\(streamingProviderFilter ?? "")")
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var recsAsList: some View {
+        List {
             ForEach(filteredRecs) { candidate in
                 VStack(alignment: .leading, spacing: 4) {
                     WatchlistRowView(movie: candidate.movie,
@@ -1078,7 +1118,6 @@ struct YourListsView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
             }
         }
-        .task { await loadRecs() }
     }
 
     private func loadRecs() async {
