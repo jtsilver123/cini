@@ -160,6 +160,19 @@ struct ProfileScreen: View {
             LeaderboardView()
                 .presentationDragIndicator(.visible)
         }
+        // Another member's profile: full name by the back button, with Share
+        // and the ⋯ menu top-right. (Self keeps its own in-content header.)
+        .toolbar {
+            if !isSelf {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Text(memberTitle)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Theme.ink)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) { memberShareLink }
+                ToolbarItem(placement: .navigationBarTrailing) { memberMenu }
+            }
+        }
         .sheet(isPresented: $showInviteSheet) {
             InviteSheet()
                 .presentationDetents([.large])
@@ -523,7 +536,10 @@ struct ProfileScreen: View {
             // On another member's profile, Rank on Cini sits inline as a third
             // stat (Beli-style). Your own profile keeps it in the card below.
             if !isSelf {
-                stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
+                Button { Haptics.tap(); showLeaderboard = true } label: {
+                    stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -603,62 +619,76 @@ struct ProfileScreen: View {
                         showAskRec = true
                     }
                 }
-                // Moderation: report or block from any member profile.
-                Menu {
-                    Button(role: .destructive) {
-                        Task {
-                            let ok = await SupabaseService.shared.report(
-                                kind: "member", subjectID: id.uuidString)
-                            if ok {
-                                reported = true
-                                ToastCenter.shared.show("Reported — we'll review it")
-                            } else { ToastCenter.shared.saveFailed() }
-                        }
-                    } label: {
-                        Label(reported ? "Reported" : "Report member", systemImage: "flag")
-                    }
-                    .disabled(reported)
-                    Button(role: .destructive) {
-                        if blocked {
-                            // Unblocking restores, no confirmation needed.
-                            Task {
-                                try? await SupabaseService.shared.unblock(id)
-                                ToastCenter.shared.show("Unblocked")
-                                blocked = false
-                                await load()
-                            }
-                        } else {
-                            showBlockConfirm = true
-                        }
-                    } label: {
-                        Label(blocked ? "Unblock member" : "Block member",
-                              systemImage: "hand.raised")
+                // Report/block moved to the top-right ⋯ menu (see memberMenu).
+            }
+        }
+    }
+
+    /// Full name (or @handle) shown next to the back button on another
+    /// member's profile.
+    private var memberTitle: String {
+        let dn = (profile?.displayName ?? "").trimmingCharacters(in: .whitespaces)
+        return dn.isEmpty ? "@\(profile?.username ?? username ?? "")" : dn
+    }
+
+    /// Share a member's profile (top-right of their page).
+    private var memberShareLink: some View {
+        ShareLink(item: "Check out @\(profile?.username ?? username ?? "") on Cini 🎬 \(AppLinks.invite(profile?.username ?? username ?? ""))") {
+            Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
+        }
+    }
+
+    /// Report / block, in the top-right ⋯ (moved off the button row).
+    @ViewBuilder private var memberMenu: some View {
+        if let id = resolvedID {
+            Menu {
+                Button(role: .destructive) {
+                    Task {
+                        let ok = await SupabaseService.shared.report(
+                            kind: "member", subjectID: id.uuidString)
+                        if ok {
+                            reported = true
+                            ToastCenter.shared.show("Reported — we'll review it")
+                        } else { ToastCenter.shared.saveFailed() }
                     }
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.title3)
-                        .foregroundStyle(Theme.ink)
-                        .padding(10)
-                        .contentShape(Rectangle())
+                    Label(reported ? "Reported" : "Report member", systemImage: "flag")
                 }
-                // Blocking is heavy — always confirm before mutual invisibility.
-                .alert("Block @\(profile?.username ?? username ?? "member")?", isPresented: $showBlockConfirm) {
-                    Button("Block", role: .destructive) {
+                .disabled(reported)
+                Button(role: .destructive) {
+                    if blocked {
                         Task {
-                            do {
-                                try await SupabaseService.shared.block(id)
-                                ToastCenter.shared.show("Blocked — their content is hidden everywhere")
-                                blocked = true
-                                await load()   // their content disappears server-side
-                            } catch {
-                                ToastCenter.shared.saveFailed()
-                            }
+                            try? await SupabaseService.shared.unblock(id)
+                            ToastCenter.shared.show("Unblocked")
+                            blocked = false
+                            await load()
+                        }
+                    } else {
+                        showBlockConfirm = true
+                    }
+                } label: {
+                    Label(blocked ? "Unblock member" : "Block member",
+                          systemImage: "hand.raised")
+                }
+            } label: {
+                Image(systemName: "ellipsis").foregroundStyle(Theme.ink)
+            }
+            .alert("Block @\(profile?.username ?? username ?? "member")?", isPresented: $showBlockConfirm) {
+                Button("Block", role: .destructive) {
+                    Task {
+                        do {
+                            try await SupabaseService.shared.block(id)
+                            ToastCenter.shared.show("Blocked — their content is hidden everywhere")
+                            blocked = true
+                            await load()
+                        } catch {
+                            ToastCenter.shared.saveFailed()
                         }
                     }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("You won't see each other's rankings, notes, or activity, and they won't be able to follow you or comment on your activity.")
                 }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You won't see each other's rankings, notes, or activity, and they won't be able to follow you or comment on your activity.")
             }
         }
     }
@@ -864,21 +894,29 @@ struct ProfileScreen: View {
 
     private var statCards: some View {
         HStack(spacing: 12) {
-            HairlineCard {
-                VStack(alignment: .leading, spacing: 6) {
-                    Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.marquee)
-                    Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.marquee)
-                    Text(globalRank.map { "#\($0)" } ?? "Unranked")
-                        .font(globalRank == nil ? .headline : .title2.weight(.bold))
-                        .foregroundStyle(Theme.marquee)
-                    if globalRank == nil && isSelf {
-                        Text("Rank a movie to enter the board")
-                            .font(.caption2)
-                            .foregroundStyle(Theme.gray)
+            Button { Haptics.tap(); showLeaderboard = true } label: {
+                HairlineCard {
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "trophy").font(.title3).foregroundStyle(Theme.marquee)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption2.weight(.bold))
+                                .foregroundStyle(Theme.gray)
+                        }
+                        Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.marquee)
+                        Text(globalRank.map { "#\($0)" } ?? "Unranked")
+                            .font(globalRank == nil ? .headline : .title2.weight(.bold))
+                            .foregroundStyle(Theme.marquee)
+                        if globalRank == nil && isSelf {
+                            Text("Rank a movie to enter the board")
+                                .font(.caption2)
+                                .foregroundStyle(Theme.gray)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
+            .buttonStyle(.plain)
             HairlineCard {
                 VStack(alignment: .leading, spacing: 6) {
                     Image(systemName: "flame.fill").font(.title3).foregroundStyle(Theme.gold)

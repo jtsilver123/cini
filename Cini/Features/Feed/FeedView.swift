@@ -395,11 +395,10 @@ struct FeedView: View {
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
             } else if tonightCleared {
-                // Ran out / dismissed everything → deep-link to the Recs list,
-                // where there are plenty more to pick from.
+                // Ran out / dismissed everything → send them to Swipe, where
+                // there's an endless deck to triage.
                 TonightEmptyState {
-                    tabRouter.pendingListsTab = .recs
-                    tabRouter.selection = .lists
+                    tabRouter.selection = .swipe
                 }
                 .padding(.top, 2)
             }

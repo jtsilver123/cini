@@ -23,7 +23,6 @@ struct YourListsView: View {
     @State private var recCandidates: [RecCandidate] = []
     @State private var recsLoaded = false
     // Recs default to the swipe-card view (CIN-28); List stays available.
-    @AppStorage("recs.cardMode") private var recsCardMode = true
     // A rec the user is currently ranking — so we can confirm "moved to
     // Watched" once the rank flow closes (CIN-30).
     @State private var pendingRecLog: Movie?
@@ -41,7 +40,6 @@ struct YourListsView: View {
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
     // Friend Recs default to the swipe-card view (CIN-36); List stays available.
-    @AppStorage("friendRecs.cardMode") private var friendRecsCardMode = true
     // A friend rec being passed — drives the optional "tell them why" sheet.
     @State private var passingRec: DirectRecRow?
     @State private var showRecPicker = false
@@ -461,19 +459,10 @@ struct YourListsView: View {
         .padding(.top, 10)
     }
 
-    /// Direct recommendations friends sent you — all of them live here.
+    /// Direct recommendations friends sent you — all of them live here, as a
+    /// list (the swipe-card view lives on the Swipe tab now).
     private var friendRecsList: some View {
-        VStack(spacing: 0) {
-            Picker("View", selection: $friendRecsCardMode) {
-                Text("Cards").tag(true)
-                Text("List").tag(false)
-            }
-            .pickerStyle(.segmented)
-            .screenHPadding()
-            .padding(.bottom, 8)
-
-            if friendRecsCardMode { friendRecsCards } else { friendRecsAsList }
-        }
+        friendRecsAsList
         .task {
             directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
             directRecsLoaded = true
@@ -487,32 +476,6 @@ struct YourListsView: View {
                 await SupabaseService.shared.passDirectRec(id: rec.id, message: message)
             }
         }
-    }
-
-    private var friendRecsCards: some View {
-        Group {
-            if !directRecsLoaded {
-                SearchSkeleton(kind: .titles, rows: 3).screenHPadding()
-            } else if directRecs.isEmpty {
-                friendRecsEmptyState
-            } else {
-                FriendRecDeck(
-                    recs: directRecs,
-                    onOpen: { store.cache($0); detailMovie = $0 },
-                    onLog: { logMovie = $0 },
-                    onSave: { m in
-                        if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
-                    },
-                    onUnsave: { m in
-                        if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
-                    },
-                    onPass: { passingRec = $0 }
-                )
-                .screenHPadding()
-                .padding(.top, 8)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var friendRecsEmptyState: some View {
@@ -1180,53 +1143,10 @@ struct YourListsView: View {
     /// user's #1, then trending — first match wins per movie. The filter
     /// pills above (genre/decade/runtime/streaming/language) apply here too,
     /// so "what should I watch tonight?" is just Recs + a couple of taps.
+    /// Recs as a list (the swipe-card view lives on the Swipe tab now).
     private var recsList: some View {
-        VStack(spacing: 0) {
-            // Cards (new default) vs the classic list.
-            Picker("View", selection: $recsCardMode) {
-                Text("Cards").tag(true)
-                Text("List").tag(false)
-            }
-            .pickerStyle(.segmented)
-            .screenHPadding()
-            .padding(.bottom, 8)
-
-            if recsCardMode { recsCards } else { recsAsList }
-        }
-        .task { await loadRecs() }
-    }
-
-    private var recsCards: some View {
-        Group {
-            if recsLoaded && filteredRecs.isEmpty {
-                emptyList("No recs match these filters — loosen one, or follow more friends.")
-            } else if !recsLoaded && recCandidates.isEmpty {
-                SearchSkeleton(kind: .titles, rows: 3)
-                    .screenHPadding()
-            } else {
-                RecCardDeck(
-                    candidates: filteredRecs,
-                    onOpen: { detailMovie = $0 },
-                    onLog: { pendingRecLog = $0; logMovie = $0 },
-                    onSave: { m in
-                        if !store.isOnWatchlist(m.tmdbID) {
-                            Task { await store.toggleWatchlist(movie: m) }
-                        }
-                    },
-                    onUnsave: { m in
-                        if store.isOnWatchlist(m.tmdbID) {
-                            Task { await store.toggleWatchlist(movie: m) }
-                        }
-                    },
-                    onRefresh: { Task { recCandidates = []; recsLoaded = false; await loadRecs() } }
-                )
-                // Reset the deck when the filters change the candidate set.
-                .id("\(genreFilter ?? "")-\(decadeFilter ?? 0)-\(runtimeFilter ?? 0)-\(streamingProviderFilter ?? "")")
-                .screenHPadding()
-                .padding(.top, 8)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        recsAsList
+            .task { await loadRecs() }
     }
 
     private var recsAsList: some View {

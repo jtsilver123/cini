@@ -1359,7 +1359,7 @@ function renderProfile(){
              <button class="iconbtn" onclick="openMenu()">${I("menu",19)}</button>
            </span>`
         : `<button class="iconbtn" onclick="profileUser=null; go('profile')">${I("chevL",22,2)}</button>
-           <b style="flex:1; text-align:center; font-size:17px;">${name}</b><span style="width:30px;"></span>`}
+           <b style="flex:1; text-align:center; font-size:17px;">${name}</b><span style="display:flex; gap:14px;"><button class="iconbtn" onclick="share('Check out @${handle} on Cini 🎬')">${I("share",18)}</button><button class="iconbtn" onclick="openMemberMenu('${handle}')">${I("menu",18)}</button></span>`}
     </div>
     <div style="text-align:center; margin-top:12px;">
       <div class="avatar ${av}" style="width:100px;height:100px; margin:0 auto; font-size:34px;">${name[0]}</div>
@@ -1380,7 +1380,7 @@ function renderProfile(){
     <div class="pad" style="display:flex; margin-top:16px; text-align:center;">
       <div style="flex:1; cursor:pointer;" onclick="openFollowList('Followers')"><b style="font-size:18px;">${isSelf?81:Math.round(count/14)}</b><div class="sub" style="margin-top:1px;">Followers</div></div>
       <div style="flex:1; cursor:pointer;" onclick="openFollowList('Following')"><b style="font-size:18px;">${isSelf?75+Object.values(S.followed).filter(Boolean).length:Math.round(count/19)}</b><div class="sub" style="margin-top:1px;">Following</div></div>
-      <div style="flex:1;"><b style="font-size:18px;">${rank}</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
+      <div style="flex:1; cursor:pointer;" onclick="go('leaderboard')"><b style="font-size:18px;">${rank}</b><div class="sub" style="margin-top:1px;">Rank on Cini</div></div>
     </div>
     <div class="row-scroll" style="margin-top:14px; justify-content:center;">
       ${isSelf
@@ -1407,7 +1407,7 @@ function renderProfile(){
               :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
     </div>
     <div class="pad" style="display:flex; gap:12px; margin-top:14px;">
-      <div class="card" style="flex:1; margin:0;"><span style="color:var(--marquee);">${I("trophy",22)}</span>
+      <div class="card" style="flex:1; margin:0; cursor:pointer;" onclick="go('leaderboard')"><span style="color:var(--marquee);">${I("trophy",22)}</span>
         <div style="color:var(--marquee); font-size:13px; font-weight:600; margin-top:6px;">Rank on Cini</div>
         <b class="serif" style="font-size:21px; color:var(--marquee);">${rank}</b></div>
       <div class="card" style="flex:1; margin:0;"><span style="color:var(--gold);">${I("flame",22,1.6)}</span>
@@ -2294,6 +2294,15 @@ function openMenu(){
 }
 
 /* ---------- Import flow ---------- */
+function openMemberMenu(handle){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">@${handle}</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="erow" onclick="closeOverlay(); toast('Reported for review')"><span style="flex:1;">Report member</span></div>
+      <div class="erow" style="border-bottom:none; color:var(--red);" onclick="closeOverlay(); toast('Blocked')"><span style="flex:1;">Block member</span></div>
+    </div>`);
+}
 function openImport(){
   renderOverlay(`<div class="fcard" style="min-height:70%;" id="importCard">${importPick()}</div>`);
 }
@@ -2306,6 +2315,7 @@ function importPick(){return `
           <div style="width:22px;height:22px;border-radius:50%;background:#00E054;margin-left:-7px;"></div>
           <div style="width:22px;height:22px;border-radius:50%;background:#40BCF4;margin-left:-7px;"></div>
         </div>
+        <div style="width:46px;height:46px;border-radius:14px;background:#000;display:flex;align-items:center;justify-content:center;"><span style="color:#e50914;font-weight:900;font-size:24px;">N</span></div>
         <span style="color:var(--gray); font-weight:800;">\u2192</span>
         <div class="serif" style="color:var(--marquee); font-size:21px; padding:5px 15px; background:#121011; border:1px solid rgba(232,182,76,.55); border-radius:14px;">cini</div>
       </div>

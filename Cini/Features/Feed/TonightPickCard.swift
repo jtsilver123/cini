@@ -241,7 +241,7 @@ struct TonightStack: View {
 /// Shown in the Tonight's Pick slot once the deck is cleared (dismissed all or
 /// ranked through) — a deep link to the Recs list, where there are plenty more.
 struct TonightEmptyState: View {
-    var onBrowseRecs: () -> Void = {}
+    var onSwipe: () -> Void = {}
 
     var body: some View {
         HairlineCard {
@@ -251,11 +251,11 @@ struct TonightEmptyState: View {
                     .foregroundStyle(Theme.marquee)
                 Text("That's tonight's picks for now")
                     .font(.subheadline.weight(.bold))
-                Text("Find plenty more to watch in your Recs.")
+                Text("Keep swiping to find more to watch.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                PillButton(title: "Browse Recs", systemImage: "wand.and.stars") { onBrowseRecs() }
+                PillButton(title: "Go to Swipe", systemImage: "rectangle.stack") { onSwipe() }
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)

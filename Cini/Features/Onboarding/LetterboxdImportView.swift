@@ -621,25 +621,36 @@ struct LetterboxdImportView: View {
 
 // MARK: - Letterboxd → Cini, in one glance
 
-/// The import's promise as a picture: Letterboxd's three-dot mark, an
-/// arrow, and the Cini ticket. (The dots are drawn natively — no
-/// trademarked asset ships in the bundle.)
+/// The import's promise as a picture: the source marks (Letterboxd's three
+/// dots + Netflix's red "N"), an arrow, and the Cini ticket. (Marks are drawn
+/// natively — no trademarked asset ships in the bundle.)
 struct ImportHandoffBadge: View {
     var body: some View {
-        HStack(spacing: 14) {
-            HStack(spacing: -7) {
-                Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
-                    .frame(width: 24, height: 24)
-                Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33))
-                    .frame(width: 24, height: 24)
-                Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
-                    .frame(width: 24, height: 24)
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                // Letterboxd — the three-dot mark.
+                HStack(spacing: -6) {
+                    Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
+                        .frame(width: 20, height: 20)
+                    Circle().fill(Color(red: 0.00, green: 0.88, blue: 0.33))
+                        .frame(width: 20, height: 20)
+                    Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
+                        .frame(width: 20, height: 20)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 13)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Theme.surface))
+                // Netflix — the red "N" on black.
+                Text("N")
+                    .font(.system(size: 26, weight: .heavy))
+                    .foregroundStyle(Color(red: 0.90, green: 0.09, blue: 0.16))
+                    .frame(width: 46, height: 46)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(.black))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Theme.surface))
 
             Image(systemName: "arrow.right")
                 .font(.headline.weight(.bold))
@@ -656,6 +667,6 @@ struct ImportHandoffBadge: View {
                         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .strokeBorder(Theme.marquee.opacity(0.55), lineWidth: 1)))
         }
-        .accessibilityLabel("Import from Letterboxd into Cini")
+        .accessibilityLabel("Import from Letterboxd or Netflix into Cini")
     }
 }
