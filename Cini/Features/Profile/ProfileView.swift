@@ -45,6 +45,7 @@ struct ProfileScreen: View {
     @State private var hasCounts = false
     @State private var following = false
     @State private var requested = false   // pending follow request to a private account
+    @State private var followBusy = false  // a follow/unfollow tap is in flight
     @State private var blocked = false
     @State private var reported = false
     @State private var showBlockConfirm = false
@@ -279,8 +280,14 @@ struct ProfileScreen: View {
             rankings = (try? await rankingsTask) ?? []
             let rows = (try? await supabase.movies(ids: rankings.map(\.movieId))) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }
-            following = await followingState
-            requested = await pendingState
+            // Don't let a (possibly stale) read overwrite a follow/unfollow the
+            // user just made — that race is what made follows "not stick".
+            let serverFollowing = await followingState
+            let serverPending = await pendingState
+            if !followBusy {
+                following = serverFollowing
+                requested = serverPending
+            }
             matchPct = await match
             blocked = await blockedTask.contains(id)
             let memberWatchlist = (try? await memberWatchlistTask) ?? []
@@ -591,21 +598,28 @@ struct ProfileScreen: View {
                 PillButton(title: following ? "Following" : (requested ? "Requested" : "Follow"),
                            style: (following || requested) ? .outlined : .filled) {
                     Task {
+                        // Guards a stale in-flight load() from clobbering the
+                        // state we set here (the "follow won't stick" bug).
+                        followBusy = true
+                        defer { followBusy = false }
                         do {
                             if following {
                                 following = false
                                 try await SupabaseService.shared.unfollow(id)
+                                await load()   // a private account's content re-hides
                             } else if requested {
                                 // Tap "Requested" to withdraw the request.
                                 requested = false
                                 try await SupabaseService.shared.cancelFollowRequest(id)
                             } else {
                                 // Public → follows instantly; private → pending request.
+                                // requestFollow's result is authoritative — trust it and
+                                // DON'T reload (an immediate re-read can race the write and
+                                // flip the button back to "Follow").
                                 let result = try await SupabaseService.shared.requestFollow(id)
                                 if result == "followed" { following = true }
                                 else if result == "requested" { requested = true }
                             }
-                            await load()   // visibility may have changed
                         } catch {
                             await load()   // resync to the true state on failure
                         }

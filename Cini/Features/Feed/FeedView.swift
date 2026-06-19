@@ -1127,7 +1127,9 @@ struct CommentContext {
 /// Hashable on the id alone so it can drive `navigationDestination(item:)`.
 struct CommentsLink: Identifiable, Hashable {
     let id: UUID
-    let context: CommentContext
+    /// The post header pinned atop the thread. Nil (e.g. opened from a
+    /// notification) falls back to the bare comment list.
+    var context: CommentContext? = nil
     static func == (lhs: CommentsLink, rhs: CommentsLink) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
@@ -1732,6 +1734,7 @@ struct NotificationsView: View {
     @State private var loaded = false
     @State private var detailMovie: Movie?
     @State private var memberTarget: MemberRef?
+    @State private var commentsLink: CommentsLink?
     @State private var showImport = false
     @State private var showRankSheet = false
     @State private var showRespondRecs = false
@@ -1792,6 +1795,10 @@ struct NotificationsView: View {
         }
         .navigationDestination(item: $memberTarget) { member in
             MemberProfileView(userID: member.id, username: member.username)
+        }
+        .navigationDestination(item: $commentsLink) { link in
+            CommentsSheet(eventID: link.id, context: link.context,
+                          onOpenMember: { memberTarget = $0 })
         }
         .sheet(isPresented: $showRespondRecs) {
             RespondRecSheet()
@@ -1868,6 +1875,9 @@ struct NotificationsView: View {
     private func route(_ row: NotificationRow) {
         if row.kind == "rec_request" {
             showRespondRecs = true
+        } else if (row.kind == "comment" || row.kind == "mention"), let eventId = row.eventId {
+            // Land on the actual comment thread, not just the movie page.
+            commentsLink = CommentsLink(id: eventId)
         } else if let movieId = row.movieId, let stub = row.movies {
             detailMovie = Movie(tmdbID: movieId,
                                 mediaKind: movieId < 0 ? "tv" : "movie",

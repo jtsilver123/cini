@@ -2332,6 +2332,9 @@ struct NotificationRow: Codable, Identifiable, Hashable {
     let kind: String
     let actorId: UUID?
     let movieId: Int?
+    /// The feed event the notification points at — present for like/comment/
+    /// mention, so tapping opens the right activity (and its comment thread).
+    let eventId: UUID?
     let readAt: Date?
     let createdAt: Date
     let actor: ActorProfile?
@@ -2364,6 +2367,7 @@ struct NotificationRow: Codable, Identifiable, Hashable {
         case id, kind, actor, movies, message
         case actorId = "actor_id"
         case movieId = "movie_id"
+        case eventId = "event_id"
         case readAt = "read_at"
         case createdAt = "created_at"
     }
