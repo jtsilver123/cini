@@ -463,20 +463,25 @@ struct ProfileScreen: View {
                 }
                 .padding(.top, 2)
             }
-            if let matchPct, !isSelf {
+            // Another member's profile ALWAYS shows the taste match (Beli-style).
+            // When it hasn't been computed yet (no overlap, brand-new follow),
+            // show a gentle placeholder instead of hiding it.
+            if !isSelf {
                 VStack(spacing: 6) {
-                    Text("+\(Int(matchPct))% Match")
+                    Text(matchPct.map { "+\(Int($0))% Match" } ?? "Taste match pending")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Theme.scoreGreen)
-                    Button {
-                        Haptics.tap()
-                        showMatchShare = true
-                    } label: {
-                        Label("Share match", systemImage: "square.and.arrow.up")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.marquee)
+                        .foregroundStyle(matchPct == nil ? Theme.gray : Theme.scoreGreen)
+                    if matchPct != nil {
+                        Button {
+                            Haptics.tap()
+                            showMatchShare = true
+                        } label: {
+                            Label("Share match", systemImage: "square.and.arrow.up")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
@@ -501,7 +506,11 @@ struct ProfileScreen: View {
                 stat(hasCounts ? "\(followerCount)" : "—", "Followers")
                 stat(hasCounts ? "\(followingCount)" : "—", "Following")
             }
-            // Rank on Cini lives in its own stat card below — don't show it twice.
+            // On another member's profile, Rank on Cini sits inline as a third
+            // stat (Beli-style). Your own profile keeps it in the card below.
+            if !isSelf {
+                stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
+            }
         }
     }
 
