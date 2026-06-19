@@ -9,8 +9,11 @@ import SwiftUI
 ///   2. Find your friends — contacts + invite
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
 ///   4. Stay in the loop — notifications opt-in (re-asked after the first rank)
-///   5. Rank your first movie — a poster grid of iconic titles
+///   5. Rank your first movie — a poster grid of iconic titles (required)
+///   6. Save what to watch — a swipe deck of picks based on what they ranked,
+///      teaching the swipe-to-bookmark gesture used throughout the app
 ///
+/// Finishing hands off to the one-time ProductTourView (wired in CiniApp).
 /// Shown once (per account) when an authenticated user has zero rankings.
 struct OnboardingView: View {
     @Environment(AppSession.self) private var session
@@ -41,6 +44,10 @@ struct OnboardingView: View {
     @State private var logMovie: Movie?
     @State private var notifsEnabled = false
     @State private var showNotifReask = false
+    /// Personalized picks for the post-rank "save what to watch" tutorial,
+    /// built from the title they just ranked (similar + trending fallback).
+    @State private var recCandidates: [YourListsView.RecCandidate] = []
+    @State private var recsLoaded = false
     /// The founder everyone auto-follows — introduced on the "You're in!" screen
     /// (Beli's "Judy"). Fetched so the avatar/name stay accurate.
     @State private var founder: Profile?
@@ -152,7 +159,7 @@ struct OnboardingView: View {
     }
 
     /// A back chevron (so a typo'd name/username is fixable) above the
-    /// progress segments for the five data steps (1–5).
+    /// progress segments for the six data steps (1–6).
     private var topBar: some View {
         VStack(spacing: 12) {
             HStack {
@@ -168,7 +175,7 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 12)
             HStack(spacing: 6) {
-                ForEach(1..<6, id: \.self) { index in
+                ForEach(1..<7, id: \.self) { index in
                     Capsule()
                         .fill(index <= step ? Theme.gold : Theme.fill)
                         .frame(height: 4)
@@ -184,13 +191,13 @@ struct OnboardingView: View {
     /// before the slide so the two animations don't fight (the "abrupt" feel).
     private func advance() {
         guard focus != nil else {
-            withAnimation(.snappy) { step = min(step + 1, 5) }
+            withAnimation(.snappy) { step = min(step + 1, 6) }
             return
         }
         focus = nil
         Task {
             try? await Task.sleep(for: .milliseconds(260))
-            withAnimation(.snappy) { step = min(step + 1, 5) }
+            withAnimation(.snappy) { step = min(step + 1, 6) }
         }
     }
 
@@ -220,7 +227,8 @@ struct OnboardingView: View {
         case 2: findFriendsStep
         case 3: importStep
         case 4: notificationsStep
-        default: firstRankStep
+        case 5: firstRankStep
+        default: recTutorialStep   // swipe picks to Want to Watch
         }
     }
 
@@ -594,19 +602,120 @@ struct OnboardingView: View {
                 }
             }
 
-            // Once they've ranked at least one, a clear "Done" finishes; until
-            // then it's a low-key skip so the grid stays the focus.
+            // Ranking the first title is required — once they've ranked one,
+            // "Continue" leads into the recommendations tutorial.
             if store.watchedCount > 0 {
-                PillButton(title: "Done · \(store.watchedCount) ranked", style: .filled) { finishOnboarding() }
+                PillButton(title: "Continue · \(store.watchedCount) ranked", style: .filled) { advance() }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 24)
+            } else if starters.isEmpty {
+                // No posters loaded (offline) — we can't make them rank from an
+                // empty grid, so let them through to explore and rank in search.
+                Button("Start exploring") { finishOnboarding() }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(.bottom, 24)
             } else {
-                Button(starters.isEmpty ? "Start exploring" : "I'll explore first") { finishOnboarding() }
+                // No skip: a gentle nudge stands in for the button until they
+                // rank their first one.
+                Label("Tap a poster to rank your first", systemImage: "hand.tap")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.gray)
                     .padding(.bottom, 24)
             }
         }
+    }
+
+    // MARK: 6 — Save what to watch (swipe deck of personalized picks)
+
+    private var recTutorialStep: some View {
+        VStack(spacing: 14) {
+            Text("Save what to watch next")
+                .font(Theme.serif(30))
+                .minimumScaleFactor(0.8)
+                .padding(.top, 24)
+            Text("Swipe right to save a pick to your Want to Watch, left to pass. This is how Cini hands you recommendations everywhere.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 30)
+
+            Spacer(minLength: 8)
+
+            if !recsLoaded {
+                ProgressView()
+            } else if recCandidates.isEmpty {
+                // Rare (offline / no posters) — don't trap them on an empty deck.
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles").font(.title).foregroundStyle(Theme.gray)
+                    Text("More picks once you've ranked a few")
+                        .font(.subheadline.weight(.semibold))
+                    Text("As you rank, Cini learns your taste and starts suggesting what to watch.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center).padding(.horizontal, 36)
+                }
+            } else {
+                // The shared swipe deck — its built-in practice cards teach the
+                // gesture first, then real picks follow.
+                RecCardDeck(
+                    candidates: recCandidates,
+                    onOpen: { _ in },
+                    onLog: { logMovie = $0 },
+                    onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
+                    onUnsave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
+                    onRefresh: { Task { await loadOnboardingRecs(force: true) } }
+                )
+                .padding(.horizontal, 20)
+            }
+
+            Spacer(minLength: 8)
+
+            PillButton(title: "Done", style: .filled) { finishOnboarding() }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 24)
+        }
+        .task { await loadOnboardingRecs() }
+    }
+
+    /// Build the post-rank picks from the title they just ranked: titles
+    /// similar to their current #1, topped up with this week's trending.
+    private func loadOnboardingRecs(force: Bool = false) async {
+        if force { recCandidates = []; recsLoaded = false }
+        guard recCandidates.isEmpty else { return }
+
+        let topID = store.watchedItems.first?.id
+        var pending: [(id: Int, reason: String)] = []
+        var seen = Set<Int>()
+
+        if let topID, let similar = try? await TMDBService.shared.similar(to: topID) {
+            let topTitle = store.movie(topID)?.title ?? "your favorite"
+            for movie in similar.prefix(12)
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+                store.cache(movie)
+                pending.append((movie.tmdbID, "Because you liked \(topTitle)"))
+            }
+        }
+        if pending.count < 8, let trending = try? await TMDBService.shared.trending() {
+            for movie in trending.prefix(12)
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+                store.cache(movie)
+                pending.append((movie.tmdbID, "Trending this week"))
+            }
+        }
+
+        // Enrich posters/overview before showing the cards.
+        await withTaskGroup(of: Void.self) { group in
+            for id in pending.prefix(10).map(\.id) {
+                group.addTask { await store.enrich(id) }
+            }
+        }
+
+        recCandidates = pending.compactMap { candidate in
+            store.movie(candidate.id).map {
+                YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
+            }
+        }
+        recsLoaded = true
     }
 }
 
