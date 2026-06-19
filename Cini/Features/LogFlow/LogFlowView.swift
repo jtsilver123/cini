@@ -377,12 +377,22 @@ struct LogFlowView: View {
                     progressStepper("Season", value: $swSeason, min: 1, max: 50)
                     progressStepper("Episode", value: $swEpisode, min: 1, max: 200)
                     Button {
-                        saveStillWatching()
+                        saveStillWatching(caughtUp: false)
                     } label: {
                         Text("Add to Currently Watching")
                             .font(.subheadline.weight(.bold)).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
                             .background(Capsule().fill(Theme.velvet))
+                    }
+                    .buttonStyle(.plain)
+                    // Always available: they're current on everything that's
+                    // aired and just waiting on the next episode.
+                    Button {
+                        saveStillWatching(caughtUp: true)
+                    } label: {
+                        Label("I'm all caught up", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
                     }
                     .buttonStyle(.plain)
                 }
@@ -420,16 +430,19 @@ struct LogFlowView: View {
 
     /// Mark the show as currently watching at the chosen spot and close —
     /// reuses the same RPC + cache reconciliation as the Currently-Watching card.
-    private func saveStillWatching() {
+    /// `caughtUp` flags that they're current on everything aired (waiting on the
+    /// next episode), which lets friends see the "all caught up" beat.
+    private func saveStillWatching(caughtUp: Bool) {
         Haptics.success()
         let s = swSeason, e = swEpisode
         Task {
             do {
                 try await SupabaseService.shared.cacheMovie(movie)   // FK needs the show cached
                 try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID,
-                                                                 season: s, episode: e)
+                                                                 season: s, episode: e,
+                                                                 caughtUp: caughtUp)
                 store.watchlistSuperseded(movieID: movie.tmdbID)
-                ToastCenter.shared.show("Added to Currently Watching 📺")
+                ToastCenter.shared.show(caughtUp ? "All caught up 📺" : "Added to Currently Watching 📺")
             } catch {
                 ToastCenter.shared.saveFailed()
             }

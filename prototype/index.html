@@ -922,7 +922,6 @@ function renderLists(){
     ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
       <button class="iconbtn" onclick="openFilters()" aria-label="Filters and sort" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:8px;">${I("sliders",18)}</button>
       <div class="row-scroll" style="flex:1; margin:0;">${["Streaming","Genre","Runtime","Decade"].map(p=>`<button class="pill out" onclick="openFilters()">${p}</button>`).join("")}</div>
-      <button class="iconbtn" style="flex:0 0 auto;" onclick="S.ui.showSearch=!S.ui.showSearch; if(!S.ui.showSearch)S.ui.listQ=''; save(); render()" aria-label="Search this list">${I("search",18)}</button>
     </div>`:""}
     ${S.ui.showSearch?`<div class="pad" style="margin-top:10px;">
       <div class="searchfield">${I("search",16)}<input id="listQ" placeholder="Search this list" value="${esc(S.ui.listQ)}" oninput="S.ui.listQ=this.value; save(); renderListsKeepFocus()"></div>
@@ -2010,7 +2009,8 @@ function logCards(){
           <div class="sub" style="font-size:12px; font-weight:600;">Where are you?</div>
           ${swRow("Season","s")}
           ${swRow("Episode","e")}
-          <button class="pill" style="justify-content:center; padding:12px;" onclick="saveStillWatching()">Add to Currently Watching</button>
+          <button class="pill" style="justify-content:center; padding:12px;" onclick="saveStillWatching(false)">Add to Currently Watching</button>
+          <button style="border:none; background:none; color:var(--marquee); font-weight:600; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; justify-content:center;" onclick="saveStillWatching(true)">${I("check",15)} I'm all caught up</button>
         </div>`:""}
       </div>`;
   }
@@ -2098,13 +2098,13 @@ function logCards(){
   return html;
 }
 function refreshLog(){ const el=$("logStack"); if(el){ el.innerHTML=logCards(); el.lastElementChild?.scrollIntoView({behavior:"smooth", block:"end"}); } }
-function saveStillWatching(){
+function saveStillWatching(caughtUp){
   buzz();
   const k=log.k;
   if(!S.watching) S.watching=[];
-  if(!S.watching.some(w=>w.k===k)) S.watching.unshift({k, s:log.sw.s, e:log.sw.e});
+  if(!S.watching.some(w=>w.k===k)) S.watching.unshift({k, s:log.sw.s, e:log.sw.e, caughtUp:!!caughtUp});
   S.queue=S.queue.filter(q=>q!==k);   // it's no longer just "want to watch"
-  save(); closeLog(); toast("Added to Currently Watching");
+  save(); closeLog(); toast(caughtUp ? "All caught up" : "Added to Currently Watching");
 }
 function pickBucket(b){
   if(!log || log.stage==="compare" || log.stage==="result") return;

@@ -644,27 +644,11 @@ struct YourListsView: View {
 
     /// The filter icon sits inline at the head of the quick filter pills
     /// (Streaming · Genre · Runtime · Decade) and opens the full filter + sort
-    /// sheet; the search toggle trails the row. Mirrors the Recs page.
+    /// sheet. (Search lives in the ⋯ menu, so it doesn't fight the scroll row.)
     private var filterBar: some View {
-        HStack(spacing: 6) {
-            MovieFilterBar(filters: filtersBinding,
-                           movies: Array(store.movies.values),
-                           onFilterTap: { showFilterSheet = true })
-            Button {
-                withAnimation(.snappy) {
-                    showListSearch.toggle()
-                    if !showListSearch { listQuery = "" }
-                }
-            } label: {
-                Image(systemName: "magnifyingglass").foregroundStyle(Theme.ink)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Search this list")
-            .padding(.trailing, Theme.screenH)
-        }
-        // MovieFilterBar already carries its own vertical padding; just a small
-        // bottom gap so the "you may have seen" card sits cleanly beneath it.
-        .padding(.bottom, 2)
+        MovieFilterBar(filters: filtersBinding,
+                       movies: Array(store.movies.values),
+                       onFilterTap: { showFilterSheet = true })
     }
 
     // MARK: - Content
@@ -676,6 +660,9 @@ struct YourListsView: View {
             .frame(height: 0)
             .listRowBackground(Theme.background)
             .listRowSeparator(.hidden)
+            // Zero insets so the anchor truly takes no space — default row
+            // insets would otherwise leave a ~22pt gap above the first card.
+            .listRowInsets(EdgeInsets())
             .id("listsTop")
     }
 

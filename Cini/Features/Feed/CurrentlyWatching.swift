@@ -354,6 +354,17 @@ struct WatchingControl: View {
                     }
                     .buttonStyle(.plain)
                 }
+            } else {
+                // Episode structure hasn't loaded — still offer "all caught up"
+                // (flag current at where they are) so it's available regardless.
+                Button {
+                    Haptics.tap(); save(caughtUp: true)
+                } label: {
+                    Label("I'm all caught up", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain)
             }
             // A clearly-labeled remove (the old "Stop" was ambiguous). For an
             // ended show, "I finished it" above already removes it — don't show
