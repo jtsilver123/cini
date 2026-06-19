@@ -233,3 +233,29 @@ struct TonightStack: View {
         }
     }
 }
+
+/// Shown in the Tonight's Pick slot once the deck is cleared (dismissed all or
+/// ranked through) — a deep link to the Recs list, where there are plenty more.
+struct TonightEmptyState: View {
+    var onBrowseRecs: () -> Void = {}
+
+    var body: some View {
+        HairlineCard {
+            VStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.title2)
+                    .foregroundStyle(Theme.marquee)
+                Text("That's tonight's picks for now")
+                    .font(.subheadline.weight(.bold))
+                Text("Find plenty more to watch in your Recs.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                PillButton(title: "Browse Recs", systemImage: "wand.and.stars") { onBrowseRecs() }
+                    .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+        }
+    }
+}

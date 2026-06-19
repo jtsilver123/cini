@@ -28,6 +28,9 @@ struct FeedView: View {
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
+    // Once the whole deck is cleared (dismissed or ranked through), suppress new
+    // Tonight's Picks for 24h and show the "find more in Recs" empty state.
+    @AppStorage("tonight.suppressedUntil") private var tonightSuppressedUntil = 0.0
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
@@ -110,7 +113,7 @@ struct FeedView: View {
                     onCommentCountChange: { commentCountOverrides[link.id] = $0 }
                 )
             }
-            .fullScreenCover(item: $logMovie) { movie in
+            .fullScreenCover(item: $logMovie, onDismiss: { clearRankedTonightCards() }) { movie in
                 LogFlowView(movie: movie)
             }
             .sheet(isPresented: $showMenuImport) {
@@ -375,6 +378,14 @@ struct FeedView: View {
                 // it drawn above the rows below — otherwise "Ask friends for a
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
+            } else if tonightCleared {
+                // Ran out / dismissed everything → deep-link to the Recs list,
+                // where there are plenty more to pick from.
+                TonightEmptyState {
+                    tabRouter.pendingListsTab = .recs
+                    tabRouter.selection = .lists
+                }
+                .padding(.top, 2)
             }
 
             askForRecsRow
@@ -515,9 +526,17 @@ struct FeedView: View {
     /// Load several Tonight's Pick candidates and keep up to three that are
     /// actually streamable (with the service to show on the card). Skips picks
     /// already dismissed today.
+    /// True while Tonight's Picks are suppressed (the user cleared the deck
+    /// within the last 24h) — drives the deep-link empty state.
+    private var tonightCleared: Bool {
+        Date().timeIntervalSince1970 < tonightSuppressedUntil
+    }
+
     private func loadTonightStack(force: Bool = false) async {
-        // Lazy on the .task path; a manual pull-to-refresh forces a rebuild so
-        // dismissing all picks isn't permanent until an app relaunch.
+        // Cleared the deck in the last 24h? Stay empty (the empty state shows),
+        // even on a manual refresh — no new picks until the window passes.
+        if tonightCleared { tonightCards = []; return }
+        // Lazy on the .task path; a manual pull-to-refresh forces a rebuild.
         guard force || tonightCards.isEmpty,
               let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty
         else { return }
@@ -558,7 +577,19 @@ struct FeedView: View {
         tonightDismissedDate = todayKey()
         tonightDismissedIDs = set.map(String.init).joined(separator: ",")
         withAnimation(.snappy) { tonightCards.removeAll { $0.id == id } }
+        // Cleared the whole deck → hold off on new picks for 24h.
+        if tonightCards.isEmpty {
+            tonightSuppressedUntil = Date().timeIntervalSince1970 + 24 * 60 * 60
+        }
         if toast { ToastCenter.shared.show("Dismissed that rec") }
+    }
+
+    /// After the rank flow closes, drop any Tonight's Pick that just got ranked
+    /// (you've now seen it) — bullet 1 of the deck's behavior.
+    private func clearRankedTonightCards() {
+        for card in tonightCards where store.isWatched(card.movie.tmdbID) {
+            dismissTonight(card.id, toast: false)
+        }
     }
 
     /// Swipe right on a Tonight's Pick → save it to Want to Watch and clear it
