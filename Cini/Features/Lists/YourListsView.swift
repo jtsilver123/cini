@@ -957,7 +957,7 @@ struct YourListsView: View {
     private var maybeSeenBar: some View {
         Button {
             Haptics.tap()
-            showMaybeSeen = true
+            tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "sparkle.magnifyingglass")
