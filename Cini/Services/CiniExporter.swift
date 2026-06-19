@@ -1,11 +1,17 @@
 import Foundation
 
-/// Exports the user's Cini data as CSVs in the column format Letterboxd's
-/// importer accepts (letterboxd.com/about/importing-data): Title, Year,
-/// tmdbID (exact matching on their side), Rating10, WatchedDate. Scores
-/// snap to Letterboxd's half-point scale. Watchlist ships as a second
-/// file for their watchlist importer.
+/// Exports the user's Cini data as CSVs: a Watched file (Title, Year, Type,
+/// tmdbID, Rating10, WatchedDate) and a Want-to-Watch file (Title, Year, Type,
+/// tmdbID). Columns stay compatible with Letterboxd's importer
+/// (letterboxd.com/about/importing-data), which ignores the extra Type column;
+/// Type ("Movie" / "TV Show") lets the data round-trip into Cini, where shows
+/// are first-class. Scores snap to Letterboxd's half-point scale.
 enum CiniExporter {
+
+    /// "Movie" or "TV Show" — Cini treats both equally, so the export labels it.
+    private static func typeLabel(_ movie: Movie) -> String {
+        movie.mediaKind == "tv" ? "TV Show" : "Movie"
+    }
 
     @MainActor
     static func makeLetterboxdFiles(store: RankingStore) async throws -> [URL] {
@@ -26,7 +32,7 @@ enum CiniExporter {
         var urls: [URL] = []
 
         // Watched: best first, scores mapped to Letterboxd's 0.5–10 scale.
-        var watched = "Title,Year,tmdbID,Rating10,WatchedDate\n"
+        var watched = "Title,Year,Type,tmdbID,Rating10,WatchedDate\n"
         for row in rankings.sorted(by: { $0.score > $1.score }) {
             guard let movie = movies[row.movieId] else { continue }
             let rating = max(0.5, (row.score * 2).rounded() / 2)
@@ -37,6 +43,7 @@ enum CiniExporter {
                 ?? ISO8601DateFormatter.dateOnly.string(from: row.createdAt)
             watched += line([movie.title,
                              movie.releaseYear.map(String.init) ?? "",
+                             typeLabel(movie),
                              String(movie.tmdbID),
                              ratingText,
                              date])
@@ -45,36 +52,17 @@ enum CiniExporter {
             urls.append(try write(watched, name: "cini-watched.csv"))
         }
 
-        // Watchlist: same columns minus rating/date.
+        // Want to Watch: same columns minus rating/date.
         if !store.watchlist.isEmpty {
-            var watchlist = "Title,Year,tmdbID\n"
+            var watchlist = "Title,Year,Type,tmdbID\n"
             for item in store.watchlist {
                 guard let movie = movies[item.movieID] else { continue }
                 watchlist += line([movie.title,
                                    movie.releaseYear.map(String.init) ?? "",
+                                   typeLabel(movie),
                                    String(movie.tmdbID)])
             }
             urls.append(try write(watchlist, name: "cini-watchlist.csv"))
-        }
-
-        // Diary: every watch and rewatch with its date — round-trips with
-        // the importer's diary handling.
-        if let watches: [WatchRow] = try? await SupabaseService.shared.watches(of: me),
-           !watches.isEmpty {
-            var diary = "Title,Year,tmdbID,WatchedDate\n"
-            let diaryMissing = watches.map(\.movieId).filter { movies[$0] == nil }
-            if !diaryMissing.isEmpty,
-               let rows = try? await SupabaseService.shared.movies(ids: diaryMissing) {
-                for row in rows { movies[row.tmdbId] = row.asMovie }
-            }
-            for watch in watches.sorted(by: { $0.watchedOn < $1.watchedOn }) {
-                guard let movie = movies[watch.movieId] else { continue }
-                diary += line([movie.title,
-                               movie.releaseYear.map(String.init) ?? "",
-                               String(movie.tmdbID),
-                               watch.watchedOn])
-            }
-            urls.append(try write(diary, name: "cini-diary.csv"))
         }
 
         // Reviews: your public notes, one row per film.
