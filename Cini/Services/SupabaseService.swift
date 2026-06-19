@@ -582,6 +582,23 @@ final class SupabaseService {
         _ = try await client.from("direct_recs").delete().eq("id", value: id).execute()
     }
 
+    /// Pass on a friend's rec, optionally telling them why — dismisses the rec
+    /// and (when a message is given) notifies the sender. (CIN-36)
+    @discardableResult
+    func passDirectRec(id: UUID, message: String?) async -> Bool {
+        struct Params: Encodable { let p_rec_id: UUID; let p_message: String? }
+        let trimmed = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            return try await client.rpc(
+                "pass_direct_rec",
+                params: Params(p_rec_id: id, p_message: (trimmed?.isEmpty == false) ? trimmed : nil)
+            ).execute().value
+        } catch {
+            Self.logSwallowed("pass_direct_rec", error)
+            return false
+        }
+    }
+
     // MARK: - Rec requests (ask friends for a rec)
 
     /// Returns how many friends were actually asked (the RPC skips
@@ -2292,6 +2309,7 @@ struct NotificationRow: Codable, Identifiable, Hashable {
     let createdAt: Date
     let actor: ActorProfile?
     let movies: MovieStub?
+    var message: String?   // free text for kinds that carry it (e.g. rec_passed)
 
     struct ActorProfile: Codable, Hashable {
         let username: String
@@ -2316,7 +2334,7 @@ struct NotificationRow: Codable, Identifiable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, actor, movies
+        case id, kind, actor, movies, message
         case actorId = "actor_id"
         case movieId = "movie_id"
         case readAt = "read_at"

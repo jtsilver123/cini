@@ -39,6 +39,10 @@ struct YourListsView: View {
     @State private var showImport = false
     @State private var directRecs: [DirectRecRow] = []
     @State private var directRecsLoaded = false
+    // Friend Recs default to the swipe-card view (CIN-36); List stays available.
+    @AppStorage("friendRecs.cardMode") private var friendRecsCardMode = true
+    // A friend rec being passed — drives the optional "tell them why" sheet.
+    @State private var passingRec: DirectRecRow?
     @State private var showRecPicker = false
     // Custom lists live as tabs beside the defaults; defaults can be
     // hidden from Edit Lists (Watched/Want to Watch always stay).
@@ -439,6 +443,81 @@ struct YourListsView: View {
 
     /// Direct recommendations friends sent you — all of them live here.
     private var friendRecsList: some View {
+        VStack(spacing: 0) {
+            Picker("View", selection: $friendRecsCardMode) {
+                Text("Cards").tag(true)
+                Text("List").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+
+            if friendRecsCardMode { friendRecsCards } else { friendRecsAsList }
+        }
+        .task {
+            directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
+            directRecsLoaded = true
+            let ids = directRecs.compactMap { $0.movies?.asMovie.tmdbID }
+            let map = await SupabaseService.shared.predictedScores(movieIDs: ids)
+            predicted.merge(map) { _, new in new }
+        }
+        // Passing a friend's card → optionally tell them why (CIN-36).
+        .sheet(item: $passingRec) { rec in
+            PassRecMessageSheet(rec: rec) { message in
+                await SupabaseService.shared.passDirectRec(id: rec.id, message: message)
+            }
+        }
+    }
+
+    private var friendRecsCards: some View {
+        Group {
+            if !directRecsLoaded {
+                SearchSkeleton(kind: .titles, rows: 3).padding(.horizontal, 16)
+            } else if directRecs.isEmpty {
+                friendRecsEmptyState
+            } else {
+                FriendRecDeck(
+                    recs: directRecs,
+                    onOpen: { store.cache($0); detailMovie = $0 },
+                    onLog: { logMovie = $0 },
+                    onSave: { m in
+                        if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                    },
+                    onUnsave: { m in
+                        if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                    },
+                    onPass: { passingRec = $0 }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var friendRecsEmptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
+            Text("No recs from friends yet").font(.subheadline.weight(.semibold))
+            Text("When a friend taps Recommend on a title and picks you, it lands here with their note.")
+                .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
+            HStack(spacing: 10) {
+                PillButton(title: "Find friends", systemImage: "person.badge.plus") {
+                    tabRouter.openMembersSearch = true
+                    tabRouter.selection = .search
+                }
+                PillButton(title: "Send a rec", systemImage: "paperplane", style: .outlined) {
+                    showRecPicker = true
+                }
+            }
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .padding(.horizontal, 24)
+    }
+
+    private var friendRecsAsList: some View {
         List {
             if !directRecsLoaded {
                 SearchSkeleton(kind: .titles, rows: 5)
@@ -521,13 +600,6 @@ struct YourListsView: View {
             }
         }
         .listStyle(.plain)
-        .task {
-            directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
-            directRecsLoaded = true
-            let ids = directRecs.compactMap { $0.movies?.asMovie.tmdbID }
-            let map = await SupabaseService.shared.predictedScores(movieIDs: ids)
-            predicted.merge(map) { _, new in new }
-        }
     }
 
     private var listSearchField: some View {

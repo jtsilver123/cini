@@ -213,3 +213,181 @@ struct RecCardDeck: View {
         withAnimation(.snappy) { index = last.index; drag = .zero; flyOff = 0 }
     }
 }
+
+/// CIN-36: the same swipe deck for Friend Recs. Swipe right to save to Want to
+/// Watch, left to pass — passing lets you (optionally) tell the friend why,
+/// handled by the parent via `onPass`. Undo brings back the last *saved* card.
+struct FriendRecDeck: View {
+    let recs: [DirectRecRow]
+    var onOpen: (Movie) -> Void = { _ in }
+    var onLog: (Movie) -> Void = { _ in }
+    var onSave: (Movie) -> Void = { _ in }
+    var onUnsave: (Movie) -> Void = { _ in }
+    /// Passed a card — the parent presents the "tell them why?" sheet.
+    var onPass: (DirectRecRow) -> Void = { _ in }
+
+    @State private var index = 0
+    @State private var drag: CGSize = .zero
+    @State private var flyOff: CGFloat = 0
+    @State private var lastSaved: (index: Int, movie: Movie)?
+
+    private func reason(_ rec: DirectRecRow) -> String {
+        let who = firstName(rec.profiles?.displayName, rec.profiles?.username) ?? "A friend"
+        if let note = rec.note, !note.isEmpty { return "\(who): \(note)" }
+        return "\(who) thinks you'll love this"
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            if index >= recs.count {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle").font(.largeTitle).foregroundStyle(Theme.gray)
+                    Text("You're all caught up").font(.subheadline.weight(.bold))
+                    Text("No more friend recs to go through right now.")
+                        .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity).frame(height: 232)
+            } else {
+                ZStack {
+                    if index + 1 < recs.count, let next = recs[index + 1].movies?.asMovie {
+                        TonightPickCard(movie: next, reason: reason(recs[index + 1]),
+                                        service: nil, showTonightBadge: false)
+                            .scaleEffect(0.96).offset(y: 12).zIndex(0)
+                    }
+                    if let movie = recs[index].movies?.asMovie {
+                        TonightPickCard(movie: movie, reason: reason(recs[index]),
+                                        service: nil, showTonightBadge: false,
+                                        dragX: drag.width + flyOff,
+                                        onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
+                            .offset(x: drag.width + flyOff, y: drag.height)
+                            .rotationEffect(.degrees(Double(drag.width + flyOff) / 22))
+                            .zIndex(1)
+                            .gesture(
+                                DragGesture()
+                                    .onChanged { drag = $0.translation }
+                                    .onEnded { v in
+                                        if v.translation.width > 100 { act(save: true) }
+                                        else if v.translation.width < -100 { act(save: false) }
+                                        else { withAnimation(.snappy) { drag = .zero } }
+                                    }
+                            )
+                            .animation(.snappy, value: drag)
+                    }
+                }
+                .frame(height: 232)
+            }
+            controls
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 28) {
+            Button { undo() } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(lastSaved == nil ? Theme.gray.opacity(0.4) : Theme.gold)
+                    .frame(width: 46, height: 46).background(Circle().fill(Theme.fill))
+            }
+            .buttonStyle(.plain).disabled(lastSaved == nil).accessibilityLabel("Undo")
+
+            Button { act(save: false) } label: {
+                Image(systemName: "xmark").font(.title.weight(.bold)).foregroundStyle(.white)
+                    .frame(width: 62, height: 62).background(Circle().fill(Theme.scoreRed))
+                    .shadow(color: Theme.scoreRed.opacity(0.4), radius: 8, y: 3)
+            }
+            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Pass")
+
+            Button { act(save: true) } label: {
+                Image(systemName: "heart.fill").font(.title.weight(.bold)).foregroundStyle(.white)
+                    .frame(width: 62, height: 62).background(Circle().fill(Theme.scoreGreen))
+                    .shadow(color: Theme.scoreGreen.opacity(0.4), radius: 8, y: 3)
+            }
+            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Save to Want to Watch")
+        }
+    }
+
+    private func act(save: Bool) {
+        guard index < recs.count else { return }
+        Haptics.tap()
+        let rec = recs[index]
+        if save {
+            if let movie = rec.movies?.asMovie {
+                onSave(movie)
+                lastSaved = (index, movie)
+                ToastCenter.shared.show("Saved to Want to Watch ✓")
+            }
+        } else {
+            lastSaved = nil
+            onPass(rec)   // parent collects the optional "why" + dismisses
+        }
+        withAnimation(.easeIn(duration: 0.28)) { flyOff = save ? 700 : -700 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(260))
+            index += 1; drag = .zero; flyOff = 0
+        }
+    }
+
+    private func undo() {
+        guard let saved = lastSaved else { return }
+        onUnsave(saved.movie)
+        withAnimation(.snappy) { index = saved.index; drag = .zero; flyOff = 0 }
+        lastSaved = nil
+    }
+}
+
+/// CIN-36: after passing on a friend's rec, optionally tell them why. The
+/// closure is called exactly once (Send, Skip, or swipe-to-dismiss) so the
+/// pass always commits server-side.
+struct PassRecMessageSheet: View {
+    let rec: DirectRecRow
+    var onCommit: (String?) async -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var message = ""
+    @State private var committed = false
+
+    private var who: String {
+        firstName(rec.profiles?.displayName, rec.profiles?.username) ?? "your friend"
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Not your thing?").font(Theme.serif(26)).foregroundStyle(Theme.ink)
+                Text("Optionally let \(who) know why you passed — they'll get a quick note.")
+                    .font(.subheadline).foregroundStyle(Theme.gray)
+                TextField("e.g. seen it already, not in the mood for horror…",
+                          text: $message, axis: .vertical)
+                    .lineLimit(2...4)
+                    .padding(12)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.fill))
+                Spacer()
+                PillButton(title: "Send to \(who)", systemImage: "paperplane") { commit(message) }
+                    .frame(maxWidth: .infinity)
+                    .disabled(message.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Pass without a note") { commit(nil) }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(20)
+            .background(Theme.background)
+            .navigationTitle("Pass on this")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+        // Swiped away without choosing → still commit the pass (no message).
+        .onDisappear { if !committed { committed = true; Task { await onCommit(nil) } } }
+    }
+
+    private func commit(_ text: String?) {
+        guard !committed else { return }
+        committed = true
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task { await onCommit(trimmed?.isEmpty == false ? trimmed : nil) }
+        if let trimmed, !trimmed.isEmpty {
+            ToastCenter.shared.show("Let \(who) know — thanks for the feedback")
+        }
+        dismiss()
+    }
+}

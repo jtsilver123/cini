@@ -1754,6 +1754,10 @@ struct NotificationsView: View {
             .buttonStyle(.plain)
             VStack(alignment: .leading, spacing: 3) {
                 Text(headline(row)).font(.subheadline).lineLimit(3)
+                if let message = row.message, !message.isEmpty {
+                    Text("“\(message)”").font(.subheadline).italic()
+                        .foregroundStyle(Theme.ink.opacity(0.9)).lineLimit(3)
+                }
                 Text(row.createdAt.formatted(.relative(presentation: .named)))
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
@@ -1833,6 +1837,7 @@ struct NotificationsView: View {
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
+        case "rec_passed": text = "**\(who)** passed on **\(movie)** you recommended"
         case "mention": text = "**\(who)** mentioned you in a comment on **\(movie)**"
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
         case "friend_watching": text = "**\(who)** started watching **\(movie)** — you're watching it too 📺"

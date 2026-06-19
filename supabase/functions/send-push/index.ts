@@ -119,6 +119,8 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `@${actor} is all caught up on ${movie ?? "a show you're watching"} 🎉`;
     case "mention":
       return `@${actor} mentioned you in a comment on ${movie ?? "a movie"} 💬`;
+    case "rec_passed":
+      return `@${actor} passed on ${movie ?? "a rec"} you recommended`;
     default: return `@${actor} did something new on Cini`;
   }
 }
@@ -132,7 +134,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: n } = await supabase
       .from("notifications")
-      .select("id, recipient_id, kind, movie_id, actor_id, actor:profiles!notifications_actor_id_fkey(username, display_name), movies(title)")
+      .select("id, recipient_id, kind, movie_id, actor_id, message, actor:profiles!notifications_actor_id_fkey(username, display_name), movies(title)")
       .eq("id", notification_id)
       .maybeSingle();
     if (!n) return new Response("unknown notification", { status: 404 });
@@ -158,11 +160,14 @@ Deno.serve(async (req: Request) => {
     const uname = (n.actor as any)?.username ?? "someone";
     const dname = (n.actor as any)?.display_name;
     const name = (dname && dname.length) ? dname : `@${uname}`;
+    // Append a free-text message (e.g. why they passed on a rec) to the body.
+    let alertBody = headline(n.kind, uname, name, (n.movies as any)?.title ?? null);
+    if ((n as any).message) alertBody += `: “${(n as any).message}”`;
     const body = {
       aps: {
         alert: {
           title: "Cini",
-          body: headline(n.kind, uname, name, (n.movies as any)?.title ?? null),
+          body: alertBody,
         },
         badge: count ?? 1,
         sound: "default",
