@@ -2022,6 +2022,13 @@ struct FriendScoreRow: Codable, Identifiable, Hashable {
     let note: String?
     var containsSpoilers: Bool? = false
     let rankedAt: Date
+    // The ranking's feed event + counts, so the Friends wall is reactable
+    // (CIN-40). `isSelf` marks the caller's own ranking.
+    var eventId: UUID?
+    var likeCount: Int = 0
+    var commentCount: Int = 0
+    var likedByMe: Bool = false
+    var isSelf: Bool = false
 
     var id: UUID { userId }
 
@@ -2032,6 +2039,11 @@ struct FriendScoreRow: Codable, Identifiable, Hashable {
         case avatarUrl = "avatar_url"
         case containsSpoilers = "contains_spoilers"
         case rankedAt = "ranked_at"
+        case eventId = "event_id"
+        case likeCount = "like_count"
+        case commentCount = "comment_count"
+        case likedByMe = "liked_by_me"
+        case isSelf = "is_self"
     }
 }
 

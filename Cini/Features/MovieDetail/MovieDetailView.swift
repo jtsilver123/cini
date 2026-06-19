@@ -875,8 +875,21 @@ struct MovieDetailView: View {
                         .foregroundStyle(Theme.gray)
                 }
                 ForEach(friends) { friend in
-                    FriendThinkRow(friend: friend) { tapped in
-                        memberTarget = MemberRef(id: tapped.userId, username: tapped.username)
+                    // Reactable feed-style card when the ranking has an event
+                    // (CIN-40); older rankings without one fall back to the row.
+                    if let event = feedEvent(from: friend) {
+                        FeedCard(
+                            event: event,
+                            initiallyLiked: friend.likedByMe,
+                            onOpenMember: { memberTarget = $0 },
+                            onOpenComments: { ev, ctx in
+                                commentsTarget = CommentsTarget(id: ev.id, context: ctx)
+                            }
+                        )
+                    } else {
+                        FriendThinkRow(friend: friend) { tapped in
+                            memberTarget = MemberRef(id: tapped.userId, username: tapped.username)
+                        }
                     }
                     Divider()
                 }
@@ -922,6 +935,29 @@ struct MovieDetailView: View {
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    /// Same as above but for a friend's ranking, so the Friends wall is also
+    /// reactable and shows your own ranking (CIN-40).
+    private func feedEvent(from friend: FriendScoreRow) -> FeedEventRow? {
+        guard let eventId = friend.eventId else { return nil }
+        let row = MovieRow(
+            tmdbId: movie.tmdbID, mediaKind: movie.mediaKind, title: movie.title,
+            releaseYear: movie.releaseYear, posterPath: movie.posterPath,
+            backdropPath: movie.backdropPath, genres: movie.genres,
+            certification: movie.certification, runtimeMinutes: movie.runtimeMinutes,
+            director: movie.director, overview: movie.overview)
+        return FeedEventRow(
+            id: eventId, userId: friend.userId, eventType: "ranked",
+            movieId: movie.tmdbID, createdAt: friend.rankedAt,
+            payload: .init(score: friend.score),
+            profiles: .init(username: friend.username, displayName: friend.displayName,
+                            avatarUrl: friend.avatarUrl),
+            movies: row,
+            likes: [.init(count: friend.likeCount)],
+            comments: [.init(count: friend.commentCount)],
+            note: friend.note,
+            noteContainsSpoilers: friend.containsSpoilers ?? false)
     }
 
     /// Build a feed-style event from a public note so the "What people think"
