@@ -22,6 +22,9 @@ struct OnboardingView: View {
     var onFinished: () -> Void
 
     @State private var step = 0
+    /// True while a back-navigation is animating, so the step transition slides
+    /// the opposite way (new step in from the left, old out to the right).
+    @State private var navBack = false
     @State private var showFindFriends = false
     @State private var showSkipFriendsNudge = false
     @State private var username = ""
@@ -100,8 +103,8 @@ struct OnboardingView: View {
                 .id(step)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)))
+                    insertion: .move(edge: navBack ? .leading : .trailing).combined(with: .opacity),
+                    removal: .move(edge: navBack ? .trailing : .leading).combined(with: .opacity)))
         }
         .animation(.snappy, value: step)
         .nativeContentWidth()
@@ -191,6 +194,7 @@ struct OnboardingView: View {
     /// Advance a step. If the keyboard is up, lower it first and let it settle
     /// before the slide so the two animations don't fight (the "abrupt" feel).
     private func advance() {
+        navBack = false
         guard focus != nil else {
             withAnimation(.snappy) { step = min(step + 1, 6) }
             return
@@ -204,6 +208,7 @@ struct OnboardingView: View {
 
     private func goBack() {
         focus = nil
+        navBack = true
         withAnimation(.snappy) { step = max(step - 1, 0) }
     }
 
