@@ -951,18 +951,16 @@ struct FeedCard: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // Bold, tappable name + the rest of the sentence. Only the
-                    // name routes to the profile; the rest falls through to the
-                    // card tap (open movie).
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
-                        Button { openActor() } label: {
-                            Text(actorName).bold().foregroundStyle(Theme.ink)
-                        }
-                        .buttonStyle(.plain)
-                        headlineRest.foregroundStyle(Theme.ink)
-                    }
-                    .font(.subheadline)
-                    .lineLimit(3)
+                    // One flowing line (name + the rest) so long titles wrap
+                    // cleanly — as two side-by-side views the title used to wrap
+                    // raggedly under the name. The avatar handles profile taps;
+                    // the headline falls through to the card's open-movie tap.
+                    (Text(actorName).bold() + headlineRest)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if let movie {
                         Text([movie.genres.first, movie.releaseYear.map(String.init)]
                             .compactMap(\.self).joined(separator: " · "))
