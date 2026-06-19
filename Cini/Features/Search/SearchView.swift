@@ -404,7 +404,7 @@ struct SearchView: View {
             ForEach(movieResults) { movie in
                 MovieSuggestionRow(
                     movie: movie,
-                    onRank: { recordRecent(movie); logMovie = movie },
+                    onRank: { recordRecent(movie); watchedCountAtRank = store.watchedCount; logMovie = movie },
                     onOpen: { recordRecent(movie); detailMovie = movie },
                     zoomNamespace: posterZoom
                 )

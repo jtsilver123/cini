@@ -56,6 +56,11 @@ struct LogFlowView: View {
     /// The streak before this rank committed — lets the reveal tell a streak
     /// that just *advanced* from one that merely held.
     @State private var priorStreak = 0
+    // "I'm still watching it" (TV only): reveal a quick where-are-you picker
+    // instead of ranking, and mark the show as currently watching.
+    @State private var showStillWatching = false
+    @State private var swSeason = 1
+    @State private var swEpisode = 1
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -91,6 +96,12 @@ struct LogFlowView: View {
                             titleCard
                             categoryCard
                             sentimentCard
+
+                            // TV only: a way out of ranking for a show you
+                            // haven't finished — mark where you are instead.
+                            if movie.mediaKind == "tv" && phase == .sentiment {
+                                stillWatchingCard
+                            }
 
                             // Beli's order: the details card hands off to the
                             // comparison card — it doesn't stack above it, so
@@ -338,6 +349,92 @@ struct LogFlowView: View {
         }
         .buttonStyle(.plain)
         .disabled(phase == .comparing || phase == .result)
+    }
+
+    // MARK: "I'm still watching it" (TV) — set progress instead of ranking
+
+    private var stillWatchingCard: some View {
+        VStack(spacing: 12) {
+            Button {
+                withAnimation(.snappy) { showStillWatching.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "tv")
+                    Text("I'm still watching it").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Image(systemName: showStillWatching ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+
+            if showStillWatching {
+                VStack(spacing: 12) {
+                    Text("Where are you?")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    progressStepper("Season", value: $swSeason, min: 1, max: 50)
+                    progressStepper("Episode", value: $swEpisode, min: 1, max: 200)
+                    Button {
+                        saveStillWatching()
+                    } label: {
+                        Text("Add to Currently Watching")
+                            .font(.subheadline.weight(.bold)).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 12)
+                            .background(Capsule().fill(Theme.velvet))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .floatingCard()
+    }
+
+    /// A compact +/- stepper (mirrors the Currently-Watching control).
+    private func progressStepper(_ label: String, value: Binding<Int>, min: Int, max: Int) -> some View {
+        HStack {
+            Text(label).font(.subheadline).foregroundStyle(Theme.ink)
+            Spacer()
+            Button { if value.wrappedValue > min { value.wrappedValue -= 1 } } label: {
+                Image(systemName: "minus.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(value.wrappedValue > min ? Theme.marquee : Theme.gray.opacity(0.4))
+            .accessibilityLabel("Decrease \(label)")
+            Text("\(value.wrappedValue)")
+                .font(.subheadline.weight(.bold)).monospacedDigit().frame(minWidth: 28)
+            Button { if value.wrappedValue < max { value.wrappedValue += 1 } } label: {
+                Image(systemName: "plus.circle.fill")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(value.wrappedValue < max ? Theme.marquee : Theme.gray.opacity(0.4))
+            .accessibilityLabel("Increase \(label)")
+        }
+        .font(.title3)
+    }
+
+    /// Mark the show as currently watching at the chosen spot and close —
+    /// reuses the same RPC + cache reconciliation as the Currently-Watching card.
+    private func saveStillWatching() {
+        Haptics.success()
+        let s = swSeason, e = swEpisode
+        Task {
+            do {
+                try await SupabaseService.shared.cacheMovie(movie)   // FK needs the show cached
+                try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID,
+                                                                 season: s, episode: e)
+                store.watchlistSuperseded(movieID: movie.tmdbID)
+                ToastCenter.shared.show("Added to Currently Watching 📺")
+            } catch {
+                ToastCenter.shared.saveFailed()
+            }
+        }
+        dismiss()
     }
 
     private func pick(_ value: Sentiment) {

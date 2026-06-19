@@ -1998,6 +1998,24 @@ function logCards(){
       </div>
     </div>`;
 
+  // TV only: a way out of ranking a show you haven't finished — mark where
+  // you are instead. (Demo titles are films, so this is gated on a tv flag.)
+  if(!log.bucket && MOVIES[log.k].tv){
+    const swBtn=(d,key)=>`<button onclick="log.sw.${key}=Math.max(1,log.sw.${key}+(${d})); refreshLog()" style="width:34px;height:34px;border-radius:50%;border:none;background:var(--surface-2);color:var(--marquee);font-size:20px;font-weight:700;cursor:pointer;">${d>0?"+":"−"}</button>`;
+    const swRow=(label,key)=>`<div style="display:flex; align-items:center; gap:10px;"><span style="flex:1; font-size:14px;">${label}</span>${swBtn(-1,key)}<b style="min-width:26px; text-align:center;">${log.sw[key]}</b>${swBtn(1,key)}</div>`;
+    html+=`
+      <div class="fcard">
+        <button style="width:100%; border:none; background:none; color:var(--marquee); font-weight:700; font-size:14px; display:flex; align-items:center; gap:8px; cursor:pointer; padding:2px 0;" onclick="log.sw=log.sw?null:{s:1,e:1}; refreshLog()">
+          ${I("tv",16)} I'm still watching it<span style="flex:1;"></span>${I("chevD",13)}</button>
+        ${log.sw?`<div style="margin-top:12px; display:flex; flex-direction:column; gap:12px;">
+          <div class="sub" style="font-size:12px; font-weight:600;">Where are you?</div>
+          ${swRow("Season","s")}
+          ${swRow("Episode","e")}
+          <button class="pill" style="justify-content:center; padding:12px;" onclick="saveStillWatching()">Add to Currently Watching</button>
+        </div>`:""}
+      </div>`;
+  }
+
   // Details card right after sentiment (Beli's order). Once comparisons
   // start it hands off — the compare card REPLACES it, no scrolling down.
   if(log.bucket && log.stage==="enrich"){
@@ -2081,6 +2099,14 @@ function logCards(){
   return html;
 }
 function refreshLog(){ const el=$("logStack"); if(el){ el.innerHTML=logCards(); el.lastElementChild?.scrollIntoView({behavior:"smooth", block:"end"}); } }
+function saveStillWatching(){
+  buzz();
+  const k=log.k;
+  if(!S.watching) S.watching=[];
+  if(!S.watching.some(w=>w.k===k)) S.watching.unshift({k, s:log.sw.s, e:log.sw.e});
+  S.queue=S.queue.filter(q=>q!==k);   // it's no longer just "want to watch"
+  save(); closeLog(); toast("Added to Currently Watching");
+}
 function pickBucket(b){
   if(!log || log.stage==="compare" || log.stage==="result") return;
   buzz();
