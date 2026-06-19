@@ -467,6 +467,7 @@ struct CiniChatAvailableView: View {
             StartRankingTool(), DeleteRatingTool(), MyListsTool(), RecommendTool(),
             FriendWatchedTool(), FriendWantToWatchTool(), FriendOverlapTool(),
             StreamingAlertTool(), TasteMatchTool(), MyStatsTool(),
+            MarkWatchingTool(),
         ]) {
             // Compressed hard: every fixed token here is one less for the
             // conversation in the on-device model's small window.
@@ -514,8 +515,9 @@ struct CiniChatAvailableView: View {
             titles (Friends, It, Up, Her) are titles: "how can I watch \
             Friends" = lookupMovie, never sendRecommendation. A failed \
             tool call means rethink or ask one short question — never \
-            repeat the same call. TV shows are first-class: rank, save, \
-            and list them exactly like movies. \
+            repeat the same call. TV shows are first-class: rank, bookmark, \
+            and list them like movies; mid-season ("I'm on S2 of X") = \
+            markCurrentlyWatching, not rank. \
             \(streak > 0 ? "They're on a \(streak)-week ranking streak — cheer it on when natural." : "")
 
             \(name)'s taste profile:
@@ -621,7 +623,7 @@ struct CiniChatAvailableView: View {
     private func offerRow(for movie: Movie) -> some View {
         HStack(spacing: 8) {
             if store.isOnWatchlist(movie.tmdbID) {
-                offerChip(icon: "checkmark", title: "Saved", disabled: true) {}
+                offerChip(icon: "checkmark", title: "Bookmarked", disabled: true) {}
             } else if !store.isWatched(movie.tmdbID) {
                 offerChip(icon: "bookmark", title: "Want to Watch", disabled: false) {
                     Task { await store.toggleWatchlist(movie: movie) }

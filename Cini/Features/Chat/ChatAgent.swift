@@ -312,13 +312,13 @@ struct SaveToWatchlistTool: Tool {
             return "\(movie.title) is already ranked — it\u{2019}s been watched, no need to save it."
         }
         if await store.isOnWatchlist(movie.tmdbID) {
-            return "\(movie.title) is already saved on the Want to Watch list."
+            return "\(movie.title) is already on their Want to Watch list."
         }
-        // Announce only now that the save will really happen.
-        await ChatAgentBridge.shared.step("bookmark.fill", "Saving \(movie.title)")
+        // Announce only now that the bookmark will really happen.
+        await ChatAgentBridge.shared.step("bookmark.fill", "Bookmarking \(movie.title)")
         await store.toggleWatchlist(movie: movie)
-        await ChatAgentBridge.shared.note("bookmark.fill", "Saved \(movie.title)", destination: .wantToWatch)
-        return "Saved! \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on the Want to Watch list now."
+        await ChatAgentBridge.shared.note("bookmark.fill", "Bookmarked \(movie.title)", destination: .wantToWatch)
+        return "Bookmarked! \(movie.title) (\(movie.releaseYear.map(String.init) ?? "?")) is on their Want to Watch list now."
     }
 }
 
@@ -972,6 +972,43 @@ struct StreamingAlertTool: Tool {
         guard ok else { return "Couldn't set that alert — connection trouble." }
         await ChatAgentBridge.shared.note("bell.fill", "Alert on for \(movie.title)", destination: .movie(movie.tmdbID))
         return "Done — I'll notify them the moment \(movie.title) starts streaming."
+    }
+}
+
+@available(iOS 26.0, *)
+struct MarkWatchingTool: Tool {
+    let name = "markCurrentlyWatching"
+    let description = "Mark a TV show as currently watching at a season/episode they're on. Shows only — never movies."
+
+    @Generable
+    struct Arguments {
+        @Guide(description: "The show title")
+        var title: String
+        @Guide(description: "Season number they're on")
+        var season: Int
+        @Guide(description: "Episode number they're on")
+        var episode: Int
+    }
+
+    func call(arguments: Arguments) async throws -> String {
+        await ChatAgentBridge.shared.step("tv", "Updating Currently Watching")
+        guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
+            return "No title matched \"\(arguments.title)\"."
+        }
+        guard movie.mediaKind == "tv" else {
+            return "\(movie.title) is a movie — only shows can be marked currently watching."
+        }
+        guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
+        let s = max(1, arguments.season), e = max(1, arguments.episode)
+        try? await SupabaseService.shared.cacheMovie(movie)
+        do {
+            try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID, season: s, episode: e)
+            await store.watchlistSuperseded(movieID: movie.tmdbID)
+        } catch {
+            return "Couldn't save that — connection trouble."
+        }
+        await ChatAgentBridge.shared.note("tv.fill", "Watching \(movie.title) · S\(s)·E\(e)", destination: .movie(movie.tmdbID))
+        return "Got it — \(movie.title) is on their Currently Watching at season \(s), episode \(e)."
     }
 }
 
