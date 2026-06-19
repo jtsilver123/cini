@@ -661,7 +661,9 @@ struct LetterboxdImportView: View {
 struct ImportHandoffBadge: View {
     var body: some View {
         HStack(spacing: 12) {
-            HStack(spacing: 8) {
+            // The sources stack vertically so it reads as "your services," not
+            // a flow chart of two separate inputs.
+            VStack(spacing: 8) {
                 // Letterboxd — the three-dot mark.
                 HStack(spacing: -6) {
                     Circle().fill(Color(red: 1.00, green: 0.50, blue: 0.00))
@@ -671,16 +673,15 @@ struct ImportHandoffBadge: View {
                     Circle().fill(Color(red: 0.25, green: 0.74, blue: 0.96))
                         .frame(width: 20, height: 20)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 13)
+                .frame(width: 64, height: 44)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(Theme.surface))
                 // Netflix — the red "N" on black.
                 Text("N")
-                    .font(.system(size: 26, weight: .heavy))
+                    .font(.system(size: 24, weight: .heavy))
                     .foregroundStyle(Color(red: 0.90, green: 0.09, blue: 0.16))
-                    .frame(width: 46, height: 46)
+                    .frame(width: 64, height: 44)
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(.black))
