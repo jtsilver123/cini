@@ -141,7 +141,11 @@ Deno.serve(async (req: Request) => {
       .from("device_tokens")
       .select("token")
       .eq("user_id", n.recipient_id);
-    if (!tokens?.length) return new Response("no devices", { status: 200 });
+    if (!tokens?.length) {
+      console.log(`send-push ${notification_id} kind=${n.kind} recipient=${n.recipient_id}: no devices`);
+      return new Response("no devices", { status: 200 });
+    }
+    console.log(`send-push ${notification_id} kind=${n.kind} recipient=${n.recipient_id} tokens=${tokens.length}`);
 
     const { count } = await supabase
       .from("notifications")
@@ -181,13 +185,21 @@ Deno.serve(async (req: Request) => {
         },
         body: JSON.stringify(body),
       });
-      if (res.status === 410 || (res.status === 400 && (await res.text()).includes("BadDeviceToken"))) {
-        await supabase.from("device_tokens").delete().eq("token", token);
+      // Log every non-200 with APNs's reason so delivery failures aren't silent
+      // (this is how a "push didn't arrive" bug becomes diagnosable).
+      if (res.status !== 200) {
+        const text = await res.text();
+        console.error(`send-push ${notification_id} APNs ${res.status} token=${token.slice(0, 8)}…: ${text}`);
+        if (res.status === 410 || (res.status === 400 && text.includes("BadDeviceToken"))) {
+          await supabase.from("device_tokens").delete().eq("token", token);
+        }
       }
       return res.status;
     }));
 
-    return new Response(JSON.stringify({ sent: results.map((r) => r.status === "fulfilled" ? r.value : String(r.reason)) }), {
+    const statuses = results.map((r) => r.status === "fulfilled" ? r.value : String(r.reason));
+    console.log(`send-push ${notification_id} kind=${n.kind} delivered=${JSON.stringify(statuses)}`);
+    return new Response(JSON.stringify({ sent: statuses }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
