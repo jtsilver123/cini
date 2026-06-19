@@ -18,6 +18,8 @@ struct SwipeView: View {
     @AppStorage("swipe.gridMode") private var gridMode = false
     @State private var suggestTV = false
     @State private var dismissed: Set<Int> = []
+    @State private var filters = MovieFilters()
+    @State private var showFilterSheet = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var watchedCountAtRank = 0
@@ -31,6 +33,7 @@ struct SwipeView: View {
             !dismissed.contains($0.movie.tmdbID)
                 && !store.isWatched($0.movie.tmdbID)
                 && (suggestTV ? $0.movie.mediaKind == "tv" : $0.movie.mediaKind != "tv")
+                && filters.passes($0.movie)
         }
     }
 
@@ -61,6 +64,14 @@ struct SwipeView: View {
             .sheet(isPresented: $showImport) {
                 LetterboxdImportView()
             }
+            .sheet(isPresented: $showFilterSheet) {
+                MovieFilterSheet(
+                    filters: $filters,
+                    movies: candidates.map(\.movie),
+                    sortDescending: .constant(true),
+                    sortHighLabel: "", sortLowLabel: "", showSort: false)
+                .presentationDetents([.medium, .large])
+            }
             .task { await load() }
         }
     }
@@ -70,6 +81,15 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Swipe").font(Theme.pageHeader)
                 Spacer()
+                Button { showFilterSheet = true } label: {
+                    Image(systemName: "line.3.horizontal.decrease")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(filters.isActive ? Theme.background : Theme.marquee)
+                        .padding(8)
+                        .background(Circle().fill(filters.isActive ? Theme.marquee : Theme.fill))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Filter")
                 Button { showImport = true } label: {
                     Image(systemName: "square.and.arrow.down")
                         .font(.subheadline.weight(.semibold))
@@ -136,7 +156,8 @@ struct SwipeView: View {
                 },
                 onRefresh: { Task { candidates = []; loaded = false; await load() } },
                 showRank: true,
-                onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 }
+                onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                richDetail: true
             )
             // Reset the deck's position when switching Movies ↔ TV.
             .id(suggestTV)
@@ -215,6 +236,29 @@ struct SwipeView: View {
             }
         }
         loaded = true
+
+        // Fill in runtime, streaming, and a plot summary for the richer cards
+        // (and so the genre/streaming filters have something to match) — in the
+        // background so the deck shows immediately.
+        await enrich(pending.prefix(16).map(\.id))
+        candidates = candidates.map {
+            YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
+        }
+    }
+
+    /// At most six detail fetches in flight (polite to TMDB).
+    private func enrich(_ ids: [Int]) async {
+        let store = self.store
+        await withTaskGroup(of: Void.self) { group in
+            var remaining = ids[...]
+            for _ in 0..<min(6, remaining.count) {
+                let id = remaining.removeFirst()
+                group.addTask { await store.enrich(id) }
+            }
+            while await group.next() != nil {
+                if let id = remaining.popFirst() { group.addTask { await store.enrich(id) } }
+            }
+        }
     }
 
     private func similarToTop(_ id: Int?) async -> [Movie]? {

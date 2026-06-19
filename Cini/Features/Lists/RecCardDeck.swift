@@ -17,6 +17,13 @@ struct RecCardDeck: View {
     /// the Swipe tab; off elsewhere so the Recs decks are unchanged.
     var showRank = false
     var onRank: (Movie) -> Void = { _ in }
+    /// Taller cards with a metadata line + plot summary (the Swipe tab).
+    var richDetail = false
+
+    /// "2021 · 2h 12m" — year + runtime, when known.
+    static func metaLine(_ movie: Movie) -> String {
+        [movie.releaseYear.map(String.init), movie.runtimeText].compactMap { $0 }.joined(separator: " · ")
+    }
 
     @AppStorage("recs.demoSeen") private var demoSeen = false
     @State private var includeDemos = false
@@ -61,11 +68,14 @@ struct RecCardDeck: View {
             exhausted
         } else {
             ZStack {
-                // Peek of the next card behind the top one.
+                // Peek of the next card behind the top one. It grows smoothly
+                // toward full size as the top card is swiped/flung away, so it's
+                // already in place when it becomes the front card (no "pop").
                 if index + 1 < items.count {
+                    let progress = min(abs(drag.width + flyOff) / 120, 1)
                     card(items[index + 1])
-                        .scaleEffect(0.96)
-                        .offset(y: 12)
+                        .scaleEffect(0.96 + 0.04 * progress)
+                        .offset(y: 12 - 12 * progress)
                         .zIndex(0)
                 }
                 let top = items[index]
@@ -84,7 +94,7 @@ struct RecCardDeck: View {
                     )
                     .animation(.snappy, value: drag)
             }
-            .frame(height: 232)
+            .frame(height: richDetail ? 320 : 232)
         }
     }
 
@@ -94,7 +104,12 @@ struct RecCardDeck: View {
         case .rec(let c):
             TonightPickCard(
                 movie: c.movie, reason: c.reason,
-                service: nil, showTonightBadge: false, dragX: dragX,
+                service: richDetail ? c.movie.streamingOn.first : nil,
+                showTonightBadge: false,
+                height: richDetail ? 300 : 220,
+                detail: richDetail ? Self.metaLine(c.movie) : nil,
+                overview: richDetail ? c.movie.overview : nil,
+                dragX: dragX,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)

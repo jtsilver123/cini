@@ -11,6 +11,12 @@ struct TonightPickCard: View {
     var serviceLogo: URL?              // that service's logo (TMDB), shown in the badge
     /// Off for the Recs deck, which reuses this card without the daily badge.
     var showTonightBadge: Bool = true
+    /// Card height — taller for the Swipe deck's richer layout.
+    var height: CGFloat = 220
+    /// A short metadata line (e.g. "2021 · 2h 12m") shown under the title.
+    var detail: String? = nil
+    /// A short plot summary shown on the Swipe deck's richer card.
+    var overview: String? = nil
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
     var onOpen: (Movie) -> Void = { _ in }
@@ -25,7 +31,7 @@ struct TonightPickCard: View {
                 Theme.surface
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 220)
+            .frame(height: height)
             .clipped()
 
             LinearGradient(colors: [.clear, .black.opacity(0.25), .black.opacity(0.88)],
@@ -42,15 +48,26 @@ struct TonightPickCard: View {
                     Text(reason)
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.88))
+                        .lineLimit(1)
+                }
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                }
+                if let overview, !overview.isEmpty {
+                    Text(overview)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(2)
                 }
             }
             .padding(14)
             // Keep text clear of the (+)/bookmark corner and legible.
-            .frame(maxWidth: 220, alignment: .leading)
+            .frame(maxWidth: overview == nil ? 220 : 270, alignment: .leading)
             .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
         }
-        .frame(height: 220)
+        .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous))
         // A thin marquee rim so the daily pick reads as the premium,
         // special surface it is.
