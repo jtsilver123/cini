@@ -511,9 +511,12 @@ struct FeedView: View {
                 // it drawn above the rows below — otherwise "Ask friends for a
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
-            } else if tonightCleared {
-                // Ran out / dismissed everything → send them to Recs, where
-                // there's an endless deck to triage.
+            } else if tonightUnlocked && !dismissedTonightToday().isEmpty {
+                // Only after the user has actually cleared TODAY's deck (picks
+                // exist past day 5, and they've dismissed/ranked through them).
+                // Driving this off the persisted 24h suppression alone made the
+                // "that's a wrap" card appear with no cards ever shown — e.g. a
+                // stale window, the morning after a late clear, or before day 5.
                 TonightEmptyState {
                     tabRouter.selection = .swipe
                 }
