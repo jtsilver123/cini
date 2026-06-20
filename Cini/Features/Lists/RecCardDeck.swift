@@ -280,10 +280,21 @@ struct RecCardDeck: View {
     }
 
     private func undo() {
-        guard let last = history.popLast() else { return }
+        guard !advancing, let last = history.popLast() else { return }
         // Un-save if the undone action was a save.
         if last.saved, let movie = last.movie { onUnsave(movie) }
-        withAnimation(.snappy) { index = last.index; drag = .zero; flyOff = 0 }
+        // Bring the card back: drop it in off-screen on the side it flew to
+        // (no animation), then slide it home — so undo reads as "fly back in".
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) {
+            index = last.index
+            drag = .zero
+            flyOff = last.saved ? 700 : -700
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(16))   // let the off-screen frame render
+            withAnimation(.snappy) { flyOff = 0 }
+        }
     }
 
 }

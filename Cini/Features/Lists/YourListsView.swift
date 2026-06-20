@@ -965,9 +965,14 @@ struct YourListsView: View {
         }
         .overlay {
             if store.watchedItems.isEmpty && pendingEntries.isEmpty {
-                emptyList("Rank your first movie or show and your list starts here.",
-                          actionTitle: "Find something") {
-                    tabRouter.selection = .search
+                // Same discovery entry point as the bar up top, so the zero
+                // state still offers it — swipe through Recs and + to rank.
+                emptyList("Rank a few you've already seen and your list starts filling in.",
+                          actionTitle: "\(category == .movies ? "Movies" : "Shows") you may have seen",
+                          actionIcon: "rectangle.stack") {
+                    tabRouter.pendingRecsTV = (category == .tvShows)
+                    tabRouter.pendingRecsGrid = false   // card view (the default)
+                    tabRouter.selection = .swipe
                 }
             } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
                       watchedCount(in: otherCategory) > 0 {
@@ -987,10 +992,10 @@ struct YourListsView: View {
     private var maybeSeenBar: some View {
         Button {
             Haptics.tap()
-            // Land on Recs with the SAME media kind, in GRID mode — best for
-            // picking out things you've already watched.
+            // Land on Recs with the SAME media kind, in CARD view (the default)
+            // — swipe through and tap + to rank ones you've already seen.
             tabRouter.pendingRecsTV = (category == .tvShows)
-            tabRouter.pendingRecsGrid = true
+            tabRouter.pendingRecsGrid = false
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
