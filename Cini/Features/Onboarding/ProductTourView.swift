@@ -115,13 +115,15 @@ struct ProductTourView: View {
 
     /// The key window's real bottom safe-area inset (home-indicator strip). Read
     /// from UIKit because a GeometryReader under `.ignoresSafeArea()` can report
-    /// its `safeAreaInsets` as 0.
+    /// its `safeAreaInsets` as 0. Falls back to 0 (not 34): on a home-button
+    /// iPhone the real inset IS 0, and a stray 34 there would leave a bright strip
+    /// above the bar — whereas a stray 0 on a notched phone is barely noticeable.
     private static var bottomSafeInset: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first(where: \.isKeyWindow)?
-            .safeAreaInsets.bottom ?? 34
+            .safeAreaInsets.bottom ?? 0
     }
 
     /// Position of each tab in the five-slot bar, so the card can sit over it.
