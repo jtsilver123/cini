@@ -576,7 +576,14 @@ struct LetterboxdImportView: View {
                 }
                 results.append(r)
             }
-            let outcome = mergeImportResults(results)
+            var outcome = mergeImportResults(results)
+            // Only bring in net-new titles: skip anything already ranked
+            // (watched), and skip watchlist entries already saved or ranked, so
+            // re-importing never duplicates what's already in your library.
+            outcome.watched = outcome.watched.filter { !store.isWatched($0.movie.tmdbID) }
+            outcome.watchlist = outcome.watchlist.filter {
+                !store.isWatched($0.movie.tmdbID) && !store.isOnWatchlist($0.movie.tmdbID)
+            }
 
             // Seed the persistent ranking queue (favorites first).
             ImportQueue.shared.seed(with: outcome.watched, store: store)

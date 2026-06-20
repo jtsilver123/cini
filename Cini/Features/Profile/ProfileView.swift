@@ -333,7 +333,7 @@ struct ProfileScreen: View {
     private var header: some View {
         HStack {
             Text(firstName(profile?.displayName, profile?.username) ?? "Profile")
-                .font(.title2.weight(.bold))
+                .font(Theme.pageHeader)
                 .lineLimit(1)
             Spacer()
             // Spacing/sizing matches the Feed header's top-right icons so the

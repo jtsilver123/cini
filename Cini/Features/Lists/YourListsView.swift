@@ -318,11 +318,29 @@ struct YourListsView: View {
 
     /// Plain HStack with generous tap targets — the old overlay-based
     /// layout made the ellipsis flaky to hit.
+    /// Import-your-history button: icon + "Import" label — the same prominent
+    /// action the Swipe page uses, mirrored here.
+    private var importButton: some View {
+        Button { showImport = true } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "square.and.arrow.down")
+                Text("Import")
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.marquee)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Theme.fill))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Import your history")
+    }
+
     private var header: some View {
-        ZStack {
-            Text("MY LISTS").font(.subheadline.weight(.semibold))
+        HStack(spacing: 8) {
+            Text("My Lists").font(Theme.pageHeader)
+            Spacer()
+            importButton
             HStack(spacing: 2) {
-                Spacer()
                 // Sharing a selected custom list shares THAT list.
                 ShareLink(item: headerShareText) {
                     Image(systemName: "square.and.arrow.up")
@@ -368,11 +386,6 @@ struct YourListsView: View {
                             Label(reorderMode ? "Done reordering" : "Reorder",
                                   systemImage: "arrow.up.arrow.down")
                         }
-                    }
-                    Button {
-                        showImport = true
-                    } label: {
-                        Label("Import Existing List", systemImage: "square.and.arrow.down")
                     }
                     // Deleting a custom list lives where you're viewing it.
                     if let selectedList {
