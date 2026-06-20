@@ -59,6 +59,13 @@ struct RecCardDeck: View {
     }
     private var items: [DeckItem] { demos + candidates.map(DeckItem.rec) }
 
+    /// Card height: roomy on full-size phones, trimmed on short ones (iPhone SE)
+    /// so the controls below the deck never clip.
+    private var cardHeight: CGFloat {
+        guard richDetail else { return 220 }
+        return UIScreen.main.bounds.height > 750 ? 320 : 284
+    }
+
     var body: some View {
         VStack(spacing: 18) {
             deck
@@ -105,7 +112,7 @@ struct RecCardDeck: View {
             // screen (everything shifts off the left edge). maxWidth:.infinity
             // forces the deck to take exactly the width it's offered.
             .frame(maxWidth: .infinity)
-            .frame(height: richDetail ? 320 : 220)
+            .frame(height: cardHeight)
         }
     }
 
@@ -117,7 +124,7 @@ struct RecCardDeck: View {
                 movie: c.movie, reason: c.reason,
                 service: richDetail ? c.movie.streamingOn.first : nil,
                 showTonightBadge: false,
-                height: richDetail ? 320 : 220,
+                height: cardHeight,
                 detail: richDetail ? Self.metaLine(c.movie) : nil,
                 // Poster-forward: no overview blurb on the swipe card face — the
                 // art carries it, and the full synopsis lives on the detail page.
@@ -147,9 +154,9 @@ struct RecCardDeck: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity)
-        // Match the rec card's height (taller in rich detail) so a real card
-        // peeking behind a demo card doesn't poke out top and bottom.
-        .frame(height: richDetail ? 320 : 220)
+        // Match the rec card's height so a real card peeking behind a demo card
+        // doesn't poke out top and bottom.
+        .frame(height: cardHeight)
         .background(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous).fill(Theme.surface))
         .overlay(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))

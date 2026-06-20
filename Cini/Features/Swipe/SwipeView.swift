@@ -141,8 +141,8 @@ struct SwipeView: View {
         }
     }
 
-    /// Honor a deep link into Recs: it can preselect the media kind AND the
-    /// layout (grid for "things you've watched", cards for "find to watch").
+    /// Honor a deep link into Swipe: it preselects the media kind (Movies/TV).
+    /// The card/grid layout is intentionally left as the user's last mode.
     private func consumeDeepLink() {
         if let wantTV = tabRouter.pendingRecsTV {
             tabRouter.pendingRecsTV = nil

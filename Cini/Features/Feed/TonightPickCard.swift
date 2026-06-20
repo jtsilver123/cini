@@ -141,7 +141,7 @@ struct TonightPickCard: View {
                     .padding(12)
             }
         }
-        // Tinder-style stamps: drag right to save, left to dismiss.
+        // Tinder-style stamps: drag right to bookmark, left to pass.
         .overlay { swipeStamps }
         // A plain tappable surface (not a Button) so the deck's drag gesture
         // and tap-to-open don't fight — the corner buttons still take their taps.
