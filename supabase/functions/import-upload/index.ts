@@ -77,17 +77,20 @@ Deno.serve(async (req: Request) => {
       return json(413, { error: "File too large — Letterboxd exports are usually under a few MB." });
     }
 
-    const path = `${pending.user_id}/${code}.${extension}`;
+    // Accumulate paths so a multi-file session keeps every export; the app
+    // reads this comma-separated list and imports them all. Only the final
+    // upload flips the code to "ready" so the app waits for the whole set.
+    const paths = (pending.path ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+
+    // Key each file by its position, not its extension — two files that share
+    // an extension (e.g. two .csv exports) must NOT overwrite each other.
+    const path = `${pending.user_id}/${code}-${paths.length}.${extension}`;
     const { error: uploadError } = await supabase.storage
       .from("imports")
       .upload(path, bytes, { contentType: "application/octet-stream", upsert: true });
     if (uploadError) return json(500, { error: "Upload failed — try again." });
 
-    // Accumulate paths (deduped) so a multi-file session keeps every export;
-    // the app reads this comma-separated list and imports them all. Only the
-    // final upload flips the code to "ready" so the app waits for the set.
-    const paths = (pending.path ?? "").split(",").map((p) => p.trim()).filter(Boolean);
-    if (!paths.includes(path)) paths.push(path);
+    paths.push(path);
 
     const { error: updateError } = await supabase.from("pending_imports")
       .update({ status: isFinal ? "ready" : "waiting", path: paths.join(",") })
