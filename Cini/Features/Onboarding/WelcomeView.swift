@@ -144,12 +144,19 @@ private struct PosterWall: View {
     @GestureState private var dragLive: CGFloat = 0  // live drag delta
 
     /// Deal posters round-robin into three columns; fall back to the seed.
+    /// Each column is padded to enough tiles that its looped height always
+    /// exceeds the tallest iPhone — otherwise the wrap happens ON screen and you
+    /// see tiles teleport. ~9 tiles ≈ 1560pt, taller than any device.
     private var columns: [[String]] {
         let source = posters.isEmpty ? Self.seed : posters
         var cols: [[String]] = [[], [], []]
         for (i, p) in source.enumerated() { cols[i % 3].append(p) }
-        // Each column needs a few tiles to loop smoothly.
-        return cols.map { $0.count >= 4 ? $0 : Array(($0 + $0 + $0).prefix(max(4, $0.count))) }
+        return cols.map { col in
+            guard !col.isEmpty else { return col }
+            var out = col
+            while out.count < 9 { out += col }
+            return out
+        }
     }
 
     var body: some View {
@@ -173,8 +180,10 @@ private struct PosterWall: View {
             DragGesture()
                 .updating($dragLive) { value, state, _ in state = value.translation.height }
                 .onEnded { value in
-                    // Keep the finger movement, plus a little momentum.
-                    scrub += value.translation.height + value.predictedEndTranslation.height * 0.3
+                    // Bank exactly what the finger moved. (No momentum jump:
+                    // `dragLive` resets to 0 as `scrub` absorbs the same amount,
+                    // so the wall stays perfectly continuous on release.)
+                    scrub += value.translation.height
                 }
         )
     }
