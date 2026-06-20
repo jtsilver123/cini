@@ -254,11 +254,9 @@ struct RecCardDeck: View {
         let item = items[index]
         if case .rec(let c) = item {
             if save {
+                // The card flying off to the right is the confirmation —
+                // no toast, so a fast swipe streak isn't interrupted.
                 onSave(c.movie)
-                // Same as the rank toast: tap to open what you just saved.
-                ToastCenter.shared.showTap("Bookmarked \(c.movie.title) 🔖 · View") {
-                    onOpen(c.movie)
-                }
             }
             history.append((index, c.movie, save))
         } else {
@@ -402,7 +400,6 @@ struct FriendRecDeck: View {
             if let movie = rec.movies?.asMovie {
                 onSave(movie)
                 lastSaved = (index, movie)
-                ToastCenter.shared.show("Bookmarked ✓")
             }
         } else {
             lastSaved = nil

@@ -795,18 +795,12 @@ struct FeedView: View {
     /// from the deck (remembered so it won't resurface as a pick today).
     private func saveTonight(_ item: TonightCardItem) {
         if store.isOnWatchlist(item.movie.tmdbID) {
-            // Already bookmarked — just confirm.
+            // Already bookmarked — the card clearing is confirmation enough.
             Haptics.success()
-            ToastCenter.shared.show("Bookmarked to Want to Watch")
         } else {
-            // toggleWatchlist provides its own haptic and a failure toast/revert;
-            // only claim success once it actually lands.
-            Task {
-                await store.toggleWatchlist(movie: item.movie)
-                if store.isOnWatchlist(item.movie.tmdbID) {
-                    ToastCenter.shared.show("Bookmarked to Want to Watch")
-                }
-            }
+            // toggleWatchlist provides its own haptic and a failure toast/revert.
+            // The card flying off is the save confirmation — no extra toast.
+            Task { await store.toggleWatchlist(movie: item.movie) }
         }
         dismissTonight(item.id, toast: false)
     }

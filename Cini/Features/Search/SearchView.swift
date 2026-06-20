@@ -602,8 +602,8 @@ struct SearchView: View {
                 onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
                 onSave: { movie in
                     guard !store.isOnWatchlist(movie.tmdbID) else { return }
+                    // The bookmark filling in is the confirmation — no toast.
                     Task { await store.toggleWatchlist(movie: movie) }
-                    ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
                 },
                 onDismiss: { movie in
                     withAnimation(.snappy) { _ = dismissedMaybeSeen.insert(movie.tmdbID) }

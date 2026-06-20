@@ -1236,7 +1236,7 @@ const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched]
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
 let swipeIdx=0, swipeGrid=false, swipeTV=false, swipeImport=true;
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
-function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Bookmarked'); swipeIdx++; renderSwipe(); }
+function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
 function swipeUndo(){ if(swipeIdx>0){ buzz(); swipeIdx--; renderSwipe(); } }
 function renderSwipe(){
