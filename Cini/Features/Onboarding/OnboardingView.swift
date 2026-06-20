@@ -48,7 +48,6 @@ struct OnboardingView: View {
     @State private var onbTV = false
     @State private var logMovie: Movie?
     @State private var notifsEnabled = false
-    @State private var showNotifReask = false
     /// Personalized picks for the post-rank "save what to watch" tutorial,
     /// built from the title they just ranked (similar + trending fallback).
     @State private var recCandidates: [YourListsView.RecCandidate] = []
@@ -121,15 +120,6 @@ struct OnboardingView: View {
         // rank as many as they like. The "Done" button below ends onboarding.
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
-        }
-        // One last, well-timed notifications ask for anyone who skipped the
-        // primer — shown only after they've ranked something.
-        .fullScreenCover(isPresented: $showNotifReask) {
-            NotificationPrimer(
-                onTurnOn: { Task { notifsEnabled = await PushManager.request(); onFinished() } },
-                onSkip: { onFinished() }
-            )
-            .background(Theme.background.ignoresSafeArea())
         }
         .swipeDismissesKeyboard()
         .task {
@@ -216,10 +206,12 @@ struct OnboardingView: View {
         withAnimation(.snappy) { step = max(step - 1, 0) }
     }
 
-    /// Finish — but if they skipped the notifications primer earlier, give it one
-    /// more, well-timed try now that they've actually ranked something.
+    /// Finish onboarding. The notifications re-ask used to fire here (day one,
+    /// right after the first rank); it's now deferred to the feed — at least a
+    /// day after signup and once they've ranked — so the ask lands when the
+    /// habit has a foothold instead of on the busiest first session.
     private func finishOnboarding() {
-        if notifsEnabled { onFinished() } else { showNotifReask = true }
+        onFinished()
     }
 
     /// Raise the keyboard for a text step once its slide-in has settled.
@@ -586,7 +578,9 @@ struct OnboardingView: View {
             // The locked view toggle — the SAME purpose-labeled control the Recs
             // page uses, current one selected, a lock so they just learn it here.
             HStack(spacing: 0) {
-                ForEach([false, true], id: \.self) { grid in
+                // Grid ("Rank watched") on the left, cards ("Find to watch")
+                // on the right — matches the Recs page, where grid leads.
+                ForEach([true, false], id: \.self) { grid in
                     let on = (grid == isGrid)
                     HStack(spacing: 5) {
                         Image(systemName: grid ? "square.grid.2x2" : "rectangle.stack")
@@ -805,7 +799,8 @@ struct OnboardingView: View {
 
 /// A friendly notifications opt-in (CIN onboarding): one clear "turn on" CTA
 /// with a sample of the kind of alert you'd get, so the ask feels concrete.
-private struct NotificationPrimer: View {
+/// Reused for the deferred re-ask on the feed (a day+ after signup).
+struct NotificationPrimer: View {
     var onTurnOn: () -> Void
     var onSkip: () -> Void
 

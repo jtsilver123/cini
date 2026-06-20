@@ -35,6 +35,9 @@ struct FeedView: View {
     // Once the whole deck is cleared (dismissed or ranked through), suppress new
     // Tonight's Picks for 24h and show the "find more in Recs" empty state.
     @AppStorage("tonight.suppressedUntil") private var tonightSuppressedUntil = 0.0
+    /// Accounts already shown the one-time, deferred notifications re-ask.
+    @AppStorage("cini.notifReaskedUserIDs") private var notifReaskedRaw = ""
+    @State private var showNotifReask = false
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
@@ -74,6 +77,13 @@ struct FeedView: View {
             .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
             .task(id: store.isLoaded) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
+            // Profile loads slightly after the store, and both the day-5
+            // Tonight's-Pick gate and the notifications re-ask need it — so
+            // re-run once memberSince/watchedCount are actually known.
+            .task(id: session.profile?.id) {
+                await loadTonightStack()
+                await maybeAskNotifications()
+            }
             // Tapped push notifications land here (cold launch included) —
             // consume on appear AND on change, since the tab stays alive.
             .onAppear { consumePush() }
@@ -131,6 +141,16 @@ struct FeedView: View {
             }
             .sheet(isPresented: $showMenuImport) {
                 LetterboxdImportView()
+            }
+            // The deferred notifications ask: shown once, a day+ after signup,
+            // and only after they've actually ranked something (see
+            // maybeAskNotifications) — never on the day they sign up.
+            .fullScreenCover(isPresented: $showNotifReask) {
+                NotificationPrimer(
+                    onTurnOn: { Task { _ = await PushManager.request(); showNotifReask = false } },
+                    onSkip: { showNotifReask = false }
+                )
+                .background(Theme.background.ignoresSafeArea())
             }
             .navigationDestination(isPresented: $showSettings) {
                 AccountSettingsView()
@@ -675,7 +695,35 @@ struct FeedView: View {
         Date().timeIntervalSince1970 < tonightSuppressedUntil
     }
 
+    /// Tonight's Picks unlock on day 5. A brand-new account has little taste
+    /// signal yet, so the first few days steer toward ranking; the daily
+    /// "watch this tonight" hook arrives once recs can actually be personal.
+    private var tonightUnlocked: Bool {
+        guard let since = session.profile?.memberSince else { return false }
+        return Date().timeIntervalSince(since) >= 5 * 24 * 60 * 60
+    }
+
+    /// The second, well-timed notifications ask. Onboarding no longer nags on
+    /// day one; instead we wait until the habit has a foothold — at least a day
+    /// after signup AND once they've ranked something — then ask exactly once.
+    private func maybeAskNotifications() async {
+        guard let uid = SupabaseService.shared.currentUserID?.uuidString,
+              let since = session.profile?.memberSince,
+              Date().timeIntervalSince(since) >= 24 * 60 * 60,   // ≥1 day after signup
+              store.watchedCount >= 1,                            // has rated something
+              !notifReaskedRaw.split(separator: ",").map(String.init).contains(uid)
+        else { return }
+        // Already on? Nothing to ask. (Covers .authorized / .provisional.)
+        guard await PushManager.isAuthorized() == false else { return }
+        // Mark first so it's exactly once, whatever they choose.
+        notifReaskedRaw += notifReaskedRaw.isEmpty ? uid : ",\(uid)"
+        showNotifReask = true
+    }
+
     private func loadTonightStack(force: Bool = false) async {
+        // Held back for the first 5 days (see tonightUnlocked) — no Tonight's
+        // Pick section at all until then.
+        guard tonightUnlocked else { tonightCards = []; return }
         // Cleared the deck in the last 24h? Stay empty (the empty state shows),
         // even on a manual refresh — no new picks until the window passes.
         if tonightCleared { tonightCards = []; return }

@@ -17,17 +17,20 @@ struct ProductTourView: View {
         let body: String
     }
 
+    // A walkthrough of the actual loop — what to tap and why — not a tour of
+    // tab names. Each stop switches to the live screen so the real thing is
+    // behind the card, and the gold active tab anchors where to look.
     private let stops: [Stop] = [
-        Stop(tab: .feed, title: "Your feed",
-             body: "See what friends are ranking and get recs picked for your taste."),
-        Stop(tab: .feed, title: "Rank anything",
-             body: "Tap the gold + in the middle to find any movie or show and rank it — that's how Cini learns your taste."),
-        Stop(tab: .swipe, title: "Your recs",
-             body: "Swipe right to bookmark, left to pass, or tap + to rank one you've seen — as cards, a grid, or a list."),
-        Stop(tab: .lists, title: "Your lists",
-             body: "Everything you've ranked, each scored 1–10, plus your Want to Watch."),
-        Stop(tab: .profile, title: "Your profile",
-             body: "Your stats, your top films, the leaderboard, and your settings all live here."),
+        Stop(tab: .feed, title: "Rank what you've watched",
+             body: "Tap the gold + and search any movie or show. Cini asks which of two you liked more — a few quick picks and it scores everything 1–10, your taste, not strangers'."),
+        Stop(tab: .swipe, title: "Find what to watch next",
+             body: "Recs are tuned to your taste. Swipe right to save to Want to Watch, left to pass, or tap + to rank one you've already seen."),
+        Stop(tab: .feed, title: "See friends & compare taste",
+             body: "Your feed is what friends are ranking. Like it, comment, or tap “Compare taste” on anyone to see how aligned you two are."),
+        Stop(tab: .lists, title: "Find it all later",
+             body: "Everything you rank (each scored 1–10) and every title you bookmark lives in Your Lists — plus any lists you make."),
+        Stop(tab: .profile, title: "You're all set 🎬",
+             body: "Your stats, top films, and the leaderboard live here. Best first move: rank a handful of titles you love."),
     ]
 
     private var stop: Stop { stops[min(step, stops.count - 1)] }
@@ -82,7 +85,7 @@ struct ProductTourView: View {
             Button {
                 if isLast { finish() } else { advance() }
             } label: {
-                Text(isLast ? "Start exploring" : "Next")
+                Text(isLast ? "Start ranking" : "Got it!")
                     .font(.headline).foregroundStyle(.white)
                     .frame(maxWidth: .infinity).padding(.vertical, 14)
                     .background(Capsule().fill(Theme.velvet))

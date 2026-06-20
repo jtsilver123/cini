@@ -34,7 +34,7 @@ struct SwipeView: View {
             }
         }
     }
-    @AppStorage("swipe.layout") private var layout: Layout = .cards
+    @AppStorage("swipe.layout") private var layout: Layout = .grid
     @State private var suggestTV = false
     @State private var dismissed: Set<Int> = []
     @State private var filters = MovieFilters()
@@ -179,8 +179,8 @@ struct SwipeView: View {
     /// above each layout carries the wording.
     private var compactLayoutToggle: some View {
         HStack(spacing: 2) {
-            compactSegment(.cards, icon: "rectangle.stack", short: "Find", label: "Find to watch")
             compactSegment(.grid, icon: "square.grid.2x2", short: "Rank", label: "Rank watched")
+            compactSegment(.cards, icon: "rectangle.stack", short: "Find", label: "Find to watch")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
