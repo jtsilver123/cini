@@ -17,23 +17,10 @@ extension View {
     }
 }
 
-/// A little triangle that connects the coachmark bubble to the tab it spotlights.
-private struct CoachCaret: Shape {
-    func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.midX, y: r.maxY))   // tip points down at the tab
-        p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
-        p.addLine(to: CGPoint(x: r.minX, y: r.minY))
-        p.closeSubpath()
-        return p
-    }
-}
-
 /// A guided, one-time tour shown after onboarding. It steps left to right along
-/// the tab bar — Feed, Swipe, Search, Your Lists, Profile — switching to each
-/// live screen and SPOTLIGHTING that tab: the rest of the screen dims, the tab
-/// itself shines through a rounded cutout ringed in gold, and a coachmark bubble
-/// sits just above with one plain line on what the tab is for.
+/// the tab bar — Feed, Swipe, Search, Your Lists, Profile — dimming the content
+/// above the bar (the bar stays bright) and floating a small coachmark card over
+/// the tab it's describing, with one plain line on what that tab is for.
 struct ProductTourView: View {
     var onDone: () -> Void
 
@@ -71,46 +58,33 @@ struct ProductTourView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // Highlight the WHOLE tab bar (full width) rather than one tab — far
-            // more robust than pinpointing a single UIKit tab item. The tour
-            // makes the target tab the gold/active one and the bubble names it.
-            let band = barBand(in: proxy)
+            // The card sits over the tab it describes and slides left→right across
+            // steps — no arrow needed, its position points to the tab. The tab
+            // bar itself stays at full brightness; only the content above is dimmed.
+            let tabW = proxy.size.width / 5
+            let cardW = min(248, proxy.size.width - 24)
+            let centerX = tabW * (CGFloat(tabIndex(stop.tab)) + 0.5)
+            let leading = min(max(centerX - cardW / 2, 12), proxy.size.width - cardW - 12)
 
-            ZStack {
-                // Dim the whole app, but cut out the tab-bar band so it shows
-                // through at full brightness.
-                Color.black.opacity(0.64)
+            ZStack(alignment: .bottomLeading) {
+                // Block taps to the live app (incl. the tab bar) during the tour.
+                Color.black.opacity(0.001)
                     .ignoresSafeArea()
-                    .mask {
-                        ZStack {
-                            Rectangle().ignoresSafeArea()
-                            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                .frame(width: band.width, height: band.height)
-                                .position(x: band.midX, y: band.midY)
-                                .blendMode(.destinationOut)
-                        }
-                        .compositingGroup()
-                    }
                     .contentShape(Rectangle())
-                    .onTapGesture { }   // swallow taps to the live app beneath
+                    .onTapGesture { }
 
-                // Gold ring around the whole bar.
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Theme.marquee, lineWidth: 2)
-                    .frame(width: band.width, height: band.height)
-                    .position(x: band.midX, y: band.midY)
+                // Dim only the content ABOVE the tab bar — the bar stays normal.
+                Color.black.opacity(0.62)
+                    .frame(height: proxy.size.height)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .ignoresSafeArea(edges: .top)
+                    .allowsHitTesting(false)
 
-                // A single caret centered above the bar.
-                CoachCaret()
-                    .fill(Theme.velvet)
-                    .frame(width: 22, height: 11)
-                    .position(x: proxy.size.width / 2, y: band.minY - 9)
-
-                // The coachmark bubble, sitting just above the bar.
+                // The coachmark card, positioned over the active tab.
                 bubble
-                    .frame(maxWidth: 360)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, (proxy.size.height - band.minY) + 18)
+                    .frame(width: cardW)
+                    .padding(.leading, leading)
+                    .padding(.bottom, 12)
             }
         }
         .onAppear {
@@ -124,13 +98,15 @@ struct ProductTourView: View {
         .animation(.snappy, value: step)
     }
 
-    /// A full-width highlight band over the bottom tab bar. The bar lives in the
-    /// bottom safe-area inset, so a band from just above the safe-area edge down
-    /// to the screen bottom covers it on every device — no fragile per-tab math.
-    private func barBand(in proxy: GeometryProxy) -> CGRect {
-        let inset = max(proxy.safeAreaInsets.bottom, 49)
-        let top = proxy.size.height - 6
-        return CGRect(x: 8, y: top, width: proxy.size.width - 16, height: inset + 6)
+    /// Position of each tab in the five-slot bar, so the card can sit over it.
+    private func tabIndex(_ tab: RootTabView.Tab) -> Int {
+        switch tab {
+        case .feed: return 0
+        case .swipe: return 1
+        case .search: return 2
+        case .lists: return 3
+        case .profile: return 4
+        }
     }
 
     private var bubble: some View {
@@ -164,7 +140,6 @@ struct ProductTourView: View {
                 .fill(Theme.velvet)
                 .shadow(color: .black.opacity(0.35), radius: 14, y: 5)
         )
-        .padding(.horizontal, 20)
     }
 
     private func advance() {
