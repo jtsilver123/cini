@@ -348,6 +348,14 @@ struct LogFlowView: View {
 
     // MARK: "I'm still watching it" (TV) — set progress instead of ranking
 
+    /// True once we know the series has finished airing (Ended/Canceled). If we
+    /// don't know yet (details still loading), assume ongoing so we don't hide
+    /// "all caught up" from a returning show.
+    private var showHasEnded: Bool {
+        guard let status = showInfo?.status else { return false }
+        return status == "Ended" || status == "Canceled"
+    }
+
     private var stillWatchingCard: some View {
         VStack(spacing: 12) {
             Button {
@@ -380,16 +388,20 @@ struct LogFlowView: View {
                             .background(Capsule().fill(Theme.velvet))
                     }
                     .buttonStyle(.plain)
-                    // Always available: they're current on everything that's
-                    // aired and just waiting on the next episode.
-                    Button {
-                        saveStillWatching(caughtUp: true)
-                    } label: {
-                        Label("I'm all caught up", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Theme.marquee)
+                    // "All caught up" = current on everything aired, waiting on
+                    // the next episode — only meaningful for an ONGOING show. On
+                    // an ended series, caught up means finished, so you'd rank it,
+                    // not mark it still-watching. Hide it for ended shows.
+                    if !showHasEnded {
+                        Button {
+                            saveStillWatching(caughtUp: true)
+                        } label: {
+                            Label("I'm all caught up", systemImage: "checkmark.circle.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
