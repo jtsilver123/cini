@@ -255,6 +255,56 @@ final class TMDBService {
         return nil
     }
 
+    /// TMDB watch-provider ids (US) for the major services the filter offers.
+    static func providerID(_ name: String) -> Int? {
+        switch name {
+        case "Netflix": return 8
+        case "Prime Video": return 9
+        case "Hulu": return 15
+        case "Disney+": return 337
+        case "Apple TV+": return 350
+        case "Peacock": return 386
+        case "Max": return 1899
+        case "Paramount+": return 531
+        default: return nil
+        }
+    }
+
+    /// A filter-driven pool (the Swipe page): TMDB /discover for the chosen
+    /// genre / decade / max-runtime / streaming provider. `wantTV` picks the
+    /// movie vs TV endpoint. Adjusting a filter fetches a fresh, matching pool
+    /// instead of narrowing a fixed one.
+    func discover(genre: String?, decade: Int?, maxRuntime: Int?,
+                  provider: String?, wantTV: Bool) async throws -> [Movie] {
+        var q: [URLQueryItem] = [
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+            URLQueryItem(name: "vote_count.gte", value: "25"),
+        ]
+        if let genre, let gid = Self.genreID(matching: genre) {
+            q.append(URLQueryItem(name: "with_genres", value: String(gid)))
+        }
+        if let decade {
+            let lo = "\(decade)-01-01", hi = "\(decade + 9)-12-31"
+            let key = wantTV ? "first_air_date" : "primary_release_date"
+            q.append(URLQueryItem(name: "\(key).gte", value: lo))
+            q.append(URLQueryItem(name: "\(key).lte", value: hi))
+        }
+        if let maxRuntime, !wantTV {
+            q.append(URLQueryItem(name: "with_runtime.lte", value: String(maxRuntime)))
+        }
+        if let provider, let pid = Self.providerID(provider) {
+            q.append(URLQueryItem(name: "with_watch_providers", value: String(pid)))
+            q.append(URLQueryItem(name: "watch_region", value: "US"))
+            q.append(URLQueryItem(name: "with_watch_monetization_types", value: "flatrate"))
+        }
+        if wantTV {
+            let page: TVListPage = try await get("/discover/tv", query: q)
+            return page.results.map(\.asMovie)
+        }
+        let page: SearchPage = try await get("/discover/movie", query: q)
+        return page.results.map(\.asMovie)
+    }
+
     /// Most popular titles in a genre — what a genre query should return.
     func popular(genreID: Int) async throws -> [Movie] {
         let page: SearchPage = try await get("/discover/movie", query: [

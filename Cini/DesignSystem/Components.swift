@@ -973,10 +973,20 @@ struct MovieFilters: Equatable {
         return nil
     }
 
-    /// The streaming filter always offers the full set of majors (in a sensible
-    /// order) — deriving it only from the loaded pool hid big services like Max
-    /// and Prime Video whenever the current titles' streaming data was sparse.
-    static func filterProviders() -> [String] { majorProviders }
+    /// Providers present in a list of movies — used where filters narrow an
+    /// existing set (My Lists / a profile). The Swipe page instead offers all
+    /// `majorProviders` (its filters drive a fresh discovery pool).
+    static func presentProviders(in movies: [Movie]) -> [String] {
+        let present = Set(movies.flatMap { $0.streamingOn.compactMap(canonicalProvider) })
+        return majorProviders.filter(present.contains)
+    }
+
+    /// The full genre list (Swipe filters offer all of them, since they fetch a
+    /// matching pool); My Lists derives genres from the list's own titles.
+    static let allGenres = ["Action", "Adventure", "Animation", "Comedy", "Crime",
+                            "Documentary", "Drama", "Family", "Fantasy", "History",
+                            "Horror", "Music", "Mystery", "Romance", "Science Fiction",
+                            "Thriller", "War", "Western"]
 }
 
 /// Horizontal pill row driving a MovieFilters value. The ✕ appears only
@@ -988,18 +998,19 @@ struct MovieFilterBar: View {
     /// When set, a leading filter icon (inline with the pills) runs this —
     /// used on My Lists / Recs to open the full filter+sort sheet.
     var onFilterTap: (() -> Void)? = nil
+    /// Swipe page: offer ALL genres/providers (the filters drive a fresh
+    /// discovery pool). Off (default) on My Lists, where they narrow the list.
+    var allOptions: Bool = false
 
     @State private var providerLogos: [String: URL] = [:]
     @State private var showStreamingPicker = false
 
     private var genres: [String] {
-        Array(Set(movies.flatMap(\.genres))).sorted()
+        allOptions ? MovieFilters.allGenres : Array(Set(movies.flatMap(\.genres))).sorted()
     }
 
-    /// Providers that actually appear in this list, for the Streaming filter —
-    /// folded into the majors so the list stays clean.
     private var providers: [String] {
-        MovieFilters.filterProviders()
+        allOptions ? MovieFilters.majorProviders : MovieFilters.presentProviders(in: movies)
     }
 
     var body: some View {
@@ -1186,6 +1197,9 @@ struct MovieFilterSheet: View {
     var sortLowLabel: String
     /// Hidden where order is fixed (e.g. relevance-ranked Recs).
     var showSort: Bool = true
+    /// Swipe page: offer ALL genres/providers (filters drive a fresh discovery
+    /// pool). Off (default) on My Lists, where they narrow the list's titles.
+    var allOptions: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var draft: MovieFilters
@@ -1195,19 +1209,24 @@ struct MovieFilterSheet: View {
 
     init(filters: Binding<MovieFilters>, movies: [Movie],
          sortDescending: Binding<Bool>, sortHighLabel: String, sortLowLabel: String,
-         showSort: Bool = true) {
+         showSort: Bool = true, allOptions: Bool = false) {
         _filters = filters
         self.movies = movies
         _sortDescending = sortDescending
         self.sortHighLabel = sortHighLabel
         self.sortLowLabel = sortLowLabel
         self.showSort = showSort
+        self.allOptions = allOptions
         _draft = State(initialValue: filters.wrappedValue)
         _draftSortDescending = State(initialValue: sortDescending.wrappedValue)
     }
 
-    private var genres: [String] { Array(Set(movies.flatMap(\.genres))).sorted() }
-    private var providers: [String] { MovieFilters.filterProviders() }
+    private var genres: [String] {
+        allOptions ? MovieFilters.allGenres : Array(Set(movies.flatMap(\.genres))).sorted()
+    }
+    private var providers: [String] {
+        allOptions ? MovieFilters.majorProviders : MovieFilters.presentProviders(in: movies)
+    }
     private let runtimeOptions: [(label: String, value: Int)] =
         [("Under 100 min", 100), ("Under 2 hours", 120), ("Under 2½ hours", 150)]
     private var decades: [Int] { Array(stride(from: 2020, through: 1950, by: -10)) }

@@ -255,7 +255,10 @@ struct RecCardDeck: View {
         if case .rec(let c) = item {
             if save {
                 onSave(c.movie)
-                ToastCenter.shared.show("Bookmarked ✓")
+                // Same as the rank toast: tap to open what you just saved.
+                ToastCenter.shared.showTap("Bookmarked \(c.movie.title) 🔖 · View") {
+                    onOpen(c.movie)
+                }
             }
             history.append((index, c.movie, save))
         } else {

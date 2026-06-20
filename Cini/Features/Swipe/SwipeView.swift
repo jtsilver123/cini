@@ -34,16 +34,21 @@ struct SwipeView: View {
     /// can offer to open its page.
     @State private var lastRanked: Movie?
     @State private var showImport = false
+    /// Bumped each time the pool reloads (filter change / refresh) so the deck
+    /// resets to the first card instead of keeping a stale index.
+    @State private var poolVersion = 0
     @Namespace private var posterZoom
 
     /// The current pool minus dismissed / already-watched, filtered to the
     /// selected media kind.
     private var visible: [YourListsView.RecCandidate] {
+        // No client-side `filters.passes` here: when filters are active the pool
+        // is fetched to match them (discover), and streaming data on a card is
+        // too sparse to re-filter against without dropping valid results.
         candidates.filter {
             !dismissed.contains($0.movie.tmdbID)
                 && !store.isWatched($0.movie.tmdbID)
                 && (suggestTV ? $0.movie.mediaKind == "tv" : $0.movie.mediaKind != "tv")
-                && filters.passes($0.movie)
         }
     }
 
@@ -107,7 +112,8 @@ struct SwipeView: View {
                     filters: $filters,
                     movies: candidates.map(\.movie),
                     sortDescending: .constant(true),
-                    sortHighLabel: "", sortLowLabel: "", showSort: false)
+                    sortHighLabel: "", sortLowLabel: "", showSort: false,
+                    allOptions: true)   // Swipe filters guide the discovery pool
                 .presentationDetents([.medium, .large])
             }
             .task { await load() }
@@ -116,6 +122,9 @@ struct SwipeView: View {
             .onAppear { consumeDeepLink() }
             .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumeDeepLink() }
             .onChange(of: tabRouter.pendingRecsGrid) { _, _ in consumeDeepLink() }
+            // Filters drive the pool here — changing them fetches a fresh,
+            // matching set (or the automatic pool when cleared).
+            .onChange(of: filters) { _, _ in Task { await reloadPool() } }
         }
     }
 
@@ -203,7 +212,7 @@ struct SwipeView: View {
     /// screen and shoves the whole view off both edges.
     private var filterPills: some View {
         MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
-                       onFilterTap: { showFilterSheet = true })
+                       onFilterTap: { showFilterSheet = true }, allOptions: true)
     }
 
     /// Dismissible nudge to bring a full history over — same look as the import
@@ -274,7 +283,9 @@ struct SwipeView: View {
                             onSave: { movie in
                                 guard !store.isOnWatchlist(movie.tmdbID) else { return }
                                 Task { await store.toggleWatchlist(movie: movie) }
-                                ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
+                                ToastCenter.shared.showTap("Bookmarked \(movie.title) 🔖 · View") {
+                                    store.cache(movie); detailMovie = movie
+                                }
                             },
                             onDismiss: { movie in
                                 withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
@@ -302,14 +313,15 @@ struct SwipeView: View {
                     onUnsave: { m in
                         if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
                     },
-                    onRefresh: { Task { candidates = []; loaded = false; await load() } },
+                    onRefresh: { Task { await reloadPool() } },
                     showRank: true,
                     onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                     richDetail: true,
                     bookmarkCounts: bookmarkCounts
                 )
-                // Reset the deck's position when switching Movies ↔ TV.
-                .id(suggestTV)
+                // Reset the deck's position when switching Movies ↔ TV or when
+                // the pool reloads (filters changed / refreshed).
+                .id("\(suggestTV)-\(poolVersion)")
                 // Match the app's standard screen gutter so the deck lines up
                 // with the grid/list views and doesn't run to the screen edge.
                 .screenHPadding()
@@ -321,22 +333,87 @@ struct SwipeView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Spacer()
-            Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text(suggestTV ? "Fresh shows are on the way" : "Fresh picks are on the way")
-                .font(.subheadline.weight(.bold))
-            Text("Rank a few titles and Cini dials in your taste — your personalized deck shows up right here.")
-                .font(.caption).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 40)
+            Image(systemName: filters.isActive ? "line.3.horizontal.decrease.circle" : "sparkles")
+                .font(.largeTitle).foregroundStyle(Theme.gray)
+            if filters.isActive {
+                Text("Nothing matches these filters")
+                    .font(.subheadline.weight(.bold))
+                Text("Try loosening a filter \(suggestTV ? "or switching to Movies" : "or switching to TV Shows").")
+                    .font(.caption).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center).padding(.horizontal, 40)
+                Button {
+                    Haptics.tap()
+                    filters = MovieFilters()
+                } label: {
+                    Text("Clear filters").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain).padding(.top, 2)
+            } else {
+                Text(suggestTV ? "Fresh shows are on the way" : "Fresh picks are on the way")
+                    .font(.subheadline.weight(.bold))
+                Text("Rank a few titles and Cini dials in your taste — your personalized deck shows up right here.")
+                    .font(.caption).foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center).padding(.horizontal, 40)
+            }
             Spacer()
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Build the pool: friends' loved titles → similar to your #1 → trending →
-    /// popular. Every source returns both movies and TV, so the toggle has a
-    /// full deck either way. Already-watched titles are filtered out in `visible`.
+    /// Reload the pool from scratch — used when the filters change (they drive
+    /// a different pool on the Swipe page) or on a manual refresh.
+    private func reloadPool() async {
+        candidates = []
+        loaded = false
+        dismissed = []
+        await load()
+    }
+
     private func load() async {
         guard candidates.isEmpty else { return }
+        // Filters active → fetch a pool that MATCHES them (discovery). Otherwise
+        // the automatic, taste-based pool.
+        if filters.isActive { await loadFiltered() } else { await loadAutomatic() }
+    }
+
+    /// A filter-driven pool: TMDB discover for both movies and shows matching the
+    /// active filters, so the deck is full of on-target picks.
+    private func loadFiltered() async {
+        async let moviePool = TMDBService.shared.discover(
+            genre: filters.genre, decade: filters.decade,
+            maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: false)
+        async let tvPool = TMDBService.shared.discover(
+            genre: filters.genre, decade: filters.decade,
+            maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: true)
+        let pool = ((try? await moviePool) ?? []) + ((try? await tvPool) ?? [])
+
+        var seen = Set<Int>()
+        var built: [YourListsView.RecCandidate] = []
+        for movie in pool where movie.posterPath != nil
+            && seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+            store.cache(movie)
+            built.append(YourListsView.RecCandidate(movie: movie, reason: filterReason()))
+        }
+        candidates = built
+        loaded = true
+        poolVersion += 1
+        bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
+        await enrich(built.prefix(16).map(\.movie.tmdbID))
+        candidates = candidates.map {
+            YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
+        }
+    }
+
+    /// A short "why this is here" line for a filtered pool.
+    private func filterReason() -> String {
+        if let g = filters.genre { return "\(g) pick" }
+        if let p = filters.streamingProvider { return "On \(p)" }
+        if let d = filters.decade { return "From the \(d)s" }
+        return "Matches your filters"
+    }
+
+    private func loadAutomatic() async {
         let topID = store.watchedItems.first?.id
         async let friendRecsTask = SupabaseService.shared.recsForUser()
         async let trendingTask = TMDBService.shared.trending()
@@ -385,6 +462,7 @@ struct SwipeView: View {
             }
         }
         loaded = true
+        poolVersion += 1
 
         // How many people have each title bookmarked — social proof on the cards.
         bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
