@@ -7,16 +7,15 @@ import SwiftUI
 struct WelcomeView: View {
     @State private var showAuth = false
     @State private var startInSignUp = true
-    /// Poster paths for the wall — seeded with a curated set so the first frame
-    /// is never empty, then refreshed with what's trending right now.
-    @State private var posters: [String] = PosterWall.seed
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Theme.background.ignoresSafeArea()
 
-            // The drifting poster wall, full-bleed behind everything.
-            PosterWall(posters: posters)
+            // The drifting poster wall — a fixed, hand-picked set of instantly
+            // recognizable films and shows (no live swap, so it's always titles
+            // a new user will know).
+            PosterWall(posters: PosterWall.seed)
                 .ignoresSafeArea()
 
             // Melt the wall into the background (Beli-style): posters fill the
@@ -95,14 +94,6 @@ struct WelcomeView: View {
                 .padding(.bottom, 24)
             }
         }
-        .task {
-            // Refresh the wall with current posters (TMDB's client key works
-            // pre-auth). Keep the seed if the fetch is thin or offline.
-            if let trending = try? await TMDBService.shared.trending() {
-                let paths = trending.compactMap(\.posterPath)
-                if paths.count >= 9 { posters = paths }
-            }
-        }
         .fullScreenCover(isPresented: $showAuth) {
             AuthView(startInSignUp: startInSignUp)
         }
@@ -118,21 +109,32 @@ struct WelcomeView: View {
 private struct PosterWall: View {
     let posters: [String]
 
-    /// A curated first-frame set (real TMDB paths for well-known films) so the
-    /// wall is populated instantly, before trending loads.
+    /// A fixed, hand-picked wall of instantly-recognizable films AND shows
+    /// (verified TMDB poster paths). Movies and TV are interleaved so each
+    /// column shows a mix.
     static let seed: [String] = [
-        "/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
-        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
         "/qJ2tW6WMUDux911r6m7haRef0WH.jpg", // The Dark Knight
-        "/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg", // Pulp Fiction
-        "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
-        "/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg", // Forrest Gump
-        "/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg", // Inception
+        "/ztkUQFLlC19CCMYHW9o1zWhJRNq.jpg", // Breaking Bad
+        "/xlaY2zyzMfkhk0HSC5VUwzoZPU1.jpg", // Inception
+        "/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg", // Game of Thrones
+        "/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg", // Interstellar
+        "/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg", // Stranger Things
+        "/vQWk5YBFWF4bZaofAbv0tShwBvQ.jpg", // Pulp Fiction
+        "/7DJKHzAi83BmQrWLrYYOqcoKfhR.jpg", // The Office
         "/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", // Parasite
-        "/9O7gLzmreU0nGkIB6K3BsJbzvNv.jpg", // 1917
-        "/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg", // Spirited Away
-        "/8UlWHLMpgZm9bx6QYh0NFoq67TZ.jpg", // The Matrix
+        "/dmo6TYuuJgaYinXBPjrgG9mB5od.jpg", // The Last of Us
+        "/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", // Oppenheimer
+        "/36xXlhEpQqVVPuiZhfoQuaY4OlA.jpg", // Wednesday
+        "/gDzOcq0pfeCeqMBwKIJlSmQpjkZ.jpg", // Dune
+        "/2koX1xLkpTQM4IZebYvKysFW1Nh.jpg", // Friends
+        "/uDO8zWDhfWwoFdKS4fzkUJt0Rf0.jpg", // La La Land
         "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg", // The Godfather
+        "/Cw4hIUIAmSYfK9QfaUW5igp9La.jpg",  // Forrest Gump
+        "/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
+        "/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg", // Spider-Man: Into the Spider-Verse
+        "/iuFNMS8U5cb6xfzi51Dbkovj7vM.jpg", // Barbie
+        "/n0YuM4f5lvGAP6MAW2kBIzugXnc.jpg", // Top Gun: Maverick
+        "/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg", // Joker
     ]
 
     private let tileW: CGFloat = 108
