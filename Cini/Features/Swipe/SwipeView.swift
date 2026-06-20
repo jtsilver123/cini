@@ -184,6 +184,8 @@ struct SwipeView: View {
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
+        // Let the product tour aim its coachmark at this toggle.
+        .tourAnchor("recsToggle")
     }
 
     private func compactSegment(_ option: Layout, icon: String, short: String, label: String) -> some View {
