@@ -1255,7 +1255,7 @@ function renderSwipe(){
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px; align-items:center;">
       <button class="iconbtn" onclick="openFilters()" aria-label="Filters and sort" style="flex:0 0 auto; background:rgba(255,255,255,.07); border-radius:50%; padding:7px; margin-right:2px;">${I("sliders",17)}</button>
       ${["Streaming","Genre","Runtime","Decade"].map(p=>`<button class="pill out" onclick="openFilters()">${p}</button>`).join("")}</div>`;
-  const noteHTML=`<div class="pad" style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gray); font-size:12px; font-weight:600;">${I("stack",14)} ${swipeGrid?`Tap a poster to rank a ${swipeTV?"show":"movie"} you've seen`:`Swipe right to save · left to skip · + to rank`}</div>`;
+  const noteHTML=`<div class="pad" style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gray); font-size:12px; font-weight:600;">${I("stack",14)} ${swipeGrid?`Tap a poster to rank a ${swipeTV?"show":"movie"} you've seen`:`Swipe right to bookmark · left to pass · + to rank`}</div>`;
   let body;
   if(swipeGrid){
     body=noteHTML+`<div class="pad" style="margin-top:8px;">${pool.map(k=>row(k,false)).join("")}</div>`;

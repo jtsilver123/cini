@@ -184,7 +184,7 @@ struct TonightPickCard: View {
                 .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
             stamp("Bookmark", "bookmark.fill", Theme.scoreGreen)
                 .rotationEffect(.degrees(-10)).opacity(save)
-            stamp("Dismiss", "xmark", Theme.scoreRed)
+            stamp("Pass", "xmark", Theme.scoreRed)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
@@ -195,11 +195,11 @@ struct TonightPickCard: View {
             Image(systemName: icon)
             Text(text).tracking(1)
         }
-        .font(.headline.weight(.heavy))
+        .font(.title3.weight(.heavy))
         .foregroundStyle(.white)
-        .padding(.horizontal, 16).padding(.vertical, 9)
+        .padding(.horizontal, 18).padding(.vertical, 10)
         .background(Capsule().fill(color))
-        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+        .shadow(color: .black.opacity(0.35), radius: 7, y: 2)
     }
 }
 

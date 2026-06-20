@@ -54,7 +54,7 @@ struct RecCardDeck: View {
             .demo(id: 1, title: "Swipe right to bookmark",
                   subtitle: "It lands on your Want to Watch list.", save: true),
             .demo(id: 2, title: "Swipe left to pass",
-                  subtitle: "No one sees what you skip.", save: false),
+                  subtitle: "No one sees what you pass.", save: false),
         ] : []
     }
     private var items: [DeckItem] { demos + candidates.map(DeckItem.rec) }
@@ -82,7 +82,6 @@ struct RecCardDeck: View {
                 ForEach(window, id: \.id) { item in
                     let isTop = item.id == items[index].id
                     card(item, dragX: isTop ? drag.width + flyOff : 0)
-                        .overlay { if isTop { swipeStamp(drag.width + flyOff) } }
                         .offset(x: isTop ? drag.width + flyOff : 0,
                                 y: isTop ? drag.height : 0)
                         .rotationEffect(.degrees(isTop ? Double(drag.width + flyOff) / 22 : 0))
@@ -108,32 +107,6 @@ struct RecCardDeck: View {
             .frame(maxWidth: .infinity)
             .frame(height: richDetail ? 320 : 220)
         }
-    }
-
-    /// Tinder-style SAVE / PASS stamps that fade in as the top card is dragged.
-    private func swipeStamp(_ dragX: CGFloat) -> some View {
-        let save = max(0, min(dragX / 90, 1))
-        let pass = max(0, min(-dragX / 90, 1))
-        return ZStack {
-            stampLabel("SAVE", color: Theme.scoreGreen, rotation: -14)
-                .opacity(save)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            stampLabel("PASS", color: Theme.scoreRed, rotation: 14)
-                .opacity(pass)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        }
-        .padding(20)
-        .allowsHitTesting(false)
-    }
-
-    private func stampLabel(_ text: String, color: Color, rotation: Double) -> some View {
-        Text(text)
-            .font(.system(size: 30, weight: .heavy)).tracking(2)
-            .foregroundStyle(color)
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(color, lineWidth: 4))
-            .rotationEffect(.degrees(rotation))
     }
 
     @ViewBuilder

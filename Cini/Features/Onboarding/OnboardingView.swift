@@ -587,7 +587,7 @@ struct OnboardingView: View {
                 Spacer()
             } else {
                 // Concise cue, sitting directly under the toggle, then the deck.
-                Label("Swipe right to save · left to skip · + to rank", systemImage: "hand.tap")
+                Label("Swipe right to bookmark · left to pass · + to rank", systemImage: "hand.tap")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
