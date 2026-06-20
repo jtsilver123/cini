@@ -1,29 +1,50 @@
 import SwiftUI
 
-/// The front door (Luma-style): one calm, static welcome — a single product
-/// mockup, the wordmark, a one-line promise, then "Get started" / "Sign in".
-/// No carousel to swipe through; the value prop lands in one glance. Branding
-/// is the cinema palette — marquee gold on the house-lights-down background.
+/// The front door: a cinematic wall of movie posters drifting behind the
+/// wordmark + promise, with "Get started" / "Sign in". The wall scrolls on its
+/// own and the user can drag to scrub it faster — it sets the movie-night tone
+/// the instant the app opens.
 struct WelcomeView: View {
     @State private var showAuth = false
     @State private var startInSignUp = true
+    /// Poster paths for the wall — seeded with a curated set so the first frame
+    /// is never empty, then refreshed with what's trending right now.
+    @State private var posters: [String] = PosterWall.seed
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             Theme.background.ignoresSafeArea()
-            // Warm marquee glow up top.
-            RadialGradient(colors: [Theme.marquee.opacity(0.16), .clear],
-                           center: .top, startRadius: 0, endRadius: 420)
+
+            // The drifting poster wall, full-bleed behind everything.
+            PosterWall(posters: posters)
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 12)
+            // Melt the wall into the background (Beli-style): posters fill the
+            // top and dissolve into solid ground where the wordmark + buttons
+            // live, with a light scrim up top for status-bar legibility.
+            LinearGradient(stops: [
+                .init(color: Theme.background.opacity(0.55), location: 0.0),
+                .init(color: Theme.background.opacity(0.0), location: 0.12),
+                .init(color: Theme.background.opacity(0.0), location: 0.34),
+                .init(color: Theme.background.opacity(0.75), location: 0.52),
+                .init(color: Theme.background, location: 0.66),
+                .init(color: Theme.background, location: 1.0)
+            ], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
-                PhoneMockup { CompareMock() }
+            // Warm marquee glow up top.
+            RadialGradient(colors: [Theme.marquee.opacity(0.14), .clear],
+                           center: .top, startRadius: 0, endRadius: 420)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
 
                 VStack(spacing: 12) {
                     Text("Cini")
-                        .font(Theme.serif(44))
+                        .font(Theme.serif(46))
                         .foregroundStyle(Theme.ink)
                     Text("Rank everything you watch")
                         .font(Theme.serif(26))
@@ -36,9 +57,7 @@ struct WelcomeView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 34)
                 }
-                .padding(.top, 28)
-
-                Spacer(minLength: 12)
+                .shadow(color: Theme.background, radius: 12)
 
                 VStack(spacing: 12) {
                     Button {
@@ -61,9 +80,27 @@ struct WelcomeView: View {
                             .foregroundStyle(Theme.marquee)
                     }
                     .buttonStyle(.plain)
+
+                    // Legal disclosure (Beli-style), with tappable links.
+                    Text("By continuing, you agree to our [Terms](https://trycini.com/terms.html) and acknowledge our [Privacy Policy](https://trycini.com/privacy.html).")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.gray)
+                        .tint(Theme.marquee)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 4)
                 }
+                .padding(.top, 28)
                 .padding(.horizontal, 28)
                 .padding(.bottom, 24)
+            }
+        }
+        .task {
+            // Refresh the wall with current posters (TMDB's client key works
+            // pre-auth). Keep the seed if the fetch is thin or offline.
+            if let trending = try? await TMDBService.shared.trending() {
+                let paths = trending.compactMap(\.posterPath)
+                if paths.count >= 9 { posters = paths }
             }
         }
         .fullScreenCover(isPresented: $showAuth) {
@@ -72,79 +109,131 @@ struct WelcomeView: View {
     }
 }
 
-// MARK: - Phone mockups (pure SwiftUI, adapt to light/dark via Theme)
+// MARK: - Poster wall
 
-/// A small device frame the slide mockups live in.
-private struct PhoneMockup<Content: View>: View {
-    @ViewBuilder var content: Content
+/// Three columns of posters drifting vertically — the outer two down, the
+/// middle one up — staggered so the rows brick-offset. It scrolls on its own
+/// (a TimelineView clock drives the offset) and a drag scrubs it faster, with a
+/// little momentum on release.
+private struct PosterWall: View {
+    let posters: [String]
+
+    /// A curated first-frame set (real TMDB paths for well-known films) so the
+    /// wall is populated instantly, before trending loads.
+    static let seed: [String] = [
+        "/7fn624j5lj3xTme2SgiLCeuedmO.jpg", // Whiplash
+        "/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg", // Interstellar
+        "/qJ2tW6WMUDux911r6m7haRef0WH.jpg", // The Dark Knight
+        "/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg", // Pulp Fiction
+        "/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg", // Fight Club
+        "/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg", // Forrest Gump
+        "/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg", // Inception
+        "/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg", // Parasite
+        "/9O7gLzmreU0nGkIB6K3BsJbzvNv.jpg", // 1917
+        "/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg", // Spirited Away
+        "/8UlWHLMpgZm9bx6QYh0NFoq67TZ.jpg", // The Matrix
+        "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg", // The Godfather
+    ]
+
+    private let tileW: CGFloat = 108
+    private let tileH: CGFloat = 162
+    private let spacing: CGFloat = 12
+
+    @State private var begin = Date()
+    @State private var scrub: CGFloat = 0           // user-added offset (persists)
+    @GestureState private var dragLive: CGFloat = 0  // live drag delta
+
+    /// Deal posters round-robin into three columns; fall back to the seed.
+    private var columns: [[String]] {
+        let source = posters.isEmpty ? Self.seed : posters
+        var cols: [[String]] = [[], [], []]
+        for (i, p) in source.enumerated() { cols[i % 3].append(p) }
+        // Each column needs a few tiles to loop smoothly.
+        return cols.map { $0.count >= 4 ? $0 : Array(($0 + $0 + $0).prefix(max(4, $0.count))) }
+    }
 
     var body: some View {
-        VStack(spacing: 0) { content }
-            .padding(14)
-            .frame(width: 224, height: 300, alignment: .top)
-            .background(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .fill(Theme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1)
-            )
-            .shadow(color: Theme.cardShadow, radius: 22, y: 12)
+        let cols = columns   // compute once per layout, not every frame
+        return TimelineView(.animation) { ctx in
+            let t = CGFloat(ctx.date.timeIntervalSince(begin))
+            HStack(spacing: spacing) {
+                ForEach(Array(cols.enumerated()), id: \.offset) { idx, paths in
+                    let dir: CGFloat = idx == 1 ? -1 : 1          // middle drifts up
+                    let speed: CGFloat = 16 + CGFloat(idx) * 3    // gentle parallax
+                    let phase = CGFloat(idx) * (tileH + spacing) * 0.5   // brick offset
+                    PosterColumn(paths: paths, tileW: tileW, tileH: tileH, spacing: spacing,
+                                 offset: t * speed * dir + (scrub + dragLive) + phase)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .opacity(0.9)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture()
+                .updating($dragLive) { value, state, _ in state = value.translation.height }
+                .onEnded { value in
+                    // Keep the finger movement, plus a little momentum.
+                    scrub += value.translation.height + value.predictedEndTranslation.height * 0.3
+                }
+        )
     }
 }
 
-/// A real movie poster (from TMDB, the app's image source), with a two-tone
-/// gradient + title as the offline/loading fallback.
-private struct MockPoster: View {
-    let title: String
+/// One column: each poster is absolutely positioned at a wrapped Y so the
+/// column loops forever for any offset (auto + drag).
+private struct PosterColumn: View {
+    let paths: [String]
+    let tileW: CGFloat
+    let tileH: CGFloat
+    let spacing: CGFloat
+    let offset: CGFloat
+
+    var body: some View {
+        let stride = tileH + spacing
+        let total = stride * CGFloat(paths.count)
+        GeometryReader { geo in
+            ZStack(alignment: .top) {
+                ForEach(paths.indices, id: \.self) { i in
+                    WallPoster(path: paths[i], width: tileW, height: tileH)
+                        .offset(y: wrapped(CGFloat(i) * stride + offset,
+                                           span: total, height: geo.size.height))
+                }
+            }
+            .frame(width: tileW, alignment: .top)
+        }
+        .frame(width: tileW)
+        .clipped()
+    }
+
+    /// Map an arbitrary y into the visible band [-stride, height], looping.
+    private func wrapped(_ y: CGFloat, span: CGFloat, height: CGFloat) -> CGFloat {
+        guard span > 0 else { return y }
+        var r = y.truncatingRemainder(dividingBy: span)
+        if r < 0 { r += span }
+        // Place the band starting just above the top so tiles enter/exit cleanly.
+        let buffer = tileH + spacing
+        if r > height + buffer { r -= span }
+        return r - buffer
+    }
+}
+
+private struct WallPoster: View {
     let path: String
-    let c1: Color
-    let c2: Color
-    var height: CGFloat = 116
+    let width: CGFloat
+    let height: CGFloat
 
     var body: some View {
         CachedAsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w342\(path)")) { img in
             img.resizable().scaledToFill()
         } placeholder: {
-            LinearGradient(colors: [c1, c2], startPoint: .topLeading, endPoint: .bottomTrailing)
-                .overlay(alignment: .bottomLeading) {
-                    Text(title)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(8)
-                }
+            Theme.surface
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
+        .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-/// The signature compare screen, shown in the welcome mockup.
-private struct CompareMock: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("RANK YOUR WATCH")
-                .font(.system(size: 9, weight: .bold)).tracking(2)
-                .foregroundStyle(Theme.gray)
-            Text("Which did you\nlike more?")
-                .font(Theme.serif(18))
-                .foregroundStyle(Theme.ink)
-            HStack(spacing: 10) {
-                MockPoster(title: "Whiplash", path: "/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
-                           c1: Color(red: 0.12, green: 0.43, blue: 0.42),
-                           c2: Color(red: 0.05, green: 0.16, blue: 0.23))
-                Text("vs").font(.caption.weight(.heavy)).foregroundStyle(Theme.gray)
-                MockPoster(title: "Interstellar", path: "/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
-                           c1: Theme.velvet,
-                           c2: Color(red: 0.91, green: 0.71, blue: 0.30))
-            }
-            Text("Tap the one you liked more")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Theme.marquee)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 4)
-        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 0.5)
+        )
     }
 }
