@@ -302,10 +302,10 @@ struct SwipeView: View {
                     .id("recsTop")
                 }
             case .cards:
-                // Center the deck in the space below the chrome instead of
-                // pinning it to the top (it was sitting too high, leaving a
-                // dead gap underneath).
-                Spacer(minLength: 0)
+                // A small, capped top gap (not a full center) so the deck keeps a
+                // steady spot: dismissing the import banner makes the deck rise to
+                // fill that space instead of leaving a growing void above it.
+                Spacer(minLength: 0).frame(maxHeight: 18)
                 modeNote("Swipe right to save · left to skip · + to rank")
                     .padding(.bottom, 4)
                 RecCardDeck(
