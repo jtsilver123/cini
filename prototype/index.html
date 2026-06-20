@@ -1234,7 +1234,7 @@ const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched]
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
-let swipeIdx=0, swipeGrid=false, swipeTV=false, swipeImport=true;
+let swipeIdx=0, swipeGrid=true, swipeTV=false, swipeImport=true;
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
 function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Bookmarked'); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
@@ -1243,8 +1243,8 @@ function renderSwipe(){
   const head=`<div class="pad" style="display:flex; align-items:center; gap:8px; padding-top:14px; padding-bottom:2px;">
       <b style="font-size:21px;">Recs</b><span class="spacer"></span>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">
-        <button onclick="swipeGrid=false; renderSwipe()" aria-label="Find to watch" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",15)}</button>
-        <button onclick="swipeGrid=true; renderSwipe()" aria-label="Rank watched" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",15)}</button>
+        <button onclick="swipeGrid=true; renderSwipe()" aria-label="Rank watched" style="border:none; cursor:pointer; border-radius:999px; padding:0 11px; height:30px; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",13)} Rank</button>
+        <button onclick="swipeGrid=false; renderSwipe()" aria-label="Find to watch" style="border:none; cursor:pointer; border-radius:999px; padding:0 11px; height:30px; display:inline-flex; align-items:center; gap:4px; font-size:12px; font-weight:600; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",13)} Find</button>
       </div>
       <button class="iconbtn" onclick="openImport()" aria-label="Import" style="display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.07); border-radius:999px; padding:7px 12px; color:var(--marquee); font-weight:600; font-size:14px;">${I("download",18)} Import</button></div>
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px;">

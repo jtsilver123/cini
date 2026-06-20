@@ -88,6 +88,7 @@ struct ProductTourView: View {
             // upward caret; a bottom target (a tab) → bubble above, caret down.
             let up = target.midY < proxy.size.height * 0.5
             let caretX = min(max(target.midX, 44), proxy.size.width - 44)
+            let isAnchorStep: Bool = { if case .anchor = stop.target { return true } else { return false } }()
 
             ZStack {
                 // Dim the live app and swallow taps to it.
@@ -95,11 +96,16 @@ struct ProductTourView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { }
 
-                // Gold spotlight ring around the control being described.
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(Theme.marquee, lineWidth: 2)
-                    .frame(width: target.width + 14, height: target.height + 14)
-                    .position(x: target.midX, y: target.midY)
+                // Gold spotlight ring — only for on-screen controls we can frame
+                // precisely (the Recs toggle). Tab buttons live in the UIKit bar
+                // below the bounds, so a ring there would clip; the caret + the
+                // system's gold active tab mark those instead.
+                if isAnchorStep {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .strokeBorder(Theme.marquee, lineWidth: 2)
+                        .frame(width: target.width + 14, height: target.height + 14)
+                        .position(x: target.midX, y: target.midY)
+                }
 
                 // The caret, aimed at the control.
                 CoachCaret(pointingUp: up)
