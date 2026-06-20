@@ -76,7 +76,7 @@ struct LeaderboardView: View {
                     Button(g) { genre = g; Task { await load() } }
                 }
             } label: {
-                FilterPill(title: genre ?? "All Genres")
+                FilterPill(title: genre ?? "All Genres", active: genre != nil)
             }
         }
     }

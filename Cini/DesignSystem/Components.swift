@@ -119,20 +119,33 @@ struct PillButton: View {
 struct FilterPill: View {
     let title: String
     var hasChevron = true
+    /// A value is selected for this filter — render it filled (Beli-style) so
+    /// it's visibly different from an untouched pill.
+    var active = false
     var action: () -> Void = {}
 
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Text(title).font(.subheadline)
-                if hasChevron { Image(systemName: "chevron.down").font(.caption2) }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .foregroundStyle(Theme.ink)
+    private var label: some View {
+        HStack(spacing: 4) {
+            Text(title).font(.subheadline.weight(active ? .semibold : .regular))
+            if hasChevron { Image(systemName: "chevron.down").font(.caption2) }
         }
-        .buttonStyle(.plain)
-        .glassCapsule()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .foregroundStyle(active ? Theme.background : Theme.ink)
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if active {
+            Button(action: action) {
+                label.background(Capsule().fill(Theme.marquee))
+            }
+            .buttonStyle(.plain)
+        } else {
+            Button(action: action) { label }
+                .buttonStyle(.plain)
+                .glassCapsule()
+        }
     }
 }
 
@@ -1077,8 +1090,10 @@ struct MovieFilterBar: View {
                     .buttonStyle(.plain)
                     .glassCapsule()
                 }
-                // Order: Streaming, Genre, Runtime, Decade.
-                FilterPill(title: filters.streamingProvider ?? "Streaming") {
+                // Order: Streaming, Genre, Runtime, Decade. A pill turns filled
+                // (active) once its filter has a value selected.
+                FilterPill(title: filters.streamingProvider ?? "Streaming",
+                           active: filters.streamingProvider != nil) {
                     showStreamingPicker = true
                 }
                 Menu {
@@ -1087,7 +1102,7 @@ struct MovieFilterBar: View {
                         Button(genre) { filters.genre = genre }
                     }
                 } label: {
-                    FilterPill(title: filters.genre ?? "Genre")
+                    FilterPill(title: filters.genre ?? "Genre", active: filters.genre != nil)
                 }
                 Menu {
                     Button("Any Runtime") { filters.runtime = nil }
@@ -1095,7 +1110,8 @@ struct MovieFilterBar: View {
                     Button("Under 2 hours") { filters.runtime = 120 }
                     Button("Under 2½ hours") { filters.runtime = 150 }
                 } label: {
-                    FilterPill(title: filters.runtime.map { "< \($0) min" } ?? "Runtime")
+                    FilterPill(title: filters.runtime.map { "< \($0) min" } ?? "Runtime",
+                               active: filters.runtime != nil)
                 }
                 Menu {
                     Button("Any Decade") { filters.decade = nil }
@@ -1103,7 +1119,8 @@ struct MovieFilterBar: View {
                         Button("\(String(decade))s") { filters.decade = decade }
                     }
                 } label: {
-                    FilterPill(title: filters.decade.map { "\(String($0))s" } ?? "Decade")
+                    FilterPill(title: filters.decade.map { "\(String($0))s" } ?? "Decade",
+                               active: filters.decade != nil)
                 }
             }
             .padding(.horizontal, 16)
