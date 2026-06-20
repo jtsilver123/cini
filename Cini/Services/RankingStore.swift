@@ -344,6 +344,8 @@ final class RankingStore {
             // the toggle would hit the FK, so it fails the whole save.
             if !wasSaved { try await supabase.cacheMovie(movie) }
             _ = try await supabase.watchlistToggle(movieID: movie.tmdbID)
+            // A satisfying confirm that the save stuck (only on add, not remove).
+            if !wasSaved { Haptics.success() }
         } catch {
             // Revert the optimistic flip and say so — silence feels broken.
             if wasSaved, let original = removedItem {

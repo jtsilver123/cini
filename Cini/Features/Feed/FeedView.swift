@@ -811,8 +811,10 @@ struct LikersSheet: View {
                         .padding(.horizontal, 16)
                         .frame(maxHeight: .infinity, alignment: .top)
                 } else if likers.isEmpty {
-                    Text("No likes yet")
+                    Text("No likes yet — be the first to show some love")
                         .font(.subheadline).foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     List(likers) { person in

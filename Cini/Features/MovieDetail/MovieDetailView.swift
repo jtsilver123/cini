@@ -354,6 +354,8 @@ struct MovieDetailView: View {
                 .compactMap(\.self).joined(separator: " · "))
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.horizontal, 16)
     }

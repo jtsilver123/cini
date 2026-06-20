@@ -328,9 +328,9 @@ struct SwipeView: View {
         VStack(spacing: 10) {
             Spacer()
             Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text(suggestTV ? "No shows to swipe right now" : "No movies to swipe right now")
+            Text(suggestTV ? "Fresh shows are on the way" : "Fresh picks are on the way")
                 .font(.subheadline.weight(.bold))
-            Text("Rank a few titles so Cini learns your taste — or check the other tab up top.")
+            Text("Rank a few titles and Cini dials in your taste — your personalized deck shows up right here.")
                 .font(.caption).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 40)
             Spacer()

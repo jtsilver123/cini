@@ -284,6 +284,7 @@ struct RequestRecsSheet: View {
                 systemImage: "paperplane"
             ) {
                 guard !selected.isEmpty, !sending else { return }
+                Haptics.tap()
                 sending = true
                 Task {
                     let count = await SupabaseService.shared.requestRecs(
@@ -293,9 +294,11 @@ struct RequestRecsSheet: View {
                         note: note.trimmingCharacters(in: .whitespacesAndNewlines))
                     sending = false
                     if count > 0 {
+                        Haptics.success()
                         ToastCenter.shared.show("Asked \(count) friend\(count == 1 ? "" : "s") for a rec 🎬")
                         dismiss()
                     } else {
+                        Haptics.error()
                         ToastCenter.shared.show("Couldn't send that — try again")
                     }
                 }
@@ -526,6 +529,7 @@ struct RespondPickerView: View {
                 systemImage: "paperplane"
             ) {
                 guard !picked.isEmpty, !sending else { return }
+                Haptics.tap()
                 sending = true
                 Task {
                     let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -545,12 +549,14 @@ struct RespondPickerView: View {
                         // bookkeeping — if it fails, leave the ask
                         // visible so it can be cleared later.
                         let completed = await SupabaseService.shared.completeRecRequest(id: request.id)
+                        Haptics.success()
                         ToastCenter.shared.show("Sent \(sent) rec\(sent == 1 ? "" : "s") to @\(request.profiles?.username ?? "them") 🎬")
                         sending = false
                         if completed { onFulfilled(request.id) }
                         dismiss()
                     } else {
                         sending = false
+                        Haptics.error()
                         ToastCenter.shared.show("Couldn't send — try again")
                     }
                 }

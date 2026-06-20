@@ -633,6 +633,7 @@ struct SaveToListSheet: View {
                                         try? await SupabaseService.shared.cacheMovie(saved)
                                         do {
                                             try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                            Haptics.success()
                                             // Keep the shared cache's count in step.
                                             await store.refreshCustomLists()
                                             ToastCenter.shared.show("Added to \(list.name)")
@@ -675,8 +676,9 @@ struct SaveToListSheet: View {
                                 try? await SupabaseService.shared.cacheMovie(saved)
                                 // Surface a real add failure — don't claim success.
                                 try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                Haptics.success()
                                 await store.refreshCustomLists()
-                                ToastCenter.shared.show("Added to \(list.name)")
+                                ToastCenter.shared.show("New list ready — added to \(list.name)")
                             } catch {
                                 ToastCenter.shared.saveFailed()
                             }

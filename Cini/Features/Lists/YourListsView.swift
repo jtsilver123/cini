@@ -497,9 +497,9 @@ struct YourListsView: View {
             if directRecs.isEmpty && directRecsLoaded {
                 VStack(spacing: 10) {
                     Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
-                    Text("No recs from friends yet")
+                    Text("No picks from friends yet")
                         .font(.subheadline.weight(.semibold))
-                    Text("When a friend taps Recommend on a title and picks you, it lands here with their note.")
+                    Text("When a friend recommends a title just for you, it lands right here with their note.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
@@ -734,7 +734,7 @@ struct YourListsView: View {
                     .listRowBackground(Theme.background)
                     .listRowSeparator(.hidden)
             } else if customListMovies.isEmpty {
-                Text("Nothing in this list yet — open any movie or show and tap \"Add to List.\"")
+                Text("This list is a blank canvas — open any movie or show and tap Add to List to start filling it.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -1133,7 +1133,7 @@ struct YourListsView: View {
         .listStyle(.plain)
         .overlay {
             if watchingLoaded && watchingRows.isEmpty {
-                emptyList("Mark a show “I'm watching this” on its page and it shows up here.",
+                emptyList("Track what you're in the middle of — tap “I'm watching this” on any show to follow your progress here.",
                           actionTitle: "Find a show") {
                     tabRouter.pendingSearchBrowse = .trending
                     tabRouter.selection = .search
@@ -1208,7 +1208,7 @@ struct YourListsView: View {
         }
         .overlay {
             if store.watchlist.isEmpty {
-                emptyList("Tap the bookmark on any title to save it for later.",
+                emptyList("Your watch-later stash. Tap the bookmark on any title and it's saved here for movie night.",
                           actionTitle: "Browse popular") {
                     tabRouter.pendingSearchBrowse = .popular
                     tabRouter.selection = .search

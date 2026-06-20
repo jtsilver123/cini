@@ -290,13 +290,13 @@ struct TonightEmptyState: View {
                 Image(systemName: "sparkles")
                     .font(.title2)
                     .foregroundStyle(Theme.marquee)
-                Text("That's tonight's picks for now")
+                Text("That's a wrap on tonight's picks 🎬")
                     .font(.subheadline.weight(.bold))
-                Text("Head to Recs to find more to watch.")
+                Text("Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                PillButton(title: "Go to Recs", systemImage: "rectangle.stack") { onSwipe() }
+                PillButton(title: "Find more in Recs", systemImage: "rectangle.stack") { onSwipe() }
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)

@@ -591,6 +591,8 @@ struct LogFlowView: View {
             pairID += 1
         }
         if current.isComplete {
+            // The last comparison lands with extra weight — you just placed it.
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             commit(current)
         }
         Task { try? await Task.sleep(for: .milliseconds(200)); choosing = false }

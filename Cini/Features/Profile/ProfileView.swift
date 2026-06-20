@@ -572,6 +572,7 @@ struct ProfileScreen: View {
             VStack(spacing: 12) {
                 HStack(spacing: 10) {
                     PillButton(title: "Edit profile", style: .outlined) {
+                        Haptics.tap()
                         showEditProfile = true
                     }
                     PillShareLink(title: "Share profile",
@@ -603,6 +604,8 @@ struct ProfileScreen: View {
             HStack(spacing: 12) {
                 PillButton(title: following ? "Following" : (requested ? "Requested" : "Follow"),
                            style: (following || requested) ? .outlined : .filled) {
+                    Haptics.tap()
+                    let handle = profile?.username ?? username ?? "them"
                     Task {
                         // Guards a stale in-flight load() from clobbering the
                         // state we set here (the "follow won't stick" bug).
@@ -623,8 +626,15 @@ struct ProfileScreen: View {
                                 // DON'T reload (an immediate re-read can race the write and
                                 // flip the button back to "Follow").
                                 let result = try await SupabaseService.shared.requestFollow(id)
-                                if result == "followed" { following = true }
-                                else if result == "requested" { requested = true }
+                                if result == "followed" {
+                                    following = true
+                                    Haptics.success()
+                                    ToastCenter.shared.show("Following @\(handle) — their picks are in your feed now")
+                                } else if result == "requested" {
+                                    requested = true
+                                    Haptics.success()
+                                    ToastCenter.shared.show("Follow request sent to @\(handle)")
+                                }
                             }
                         } catch {
                             await load()   // resync to the true state on failure
@@ -636,6 +646,7 @@ struct ProfileScreen: View {
                 if following && !blocked {
                     PillButton(title: "Ask for a rec", systemImage: "hand.wave",
                                style: .outlined) {
+                        Haptics.tap()
                         showAskRec = true
                     }
                 }
@@ -1045,7 +1056,7 @@ struct ProfileScreen: View {
                     message: "Rank or import a movie and your stats, top films, and activity fill in right here.",
                     actionTitle: "Rank a movie") { tabRouter.selection = .search }
             } else {
-                Text(username.map { "@\($0) hasn't ranked anything yet." } ?? "Nothing here yet.")
+                Text(username.map { "@\($0) is just getting started — no rankings yet." } ?? "No rankings yet — your taste starts here.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .frame(maxWidth: .infinity)

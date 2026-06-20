@@ -83,7 +83,7 @@ struct SearchView: View {
                                 resultsSection
                             } else if !completedQuery.isEmpty {
                                 noResultsMessage(
-                                    "No titles match \"\(completedQuery)\" — check the spelling, or try a director or genre.")
+                                    "No titles match \"\(completedQuery)\" — try a different spelling, a genre, or a director's name.")
                             } else if browse != nil {
                                 browseSection
                             } else {
