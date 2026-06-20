@@ -115,10 +115,10 @@ struct RecCardDeck: View {
                 detail: richDetail ? Self.metaLine(c.movie) : nil,
                 overview: richDetail ? c.movie.overview : nil,
                 savedCount: bookmarkCounts[c.movie.tmdbID],
-                dragX: dragX,
                 // The deck's control bar handles save/rank now — no on-card
                 // (+)/bookmark corner in the swipe deck.
                 showQuickActions: false,
+                dragX: dragX,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)
