@@ -195,10 +195,15 @@ struct SwipeView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: icon).font(.caption2.weight(.bold))
-                Text(short).font(.caption.weight(.semibold))
+                // Only the selected segment shows its word — keeps the control
+                // narrow so the header (title + toggle + Import) never overflows
+                // and clips the labels to "…". fixedSize so it can't truncate.
+                if on {
+                    Text(short).font(.caption.weight(.semibold)).fixedSize()
+                }
             }
             .foregroundStyle(on ? Theme.background : Theme.gray)
-            .padding(.horizontal, 11)
+            .padding(.horizontal, on ? 11 : 9)
             .frame(height: 30)
             .background(Capsule().fill(on ? Theme.marquee : .clear))
             .contentShape(Capsule())
