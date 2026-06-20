@@ -2668,9 +2668,8 @@ function obInitials(){ return obFullName.trim().split(/\s+/).filter(Boolean).sli
 function obPhoneDigits(){ return obPhone.replace(/\D/g,"").slice(-10); }
 function obPhoneValid(){ const d=obPhoneDigits(); return d.length===10 && /[2-9]/.test(d[0]) && /[2-9]/.test(d[3]); }
 function obPhoneFmt(v){ const d=v.replace(/\D/g,"").slice(0,10); if(!d)return""; if(d.length<4)return"("+d; if(d.length<7)return"("+d.slice(0,3)+") "+d.slice(3); return"("+d.slice(0,3)+") "+d.slice(3,6)+"-"+d.slice(6); }
-function obPwLen(){ return obPw.length>=8 && obPw.length<=20; }
-function obPwMix(){ return /[a-zA-Z]/.test(obPw) && /[0-9]/.test(obPw) && /[^a-zA-Z0-9\s]/.test(obPw); }
-function obPwValid(){ return obPwLen() && obPwMix(); }
+function obPwLen(){ return obPw.length>=8; }
+function obPwValid(){ return obPwLen(); }
 function renderOnboarding(){
   const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9,10].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
@@ -2712,10 +2711,9 @@ function renderOnboarding(){
       <div class="serif" style="font-size:30px; font-weight:700;">Create a password</div>
       <div class="sub">Make it strong — this protects your account.</div>
       <input id="obPwIn" value="${obPw}" placeholder="Password" type="password" style="background:var(--surface-2); border:1px solid var(--hair); border-radius:12px; padding:13px; color:var(--ink); font:inherit; outline:none;"
-        oninput="obPw=this.value; $('pwR1').style.color=obPwLen()?'var(--green)':'var(--gray)'; $('pwR1i').textContent=obPwLen()?'✓':'○'; $('pwR2').style.color=obPwMix()?'var(--green)':'var(--gray)'; $('pwR2i').textContent=obPwMix()?'✓':'○'; $('obPwGo').style.opacity=obPwValid()?1:.5;">
+        oninput="obPw=this.value; $('pwR1').style.color=obPwLen()?'var(--green)':'var(--gray)'; $('pwR1i').textContent=obPwLen()?'✓':'○'; $('obPwGo').style.opacity=obPwValid()?1:.5;">
       <div style="text-align:left; display:flex; flex-direction:column; gap:6px; padding:0 6px;">
-        <div id="pwR1" style="font-size:13px; color:${obPwLen()?'var(--green)':'var(--gray)'};"><span id="pwR1i">${obPwLen()?'✓':'○'}</span> 8–20 characters</div>
-        <div id="pwR2" style="font-size:13px; color:${obPwMix()?'var(--green)':'var(--gray)'};"><span id="pwR2i">${obPwMix()?'✓':'○'}</span> Letters, numbers, and a special character</div>
+        <div id="pwR1" style="font-size:13px; color:${obPwLen()?'var(--green)':'var(--gray)'};"><span id="pwR1i">${obPwLen()?'✓':'○'}</span> At least 8 characters</div>
       </div>
       <button id="obPwGo" class="pill" style="justify-content:center; padding:13px; opacity:${obPwValid()?1:.5};" onclick="if(obPwValid())obNext(); else toast('Meet the password requirements first')">Create account</button>
     </div>`;

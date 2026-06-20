@@ -650,7 +650,6 @@ private struct ChangePasswordScreen: View {
                 .autocorrectionDisabled()
                 // Same rules as sign-up, shown live.
                 ruleRow(PasswordPolicy.lengthRule, PasswordPolicy.hasLength(newPassword))
-                ruleRow(PasswordPolicy.mixRule, PasswordPolicy.hasMix(newPassword))
                 if !confirmPassword.isEmpty && newPassword != confirmPassword {
                     ruleRow("Passwords match", false)
                 }

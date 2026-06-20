@@ -26,7 +26,6 @@ struct AuthView: View {
     // Password policy lives in PasswordPolicy so this and the settings
     // "change password" screen share one rule set (shown live as a checklist).
     private var pwHasLength: Bool { PasswordPolicy.hasLength(password) }
-    private var pwHasMix: Bool { PasswordPolicy.hasMix(password) }
     private var passwordValid: Bool { PasswordPolicy.isValid(password) }
 
     /// A light sanity check so "x@y" or "x@.com" don't pass the email step
@@ -195,7 +194,6 @@ struct AuthView: View {
     private var passwordRules: some View {
         VStack(alignment: .leading, spacing: 8) {
             passwordRule(PasswordPolicy.lengthRule, pwHasLength)
-            passwordRule(PasswordPolicy.mixRule, pwHasMix)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
@@ -388,7 +386,7 @@ struct AuthView: View {
             return "No connection — check your internet and try again."
         }
         if text.contains("at least") || text.contains("password") {
-            return "Password needs 8–20 characters with letters, numbers, and a special character."
+            return "Password needs at least 8 characters."
         }
         return "Something went wrong — try again."
     }
