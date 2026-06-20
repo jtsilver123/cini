@@ -1238,6 +1238,7 @@ let swipeIdx=0, swipeGrid=true, swipeTV=false, swipeImport=true;
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
 function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); toast('Bookmarked'); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
+function swipeUndo(){ if(swipeIdx>0){ buzz(); swipeIdx--; renderSwipe(); } }
 function renderSwipe(){
   const pool=swipePool();
   const head=`<div class="pad" style="display:flex; align-items:center; gap:8px; padding-top:14px; padding-bottom:2px;">
@@ -1271,7 +1272,11 @@ function renderSwipe(){
           <div class="sub" style="font-size:12px; margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${m.ov||'Because you liked your top pick'}</div>
         </div>
       </div>
-      <div style="display:flex; gap:34px; align-items:flex-start;">
+      <div style="display:flex; gap:18px; align-items:flex-start;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+          <button onclick="swipeUndo()" style="width:46px;height:46px;border-radius:50%;border:none;background:var(--surface-2);color:var(--gold);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("chevL",18)}</button>
+          <span class="sub" style="font-size:11px; font-weight:600;">Undo</span>
+        </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
           <button onclick="swipePass()" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Pass</span>
@@ -1279,6 +1284,10 @@ function renderSwipe(){
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
           <button onclick="swipeSave('${k}')" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--green);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("bookmark",24,2.2)}</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Bookmark</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+          <button onclick="openLog('${k}')" style="width:46px;height:46px;border-radius:50%;border:none;background:var(--surface-2);color:var(--marquee);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("plus",20)}</button>
+          <span class="sub" style="font-size:11px; font-weight:600;">Rank</span>
         </div>
       </div>
     </div>`;

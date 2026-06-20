@@ -19,6 +19,9 @@ struct TonightPickCard: View {
     var overview: String? = nil
     /// How many people have bookmarked this title (shown as social proof).
     var savedCount: Int? = nil
+    /// The scrimmed (+)/bookmark corner. Off in the swipe deck, where the
+    /// control bar below owns those actions.
+    var showQuickActions: Bool = true
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
     var onOpen: (Movie) -> Void = { _ in }
@@ -130,10 +133,13 @@ struct TonightPickCard: View {
                 .accessibilityLabel("Not tonight")
             }
         }
-        // Same scrimmed (+)/bookmark corner as every other piece of artwork.
+        // Same scrimmed (+)/bookmark corner as every other piece of artwork —
+        // unless the host (the swipe deck) owns those actions in its own bar.
         .overlay(alignment: .bottomTrailing) {
-            ArtworkQuickActions(movie: movie, onLog: { onQuickAdd($0) })
-                .padding(12)
+            if showQuickActions {
+                ArtworkQuickActions(movie: movie, onLog: { onQuickAdd($0) })
+                    .padding(12)
+            }
         }
         // Tinder-style stamps: drag right to save, left to dismiss.
         .overlay { swipeStamps }

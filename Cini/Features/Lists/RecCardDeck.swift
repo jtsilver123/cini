@@ -116,6 +116,9 @@ struct RecCardDeck: View {
                 overview: richDetail ? c.movie.overview : nil,
                 savedCount: bookmarkCounts[c.movie.tmdbID],
                 dragX: dragX,
+                // The deck's control bar handles save/rank now — no on-card
+                // (+)/bookmark corner in the swipe deck.
+                showQuickActions: false,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)
@@ -156,7 +159,10 @@ struct RecCardDeck: View {
     }
 
     private var controls: some View {
-        HStack(alignment: .bottom, spacing: 24) {
+        // Tinder-style: the two swipe actions (Pass · Bookmark) are the big
+        // buttons, centered under the card; Undo and Rank are the small ones
+        // flanking them, so the row stays symmetric around the card's center.
+        HStack(alignment: .bottom, spacing: 20) {
             controlButton(action: { undo() },
                           icon: "arrow.uturn.backward", size: 46,
                           fg: history.isEmpty ? Theme.gray.opacity(0.4) : Theme.gold,
@@ -170,14 +176,21 @@ struct RecCardDeck: View {
                 .disabled(index >= items.count)
                 .accessibilityLabel("Pass")
 
-            // Cards are for finding things to WATCH — bookmark or pass. (Ranking
-            // what you've seen lives in the grid view, so there's no rank button
-            // here.) The bookmark icon makes the Want-to-Watch action explicit.
             controlButton(action: { act(save: true) },
                           icon: "bookmark.fill", size: 62, fg: .white,
                           bg: Theme.scoreGreen, caption: "Bookmark")
                 .disabled(index >= items.count)
                 .accessibilityLabel("Bookmark to Want to Watch")
+
+            // Already seen it? Rank it head-to-head. Small, balancing Undo so
+            // the two big swipe buttons stay centered on the card.
+            if showRank {
+                controlButton(action: { rankCurrent() },
+                              icon: "plus", size: 46,
+                              fg: Theme.marquee, bg: Theme.fill, caption: "Rank")
+                    .disabled(index >= items.count)
+                    .accessibilityLabel("Rank this — you've seen it")
+            }
         }
     }
 
@@ -216,6 +229,14 @@ struct RecCardDeck: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 232)
+    }
+
+    /// Rank the top card (you've already seen it) — opens the head-to-head flow
+    /// via the parent. The card leaves the deck once it's marked watched.
+    private func rankCurrent() {
+        guard index < items.count, case .rec(let c) = items[index] else { return }
+        Haptics.tap()
+        onRank(c.movie)
     }
 
     private func act(save: Bool) {
