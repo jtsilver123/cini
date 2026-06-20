@@ -337,7 +337,7 @@ struct YourListsView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("My Lists").font(Theme.pageHeader)
+            Text("Lists").font(Theme.pageHeader)
             Spacer()
             importButton
             HStack(spacing: 2) {
@@ -405,8 +405,11 @@ struct YourListsView: View {
             }
             .foregroundStyle(Theme.ink)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 2)
+        // Match the Swipe page: standard screen gutter, 8pt above and a 12pt
+        // gap down to the Movies/TV toggle.
+        .screenHPadding()
+        .padding(.top, 8)
+        .padding(.bottom, 12)
     }
 
     private var categoryRow: some View {
