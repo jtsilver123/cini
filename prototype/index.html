@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#131011">
+<meta name="theme-color" content="#1A1618">
 <title>Cini — Prototype</title>
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -16,7 +16,7 @@
     /* Movie-palace palette: marquee gold accents, velvet-red CTAs,
        warm lamp-lit charcoal room. */
     --marquee:#E8B64C; --velvet:#A8352A; --marquee-soft:rgba(232,182,76,.16);
-    --ink:#F5EEDF; --bg:#131011; --surface:#1D1719; --surface-2:#281F20;
+    --ink:#F5EEDF; --bg:#1A1618; --surface:#262023; --surface-2:#322829;
     --gray:#A69C91; --green:#2FBF71; --amber:#E0A93E; --red:#D96B6B;
     --gold:#D9A93C; --gold-soft:rgba(217,169,60,.16);
     --hair:rgba(255,255,255,.10);
@@ -1663,7 +1663,7 @@ function renderDetail(){
   $("screen-detail").innerHTML = `
     <div class="letterbox" style="width:100%; height:215px; position:relative; overflow:hidden; background:#0c0c0c;">
       <div class="hero-img" style="background-image:url('${hero}');"></div>
-      <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(19,16,17,0) 32%, rgba(19,16,17,.3) 58%, rgba(19,16,17,.62) 74%, rgba(19,16,17,.86) 86%, rgba(19,16,17,.97) 94%, #131011 100%);"></div>
+      <div style="position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(26,22,24,0) 32%, rgba(26,22,24,.3) 58%, rgba(26,22,24,.62) 74%, rgba(26,22,24,.86) 86%, rgba(26,22,24,.97) 94%, #1A1618 100%);"></div>
       <button class="iconbtn" style="position:absolute; top:12px; left:14px; color:#fff; filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));" onclick="go(detailReturn)">${I("chevL",24,2)}</button>
       <button class="iconbtn" style="position:absolute; top:14px; right:16px; color:#fff; filter:drop-shadow(0 1px 4px rgba(0,0,0,.5));" onclick="share('${esc(m.t)} on Cini')">${I("share",20)}</button>
     </div>

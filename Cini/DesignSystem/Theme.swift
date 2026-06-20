@@ -37,11 +37,13 @@ enum Theme {
     /// Primary text: screen-glow cream at night, warm near-black by day.
     static let ink = adaptive(dark: rgb(0xF5EEDF), light: rgb(0x221B14))
     /// House lights down: warm charcoal · house lights up: warm cream.
-    static let background = adaptive(dark: rgb(0x131011), light: rgb(0xFAF5EA))
+    /// Lifted off pure black so the room reads as charcoal, not a void, and
+    /// cards visibly sit above it (surfaces lifted in step to keep separation).
+    static let background = adaptive(dark: rgb(0x1A1618), light: rgb(0xFAF5EA))
     /// Elevated card surface.
-    static let surface = adaptive(dark: rgb(0x1D1719), light: rgb(0xFFFDF6))
+    static let surface = adaptive(dark: rgb(0x262023), light: rgb(0xFFFDF6))
     /// Higher-elevation surface (badges, inputs).
-    static let surface2 = adaptive(dark: rgb(0x281F20), light: rgb(0xF1EADB))
+    static let surface2 = adaptive(dark: rgb(0x322829), light: rgb(0xF1EADB))
     /// Subtle fill for fields and inactive chips.
     static let fill = adaptive(dark: UIColor.white.withAlphaComponent(0.07),
                                light: UIColor.black.withAlphaComponent(0.05))
