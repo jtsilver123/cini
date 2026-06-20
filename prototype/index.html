@@ -611,10 +611,9 @@ function renderFeed(){
       <div style="flex:1;">
         <div style="font-size:14.5px;">${headline}</div>
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
-        ${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); const c=comments.length; const saved=S.queue.includes(e.movie); return (n||c||saved)?`<div style="display:flex; gap:14px; margin-top:9px; align-items:center; font-size:12.5px; font-weight:700;">
+        ${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); const c=comments.length; return (n||c)?`<div style="display:flex; gap:14px; margin-top:9px; align-items:center; font-size:12.5px; font-weight:700;">
           ${n?`<button class="iconbtn" style="font:inherit; display:inline-flex; align-items:center; gap:4px; color:#e0455e;" onclick="openLikers('${e.id}')">${IF("heart",14)}<span style="color:var(--gray);">${n}</span></button>`:""}
           ${c?`<button class="iconbtn" style="font:inherit; display:inline-flex; align-items:center; gap:4px; color:var(--marquee);" onclick="openComments('${e.id}')">${IF("comment",14)}<span style="color:var(--gray);">${c}</span></button>`:""}
-          ${saved?`<span style="display:inline-flex; align-items:center; gap:4px; color:var(--marquee);">${I("bookmark",14)}<span style="color:var(--gray);">Bookmarked</span></span>`:""}
         </div>`:"";})()}
         <div style="display:flex; gap:18px; margin-top:11px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}</button>
@@ -624,10 +623,13 @@ function renderFeed(){
         <div class="sub" style="margin-top:7px;">${e.when}</div>
       </div>
       ${e.kind==="ranked"?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
-      <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
-        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${fRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${e.movie}')">${fRanked?I("check",18):I("plus",18)}</button>
-        ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
-      </div>
+      ${(()=>{const bm=(e.movie.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)%18)+(S.queue.includes(e.movie)?1:0); return `<div style="position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+        ${bm>0?`<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(0,0,0,.55); color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px;">${I("bookmark",12)}${bm} ${bm===1?'bookmark':'bookmarks'}</span>`:""}
+        <div style="display:flex; gap:12px;">
+          <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${fRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${e.movie}')">${fRanked?I("check",18):I("plus",18)}</button>
+          ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
+        </div>
+      </div>`;})()}
     </div>`;
   });
 
@@ -1238,13 +1240,13 @@ function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save();
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
 function renderSwipe(){
   const pool=swipePool();
-  const head=`<div class="pad" style="display:flex; align-items:center; padding-top:14px; padding-bottom:2px;">
+  const head=`<div class="pad" style="display:flex; align-items:center; gap:8px; padding-top:14px; padding-bottom:2px;">
       <b style="font-size:21px;">Recs</b><span class="spacer"></span>
-      <button class="iconbtn" onclick="openImport()" aria-label="Import">${I("download",20)}</button></div>
-    <div class="pad" style="margin-top:8px; display:flex; gap:4px; background:var(--surface-2); border-radius:999px; padding:4px;">
-      <button onclick="swipeGrid=false; renderSwipe()" style="flex:1; border:none; cursor:pointer; border-radius:999px; padding:8px; font-size:13.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:5px; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",14)} Find to watch</button>
-      <button onclick="swipeGrid=true; renderSwipe()" style="flex:1; border:none; cursor:pointer; border-radius:999px; padding:8px; font-size:13.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:5px; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",14)} Rank watched</button>
-    </div>
+      <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">
+        <button onclick="swipeGrid=false; renderSwipe()" aria-label="Find to watch" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",15)}</button>
+        <button onclick="swipeGrid=true; renderSwipe()" aria-label="Rank watched" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",15)}</button>
+      </div>
+      <button class="iconbtn" onclick="openImport()" aria-label="Import" style="display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.07); border-radius:999px; padding:7px 12px; color:var(--marquee); font-weight:600; font-size:14px;">${I("download",18)} Import</button></div>
     <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:8px;">
       <button class="pill ${swipeTV?'out':''}" onclick="swipeTV=false; renderSwipe()">Movies</button>
       <button class="pill ${swipeTV?'':'out'}" onclick="swipeTV=true; renderSwipe()">TV Shows</button></div>
@@ -1281,10 +1283,10 @@ function renderSwipe(){
     </div>`;
   }
   const banner = swipeImport ? `<div class="pad" style="margin-top:10px;">
-    <div class="card" style="display:flex; gap:12px; align-items:center; padding:13px 15px; position:relative; cursor:pointer;" onclick="openImport()">
+    <div class="card" style="display:flex; gap:12px; align-items:center; padding:10px 15px; position:relative; cursor:pointer;" onclick="openImport()">
       <span style="color:var(--marquee);">${I("download",22)}</span>
       <div style="flex:1;"><div style="font-weight:700; font-size:14px;">Import your history</div>
-        <div class="sub" style="margin-top:1px;">Bring your ratings from Letterboxd, IMDb, or Netflix</div></div>
+        <div class="sub" style="margin-top:0;">Bring your ratings from Letterboxd, IMDb, or Netflix</div></div>
       <button class="iconbtn" style="position:absolute; top:6px; right:8px; color:var(--gray);" onclick="event.stopPropagation(); swipeImport=false; renderSwipe();">${I("x",15)}</button>
     </div></div>` : "";
   $("screen-swipe").innerHTML = head + banner + body;

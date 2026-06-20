@@ -17,6 +17,9 @@ struct FeedView: View {
     @State private var commentsLink: CommentsLink?
     /// Live comment counts reported back from open threads, keyed by event id.
     @State private var commentCountOverrides: [UUID: Int] = [:]
+    /// How many people have each title on their Want to Watch, keyed by tmdbID
+    /// — Beli-style social proof shown over the bookmark on each card.
+    @State private var savedCounts: [Int: Int] = [:]
     @State private var showImport = false
     @State private var showMenuImport = false
     @State private var showSettings = false
@@ -502,6 +505,7 @@ struct FeedView: View {
                     onOpenMember: { memberTarget = $0 },
                     onOpenComments: { ev, ctx in commentsLink = CommentsLink(id: ev.id, context: ctx) },
                     commentCountOverride: commentCountOverrides[event.id],
+                    savedCount: event.movies.flatMap { savedCounts[$0.tmdbId] },
                     onShowLikers: { likersTarget = LikersTarget(id: $0) }
                 )
             }
@@ -743,6 +747,12 @@ struct FeedView: View {
             FeedDiskCache.save(withNotes)
         }
         likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
+        // Bookmark counts for every title in view — social proof over the
+        // bookmark on each card (Beli's "N bookmark").
+        let movieIDs = Array(Set(events.compactMap { $0.movies?.tmdbId }))
+        if !movieIDs.isEmpty {
+            savedCounts = await SupabaseService.shared.watchlistCounts(movieIDs: movieIDs)
+        }
         unreadCount = await SupabaseService.shared.unreadNotificationCount()
         pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? []
         friendsWatchingRows = await SupabaseService.shared.friendsWatching()
@@ -871,6 +881,9 @@ struct FeedCard: View {
     /// Live comment count from the presenter (updated when a comment is
     /// added/removed in the pushed thread); falls back to the server count.
     var commentCountOverride: Int? = nil
+    /// How many people have this title bookmarked — shown over the bookmark as
+    /// social proof, Beli-style ("3 bookmarks").
+    var savedCount: Int? = nil
     /// Optional moderation actions. When provided, an ellipsis menu appears in
     /// the header — used on the movie page's "What people think" wall, which can
     /// surface strangers' posts. The feed leaves these nil (no menu).
@@ -879,7 +892,6 @@ struct FeedCard: View {
     /// Tapping the like count opens the "who liked this" sheet.
     var onShowLikers: (UUID) -> Void = { _ in }
 
-    @Environment(RankingStore.self) private var store
     @State private var liked = false
     @State private var likeInFlight = false
     @State private var heartPop = false
@@ -887,8 +899,6 @@ struct FeedCard: View {
     @State private var spoilerRevealed = false
 
     private var movie: Movie? { event.movies?.asMovie }
-    /// Whether the current user has this title on their Want to Watch.
-    private var savedByMe: Bool { movie.map { store.isOnWatchlist($0.tmdbID) } ?? false }
     /// Count shown on the comment button.
     private var commentCount: Int { commentCountOverride ?? event.commentCount }
 
@@ -1087,7 +1097,9 @@ struct FeedCard: View {
 
             // Social proof — small colored indicators for likes / comments /
             // your save, each tapping through to the relevant place (Beli-style).
-            if likeCount > 0 || commentCount > 0 || savedByMe {
+            // Your "Bookmarked" state now reads on the poster, as a label over
+            // the bookmark button (below) — so this row is just likes/comments.
+            if likeCount > 0 || commentCount > 0 {
                 HStack(spacing: 14) {
                     if likeCount > 0 {
                         Button { onShowLikers(event.id) } label: {
@@ -1098,9 +1110,6 @@ struct FeedCard: View {
                         Button { onOpenComments(event, commentContext) } label: {
                             miniStat("bubble.right.fill", "\(commentCount)", Theme.marquee)
                         }
-                    }
-                    if savedByMe {
-                        miniStat("bookmark.fill", "Bookmarked", Theme.marquee)
                     }
                     Spacer(minLength: 0)
                 }
@@ -1166,11 +1175,25 @@ struct FeedCard: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         )
-        // Same corner as the movie page: (+) / bookmark on the artwork.
+        // Same corner as the movie page: (+) / bookmark on the artwork. The
+        // bookmark count rides directly over the bookmark (Beli's "N bookmark")
+        // so the social proof reads on the poster itself.
         .overlay(alignment: .bottomTrailing) {
             if let movie {
-                ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
-                    .padding(12)
+                VStack(alignment: .trailing, spacing: 6) {
+                    if let savedCount, savedCount > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "bookmark.fill")
+                            Text("\(savedCount) \(savedCount == 1 ? "bookmark" : "bookmarks")")
+                        }
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Capsule().fill(.black.opacity(0.55)))
+                    }
+                    ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
+                }
+                .padding(12)
             }
         }
         // Double-tap to like, Instagram-style — a heart pops in the center.

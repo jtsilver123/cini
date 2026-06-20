@@ -144,20 +144,12 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Recs").font(Theme.pageHeader)
                 Spacer()
-                Button { showImport = true } label: {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
-                        .padding(8)
-                        .background(Circle().fill(Theme.fill))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Import your history")
+                // The find-to-watch vs rank-watched split is a compact icon
+                // toggle up here next to Import; the note above each
+                // grid/deck spells out what the current mode is for.
+                compactLayoutToggle
+                importButton
             }
-            // The view selector states WHAT EACH MODE IS FOR, in the open, so
-            // the find-to-watch vs rank-what-you've-watched split is obvious
-            // without opening a menu.
-            layoutPurposeToggle
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { suggestTV ? 1 : 0 },
@@ -165,34 +157,49 @@ struct SwipeView: View {
         }
     }
 
-    /// A two-segment toggle labeled by purpose: Cards = "Find to watch",
-    /// Grid = "Rank watched".
-    private var layoutPurposeToggle: some View {
-        HStack(spacing: 4) {
-            layoutSegment(.cards, icon: "rectangle.stack", title: "Find to watch")
-            layoutSegment(.grid, icon: "square.grid.2x2", title: "Rank watched")
+    /// Import-your-history button: icon + "Import" label, so it reads as an
+    /// action rather than a bare glyph.
+    private var importButton: some View {
+        Button { showImport = true } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "square.and.arrow.down")
+                Text("Import")
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Theme.marquee)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(Theme.fill))
         }
-        .padding(4)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Import your history")
+    }
+
+    /// Compact two-segment toggle: Cards = "Find to watch", Grid =
+    /// "Rank watched". Icon-only to sit neatly beside Import — the mode note
+    /// above each layout carries the wording.
+    private var compactLayoutToggle: some View {
+        HStack(spacing: 2) {
+            compactSegment(.cards, icon: "rectangle.stack", label: "Find to watch")
+            compactSegment(.grid, icon: "square.grid.2x2", label: "Rank watched")
+        }
+        .padding(3)
         .background(Capsule().fill(Theme.fill))
     }
 
-    private func layoutSegment(_ option: Layout, icon: String, title: String) -> some View {
+    private func compactSegment(_ option: Layout, icon: String, label: String) -> some View {
         let on = layout == option
         return Button {
             withAnimation(.snappy) { layout = option }
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: icon).font(.caption.weight(.bold))
-                Text(title).font(.subheadline.weight(.semibold))
-            }
-            .foregroundStyle(on ? Theme.background : Theme.gray)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(Capsule().fill(on ? Theme.marquee : .clear))
-            .contentShape(Capsule())
+            Image(systemName: icon)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(on ? Theme.background : Theme.gray)
+                .frame(width: 40, height: 30)
+                .background(Capsule().fill(on ? Theme.marquee : .clear))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title)\(on ? ", selected" : "")")
+        .accessibilityLabel("\(label)\(on ? ", selected" : "")")
     }
 
     /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the
@@ -212,17 +219,17 @@ struct SwipeView: View {
             HStack(spacing: 12) {
                 Image(systemName: "square.and.arrow.down")
                     .font(.title3).foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Import your history")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                     Text("Bring your ratings from Letterboxd, IMDb, or Netflix")
                         .font(.caption).foregroundStyle(Theme.gray)
                         .fixedSize(horizontal: false, vertical: true)
-                    ImportSourceLogos().padding(.top, 3)
+                    ImportSourceLogos().padding(.top, 2)
                 }
                 Spacer(minLength: 18)
             }
-            .padding(14)
+            .padding(.horizontal, 14).padding(.vertical, 10)
         }
         .buttonStyle(.plain)
         .floatingCard(cornerRadius: 16)
@@ -285,8 +292,12 @@ struct SwipeView: View {
                     .id("recsTop")
                 }
             case .cards:
+                // Center the deck in the space below the chrome instead of
+                // pinning it to the top (it was sitting too high, leaving a
+                // dead gap underneath).
+                Spacer(minLength: 0)
                 modeNote("Swipe to find a \(suggestTV ? "show" : "movie") to watch, or tap + to rank one you've seen")
-                    .padding(.top, 8)
+                    .padding(.bottom, 4)
                 RecCardDeck(
                     candidates: visible,
                     onOpen: { store.cache($0); detailMovie = $0 },
@@ -308,7 +319,6 @@ struct SwipeView: View {
                 // Match the app's standard screen gutter so the deck lines up
                 // with the grid/list views and doesn't run to the screen edge.
                 .screenHPadding()
-                .padding(.top, 12)
                 Spacer(minLength: 0)
             }
         }
