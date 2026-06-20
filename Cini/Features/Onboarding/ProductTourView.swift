@@ -58,9 +58,14 @@ struct ProductTourView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // The card sits over the tab it describes and slides left→right across
-            // steps — no arrow needed, its position points to the tab. The tab
-            // bar itself stays at full brightness; only the content above is dimmed.
+            // The bar is the only thing left bright; everything above it dims.
+            // `.ignoresSafeArea()` on the GeometryReader makes `proxy` span the
+            // full screen and exposes the real insets, so we can place the dim
+            // exactly above the tab bar (no magic numbers but the standard bar
+            // height) on every device.
+            let homeInset = proxy.safeAreaInsets.bottom   // home-indicator strip
+            let tabBarH: CGFloat = 49                     // standard UITabBar height
+            let barTop = max(proxy.size.height - homeInset - tabBarH, 0)
             let tabW = proxy.size.width / 5
             let cardW = min(248, proxy.size.width - 24)
             let centerX = tabW * (CGFloat(tabIndex(stop.tab)) + 0.5)
@@ -69,24 +74,26 @@ struct ProductTourView: View {
             ZStack(alignment: .bottomLeading) {
                 // Block taps to the live app (incl. the tab bar) during the tour.
                 Color.black.opacity(0.001)
-                    .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { }
 
-                // Dim only the content ABOVE the tab bar — the bar stays normal.
-                Color.black.opacity(0.62)
-                    .frame(height: proxy.size.height)
+                // Dim ONLY the content above the tab bar — the bar stays bright,
+                // so it's the one thing highlighted.
+                Color.black.opacity(0.66)
+                    .frame(height: barTop)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .ignoresSafeArea(edges: .top)
                     .allowsHitTesting(false)
 
-                // The coachmark card, positioned over the active tab.
+                // The coachmark card — over the active tab, a clear gap ABOVE the
+                // bar (never on top of it).
                 bubble
                     .frame(width: cardW)
                     .padding(.leading, leading)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, homeInset + tabBarH + 12)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
+        .ignoresSafeArea()
         .onAppear {
             swipeLayout = "cards"   // showcase (and seed) the default card view
             TabRouter.shared.tourActive = true
