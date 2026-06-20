@@ -165,7 +165,7 @@ struct ProductTourView: View {
             HStack {
                 Spacer()
                 Button { isLast ? finish() : advance() } label: {
-                    Text(isLast ? "Start ranking" : "Got it!")
+                    Text(isLast ? "Start swiping" : "Got it!")
                         .font(.subheadline.weight(.bold)).foregroundStyle(.white)
                         .padding(.horizontal, 22).padding(.vertical, 10)
                         .overlay(Capsule().strokeBorder(.white.opacity(0.9), lineWidth: 1.5))
@@ -191,9 +191,11 @@ struct ProductTourView: View {
     private func finish() {
         Haptics.tap()
         TabRouter.shared.tourActive = false
-        TabRouter.shared.selection = .feed       // leave them on the feed
+        // Land on Swipe — a new user's feed is empty, but the deck gives them
+        // something to do right away (swipe to bookmark, + to rank).
+        TabRouter.shared.selection = .swipe
         onDone()
-        // They've arrived — rain a little welcome confetti over the feed.
+        // They've arrived — rain a little welcome confetti.
         CelebrationCenter.shared.fire(.onboarding)
     }
 }
