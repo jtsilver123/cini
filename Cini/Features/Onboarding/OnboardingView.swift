@@ -578,9 +578,9 @@ struct OnboardingView: View {
             // The locked view toggle — the SAME purpose-labeled control the Recs
             // page uses, current one selected, a lock so they just learn it here.
             HStack(spacing: 0) {
-                // Grid ("Rank watched") on the left, cards ("Find to watch")
-                // on the right — matches the Recs page, where grid leads.
-                ForEach([true, false], id: \.self) { grid in
+                // Cards ("Find to watch") on the left, grid ("Rank watched")
+                // on the right — matches the Recs page, where card view leads.
+                ForEach([false, true], id: \.self) { grid in
                     let on = (grid == isGrid)
                     HStack(spacing: 5) {
                         Image(systemName: grid ? "square.grid.2x2" : "rectangle.stack")

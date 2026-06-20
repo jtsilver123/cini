@@ -34,7 +34,7 @@ struct SwipeView: View {
             }
         }
     }
-    @AppStorage("swipe.layout") private var layout: Layout = .grid
+    @AppStorage("swipe.layout") private var layout: Layout = .cards
     @State private var suggestTV = false
     @State private var dismissed: Set<Int> = []
     @State private var filters = MovieFilters()
@@ -144,20 +144,15 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Recs").font(Theme.pageHeader)
                 Spacer()
-                // Movies/TV stays a real, equal toggle (not a genre-style
-                // filter) — just compact, since the page's primary split is
-                // rank-vs-find below.
-                compactKindToggle
+                // Card vs grid is a compact icon toggle up here; the big toggle
+                // below is the content split (Movies vs TV).
+                compactViewToggle
                 importButton
             }
-            // The primary job of the page: rank what you've watched vs find
-            // something new. Grid leads (the default), cards on the right.
             SegmentedPillControl(
-                segments: ["Rank watched", "Find to watch"],
-                selection: Binding(get: { layout == .grid ? 0 : 1 },
-                                   set: { layout = $0 == 0 ? .grid : .cards }))
-            // The product tour points its coachmark at this control ("tap Find").
-            .tourAnchor("recsToggle")
+                segments: ["Movies", "TV Shows"],
+                selection: Binding(get: { suggestTV ? 1 : 0 },
+                                   set: { suggestTV = $0 == 1 }))
         }
     }
 
@@ -178,38 +173,34 @@ struct SwipeView: View {
         .accessibilityLabel("Import your history")
     }
 
-    /// Compact, equal Movies | TV toggle for the header. Only the selected
-    /// segment shows its word (icon-only when inactive) so it stays narrow and
-    /// the header never overflows / clips labels to "…". It's a real toggle, not
-    /// a genre-style filter — Movies and TV stay equal top-level types.
-    private var compactKindToggle: some View {
+    /// Compact card-vs-grid VIEW toggle (icons), top-right of the header. Cards
+    /// = the swipe deck (default), grid = the poster grid. The note above each
+    /// view spells out what it's for.
+    private var compactViewToggle: some View {
         HStack(spacing: 2) {
-            compactKindSegment(tv: false, icon: "film", short: "Movies")
-            compactKindSegment(tv: true, icon: "tv", short: "TV")
+            compactViewSegment(.cards, icon: "rectangle.stack", label: "Card view")
+            compactViewSegment(.grid, icon: "square.grid.2x2", label: "Grid view")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
+        // The product tour points its coachmark at this toggle.
+        .tourAnchor("recsToggle")
     }
 
-    private func compactKindSegment(tv: Bool, icon: String, short: String) -> some View {
-        let on = suggestTV == tv
+    private func compactViewSegment(_ option: Layout, icon: String, label: String) -> some View {
+        let on = layout == option
         return Button {
-            withAnimation(.snappy) { suggestTV = tv }
+            withAnimation(.snappy) { layout = option }
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: icon).font(.caption2.weight(.bold))
-                if on {
-                    Text(short).font(.caption.weight(.semibold)).fixedSize()
-                }
-            }
-            .foregroundStyle(on ? Theme.background : Theme.gray)
-            .padding(.horizontal, on ? 11 : 9)
-            .frame(height: 30)
-            .background(Capsule().fill(on ? Theme.marquee : .clear))
-            .contentShape(Capsule())
+            Image(systemName: icon)
+                .font(.footnote.weight(.bold))
+                .foregroundStyle(on ? Theme.background : Theme.gray)
+                .frame(width: 40, height: 30)
+                .background(Capsule().fill(on ? Theme.marquee : .clear))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(tv ? "TV Shows" : "Movies")\(on ? ", selected" : "")")
+        .accessibilityLabel("\(label)\(on ? ", selected" : "")")
     }
 
     /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the
