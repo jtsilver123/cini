@@ -1242,7 +1242,7 @@ function swipeUndo(){ if(swipeIdx>0){ buzz(); swipeIdx--; renderSwipe(); } }
 function renderSwipe(){
   const pool=swipePool();
   const head=`<div class="pad" style="display:flex; align-items:center; gap:8px; padding-top:14px; padding-bottom:2px;">
-      <b style="font-size:21px;">Recs</b><span class="spacer"></span>
+      <span class="serif" style="font-size:30px; font-weight:700;">Swipe</span><span class="spacer"></span>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">
         <button onclick="swipeGrid=false; renderSwipe()" aria-label="Card view" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",15)}</button>
         <button onclick="swipeGrid=true; renderSwipe()" aria-label="Grid view" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",15)}</button>
@@ -1269,7 +1269,6 @@ function renderSwipe(){
         <div style="padding:12px 14px;">
           <div style="font-weight:700; font-size:16px;">${m.t}</div>
           <div class="sub" style="font-size:11.5px; margin-top:2px;">${m.y}${m.rt?` · ${m.rt}`:''}${m.on&&m.on[0]?` · ${m.on[0]}`:''}</div>
-          <div class="sub" style="font-size:12px; margin-top:5px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${m.ov||'Because you liked your top pick'}</div>
         </div>
       </div>
       <div style="display:flex; gap:18px; align-items:flex-start;">

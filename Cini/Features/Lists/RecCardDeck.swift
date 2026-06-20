@@ -82,6 +82,7 @@ struct RecCardDeck: View {
                 ForEach(window, id: \.id) { item in
                     let isTop = item.id == items[index].id
                     card(item, dragX: isTop ? drag.width + flyOff : 0)
+                        .overlay { if isTop { swipeStamp(drag.width + flyOff) } }
                         .offset(x: isTop ? drag.width + flyOff : 0,
                                 y: isTop ? drag.height : 0)
                         .rotationEffect(.degrees(isTop ? Double(drag.width + flyOff) / 22 : 0))
@@ -105,8 +106,34 @@ struct RecCardDeck: View {
             // screen (everything shifts off the left edge). maxWidth:.infinity
             // forces the deck to take exactly the width it's offered.
             .frame(maxWidth: .infinity)
-            .frame(height: richDetail ? 300 : 220)
+            .frame(height: richDetail ? 320 : 220)
         }
+    }
+
+    /// Tinder-style SAVE / PASS stamps that fade in as the top card is dragged.
+    private func swipeStamp(_ dragX: CGFloat) -> some View {
+        let save = max(0, min(dragX / 90, 1))
+        let pass = max(0, min(-dragX / 90, 1))
+        return ZStack {
+            stampLabel("SAVE", color: Theme.scoreGreen, rotation: -14)
+                .opacity(save)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            stampLabel("PASS", color: Theme.scoreRed, rotation: 14)
+                .opacity(pass)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        }
+        .padding(20)
+        .allowsHitTesting(false)
+    }
+
+    private func stampLabel(_ text: String, color: Color, rotation: Double) -> some View {
+        Text(text)
+            .font(.system(size: 30, weight: .heavy)).tracking(2)
+            .foregroundStyle(color)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(color, lineWidth: 4))
+            .rotationEffect(.degrees(rotation))
     }
 
     @ViewBuilder
@@ -117,9 +144,11 @@ struct RecCardDeck: View {
                 movie: c.movie, reason: c.reason,
                 service: richDetail ? c.movie.streamingOn.first : nil,
                 showTonightBadge: false,
-                height: richDetail ? 300 : 220,
+                height: richDetail ? 320 : 220,
                 detail: richDetail ? Self.metaLine(c.movie) : nil,
-                overview: richDetail ? c.movie.overview : nil,
+                // Poster-forward: no overview blurb on the swipe card face — the
+                // art carries it, and the full synopsis lives on the detail page.
+                overview: nil,
                 savedCount: bookmarkCounts[c.movie.tmdbID],
                 // The deck's control bar handles save/rank now — no on-card
                 // (+)/bookmark corner in the swipe deck.
@@ -147,7 +176,7 @@ struct RecCardDeck: View {
         .frame(maxWidth: .infinity)
         // Match the rec card's height (taller in rich detail) so a real card
         // peeking behind a demo card doesn't poke out top and bottom.
-        .frame(height: richDetail ? 300 : 220)
+        .frame(height: richDetail ? 320 : 220)
         .background(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous).fill(Theme.surface))
         .overlay(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
             .strokeBorder(Theme.hairline, lineWidth: 1))

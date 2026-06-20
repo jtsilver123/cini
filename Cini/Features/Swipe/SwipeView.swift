@@ -81,7 +81,8 @@ struct SwipeView: View {
                              ? "Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen"
                              : "Swipe right to save · left to skip · + to rank")
                         .screenHPadding()
-                        .padding(.vertical, 8)
+                        .padding(.top, 6)
+                        .padding(.bottom, 6)
                 }
                 ScrollViewReader { proxy in
                     // The VStack is essential: the cards layout returns the deck
@@ -157,7 +158,7 @@ struct SwipeView: View {
     private var header: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                Text("Recs").font(Theme.pageHeader)
+                Text("Swipe").font(Theme.pageHeader)
                 Spacer()
                 // Card vs grid is a compact icon toggle up here; the big toggle
                 // below is the content split (Movies vs TV).
