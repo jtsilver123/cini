@@ -254,7 +254,7 @@ struct InviteSheet: View {
     }
 
     private var shareLinkRow: some View {
-        Button { showShare = true } label: {
+        Button { Haptics.tap(); showShare = true } label: {
             HStack(spacing: 12) {
                 Image(systemName: "square.and.arrow.up").font(.title3).foregroundStyle(Theme.background)
                     .frame(width: 40, height: 40).background(Circle().fill(Theme.marquee))
@@ -269,7 +269,7 @@ struct InviteSheet: View {
     }
 
     private var findContactsButton: some View {
-        Button { Task { await loadContacts() } } label: {
+        Button { Haptics.tap(); Task { await loadContacts() } } label: {
             HStack(spacing: 12) {
                 Image(systemName: "person.2.fill").font(.title3).foregroundStyle(Theme.marquee)
                 Text(loadingContacts ? "Finding friends…" : "Find friends from your contacts")

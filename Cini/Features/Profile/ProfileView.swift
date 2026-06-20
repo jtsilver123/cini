@@ -517,7 +517,7 @@ struct ProfileScreen: View {
                             Haptics.tap()
                             showMatchShare = true
                         } label: {
-                            Label("Share match", systemImage: "square.and.arrow.up")
+                            Label("Compare taste", systemImage: "person.2.fill")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Theme.marquee)
                         }
@@ -679,6 +679,7 @@ struct ProfileScreen: View {
                             kind: "member", subjectID: id.uuidString)
                         if ok {
                             reported = true
+                            Haptics.success()
                             ToastCenter.shared.show("Reported — we'll review it")
                         } else { ToastCenter.shared.saveFailed() }
                     }
@@ -709,6 +710,7 @@ struct ProfileScreen: View {
                     Task {
                         do {
                             try await SupabaseService.shared.block(id)
+                            Haptics.success()
                             ToastCenter.shared.show("Blocked — their content is hidden everywhere")
                             blocked = true
                             await load()

@@ -714,18 +714,25 @@ struct LogFlowView: View {
             if scoreRevealed {
                 // Just the gold Share capsule, centered — leaving is the X up top.
                 Group {
+                    // A new #1 is the most brag-worthy moment — call it out so
+                    // sharing feels like planting a flag, not filing a record.
+                    let isTop = scored.rank == 1
                     if let shareImage {
                         ShareLink(
                             item: shareImage,
-                            preview: SharePreview("\(movie.title) — ranked #\(scored.rank) on Cini",
+                            preview: SharePreview(isTop
+                                ? "\(movie.title) — my new #1 on Cini"
+                                : "\(movie.title) — ranked #\(scored.rank) on Cini",
                                                   image: shareImage)
-                        ) { shareLabel }
+                        ) { shareLabel(isTop ? "Share your new #1" : "Share") }
                         .buttonStyle(.plain)
                     } else {
                         // Card image didn't render — share text so the button
                         // is never silently missing.
-                        ShareLink(item: "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.appStore)") {
-                            shareLabel
+                        ShareLink(item: isTop
+                            ? "\(movie.title) is my new #1 on Cini 🎬\n\(AppLinks.appStore)"
+                            : "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.appStore)") {
+                            shareLabel(isTop ? "Share your new #1" : "Share")
                         }
                         .buttonStyle(.plain)
                     }
@@ -740,10 +747,10 @@ struct LogFlowView: View {
         .task { await prepareShareCard(scored) }
     }
 
-    private var shareLabel: some View {
+    private func shareLabel(_ title: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "square.and.arrow.up")
-            Text("Share")
+            Text(title)
         }
         .font(.headline)
         .foregroundStyle(Theme.background)        // dark text on gold = high contrast

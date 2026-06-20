@@ -248,6 +248,38 @@ struct FeedView: View {
         .padding(.top, 8)
     }
 
+    /// A standing "bring friends in" card for the lonely feed — the social
+    /// layer is what makes the app sing, so a solo user always has a one-tap
+    /// path to it. Disappears on its own once friends start showing up.
+    private var inviteNudge: some View {
+        HairlineCard {
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill")
+                    .font(.title3)
+                    .foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Cini's better with friends")
+                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                    Text("Compare taste and see what they're watching.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Button {
+                    Haptics.tap()
+                    showInviteSheet = true
+                } label: {
+                    Text("Invite")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(Theme.background)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(Capsule().fill(Theme.marquee))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     /// "Popular on Cini" — a horizontal poster shelf of trending titles with
     /// the standard (+)/bookmark quick actions, so even a friendless feed has
     /// something to do. Reuses ArtworkQuickActions so the placements can't drift.
@@ -470,6 +502,15 @@ struct FeedView: View {
 
             askForRecsRow
 
+            // The feed is only as alive as your friend list — while it's sparse
+            // (but not empty, where the empty state already nudges follows),
+            // keep a standing reason to bring people in. Self-limiting: it
+            // disappears once friends' activity fills the feed.
+            if feedLoaded, !events.isEmpty, events.count < 3 {
+                inviteNudge
+                    .padding(.top, 4)
+            }
+
             // Popular on Cini — keeps a thin/new feed alive with fresh titles
             // to rank or bookmark. Shown while friend activity is sparse (the
             // lone-user case); fades out naturally once the feed fills in.
@@ -685,7 +726,10 @@ struct FeedView: View {
         if tonightCards.isEmpty {
             tonightSuppressedUntil = Date().timeIntervalSince1970 + 24 * 60 * 60
         }
-        if toast { ToastCenter.shared.show("Dismissed that rec") }
+        if toast {
+            Haptics.tap()
+            ToastCenter.shared.show("Dismissed that rec")
+        }
     }
 
     /// After the rank flow closes, drop any Tonight's Pick that just got ranked
