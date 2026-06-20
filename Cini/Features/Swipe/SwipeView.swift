@@ -306,7 +306,7 @@ struct SwipeView: View {
                 // pinning it to the top (it was sitting too high, leaving a
                 // dead gap underneath).
                 Spacer(minLength: 0)
-                modeNote("Swipe to find a \(suggestTV ? "show" : "movie") to watch, or tap + to rank one you've seen")
+                modeNote("Swipe right to save · left to skip · + to rank")
                     .padding(.bottom, 4)
                 RecCardDeck(
                     candidates: visible,

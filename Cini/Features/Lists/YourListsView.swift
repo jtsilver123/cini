@@ -1207,17 +1207,21 @@ struct YourListsView: View {
             await store.refreshPredictedScores()
         }
         .overlay {
-            if store.watchlist.isEmpty {
-                emptyList("Your watch-later stash. Tap the bookmark on any title and it's saved here for movie night.",
-                          actionTitle: "Browse popular") {
-                    tabRouter.pendingSearchBrowse = .popular
-                    tabRouter.selection = .search
-                }
-            } else if filteredWatchlist.isEmpty, watchlistCount(in: otherCategory) > 0 {
-                emptyList(categoryHiddenMessage(count: watchlistCount(in: otherCategory)),
-                          actionTitle: "Show \(otherCategory.title)",
-                          actionIcon: otherCategory.icon) {
-                    withAnimation(.snappy) { category = otherCategory }
+            // Empty for THIS category → always offer a one-tap path to Recs
+            // (same media kind, card/swipe mode). If saves exist under the other
+            // category, the message says so, but the action stays "go discover".
+            if filteredWatchlist.isEmpty {
+                let otherCount = watchlistCount(in: otherCategory)
+                emptyList(
+                    otherCount > 0
+                        ? "No \(category == .movies ? "movies" : "shows") here yet — your other saves are under \(otherCategory.title)."
+                        : "Your watch-later stash. Swipe through Recs to fill it, or bookmark any title you come across.",
+                    actionTitle: "Find \(category == .movies ? "movies" : "shows") to watch",
+                    actionIcon: "rectangle.stack") {
+                    // Land on Recs in CARDS mode with the active media kind.
+                    tabRouter.pendingRecsTV = (category == .tvShows)
+                    tabRouter.pendingRecsGrid = false
+                    tabRouter.selection = .swipe
                 }
             }
         }

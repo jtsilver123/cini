@@ -726,6 +726,12 @@ struct OnboardingView: View {
                         .multilineTextAlignment(.center).padding(.horizontal, 36)
                 }
             } else {
+                // Same concise cue as the real Recs deck.
+                Label("Swipe right to save · left to skip · + to rank", systemImage: "hand.tap")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                 // The shared swipe deck — its built-in practice cards teach the
                 // gesture first, then real picks follow.
                 RecCardDeck(
