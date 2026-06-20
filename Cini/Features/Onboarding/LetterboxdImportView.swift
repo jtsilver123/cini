@@ -454,8 +454,12 @@ struct LetterboxdImportView: View {
     /// Rich HTML body (bold links/steps) for the in-app composer.
     private func emailHTMLBody(code: String) -> String {
         let link = transferLink(code: code)
+        // Don't hard-code a near-black text color: in Mail's dark-mode compose
+        // (and any dark-mode mail client) that renders dark-on-dark and the body
+        // disappears. Declaring color-scheme lets the client pick a readable
+        // adaptive text color — dark on light, light on dark — instead.
         return """
-        <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#111;">
+        <div style="font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color-scheme:light dark;">
           <p>Open this link <b>on your computer</b> to bring your history into Cini:</p>
           <p><a href="\(link)" style="font-weight:700;">\(link)</a></p>
           <ol>
@@ -463,7 +467,7 @@ struct LetterboxdImportView: View {
             <li>Grab your export from <b>Letterboxd</b>, <b>IMDb</b>, or <b>Netflix</b> and drop it in.</li>
             <li>Your movies and shows beam straight to Cini on your phone.</li>
           </ol>
-          <p style="color:#666;font-size:13px;"><i>This link works for 30 minutes — grab a fresh one in the app if it expires.</i></p>
+          <p style="font-size:13px;opacity:0.65;"><i>This link works for 30 minutes — grab a fresh one in the app if it expires.</i></p>
         </div>
         """
     }
