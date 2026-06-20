@@ -40,6 +40,12 @@ Deno.serve(async (req: Request) => {
     const url = new URL(req.url);
     const code = (url.searchParams.get("code") ?? "").toUpperCase().trim();
     const filename = url.searchParams.get("name") ?? "export.zip";
+    // The import page can send more than one export in a single session
+    // (e.g. a Letterboxd .zip AND a Netflix .csv). It uploads them one at a
+    // time and only marks the LAST one `final=1`; earlier files keep the code
+    // "waiting" so they all land before the app starts importing. A single
+    // file (the common case) defaults to final.
+    const isFinal = (url.searchParams.get("final") ?? "1") !== "0";
     if (!/^[A-Z2-9]{6}$/.test(code)) {
       return json(400, { error: "That code doesn't look right — check the app." });
     }
@@ -51,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: pending } = await supabase
       .from("pending_imports")
-      .select("user_id, status, created_at")
+      .select("user_id, status, created_at, path")
       .eq("code", code)
       .maybeSingle();
     if (!pending) {
@@ -77,8 +83,14 @@ Deno.serve(async (req: Request) => {
       .upload(path, bytes, { contentType: "application/octet-stream", upsert: true });
     if (uploadError) return json(500, { error: "Upload failed — try again." });
 
+    // Accumulate paths (deduped) so a multi-file session keeps every export;
+    // the app reads this comma-separated list and imports them all. Only the
+    // final upload flips the code to "ready" so the app waits for the set.
+    const paths = (pending.path ?? "").split(",").map((p) => p.trim()).filter(Boolean);
+    if (!paths.includes(path)) paths.push(path);
+
     const { error: updateError } = await supabase.from("pending_imports")
-      .update({ status: "ready", path })
+      .update({ status: isFinal ? "ready" : "waiting", path: paths.join(",") })
       .eq("code", code);
     if (updateError) {
       return json(500, { error: "Upload saved but couldn't finish — try again." });

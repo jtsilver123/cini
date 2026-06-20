@@ -26,6 +26,12 @@
   p{font-size:14px; line-height:1.6; color:var(--gray); margin:0 0 20px;}
   ol{text-align:left; font-size:14px; line-height:1.7; color:var(--ink); padding-left:22px; margin:0 0 22px;}
   ol a{color:var(--marquee);}
+  ol li{margin-bottom:10px;}
+  .platform{background:var(--bg); border:1px solid var(--hair); border-radius:10px;
+    padding:9px 12px; margin:8px 0;}
+  .pname{font-weight:bold; color:var(--marquee); font-size:12px; letter-spacing:.6px;
+    text-transform:uppercase; margin-bottom:2px;}
+  .psteps{color:var(--ink); font-size:13px; line-height:1.55;}
   input{width:140px; text-align:center; font-size:24px; letter-spacing:6px; text-transform:uppercase;
     background:var(--bg); color:var(--ink); border:1px solid var(--hair); border-radius:12px;
     padding:12px 8px; outline:none; font-weight:bold;}
@@ -47,16 +53,26 @@
   <div class="tagline">EVERY FILM · RANKED</div>
   <h1>Send your history to your phone</h1>
   <ol>
-    <li><b style="color:var(--ink);">Letterboxd:</b> on <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a>, click Export your data and save the .zip — or <b style="color:var(--ink);">Netflix:</b> Account → Profile → Privacy and Data Settings → Viewing Activity → Download all (.csv)</li>
-    <li id="codeStep">Enter the 6-letter code from the Cini app</li>
-    <li>Drop the file below — it appears on your phone in seconds</li>
+    <li><b style="color:var(--ink);">Choose where you're importing from</b> — Letterboxd, Netflix, or both.</li>
+    <li><b style="color:var(--ink);">Export your history:</b>
+      <div class="platform">
+        <div class="pname">Letterboxd</div>
+        <div class="psteps">Go to <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a> → click <b>Export your data</b> → save the <b>.zip</b>.</div>
+      </div>
+      <div class="platform">
+        <div class="pname">Netflix</div>
+        <div class="psteps">Go to <a href="https://www.netflix.com/account/profiles" target="_blank" rel="noopener">netflix.com/account/profiles</a> → pick your profile → <b>Privacy and Data Settings</b> → <b>Viewing Activity</b> → <b>Download all</b> (saves a <b>.csv</b>).</div>
+      </div>
+    </li>
+    <li id="codeStep">Enter the 6-letter code from the Cini app.</li>
+    <li>Drop your file(s) below — importing from both? Drop both at once.</li>
   </ol>
   <input id="code" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
   <span class="linked" id="linked">✓ Linked to the Cini app on your phone</span>
   <div class="drop" id="drop">
     <b>Drop your export here</b><br>
-    <span style="font-size:13px; color:var(--gray);">or click to choose the .zip / .csv</span>
-    <input type="file" id="file" accept=".zip,.csv,.txt" style="display:none;">
+    <span style="font-size:13px; color:var(--gray);">or click to choose the .zip / .csv — up to 2 files</span>
+    <input type="file" id="file" accept=".zip,.csv,.txt" multiple style="display:none;">
   </div>
   <div class="status" id="status"></div>
   <div class="footer">Files transfer privately to your account only and expire after a day.<br>ADMIT ONE · CINI</div>
@@ -87,41 +103,54 @@ codeInput.addEventListener("input", () => {
 });
 
 drop.addEventListener("click", () => fileInput.click());
-fileInput.addEventListener("change", () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+fileInput.addEventListener("change", () => { if (fileInput.files.length) upload(fileInput.files); });
 drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
 drop.addEventListener("dragleave", () => drop.classList.remove("over"));
 drop.addEventListener("drop", e => {
   e.preventDefault(); drop.classList.remove("over");
-  if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
 });
 
-async function upload(file) {
+// Up to two files (Letterboxd + Netflix) go up one at a time; only the last
+// is marked final=1 so the app waits for the whole set before importing.
+async function upload(fileList) {
   const code = codeInput.value.trim();
   if (code.length !== 6) {
     status.className = "status err";
     status.textContent = "Enter the 6-letter code from the Cini app first.";
     return;
   }
-  status.className = "status";
-  status.textContent = "Uploading " + file.name + "…";
-  try {
-    const res = await fetch(
-      "https://npumchnkbcajyuhurgez.supabase.co/functions/v1/import-upload?code=" +
-        encodeURIComponent(code) + "&name=" + encodeURIComponent(file.name),
-      { method: "POST", body: file }
-    );
-    const body = await res.json().catch(() => ({}));
-    if (res.ok) {
-      status.className = "status ok";
-      status.textContent = "Done! Check your phone — Cini is importing it now. 🎬";
-    } else {
+  const files = Array.from(fileList).slice(0, 2);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const isLast = i === files.length - 1;
+    status.className = "status";
+    status.textContent = files.length > 1
+      ? "Uploading " + file.name + " (" + (i + 1) + " of " + files.length + ")…"
+      : "Uploading " + file.name + "…";
+    try {
+      const res = await fetch(
+        "https://npumchnkbcajyuhurgez.supabase.co/functions/v1/import-upload?code=" +
+          encodeURIComponent(code) + "&name=" + encodeURIComponent(file.name) +
+          "&final=" + (isLast ? "1" : "0"),
+        { method: "POST", body: file }
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        status.className = "status err";
+        status.textContent = body.error || ("Upload failed for " + file.name + " — try again.");
+        return;
+      }
+    } catch {
       status.className = "status err";
-      status.textContent = body.error || "Upload failed — try again.";
+      status.textContent = "Couldn't reach the server — check your connection.";
+      return;
     }
-  } catch {
-    status.className = "status err";
-    status.textContent = "Couldn't reach the server — check your connection.";
   }
+  status.className = "status ok";
+  status.textContent = files.length > 1
+    ? "Done! Both files sent — check your phone, Cini is importing them now. 🎬"
+    : "Done! Check your phone — Cini is importing it now. 🎬";
 }
 </script>
 </body>

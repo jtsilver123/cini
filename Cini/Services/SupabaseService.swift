@@ -674,14 +674,19 @@ final class SupabaseService {
         return code
     }
 
-    /// Storage path of the uploaded export once the computer side is done.
-    func importUploadPath(code: String) async -> String? {
+    /// Storage path(s) of the uploaded export(s) once the computer side is done.
+    /// The import page can send more than one file in a session (e.g. a
+    /// Letterboxd .zip and a Netflix .csv); they arrive as a comma-separated
+    /// list in `path` and only become "ready" once the last one lands.
+    func importUploadPaths(code: String) async -> [String] {
         struct Row: Decodable { let status: String; let path: String? }
         let row: Row? = try? await client.from("pending_imports")
             .select("status, path")
             .eq("code", value: code)
             .single().execute().value
-        return row?.status == "ready" ? row?.path : nil
+        guard row?.status == "ready", let path = row?.path else { return [] }
+        return path.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 
     func downloadImport(path: String) async throws -> Data {

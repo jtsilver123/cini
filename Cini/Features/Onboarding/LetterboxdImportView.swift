@@ -133,7 +133,7 @@ struct LetterboxdImportView: View {
                 allowedContentTypes: [.zip, .commaSeparatedText, .plainText]
             ) { pickResult in
                 if case .success(let url) = pickResult {
-                    importTask = Task { await runImport(from: url) }
+                    importTask = Task { await runImport(from: [url]) }
                 }
             }
         }
@@ -517,8 +517,9 @@ struct LetterboxdImportView: View {
             for _ in 0..<600 {
                 try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled else { return }
-                if let path = await SupabaseService.shared.importUploadPath(code: code) {
-                    await importFromStorage(path: path)
+                let paths = await SupabaseService.shared.importUploadPaths(code: code)
+                if !paths.isEmpty {
+                    await importFromStorage(paths: paths)
                     return
                 }
             }
@@ -527,23 +528,30 @@ struct LetterboxdImportView: View {
         }
     }
 
-    private func importFromStorage(path: String) async {
+    private func importFromStorage(paths: [String]) async {
         do {
             Haptics.tap()
-            ToastCenter.shared.show("Your export landed — importing now 🎬")
-            let data = try await SupabaseService.shared.downloadImport(path: path)
-            let filename = (path as NSString).lastPathComponent
-            let tempURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent(filename)
-            try data.write(to: tempURL)
+            ToastCenter.shared.show(paths.count > 1
+                                    ? "Your exports landed — importing now 🎬"
+                                    : "Your export landed — importing now 🎬")
+            // Cap at two — the page only ever sends Letterboxd + Netflix.
+            var urls: [URL] = []
+            for path in paths.prefix(2) {
+                let data = try await SupabaseService.shared.downloadImport(path: path)
+                let filename = (path as NSString).lastPathComponent
+                let tempURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(filename)
+                try data.write(to: tempURL)
+                urls.append(tempURL)
+            }
             transferCode = nil
-            await runImport(from: tempURL)
+            await runImport(from: urls)
         } catch {
             errorMessage = "Got your file but couldn't read it - try again."
         }
     }
 
-    private func runImport(from url: URL) async {
+    private func runImport(from urls: [URL]) async {
         errorMessage = nil
         pastedToWatchlist = false
         withAnimation(.snappy) { phase = .working }
@@ -551,15 +559,24 @@ struct LetterboxdImportView: View {
         progressFraction = 0
 
         do {
-            let outcome = try await LetterboxdImporter.run(fileURL: url) { progress in
-                switch progress {
-                case .reading:
-                    progressText = "Reading export…"
-                case .matching(let done, let total):
-                    progressText = "Matching \(done) of \(total)"
-                    progressFraction = Double(done) / Double(max(total, 1))
+            // Run each export through the parser/matcher, then fold them into a
+            // single outcome so the rest of the import (queue seed, reviews,
+            // watchlist, lists) runs once over the combined set.
+            var results: [LetterboxdImporter.Result] = []
+            for (index, url) in urls.enumerated() {
+                let prefix = urls.count > 1 ? "File \(index + 1) of \(urls.count): " : ""
+                let r = try await LetterboxdImporter.run(fileURL: url) { progress in
+                    switch progress {
+                    case .reading:
+                        progressText = "\(prefix)Reading export…"
+                    case .matching(let done, let total):
+                        progressText = "\(prefix)Matching \(done) of \(total)"
+                        progressFraction = Double(done) / Double(max(total, 1))
+                    }
                 }
+                results.append(r)
             }
+            let outcome = mergeImportResults(results)
 
             // Seed the persistent ranking queue (favorites first).
             ImportQueue.shared.seed(with: outcome.watched, store: store)
@@ -633,6 +650,60 @@ struct LetterboxdImportView: View {
                 ?? "Something went wrong reading that file."
             withAnimation(.snappy) { phase = .pick }
         }
+    }
+
+    /// Fold several parsed exports (e.g. Letterboxd + Netflix) into one result,
+    /// de-duping by TMDB id so a title in both isn't queued or counted twice.
+    /// Watched wins over watchlist; richer metadata (a review, more watch dates,
+    /// a like) is kept when the same title appears in more than one file.
+    private func mergeImportResults(_ results: [LetterboxdImporter.Result]) -> LetterboxdImporter.Result {
+        guard results.count > 1 else { return results.first ?? LetterboxdImporter.Result() }
+
+        var watchedByID: [Int: LetterboxdImporter.MatchedTitle] = [:]
+        var watchedOrder: [Int] = []
+        for result in results {
+            for match in result.watched {
+                let id = match.movie.tmdbID
+                if let existing = watchedByID[id] {
+                    watchedByID[id] = combineMatches(existing, match)
+                } else {
+                    watchedByID[id] = match
+                    watchedOrder.append(id)
+                }
+            }
+        }
+
+        var watchlistByID: [Int: LetterboxdImporter.MatchedTitle] = [:]
+        var watchlistOrder: [Int] = []
+        for result in results {
+            for match in result.watchlist where watchedByID[match.movie.tmdbID] == nil {
+                let id = match.movie.tmdbID
+                if watchlistByID[id] == nil {
+                    watchlistByID[id] = match
+                    watchlistOrder.append(id)
+                }
+            }
+        }
+
+        var merged = LetterboxdImporter.Result()
+        merged.watched = watchedOrder.compactMap { watchedByID[$0] }
+        merged.watchlist = watchlistOrder.compactMap { watchlistByID[$0] }
+        merged.importedLists = results.flatMap { $0.importedLists }
+        merged.unmatched = results.flatMap { $0.unmatched }
+        merged.totalParsed = results.reduce(0) { $0 + $1.totalParsed }
+        return merged
+    }
+
+    /// Merge the imported metadata for a title that showed up in two files.
+    private func combineMatches(_ a: LetterboxdImporter.MatchedTitle,
+                                _ b: LetterboxdImporter.MatchedTitle) -> LetterboxdImporter.MatchedTitle {
+        var imported = a.imported
+        imported.review = imported.review ?? b.imported.review
+        imported.watchedOn = imported.watchedOn ?? b.imported.watchedOn
+        imported.rating = imported.rating ?? b.imported.rating
+        imported.liked = imported.liked || b.imported.liked
+        imported.watchDates.formUnion(b.imported.watchDates)
+        return LetterboxdImporter.MatchedTitle(imported: imported, movie: a.movie)
     }
 
     /// "Imported 389 to rank · 57 saved · 2 lists" — the one-line receipt.
