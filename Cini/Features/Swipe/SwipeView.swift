@@ -37,6 +37,9 @@ struct SwipeView: View {
     /// Bumped each time the pool reloads (filter change / refresh) so the deck
     /// resets to the first card instead of keeping a stale index.
     @State private var poolVersion = 0
+    /// Identifies the in-flight pool load; a newer load supersedes an older one
+    /// so two quick filter changes can't let stale results win the race.
+    @State private var loadSeq = 0
     @Namespace private var posterZoom
 
     /// The current pool minus dismissed / already-watched, filtered to the
@@ -380,6 +383,8 @@ struct SwipeView: View {
     /// A filter-driven pool: TMDB discover for both movies and shows matching the
     /// active filters, so the deck is full of on-target picks.
     private func loadFiltered() async {
+        loadSeq += 1
+        let token = loadSeq
         async let moviePool = TMDBService.shared.discover(
             genre: filters.genre, decade: filters.decade,
             maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: false)
@@ -387,6 +392,7 @@ struct SwipeView: View {
             genre: filters.genre, decade: filters.decade,
             maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: true)
         let pool = ((try? await moviePool) ?? []) + ((try? await tvPool) ?? [])
+        guard token == loadSeq else { return }   // a newer reload superseded this one
 
         var seen = Set<Int>()
         var built: [YourListsView.RecCandidate] = []
@@ -400,6 +406,7 @@ struct SwipeView: View {
         poolVersion += 1
         bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
         await enrich(built.prefix(16).map(\.movie.tmdbID))
+        guard token == loadSeq else { return }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
         }
@@ -414,6 +421,8 @@ struct SwipeView: View {
     }
 
     private func loadAutomatic() async {
+        loadSeq += 1
+        let token = loadSeq
         let topID = store.watchedItems.first?.id
         async let friendRecsTask = SupabaseService.shared.recsForUser()
         async let trendingTask = TMDBService.shared.trending()
@@ -456,6 +465,7 @@ struct SwipeView: View {
             }
         }
 
+        guard token == loadSeq else { return }   // a newer reload superseded this one
         candidates = pending.compactMap { candidate in
             store.movie(candidate.id).map {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
@@ -471,6 +481,7 @@ struct SwipeView: View {
         // (and so the genre/streaming filters have something to match) — in the
         // background so the deck shows immediately.
         await enrich(pending.prefix(16).map(\.id))
+        guard token == loadSeq else { return }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
         }
