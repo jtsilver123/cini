@@ -123,7 +123,13 @@ struct ProductTourView: View {
                     .padding(.bottom, up ? 0 : (proxy.size.height - target.minY) + 20)
             }
         }
-        .onAppear { TabRouter.shared.selection = stops[0].tab }
+        .onAppear {
+            TabRouter.shared.tourActive = true
+            TabRouter.shared.selection = stops[0].tab
+        }
+        // Safety net: clear the flag if the overlay ever goes away without
+        // running finish() (so Search's keyboard isn't suppressed forever).
+        .onDisappear { TabRouter.shared.tourActive = false }
         .animation(.snappy, value: step)
     }
 
@@ -197,6 +203,7 @@ struct ProductTourView: View {
 
     private func finish() {
         Haptics.tap()
+        TabRouter.shared.tourActive = false
         TabRouter.shared.selection = .feed       // leave them on the feed
         onDone()
         // They've arrived — rain a little welcome confetti over the feed.

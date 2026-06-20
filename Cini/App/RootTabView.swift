@@ -28,6 +28,11 @@ final class TabRouter {
 
     /// Set before jumping to search to land on the Members tab.
     var openMembersSearch = false
+
+    /// True while the one-time product tour is on screen. The tour walks
+    /// through the tabs, so when it lands on Search we DON'T want the keyboard
+    /// auto-raising over the coachmark — Search checks this before focusing.
+    var tourActive = false
     /// The movie page currently on screen — Ask Cini opens with it
     /// pinned, so "is this good?" needs zero typing. Cleared on tab
     /// switches so a page left behind in another tab's stack can't

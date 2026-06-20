@@ -168,7 +168,10 @@ struct SearchView: View {
     /// the window so the focus actually takes (setting it too early no-ops).
     private func focusSearchSoon() {
         guard query.isEmpty, browse == nil,
-              tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch else { return }
+              tabRouter.pendingSearchBrowse == nil, !tabRouter.openMembersSearch,
+              // During the product tour, landing on Search must NOT pop the
+              // keyboard — it would cover the coachmark bubble.
+              !tabRouter.tourActive else { return }
         Task { @MainActor in
             // The tab-switch transition has to finish before the field can
             // become first responder, and how long that takes varies by device.
