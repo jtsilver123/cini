@@ -19,20 +19,6 @@ struct SwipeView: View {
     /// the choice sticks, and auto-selected by the deep link that opened Recs.
     private enum Layout: String, CaseIterable {
         case grid, cards
-        var label: String { rawValue.capitalized }
-        var icon: String {
-            switch self {
-            case .grid: "square.grid.2x2"
-            case .cards: "rectangle.stack"
-            }
-        }
-        /// One-line "what it's for," shown in the layout menu.
-        var blurb: String {
-            switch self {
-            case .grid: "Best for ranking what you've watched"
-            case .cards: "Best for finding what to watch"
-            }
-        }
     }
     @AppStorage("swipe.layout") private var layout: Layout = .cards
     @State private var suggestTV = false
