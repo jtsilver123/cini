@@ -30,6 +30,9 @@ struct SwipeView: View {
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var watchedCountAtRank = 0
+    /// The title most recently sent into the rank flow — so the post-rank toast
+    /// can offer to open its page.
+    @State private var lastRanked: Movie?
     @State private var showImport = false
     @Namespace private var posterZoom
 
@@ -81,9 +84,13 @@ struct SwipeView: View {
             .nativeContentWidth()
             .background(Theme.background)
             .fullScreenCover(item: $logMovie, onDismiss: {
-                // Ranked one → it's now Watched; confirm and it drops from the deck.
-                if store.watchedCount > watchedCountAtRank {
-                    ToastCenter.shared.show("Added to your Watched list 🎬")
+                // Ranked one → it's now Watched; confirm, and offer to open its
+                // page. It also drops from the deck (visible filters watched out).
+                if store.watchedCount > watchedCountAtRank, let ranked = lastRanked {
+                    ToastCenter.shared.showTap("Ranked \(ranked.title) 🎬 · View") {
+                        store.cache(ranked)
+                        detailMovie = ranked
+                    }
                 }
             }) { movie in
                 LogFlowView(movie: movie)
@@ -263,7 +270,7 @@ struct SwipeView: View {
                         modeNote("Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen")
                         SuggestionGrid(
                             movies: visible.map(\.movie),
-                            onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                            onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                             onSave: { movie in
                                 guard !store.isOnWatchlist(movie.tmdbID) else { return }
                                 Task { await store.toggleWatchlist(movie: movie) }
@@ -288,7 +295,7 @@ struct SwipeView: View {
                 RecCardDeck(
                     candidates: visible,
                     onOpen: { store.cache($0); detailMovie = $0 },
-                    onLog: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                    onLog: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                     onSave: { m in
                         if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
                     },
@@ -297,7 +304,7 @@ struct SwipeView: View {
                     },
                     onRefresh: { Task { candidates = []; loaded = false; await load() } },
                     showRank: true,
-                    onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
+                    onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                     richDetail: true,
                     bookmarkCounts: bookmarkCounts
                 )

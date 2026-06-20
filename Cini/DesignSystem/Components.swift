@@ -973,11 +973,10 @@ struct MovieFilters: Equatable {
         return nil
     }
 
-    /// The clean, ordered set of providers present in a list of movies.
-    static func presentProviders(in movies: [Movie]) -> [String] {
-        let present = Set(movies.flatMap { $0.streamingOn.compactMap(canonicalProvider) })
-        return majorProviders.filter(present.contains)
-    }
+    /// The streaming filter always offers the full set of majors (in a sensible
+    /// order) — deriving it only from the loaded pool hid big services like Max
+    /// and Prime Video whenever the current titles' streaming data was sparse.
+    static func filterProviders() -> [String] { majorProviders }
 }
 
 /// Horizontal pill row driving a MovieFilters value. The ✕ appears only
@@ -1000,7 +999,7 @@ struct MovieFilterBar: View {
     /// Providers that actually appear in this list, for the Streaming filter —
     /// folded into the majors so the list stays clean.
     private var providers: [String] {
-        MovieFilters.presentProviders(in: movies)
+        MovieFilters.filterProviders()
     }
 
     var body: some View {
@@ -1208,7 +1207,7 @@ struct MovieFilterSheet: View {
     }
 
     private var genres: [String] { Array(Set(movies.flatMap(\.genres))).sorted() }
-    private var providers: [String] { MovieFilters.presentProviders(in: movies) }
+    private var providers: [String] { MovieFilters.filterProviders() }
     private let runtimeOptions: [(label: String, value: Int)] =
         [("Under 100 min", 100), ("Under 2 hours", 120), ("Under 2½ hours", 150)]
     private var decades: [Int] { Array(stride(from: 2020, through: 1950, by: -10)) }
