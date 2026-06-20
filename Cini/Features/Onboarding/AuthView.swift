@@ -103,9 +103,6 @@ struct AuthView: View {
                         .font(.caption).foregroundStyle(Theme.scoreRed)
                         .multilineTextAlignment(.center)
                 }
-                Text("By continuing you consent to occasional informational texts (like a friend's invite). Message & data rates may apply.")
-                    .font(.caption2).foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center)
                 messages
                 primaryButton("Continue", loading: isWorking,
                               disabled: !PhoneNumber.isValid(phone, dial: country.dial)) {

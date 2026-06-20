@@ -140,8 +140,8 @@ private struct PosterWall: View {
     private let spacing: CGFloat = 12
 
     @State private var begin = Date()
-    @State private var scrub: CGFloat = 0           // user-added offset (persists)
-    @GestureState private var dragLive: CGFloat = 0  // live drag delta
+    @State private var scrub: CGFloat = 0      // user-added offset (persists)
+    @State private var lastDrag: CGFloat = 0   // last drag translation, for deltas
 
     /// Deal posters round-robin into three columns; fall back to the seed.
     /// Each column is padded to enough tiles that its looped height always
@@ -169,7 +169,7 @@ private struct PosterWall: View {
                     let speed: CGFloat = 16 + CGFloat(idx) * 3    // gentle parallax
                     let phase = CGFloat(idx) * (tileH + spacing) * 0.5   // brick offset
                     PosterColumn(paths: paths, tileW: tileW, tileH: tileH, spacing: spacing,
-                                 offset: t * speed * dir + (scrub + dragLive) + phase)
+                                 offset: t * speed * dir + scrub + phase)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -178,12 +178,18 @@ private struct PosterWall: View {
         .contentShape(Rectangle())
         .gesture(
             DragGesture()
-                .updating($dragLive) { value, state, _ in state = value.translation.height }
+                .onChanged { value in
+                    // Track the finger incrementally so `scrub` always equals the
+                    // exact release point — no jump when the gesture ends.
+                    scrub += value.translation.height - lastDrag
+                    lastDrag = value.translation.height
+                }
                 .onEnded { value in
-                    // Bank exactly what the finger moved. (No momentum jump:
-                    // `dragLive` resets to 0 as `scrub` absorbs the same amount,
-                    // so the wall stays perfectly continuous on release.)
-                    scrub += value.translation.height
+                    lastDrag = 0
+                    // Inertia: glide the remaining predicted distance out with a
+                    // decelerating curve, continuing smoothly from the release.
+                    let momentum = value.predictedEndTranslation.height - value.translation.height
+                    withAnimation(.easeOut(duration: 0.6)) { scrub += momentum }
                 }
         )
     }

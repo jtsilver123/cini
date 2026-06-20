@@ -2714,7 +2714,6 @@ function renderOnboarding(){
           oninput="obPhone=obPhoneFmt(this.value); this.value=obPhone; $('obPhErr').style.display=(obPhoneDigits().length>=10&&!obPhoneValid())?'block':'none'; $('obPhGo').style.opacity=obPhoneValid()?1:.5;">
       </div>
       <div id="obPhErr" class="sub" style="display:${(obPhoneDigits().length>=10&&!obPhoneValid())?'block':'none'}; color:var(--s-disliked); font-size:12px;">That doesn't look like a valid number — check for typos.</div>
-      <div class="sub" style="font-size:11px;">By continuing you consent to occasional informational texts. Msg &amp; data rates may apply.</div>
       <button id="obPhGo" class="pill" style="justify-content:center; padding:13px; opacity:${obPhoneValid()?1:.5};" onclick="if(obPhoneValid())obNext(); else toast('Enter a valid phone number')">Continue</button>
     </div>`;
   else if(obStep===2) body=`
