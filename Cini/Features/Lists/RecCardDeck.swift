@@ -32,6 +32,9 @@ struct RecCardDeck: View {
     @State private var index = 0
     @State private var drag: CGSize = .zero
     @State private var flyOff: CGFloat = 0
+    /// True while a card is flying off + the deck advances — blocks a second
+    /// swipe from re-firing on the same card.
+    @State private var advancing = false
     /// (deckIndex, movie?, wasSave) — movie nil for demo cards.
     @State private var history: [(index: Int, movie: Movie?, saved: Bool)] = []
 
@@ -69,29 +72,32 @@ struct RecCardDeck: View {
         if index >= items.count {
             exhausted
         } else {
+            // Render the top card plus one peek behind it, KEYED BY ITEM ID.
+            // The next card sits exactly behind the top (same size, no peek) so
+            // nothing shows at rest. Keying by id is what stops the flicker: on
+            // a quick swipe the peek becomes the new top WITHOUT being rebuilt,
+            // so its artwork doesn't reload for a frame.
+            let window = Array(items[index..<min(index + 2, items.count)])
             ZStack {
-                // The next card sits exactly behind the top one (same size, no
-                // peek), so nothing shows behind at rest — it's only revealed as
-                // the top card slides/flies away.
-                if index + 1 < items.count {
-                    card(items[index + 1])
-                        .zIndex(0)
+                ForEach(window, id: \.id) { item in
+                    let isTop = item.id == items[index].id
+                    card(item, dragX: isTop ? drag.width + flyOff : 0)
+                        .offset(x: isTop ? drag.width + flyOff : 0,
+                                y: isTop ? drag.height : 0)
+                        .rotationEffect(.degrees(isTop ? Double(drag.width + flyOff) / 22 : 0))
+                        .zIndex(isTop ? 1 : 0)
+                        .allowsHitTesting(isTop)
+                        .gesture(isTop ?
+                            DragGesture()
+                                .onChanged { drag = $0.translation }
+                                .onEnded { value in
+                                    if value.translation.width > 100 { act(save: true) }
+                                    else if value.translation.width < -100 { act(save: false) }
+                                    else { withAnimation(.snappy) { drag = .zero } }
+                                }
+                            : nil)
+                        .animation(.snappy, value: drag)
                 }
-                let top = items[index]
-                card(top, dragX: drag.width + flyOff)
-                    .offset(x: drag.width + flyOff, y: drag.height)
-                    .rotationEffect(.degrees(Double(drag.width + flyOff) / 22))
-                    .zIndex(1)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { drag = $0.translation }
-                            .onEnded { value in
-                                if value.translation.width > 100 { act(save: true) }
-                                else if value.translation.width < -100 { act(save: false) }
-                                else { withAnimation(.snappy) { drag = .zero } }
-                            }
-                    )
-                    .animation(.snappy, value: drag)
             }
             // Hard-cap the deck to the offered width. Without this, the card's
             // full-bleed image reports its large intrinsic width up through the
@@ -240,7 +246,10 @@ struct RecCardDeck: View {
     }
 
     private func act(save: Bool) {
-        guard index < items.count else { return }
+        // Ignore a second swipe while the current card is still flying off —
+        // otherwise a quick double-swipe acts on the same card twice and flickers.
+        guard !advancing, index < items.count else { return }
+        advancing = true
         Haptics.tap()
         let item = items[index]
         if case .rec(let c) = item {
@@ -266,6 +275,7 @@ struct RecCardDeck: View {
                 drag = .zero
                 flyOff = 0
             }
+            advancing = false
         }
     }
 
