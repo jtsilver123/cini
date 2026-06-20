@@ -43,13 +43,9 @@ final class TabRouter {
     var pendingListsTab: YourListsView.SubTab?
 
     /// Set before jumping to Recs to preselect Movies (false) or TV (true),
-    /// so "Movies you may have seen" lands on the movies deck, etc.
+    /// so "Movies you may have seen" lands on the movies deck, etc. The card vs
+    /// grid layout is intentionally NOT forced — Swipe keeps the user's last mode.
     var pendingRecsTV: Bool?
-
-    /// Set before jumping to Recs to preselect the layout: grid (true) for
-    /// "things you've watched" (from Watched), cards (false) for "find things
-    /// to watch" (from Want to Watch).
-    var pendingRecsGrid: Bool?
 
     /// Set before jumping to lists to open a specific custom list
     /// (agent receipt chips use this).

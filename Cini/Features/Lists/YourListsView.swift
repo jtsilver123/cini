@@ -988,7 +988,7 @@ struct YourListsView: View {
                           actionTitle: "\(category == .movies ? "Movies" : "Shows") you may have seen",
                           actionIcon: "rectangle.stack") {
                     tabRouter.pendingRecsTV = (category == .tvShows)
-                    tabRouter.pendingRecsGrid = false   // card view (the default)
+                    // Respect the user's last card/grid mode — don't force one.
                     tabRouter.selection = .swipe
                 }
             } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
@@ -1009,10 +1009,9 @@ struct YourListsView: View {
     private var maybeSeenBar: some View {
         Button {
             Haptics.tap()
-            // Land on Recs with the SAME media kind, in CARD view (the default)
-            // — swipe through and tap + to rank ones you've already seen.
+            // Land on Recs with the SAME media kind, in whatever card/grid mode
+            // the user last used — swipe through and tap + to rank.
             tabRouter.pendingRecsTV = (category == .tvShows)
-            tabRouter.pendingRecsGrid = false
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
@@ -1042,9 +1041,8 @@ struct YourListsView: View {
     private var findToWatchBar: some View {
         Button {
             Haptics.tap()
-            // Land on Recs in CARDS mode — best for swiping to find new things.
+            // Land on Recs with the same media kind, in the user's last mode.
             tabRouter.pendingRecsTV = (category == .tvShows)
-            tabRouter.pendingRecsGrid = false
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
@@ -1240,9 +1238,8 @@ struct YourListsView: View {
                         : "Your watch-later stash. Swipe through Recs to fill it, or bookmark any title you come across.",
                     actionTitle: "Find \(category == .movies ? "movies" : "shows") to watch",
                     actionIcon: "rectangle.stack") {
-                    // Land on Recs in CARDS mode with the active media kind.
+                    // Land on Recs with the active media kind, in the last mode.
                     tabRouter.pendingRecsTV = (category == .tvShows)
-                    tabRouter.pendingRecsGrid = false
                     tabRouter.selection = .swipe
                 }
             }

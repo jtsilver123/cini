@@ -135,7 +135,6 @@ struct SwipeView: View {
             // preselect Movies or TV — honor it whether the tab is new or alive.
             .onAppear { consumeDeepLink() }
             .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumeDeepLink() }
-            .onChange(of: tabRouter.pendingRecsGrid) { _, _ in consumeDeepLink() }
             // Filters drive the pool here — changing them fetches a fresh,
             // matching set (or the automatic pool when cleared).
             .onChange(of: filters) { _, _ in Task { await reloadPool() } }
@@ -148,10 +147,6 @@ struct SwipeView: View {
         if let wantTV = tabRouter.pendingRecsTV {
             tabRouter.pendingRecsTV = nil
             suggestTV = wantTV
-        }
-        if let wantGrid = tabRouter.pendingRecsGrid {
-            tabRouter.pendingRecsGrid = nil
-            withAnimation(.snappy) { layout = wantGrid ? .grid : .cards }
         }
     }
 

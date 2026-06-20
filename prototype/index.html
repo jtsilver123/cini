@@ -937,7 +937,7 @@ function renderLists(){
     </div>`:""}
     ${S.ui.reorder && sub==="watched"?`<div class="pad" style="margin-top:10px; color:var(--marquee); font-size:12.5px; font-weight:700;">Reorder mode — use the arrows; scores update automatically</div>`:""}
     ${sub==="watched" && !S.ui.reorder?`<div class="pad" style="margin-top:8px;">
-      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="swipeGrid=false; go('swipe')">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
         <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">${S.category==="TV"?"Shows":"Movies"} you may have seen</div>
@@ -946,7 +946,7 @@ function renderLists(){
       </div>
     </div>`:""}
     ${sub==="watchlist"?`<div class="pad" style="margin-top:8px;">
-      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="swipeGrid=false; go('swipe')">
+      <div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:13px 15px;" onclick="go('swipe')">
         <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">Find ${S.category==="TV"?"shows":"movies"} to watch</div>
@@ -1166,7 +1166,7 @@ function renderSearch(){
       : results!==null
       ? (results.length? results.map(k=>row(k,false)).join("") : `<div class="empty"><span style="color:var(--marquee);">${I("search",32)}</span><b>No matches for “${esc(searchQ)}”</b><span class="sub">The real app searches all of TMDB — this demo has 7 films.</span></div>`)
       : `
-      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="swipeGrid=false; go('swipe')">
+      <div class="card" style="display:flex; gap:13px; align-items:center; cursor:pointer; padding:14px 16px;" onclick="go('swipe')">
         <span style="color:var(--marquee);">${I("search",22)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14.5px;">Movies you may have seen</div>

@@ -569,10 +569,8 @@ struct SearchView: View {
     private var maybeSeenButton: some View {
         Button {
             Haptics.tap()
-            // Land on the grid ("rank what you've seen") for Movies, matching
-            // the same entry point in My Lists.
+            // Open Movies in the user's last card/grid mode (don't force one).
             tabRouter.pendingRecsTV = false
-            tabRouter.pendingRecsGrid = true
             tabRouter.selection = .swipe
         } label: {
             HStack(spacing: 12) {
