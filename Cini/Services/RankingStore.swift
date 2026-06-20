@@ -161,6 +161,27 @@ final class RankingStore {
         }
     }
 
+    /// Rename a list through the shared cache so every surface updates at
+    /// once. Optimistic, with a reconcile + toast if the write misses.
+    @discardableResult
+    func renameList(_ id: UUID, to name: String) async -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let previous = customLists
+        if let i = customLists.firstIndex(where: { $0.id == id }) {
+            customLists[i].name = trimmed
+        }
+        do {
+            try await supabase.renameList(id, to: trimmed)
+            Haptics.success()
+            return true
+        } catch {
+            customLists = previous            // pull the truth back
+            ToastCenter.shared.saveFailed()
+            return false
+        }
+    }
+
     // MARK: - Reading
 
     var watchedCount: Int { lists.values.reduce(0) { $0 + $1.count } }

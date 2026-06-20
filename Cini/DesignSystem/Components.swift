@@ -76,6 +76,9 @@ struct PillButton: View {
     let title: String
     var systemImage: String?
     var style: Style = .filled
+    /// Stretch to fill the offered width (for equal-width pill rows). Off by
+    /// default so inline pills keep their natural, content-hugging size.
+    var fill: Bool = false
     var action: () -> Void = {}
 
     var body: some View {
@@ -104,8 +107,11 @@ struct PillButton: View {
         HStack(spacing: 6) {
             if let systemImage { Image(systemName: systemImage).font(.subheadline.weight(.semibold)) }
             Text(title).font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(fill ? 0.8 : 1)
         }
         .foregroundStyle(foreground)
+        .frame(maxWidth: fill ? .infinity : nil)
     }
 }
 

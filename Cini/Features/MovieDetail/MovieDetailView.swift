@@ -363,23 +363,20 @@ struct MovieDetailView: View {
     /// Three actions, always visible — no horizontal scrolling needed.
     /// (The trailer link lives with the summary text above.)
     private var actionPills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined) {
-                    showWhereToWatch = true
-                }
-                if movie.mediaKind != "tv" {
-                    PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
-                        showShowtimes = true
-                    }
-                }
-                PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined) {
-                    showSendRec = true
+        HStack(spacing: 10) {
+            PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined, fill: true) {
+                showWhereToWatch = true
+            }
+            if movie.mediaKind != "tv" {
+                PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined, fill: true) {
+                    showShowtimes = true
                 }
             }
-            .padding(.horizontal, 16)
+            PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined, fill: true) {
+                showSendRec = true
+            }
         }
-        .scrollClipDisabled()
+        .padding(.horizontal, 16)
     }
 
     /// Rec Score always leads; tapping any circle explains what it means.

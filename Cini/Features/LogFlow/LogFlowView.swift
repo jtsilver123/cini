@@ -506,6 +506,9 @@ struct LogFlowView: View {
                 }
                 .id(pairID)
                 .transition(.opacity)
+                // Lock the pair while the previous pick is still animating in,
+                // so a quick second tap can't land on the wrong comparison.
+                .disabled(choosing)
             }
 
             HStack {
@@ -543,6 +546,11 @@ struct LogFlowView: View {
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 6)
+            // Dim + lock the utility row while a pick advances, so it visibly
+            // reads as "hang on" instead of silently swallowing a tap.
+            .disabled(choosing)
+            .opacity(choosing ? 0.5 : 1)
+            .animation(.snappy(duration: 0.15), value: choosing)
         }
         .padding(16)
         .frame(maxWidth: .infinity)

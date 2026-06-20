@@ -179,24 +179,27 @@ struct SwipeView: View {
     /// above each layout carries the wording.
     private var compactLayoutToggle: some View {
         HStack(spacing: 2) {
-            compactSegment(.cards, icon: "rectangle.stack", label: "Find to watch")
-            compactSegment(.grid, icon: "square.grid.2x2", label: "Rank watched")
+            compactSegment(.cards, icon: "rectangle.stack", short: "Find", label: "Find to watch")
+            compactSegment(.grid, icon: "square.grid.2x2", short: "Rank", label: "Rank watched")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
     }
 
-    private func compactSegment(_ option: Layout, icon: String, label: String) -> some View {
+    private func compactSegment(_ option: Layout, icon: String, short: String, label: String) -> some View {
         let on = layout == option
         return Button {
             withAnimation(.snappy) { layout = option }
         } label: {
-            Image(systemName: icon)
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(on ? Theme.background : Theme.gray)
-                .frame(width: 40, height: 30)
-                .background(Capsule().fill(on ? Theme.marquee : .clear))
-                .contentShape(Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: icon).font(.caption2.weight(.bold))
+                Text(short).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(on ? Theme.background : Theme.gray)
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .background(Capsule().fill(on ? Theme.marquee : .clear))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(label)\(on ? ", selected" : "")")

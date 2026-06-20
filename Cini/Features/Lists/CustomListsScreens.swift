@@ -12,6 +12,8 @@ struct CustomListsScreen: View {
     @State private var loaded = false
     @State private var newName = ""
     @State private var doomedLists: [CustomList] = []
+    @State private var renameTarget: CustomList?
+    @State private var renameText = ""
 
     var body: some View {
         List {
@@ -70,6 +72,17 @@ struct CustomListsScreen: View {
                     }
                 }
                 .listRowBackground(Theme.background)
+                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                    if isSelf {
+                        Button {
+                            renameTarget = list
+                            renameText = list.name
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        .tint(Theme.marquee)
+                    }
+                }
             }
             .onDelete(perform: isSelf ? { offsets in
                 doomedLists = offsets.map { lists[$0] }
@@ -103,6 +116,27 @@ struct CustomListsScreen: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Its movies stay on your other lists — only this list goes.")
+        }
+        .alert("Rename list", isPresented: Binding(
+            get: { renameTarget != nil },
+            set: { if !$0 { renameTarget = nil } })
+        ) {
+            TextField("List name", text: $renameText)
+            Button("Save") {
+                guard let target = renameTarget else { return }
+                let name = renameText.trimmingCharacters(in: .whitespaces)
+                renameTarget = nil
+                guard !name.isEmpty, name != target.name else { return }
+                Task {
+                    if await store.renameList(target.id, to: name) {
+                        lists = store.customLists
+                    }
+                }
+            }
+            .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
+            Button("Cancel", role: .cancel) { renameTarget = nil }
+        } message: {
+            Text("Pick a new name — it updates everywhere this list appears.")
         }
         .navigationTitle("Lists")
         .navigationBarTitleDisplayMode(.inline)
@@ -295,8 +329,11 @@ struct CustomListScreen: View {
     }
 
     private func removeItems(at offsets: IndexSet) {
+        // Snapshot the exact pre-delete order so a failure or an Undo restores
+        // the list precisely where it was — not reshuffled by a server refetch.
+        let previous = movieIDs
         let doomed = offsets.map { movieIDs[$0] }
-        movieIDs.remove(atOffsets: offsets)
+        withAnimation { movieIDs.remove(atOffsets: offsets) }
         Task {
             var failed = false
             for id in doomed {
@@ -304,20 +341,24 @@ struct CustomListScreen: View {
                     try await SupabaseService.shared.removeFromList(list.id, movieID: id)
                 } catch { failed = true }
             }
-            // A swallowed failure used to "resurrect" the title on the
-            // next fetch — pull the server truth back and say so.
             if failed {
-                movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? movieIDs
+                // A swallowed failure used to "resurrect" the title on the next
+                // fetch in some random spot. Restore the original order in place
+                // and say it didn't stick, so the user keeps their bearings.
+                withAnimation { movieIDs = previous }
                 ToastCenter.shared.saveFailed()
             } else {
                 ToastCenter.shared.showUndo(
                     doomed.count == 1 ? "Removed from list" : "Removed \(doomed.count) from list"
                 ) {
+                    // Bring the row(s) back instantly in their old place, then
+                    // re-add server-side and reconcile to the truth.
+                    withAnimation { movieIDs = previous }
                     Task {
                         for id in doomed {
                             try? await SupabaseService.shared.addToList(list.id, movieID: id)
                         }
-                        movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? movieIDs
+                        movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? previous
                     }
                 }
             }
@@ -337,6 +378,8 @@ struct EditListsSheet: View {
     @Environment(RankingStore.self) private var store
     @State private var newName = ""
     @State private var doomedLists: [CustomList] = []
+    @State private var renameTarget: CustomList?
+    @State private var renameText = ""
 
     private func visibility(for tab: String) -> Binding<Bool> {
         Binding(
@@ -377,6 +420,17 @@ struct EditListsSheet: View {
                                 .font(.subheadline)
                                 .foregroundStyle(Theme.gray)
                         }
+                        // Swipe right to rename — the gentle counterpart to
+                        // the destructive swipe-left delete.
+                        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                            Button {
+                                renameTarget = list
+                                renameText = list.name
+                            } label: {
+                                Label("Rename", systemImage: "pencil")
+                            }
+                            .tint(Theme.marquee)
+                        }
                     }
                     .onDelete { offsets in
                         doomedLists = offsets.map { lists[$0] }
@@ -384,7 +438,7 @@ struct EditListsSheet: View {
                 } header: {
                     Text("Your lists")
                 } footer: {
-                    Text("Swipe a list to delete it. Add movies from any movie page with \"Add to List\".")
+                    Text("Swipe a list to rename or delete it. Add movies from any movie page with \"Add to List\".")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -410,6 +464,27 @@ struct EditListsSheet: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Its movies stay on your other lists — only this list goes.")
+            }
+            .alert("Rename list", isPresented: Binding(
+                get: { renameTarget != nil },
+                set: { if !$0 { renameTarget = nil } })
+            ) {
+                TextField("List name", text: $renameText)
+                Button("Save") {
+                    guard let target = renameTarget else { return }
+                    let name = renameText.trimmingCharacters(in: .whitespaces)
+                    renameTarget = nil
+                    guard !name.isEmpty, name != target.name else { return }
+                    Task {
+                        if await store.renameList(target.id, to: name) {
+                            lists = store.customLists   // keep every surface in sync
+                        }
+                    }
+                }
+                .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Cancel", role: .cancel) { renameTarget = nil }
+            } message: {
+                Text("Pick a new name — it updates everywhere this list appears.")
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
