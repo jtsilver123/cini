@@ -38,6 +38,9 @@ struct ProductTourView: View {
     var onDone: () -> Void
 
     @State private var step = 0
+    /// Same key SwipeView reads — the tour seeds the default card view so a new
+    /// user's first look at Swipe is the deck, not the grid.
+    @AppStorage("swipe.layout") private var swipeLayout = "cards"
 
     private struct Stop {
         let tab: RootTabView.Tab
@@ -109,6 +112,7 @@ struct ProductTourView: View {
             }
         }
         .onAppear {
+            swipeLayout = "cards"   // showcase (and seed) the default card view
             TabRouter.shared.tourActive = true
             TabRouter.shared.selection = stops[0].tab
         }
