@@ -336,17 +336,19 @@ struct ProfileScreen: View {
                 .font(.title2.weight(.bold))
                 .lineLimit(1)
             Spacer()
-            HStack(spacing: 8) {
+            // Spacing/sizing matches the Feed header's top-right icons so the
+            // two pages line up.
+            HStack(spacing: 2) {
                 // Leaderboard moved off the tab bar — it lives here now.
                 Button { showLeaderboard = true } label: {
                     Image(systemName: "trophy").foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Leaderboard")
                 ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .contentShape(Rectangle())
                 }
                 Menu {
@@ -377,7 +379,7 @@ struct ProfileScreen: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal").foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Menu")

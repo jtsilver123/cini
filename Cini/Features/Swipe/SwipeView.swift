@@ -73,6 +73,16 @@ struct SwipeView: View {
                         .screenHPadding()
                         .padding(.bottom, 4)
                 }
+                // The helper note is FIXED here — a steady gap below the filter,
+                // right above the cards/grid — so it doesn't shift or scroll when
+                // you switch between card and grid views.
+                if loaded && !visible.isEmpty {
+                    modeNote(layout == .grid
+                             ? "Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen"
+                             : "Swipe right to save · left to skip · + to rank")
+                        .screenHPadding()
+                        .padding(.vertical, 8)
+                }
                 ScrollViewReader { proxy in
                     // The VStack is essential: the cards layout returns the deck
                     // PLUS a Spacer, and a bare multi-view tuple inside a
@@ -278,33 +288,24 @@ struct SwipeView: View {
             switch layout {
             case .grid:
                 ScrollView {
-                    VStack(spacing: 8) {
-                        modeNote("Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen")
-                        SuggestionGrid(
-                            movies: visible.map(\.movie),
-                            onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
-                            onSave: { movie in
-                                guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                                // The bookmark filling in is the confirmation —
-                                // no toast, so rapid swiping stays uninterrupted.
-                                Task { await store.toggleWatchlist(movie: movie) }
-                            },
-                            onDismiss: { movie in
-                                withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
-                            }
-                        )
-                    }
+                    SuggestionGrid(
+                        movies: visible.map(\.movie),
+                        onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
+                        onSave: { movie in
+                            guard !store.isOnWatchlist(movie.tmdbID) else { return }
+                            // The bookmark filling in is the confirmation —
+                            // no toast, so rapid swiping stays uninterrupted.
+                            Task { await store.toggleWatchlist(movie: movie) }
+                        },
+                        onDismiss: { movie in
+                            withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
+                        }
+                    )
                     .screenHPadding()
-                    .padding(.top, 8)
+                    .padding(.top, 2)
                     .id("recsTop")
                 }
             case .cards:
-                // A small, capped top gap (not a full center) so the deck keeps a
-                // steady spot: dismissing the import banner makes the deck rise to
-                // fill that space instead of leaving a growing void above it.
-                Spacer(minLength: 0).frame(maxHeight: 18)
-                modeNote("Swipe right to save · left to skip · + to rank")
-                    .padding(.bottom, 4)
                 RecCardDeck(
                     candidates: visible,
                     onOpen: { store.cache($0); detailMovie = $0 },

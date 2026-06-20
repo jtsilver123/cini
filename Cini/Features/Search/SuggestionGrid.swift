@@ -34,22 +34,8 @@ struct SuggestionGrid: View {
             // ranking "glitched out."
             PosterView(url: movie.posterURL, width: posterWidth)
                 .overlay { if ranked { rankedStamp } }
-                // Save to Want to Watch — a visible bookmark (top-left).
+                // ✕ to dismiss — top-left.
                 .overlay(alignment: .topLeading) {
-                    if !ranked {
-                        Button { onSave(movie) } label: {
-                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
-                                .padding(5)
-                                .background(Circle().fill(.black.opacity(0.55)))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(5)
-                        .accessibilityLabel("Bookmark \(movie.title) to Want to Watch")
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
                     if !ranked {
                         Button { onDismiss(movie) } label: {
                             Image(systemName: "xmark")
@@ -61,6 +47,21 @@ struct SuggestionGrid: View {
                         .buttonStyle(.plain)
                         .padding(5)
                         .accessibilityLabel("Dismiss \(movie.title)")
+                    }
+                }
+                // Save to Want to Watch — a visible bookmark (top-right).
+                .overlay(alignment: .topTrailing) {
+                    if !ranked {
+                        Button { onSave(movie) } label: {
+                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
+                                .padding(5)
+                                .background(Circle().fill(.black.opacity(0.55)))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .accessibilityLabel("Bookmark \(movie.title) to Want to Watch")
                     }
                 }
                 .contentShape(Rectangle())

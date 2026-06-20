@@ -38,6 +38,7 @@ struct FeedView: View {
     /// Accounts already shown the one-time, deferred notifications re-ask.
     @AppStorage("cini.notifReaskedUserIDs") private var notifReaskedRaw = ""
     @State private var showNotifReask = false
+    @State private var showStreakInfo = false
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
@@ -161,6 +162,15 @@ struct FeedView: View {
             }
             .sheet(isPresented: $showAskRecs) {
                 RequestRecsSheet()
+            }
+            .sheet(isPresented: $showStreakInfo) {
+                StreakInfoSheet(weeks: session.profile?.streakWeeks ?? 0,
+                                atRisk: session.profile?.streakAtRisk ?? false) {
+                    showStreakInfo = false
+                    tabRouter.selection = .search
+                }
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showRespondRecs, onDismiss: {
                 Task { pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? [] }
@@ -342,11 +352,12 @@ struct FeedView: View {
 
     /// Always-visible streak badge — the habit anchor. Glanceable count of
     /// consecutive ranking weeks; a soft gold chip normally, flipping to a
-    /// solid gold fill when the streak's about to lapse. Tapping goes to rank.
+    /// solid gold fill when the streak's about to lapse. Tapping explains how
+    /// streaks work (and how to keep this one alive).
     private func streakPill(_ weeks: Int, atRisk: Bool) -> some View {
         Button {
             Haptics.tap()
-            tabRouter.selection = .search
+            showStreakInfo = true
         } label: {
             HStack(spacing: 3) {
                 Image(systemName: "flame.fill")
@@ -1186,11 +1197,10 @@ struct FeedCard: View {
                 noteView(note)
             }
 
-            // Social proof — small colored indicators for likes / comments /
-            // your save, each tapping through to the relevant place (Beli-style).
-            // Your "Bookmarked" state now reads on the poster, as a label over
-            // the bookmark button (below) — so this row is just likes/comments.
-            if likeCount > 0 || commentCount > 0 {
+            // Social proof — small indicators for likes / comments on the left,
+            // and a low-key "N bookmarks" count on the right (Beli-style: quiet
+            // grey text, not a loud badge over the poster).
+            if likeCount > 0 || commentCount > 0 || (savedCount ?? 0) > 0 {
                 HStack(spacing: 14) {
                     if likeCount > 0 {
                         Button { onShowLikers(event.id) } label: {
@@ -1203,6 +1213,11 @@ struct FeedCard: View {
                         }
                     }
                     Spacer(minLength: 0)
+                    if let savedCount, savedCount > 0 {
+                        Text("\(savedCount) \(savedCount == 1 ? "bookmark" : "bookmarks")")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
@@ -1267,24 +1282,12 @@ struct FeedCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         )
         // Same corner as the movie page: (+) / bookmark on the artwork. The
-        // bookmark count rides directly over the bookmark (Beli's "N bookmark")
-        // so the social proof reads on the poster itself.
+        // bookmark COUNT is shown quietly in the engagement row above (Beli's
+        // low-key "N bookmarks"), not as a loud badge over the poster.
         .overlay(alignment: .bottomTrailing) {
             if let movie {
-                VStack(alignment: .trailing, spacing: 6) {
-                    if let savedCount, savedCount > 0 {
-                        HStack(spacing: 3) {
-                            Image(systemName: "bookmark.fill")
-                            Text("\(savedCount) \(savedCount == 1 ? "bookmark" : "bookmarks")")
-                        }
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Capsule().fill(.black.opacity(0.55)))
-                    }
-                    ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
-                }
-                .padding(12)
+                ArtworkQuickActions(movie: movie, onLog: onQuickAdd)
+                    .padding(12)
             }
         }
         // Double-tap to like, Instagram-style — a heart pops in the center.

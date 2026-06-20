@@ -598,6 +598,7 @@ function renderFeed(){
   const cardArr = FEED.map(e=>{
     const m=MOVIES[e.movie];
     const fRanked = !!myEntry(e.movie);
+    const bm=(e.movie.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)%18)+(S.queue.includes(e.movie)?1:0);
     const name=`<button style="background:none;border:none;padding:0;font:inherit;font-weight:700;cursor:pointer;color:var(--ink);" onclick="openMember('${e.u}')">${e.who}</button>`;
     const headline = e.kind==="ranked"
       ? `${name} ranked <b>${m.t}</b>`
@@ -611,9 +612,11 @@ function renderFeed(){
       <div style="flex:1;">
         <div style="font-size:14.5px;">${headline}</div>
         <div class="sub" style="margin-top:2px;">${m.g[0]} · ${m.y}</div>
-        ${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); const c=comments.length; return (n||c)?`<div style="display:flex; gap:14px; margin-top:9px; align-items:center; font-size:12.5px; font-weight:700;">
+        ${(()=>{const n=(e.likes||0)+(S.liked[e.id]?1:0); const c=comments.length; return (n||c||bm)?`<div style="display:flex; gap:14px; margin-top:9px; align-items:center; font-size:12.5px; font-weight:700;">
           ${n?`<button class="iconbtn" style="font:inherit; display:inline-flex; align-items:center; gap:4px; color:#e0455e;" onclick="openLikers('${e.id}')">${IF("heart",14)}<span style="color:var(--gray);">${n}</span></button>`:""}
           ${c?`<button class="iconbtn" style="font:inherit; display:inline-flex; align-items:center; gap:4px; color:var(--marquee);" onclick="openComments('${e.id}')">${IF("comment",14)}<span style="color:var(--gray);">${c}</span></button>`:""}
+          <span style="flex:1;"></span>
+          ${bm>0?`<span style="color:var(--gray); font-weight:600;">${bm} ${bm===1?'bookmark':'bookmarks'}</span>`:""}
         </div>`:"";})()}
         <div style="display:flex; gap:18px; margin-top:11px; align-items:center;">
           <button class="iconbtn" onclick="toggleLike('${e.id}')">${likeIcon(e.id)}</button>
@@ -623,13 +626,10 @@ function renderFeed(){
         <div class="sub" style="margin-top:7px;">${e.when}</div>
       </div>
       ${e.kind==="ranked"?`<div class="badge ${scoreClass(e.score)}">${e.score.toFixed(1)}</div>`:""}
-      ${(()=>{const bm=(e.movie.split('').reduce((a,ch)=>a+ch.charCodeAt(0),0)%18)+(S.queue.includes(e.movie)?1:0); return `<div style="position:absolute; right:12px; bottom:12px; display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
-        ${bm>0?`<span style="display:inline-flex; align-items:center; gap:3px; background:rgba(0,0,0,.55); color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px;">${I("bookmark",12)}${bm} ${bm===1?'bookmark':'bookmarks'}</span>`:""}
-        <div style="display:flex; gap:12px;">
-          <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${fRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${e.movie}')">${fRanked?I("check",18):I("plus",18)}</button>
-          ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
-        </div>
-      </div>`;})()}
+      <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${fRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${e.movie}')">${fRanked?I("check",18):I("plus",18)}</button>
+        ${fRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${e.movie}')">${bmIcon(e.movie)}</button>`}
+      </div>
     </div>`;
   });
 
@@ -710,7 +710,7 @@ function renderFeed(){
     <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
       <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
         <span><span class="wordmark serif">cini</span><span class="tagline">EVERY FILM · RANKED</span></span>
-        ${S.streak>0?`<button onclick="openSearchForRank()" title="${S.streak}-week ranking streak" style="display:inline-flex; gap:3px; align-items:center; margin-left:9px; padding:4px 8px; border-radius:999px; border:0; cursor:pointer; font-weight:800; font-size:12px; ${(!S.rankedThisWeek)?'background:var(--gold); color:var(--bg);':'background:rgba(232,182,76,.16); color:var(--gold);'}">${I("flame",12)}${S.streak}</button>`:""}
+        ${S.streak>0?`<button onclick="openStreakInfo()" title="${S.streak}-week ranking streak" style="display:inline-flex; gap:3px; align-items:center; margin-left:9px; padding:4px 8px; border-radius:999px; border:0; cursor:pointer; font-weight:800; font-size:12px; ${(!S.rankedThisWeek)?'background:var(--gold); color:var(--bg);':'background:rgba(232,182,76,.16); color:var(--gold);'}">${I("flame",12)}${S.streak}</button>`:""}
         <span class="spacer"></span>
         <span style="display:flex; gap:6px; align-items:center;">
           <button class="iconbtn" onclick="go('search')">${I("search",21)}</button>
@@ -2207,6 +2207,25 @@ function finishLog(){
 }
 
 /* =================== SHEETS / OVERLAYS =================== */
+function openStreakInfo(){
+  const w=S.streak||0;
+  const atRisk=!S.rankedThisWeek;
+  const line = atRisk
+    ? `Your streak ends Sunday — rank one title this week to keep it alive.`
+    : (w>0 ? `You've ranked something every week for ${w} week${w===1?'':'s'} running. Nice.`
+           : `Rank a title this week to begin your streak — then keep it going week after week.`);
+  const rule=(ic,t)=>`<div style="display:flex; gap:12px; align-items:flex-start; text-align:left;"><span style="color:var(--gold);">${I(ic,18)}</span><span style="font-size:14px;">${t}</span></div>`;
+  renderSheet(`<div style="display:flex; flex-direction:column; align-items:center; gap:14px; padding:6px 18px 26px; text-align:center;">
+    <div style="width:84px;height:84px;border-radius:50%;background:rgba(232,182,76,.14);display:flex;align-items:center;justify-content:center;">${I("flame",38,1.6)}</div>
+    <div class="serif" style="font-size:24px;">${w>0?`${w}-week streak`:'Start a streak'}</div>
+    <div class="sub">${line}</div>
+    <div style="display:flex; flex-direction:column; gap:12px; width:100%; margin-top:2px;">
+      ${rule("calendar","Rank at least one movie or show each week to keep your streak going.")}
+      ${rule("history","Miss a week and it resets to zero — so keep it alive.")}
+    </div>
+    <button class="pill" style="justify-content:center; width:100%; margin-top:8px;" onclick="closeOverlay(); openSearchForRank();">Rank something</button>
+  </div>`);
+}
 function renderOverlay(inner){ $("overlayRoot").innerHTML=`<div class="overlay" onclick="if(event.target===this){ if(log) closeLog(); else closeOverlay(); }">${inner}</div>`; }
 function renderSheet(inner){ $("overlayRoot").innerHTML=`<div class="scrim" onclick="closeOverlay()"></div><div class="sheet"><div class="grabber"></div>${inner}</div>`; }
 function closeOverlay(){ $("overlayRoot").innerHTML=""; render(); }

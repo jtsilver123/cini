@@ -147,23 +147,8 @@ struct LogFlowView: View {
                 }
             }
         }
-        // Result page: a plain X to leave (replaces the old "Done" button).
-        .overlay(alignment: .topTrailing) {
-            if phase == .result {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(11)
-                        .background(Circle().fill(.black.opacity(0.4)))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 6)
-                .padding(.trailing, 16)
-                .transition(.opacity)
-                .accessibilityLabel("Close")
-            }
-        }
+        // Result page leaves via the explicit "Done" button under Share — no
+        // floating X up top.
         .presentationBackground(.clear)
         .animation(.snappy(duration: 0.25), value: phase)
         .alert("Discard this ranking?", isPresented: $showDiscardConfirm) {
@@ -724,10 +709,10 @@ struct LogFlowView: View {
             .shadow(color: Theme.cardShadow, radius: 18, y: 8)
 
             // Actions arrive with the score, not before — the reveal is the
-            // moment; sharing is the reward.
+            // moment; sharing is the reward. Two stacked CTAs: Share (primary),
+            // then Done to leave.
             if scoreRevealed {
-                // Just the gold Share capsule, centered — leaving is the X up top.
-                Group {
+                VStack(spacing: 12) {
                     // A new #1 is the most brag-worthy moment — call it out so
                     // sharing feels like planting a flag, not filing a record.
                     let isTop = scored.rank == 1
@@ -750,9 +735,20 @@ struct LogFlowView: View {
                         }
                         .buttonStyle(.plain)
                     }
+
+                    Button { dismiss() } label: {
+                        Text("Done")
+                            .font(.headline)
+                            .foregroundStyle(Theme.ink)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Capsule().strokeBorder(Theme.hairline, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Done")
                 }
                 .frame(maxWidth: 300)
-                .frame(maxWidth: .infinity)   // center the capsule
+                .frame(maxWidth: .infinity)   // center the capsules
                 .padding(.bottom, 24)
                 .transition(.opacity)
             }
