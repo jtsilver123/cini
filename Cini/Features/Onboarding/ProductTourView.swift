@@ -37,10 +37,10 @@ private struct CoachCaret: Shape {
     }
 }
 
-/// A guided, one-time tour shown after onboarding (Beli-style). Rather than
-/// explaining each tab, it walks the actual loop — rank, discover, compare,
-/// organize — switching to the live screen for each step and pointing a
-/// coachmark bubble straight at the button it's describing.
+/// A guided, one-time tour shown after onboarding (Beli-style). It steps left
+/// to right along the tab bar — Feed, Swipe, Search, Your Lists, Profile —
+/// switching to each live screen and pointing a coachmark caret at that tab,
+/// with one plain line on what the tab is for.
 struct ProductTourView: View {
     /// Frames published by `tourAnchor` (e.g. the Recs toggle), resolved against
     /// this overlay's geometry. Tab targets are computed, so this can be empty.
@@ -61,21 +61,21 @@ struct ProductTourView: View {
     }
 
     private let stops: [Stop] = [
-        Stop(tab: .feed, target: .tab(2),
-             title: "Rank what you've watched",
-             body: "Tap the gold + to search any movie or show, then pick which of two you liked more. A few quick taps and Cini scores everything 1–10 — your taste, not strangers'."),
-        Stop(tab: .swipe, target: .anchor("recsToggle"),
-             title: "Find your next watch",
-             body: "Recs open as a swipe deck — swipe right to save, left to pass, or tap + to rank one you've seen. Tap here to switch to a grid view anytime."),
         Stop(tab: .feed, target: .tab(0),
-             title: "See friends & compare taste",
-             body: "Your feed is what friends are ranking. Like it, comment, or open anyone's profile and tap “Compare taste” to see how aligned you are."),
+             title: "Feed",
+             body: "See what your friends are watching and ranking."),
+        Stop(tab: .swipe, target: .tab(1),
+             title: "Swipe",
+             body: "Swipe through picks to find your next watch."),
+        Stop(tab: .search, target: .tab(2),
+             title: "Search",
+             body: "Look up any movie, show, or friend — and rank what you've seen."),
         Stop(tab: .lists, target: .tab(3),
-             title: "Find it all later",
-             body: "Everything you rank (each scored 1–10) and every title you bookmark lives in Your Lists — plus any lists you make."),
+             title: "Your Lists",
+             body: "Everything you rank and bookmark, all in one place."),
         Stop(tab: .profile, target: .tab(4),
-             title: "You're all set 🎬",
-             body: "Your stats, top films, and the leaderboard live on your profile. Best first move: rank a few titles you love."),
+             title: "Profile",
+             body: "Your stats, top films, and your rank on Cini."),
     ]
 
     private var stop: Stop { stops[min(step, stops.count - 1)] }
