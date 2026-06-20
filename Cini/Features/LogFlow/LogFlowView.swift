@@ -635,6 +635,17 @@ struct LogFlowView: View {
     private func persistDraft() async {
         let supabase = SupabaseService.shared
         var anySaveFailed = false
+        // Privacy first: hide the rank event before the other detail writes so
+        // the window where a stealthed rank is visible to friends is as small as
+        // possible. A hide failure gets its OWN clear message — it's not just a
+        // missing "detail," it means the rank is public.
+        if draft.stealthMode {
+            do {
+                try await supabase.hideRankEvent(movieID: movie.tmdbID)
+            } catch {
+                ToastCenter.shared.show("Couldn't hide this from friends — open the movie page to retry.")
+            }
+        }
         if !draft.notes.isEmpty {
             do {
                 try await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes,
@@ -663,13 +674,6 @@ struct LogFlowView: View {
             } catch { anySaveFailed = true }
             // Tag frequencies just changed — keep the chip order current.
             FriendsCache.shared.warm()
-        }
-        if draft.stealthMode {
-            // Privacy-critical: if hiding fails the rank is public while the
-            // user believes it's stealthed — surface it like any other miss.
-            do {
-                try await supabase.hideRankEvent(movieID: movie.tmdbID)
-            } catch { anySaveFailed = true }
         }
         if anySaveFailed {
             // The rank itself landed; only extras missed. Be specific.

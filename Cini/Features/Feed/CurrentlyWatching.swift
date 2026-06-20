@@ -142,6 +142,7 @@ struct WatchingStorySheet: View {
                     Button { dismiss(); onOpenProfile(row) } label: {
                         Text("\(firstName(row.displayName, row.username) ?? row.username) is watching")
                             .font(.subheadline).foregroundStyle(.white.opacity(0.9))
+                            .lineLimit(1)
                     }
                     .buttonStyle(.plain)
                     Text(row.title)

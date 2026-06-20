@@ -502,7 +502,9 @@ struct OnboardingView: View {
             if !inviter.isEmpty {
                 let followed = await SupabaseService.shared.redeemInvite(from: inviter)
                 pendingInviter = ""
-                if followed { ToastCenter.shared.show("You're now following @\(inviter) 🎬") }
+                ToastCenter.shared.show(followed
+                    ? "You're now following @\(inviter) 🎬"
+                    : "Couldn't find @\(inviter) — you can add friends later.")
             }
             await session.loadProfile()
             advance()

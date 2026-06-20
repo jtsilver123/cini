@@ -292,6 +292,7 @@ struct YourListsView: View {
     private func consumePendingReorder() {
         guard tabRouter.pendingReorder else { return }
         tabRouter.pendingReorder = false
+        category = tabRouter.pendingReorderTV ? .tvShows : .movies
         subTab = .watched
         reorderMode = true
         listQuery = ""; showListSearch = false

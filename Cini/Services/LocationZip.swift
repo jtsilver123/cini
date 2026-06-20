@@ -34,6 +34,10 @@ final class LocationZip: NSObject, CLLocationManagerDelegate {
     }
 
     private func currentLocation() async throws -> CLLocation {
+        // If a previous request is still in flight (e.g. a quick double-tap),
+        // fail it before starting a new one — overwriting `continuation` without
+        // resuming it leaks a CheckedContinuation (a trap in debug).
+        resume(with: .failure(LocationError.unavailable))
         manager.delegate = self
         switch manager.authorizationStatus {
         case .denied, .restricted:

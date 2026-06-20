@@ -239,10 +239,14 @@ struct CustomListScreen: View {
                     Menu {
                         Button(role: .destructive) {
                             Task {
-                                await SupabaseService.shared.report(
+                                let ok = await SupabaseService.shared.report(
                                     kind: "list", subjectID: list.id.uuidString)
-                                reported = true
-                                ToastCenter.shared.show("Reported — we'll review it")
+                                if ok {
+                                    reported = true
+                                    ToastCenter.shared.show("Reported — we'll review it")
+                                } else {
+                                    ToastCenter.shared.saveFailed()
+                                }
                             }
                         } label: {
                             Label(reported ? "Reported" : "Report this list", systemImage: "flag")

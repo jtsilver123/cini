@@ -221,7 +221,8 @@ struct PlanWatchSheet: View {
     private func quickChip(_ label: String, _ date: Date) -> some View {
         Button {
             Haptics.tap()
-            when = date
+            // Never propose a time in the past (e.g. "Tonight" tapped after 8pm).
+            when = max(date, Date())
         } label: {
             Text(label)
                 .font(.subheadline.weight(.semibold))
@@ -267,6 +268,7 @@ struct PlanWatchSheet: View {
             do {
                 try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
                 Haptics.tap()
+                ToastCenter.shared.show("Let them know you can't make it 👍")
                 dismiss()
             } catch {
                 // Don't dismiss as if it worked — the inviter would still be waiting.

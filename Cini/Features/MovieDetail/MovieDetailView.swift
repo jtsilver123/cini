@@ -111,7 +111,7 @@ struct MovieDetailView: View {
         .ignoresSafeArea(edges: .top)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                ShareLink(item: "\(movie.title) — on my Cini list 🎬") {
+                ShareLink(item: "\(movie.title) on Cini 🎬\n\(AppLinks.appStore)") {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
@@ -158,6 +158,7 @@ struct MovieDetailView: View {
         .confirmationDialog("Rank again", isPresented: $showRankAgainDialog) {
             Button("Rerank this movie") { showLogFlow = true }
             Button("Reorder within my list") {
+                tabRouter.pendingReorderTV = (movie.mediaKind == "tv")
                 tabRouter.pendingReorder = true
                 tabRouter.selection = .lists
             }

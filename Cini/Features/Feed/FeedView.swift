@@ -74,8 +74,7 @@ struct FeedView: View {
             }
             .nativeContentWidth()
             .background(Theme.background)
-            .task { await loadFeed() }
-            .task { friendsWatchingRows = await SupabaseService.shared.friendsWatching() }
+            .task { await loadFeed() }   // loadFeed also refreshes friendsWatchingRows
             .task(id: store.isLoaded) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
             // Profile loads slightly after the store, and both the day-5
@@ -1860,6 +1859,7 @@ struct CommentsSheet: View {
 struct ReleaseCalendarView: View {
     @Environment(RankingStore.self) private var store
     @State private var upcoming: [Movie] = []
+    @State private var loaded = false
     @State private var detailMovie: Movie?
     // One sheet slot so tickets-vs-save can't race two presentations at once.
     private enum ActiveSheet: Identifiable {
@@ -1924,6 +1924,20 @@ struct ReleaseCalendarView: View {
         .listStyle(.plain)
         .nativeContentWidth()
         .background(Theme.background)
+        // Don't show a blank list while loading or if nothing comes back.
+        .overlay {
+            if upcoming.isEmpty {
+                if !loaded {
+                    ProgressView()
+                } else {
+                    ContentUnavailableView {
+                        Label("No upcoming releases", systemImage: "calendar")
+                    } description: {
+                        Text("Check back soon — new movies land here as they're announced.")
+                    }
+                }
+            }
+        }
         .navigationTitle("Release Calendar")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $activeSheet) { sheet in
@@ -1946,6 +1960,7 @@ struct ReleaseCalendarView: View {
             upcoming = movies.sorted {
                 (releaseDate($0) ?? .distantFuture) < (releaseDate($1) ?? .distantFuture)
             }
+            loaded = true
         }
     }
 }
@@ -2047,10 +2062,21 @@ struct NotificationsView: View {
                     memberTarget = MemberRef(id: actorId, username: actor.username)
                 }
             } label: {
-                AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
-                   name: preferredName(row.actor?.displayName, row.actor?.username))
+                if row.actor == nil {
+                    // System notifications (streak, showtime, streaming) have no
+                    // person — show a themed glyph instead of a blank initials disc.
+                    ZStack {
+                        Circle().fill(Theme.gold.opacity(0.16)).frame(width: 42, height: 42)
+                        Image(systemName: systemIcon(for: row.kind))
+                            .font(.headline).foregroundStyle(Theme.gold)
+                    }
+                } else {
+                    AvatarView(url: row.actor?.avatarUrl.flatMap(URL.init), size: 42,
+                       name: preferredName(row.actor?.displayName, row.actor?.username))
+                }
             }
             .buttonStyle(.plain)
+            .disabled(row.actor == nil)
             VStack(alignment: .leading, spacing: 3) {
                 Text(headline(row)).font(.subheadline).lineLimit(3)
                 if let message = row.message, !message.isEmpty {
@@ -2099,6 +2125,19 @@ struct NotificationsView: View {
         }
     }
 
+    /// A glyph for notifications that have no person behind them.
+    private func systemIcon(for kind: String) -> String {
+        switch kind {
+        case "streak_reminder": return "flame.fill"
+        case "watchlist_showing": return "ticket.fill"
+        case "streaming_now": return "play.tv.fill"
+        case "season_premiere": return "tv.fill"
+        case "tonight_pick": return "popcorn.fill"
+        case "rate_nudge": return "star.fill"
+        default: return "bell.fill"
+        }
+    }
+
     /// Deep-link a tapped notification to the area it's about.
     private func route(_ row: NotificationRow) {
         if row.kind == "rec_request" {
@@ -2108,8 +2147,9 @@ struct NotificationsView: View {
             // streak-saver is one tap away (matches the push tap behavior).
             dismiss()
             tabRouter.selection = .swipe
-        } else if (row.kind == "comment" || row.kind == "mention"), let eventId = row.eventId {
-            // Land on the actual comment thread, not just the movie page.
+        } else if ["comment", "mention", "like"].contains(row.kind), let eventId = row.eventId {
+            // Land on the actual activity/thread the comment, mention, or like is
+            // on — not the bare movie page (and never a dead tap).
             commentsLink = CommentsLink(id: eventId)
         } else if let movieId = row.movieId, let stub = row.movies {
             detailMovie = Movie(tmdbID: movieId,

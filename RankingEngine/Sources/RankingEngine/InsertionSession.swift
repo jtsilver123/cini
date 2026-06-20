@@ -69,6 +69,9 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
     var comparisonIndex: Int? {
         guard !isComplete else { return nil }
         let span = high - low
+        // Never modulo by zero: a zero-width span means there's nothing left to
+        // compare (the position is resolved), so there's no opponent to show.
+        guard span > 0 else { return nil }
         return low + ((span / 2) + skipOffset) % span
     }
 

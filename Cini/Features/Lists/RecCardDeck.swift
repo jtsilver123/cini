@@ -315,6 +315,7 @@ struct FriendRecDeck: View {
     @State private var index = 0
     @State private var drag: CGSize = .zero
     @State private var flyOff: CGFloat = 0
+    @State private var advancing = false
     @State private var lastSaved: (index: Int, movie: Movie)?
 
     private func reason(_ rec: DirectRecRow) -> String {
@@ -393,7 +394,10 @@ struct FriendRecDeck: View {
     }
 
     private func act(save: Bool) {
-        guard index < recs.count else { return }
+        // Ignore a second swipe while the current card is still flying off — a
+        // quick double-swipe would otherwise act on the same card twice/flicker.
+        guard !advancing, index < recs.count else { return }
+        advancing = true
         Haptics.tap()
         let rec = recs[index]
         if save {
@@ -406,14 +410,20 @@ struct FriendRecDeck: View {
             onPass(rec)   // parent collects the optional "why" + dismisses
         }
         withAnimation(.easeIn(duration: 0.28)) { flyOff = save ? 700 : -700 }
+        // Reset position WITHOUT animation in the same transaction as the index
+        // bump, so the next card appears centered instead of sliding in.
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(260))
-            index += 1; drag = .zero; flyOff = 0
+            try? await Task.sleep(for: .milliseconds(300))
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) {
+                index += 1; drag = .zero; flyOff = 0
+            }
+            advancing = false
         }
     }
 
     private func undo() {
-        guard let saved = lastSaved else { return }
+        guard !advancing, let saved = lastSaved else { return }
         onUnsave(saved.movie)
         withAnimation(.snappy) { index = saved.index; drag = .zero; flyOff = 0 }
         lastSaved = nil

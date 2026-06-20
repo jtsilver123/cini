@@ -473,10 +473,13 @@ struct NoteEditor: View {
             Spacer(minLength: 0)
         }
         .padding()
-        // Raise the keyboard right away so the editor is immediately typable —
-        // the previous tap-then-tap-again is what felt choppy.
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { focused = true }
+        // Raise the keyboard right away so the editor is immediately typable.
+        // `.task` (not asyncAfter) so a quick dismiss cancels the focus before it
+        // can re-raise the keyboard on a tearing-down field.
+        .task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            focused = true
         }
     }
 }

@@ -61,6 +61,9 @@ final class TabRouter {
     /// "Reorder within my list" from a movie page: open Watched in
     /// reorder mode.
     var pendingReorder = false
+    /// Which category to reorder (TV vs Movies) — set with `pendingReorder` so a
+    /// "Reorder" deep link from a show's page lands on the TV Watched list.
+    var pendingReorderTV = false
 
     /// Tapped push notification → the relevant content (consumed by FeedView).
     var pendingPushMovieID: Int?

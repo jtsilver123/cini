@@ -358,6 +358,16 @@ struct SwipeView: View {
                 Text("Rank a few titles and Cini dials in your taste — your personalized deck shows up right here.")
                     .font(.caption).foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center).padding(.horizontal, 40)
+                // A reload escape hatch — if this is empty because a fetch failed
+                // (offline), Try again recovers without toggling a filter.
+                Button {
+                    Haptics.tap()
+                    Task { await reloadPool() }
+                } label: {
+                    Text("Try again").font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain).padding(.top, 2)
             }
             Spacer()
         }

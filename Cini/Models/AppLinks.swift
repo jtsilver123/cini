@@ -9,7 +9,7 @@ enum AppLinks {
     /// Personalized invite link — opens the app for installed users (the page
     /// deep-links `cini://invite?u=`) and sends everyone else to the App Store.
     static func invite(_ username: String) -> String {
-        "https://trycini.com/i/?u=\(username)"
+        "https://trycini.com/i/?u=\(username.urlQueryValueEncoded)"
     }
 
     /// Link to a specific list — opens that list in the app (the `/l/` page

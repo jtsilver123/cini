@@ -89,7 +89,15 @@ final class RankingStore {
             Task { await refreshPredictedScores() }
             Task { await refreshCustomLists() }
         } catch {
+            // Don't fail silently: in release `assertionFailure` is a no-op, and
+            // a swallowed load here can strand a user on a blank app (onboarding
+            // gates on `isLoaded`). Log it, and if we have no snapshot to fall
+            // back on, tell them so they can retry instead of staring at nothing.
             assertionFailure("RankingStore.load failed: \(error)")
+            SupabaseService.logSwallowed("RankingStore.load", error)
+            if !isLoaded {
+                ToastCenter.shared.show("Couldn't load your library — pull to refresh.")
+            }
         }
     }
 
