@@ -16,7 +16,7 @@ struct SuggestionGrid: View {
     private var columns: [GridItem] {
         // Slightly larger posters on iPad so the grid isn't a field of tiny tiles.
         let minimum = hSize == .regular ? max(posterWidth, 132) : posterWidth
-        [GridItem(.adaptive(minimum: minimum), spacing: 12)]
+        return [GridItem(.adaptive(minimum: minimum), spacing: 12)]
     }
 
     var body: some View {
