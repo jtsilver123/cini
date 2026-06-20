@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Lets a real on-screen control publish its frame (kept for any future use;
 /// the tab tour below computes tab positions geometrically).
@@ -59,14 +60,14 @@ struct ProductTourView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            // The bar is the only thing left bright; everything above it dims.
-            // `.ignoresSafeArea()` on the GeometryReader makes `proxy` span the
-            // full screen and exposes the real insets, so we can place the dim
-            // exactly above the tab bar (no magic numbers but the standard bar
-            // height) on every device.
+            // `.ignoresSafeArea()` on the GeometryReader makes `proxy.size` span
+            // the full screen — but under it `proxy.safeAreaInsets` can read 0, so
+            // we take the REAL bottom inset straight from UIKit instead. That's
+            // what lets the dim stop exactly at the tab bar (bar stays bright) and
+            // the card sit just above it on every device.
             let isPad = hSize == .regular
-            let homeInset = proxy.safeAreaInsets.bottom   // home-indicator strip
-            let tabBarH: CGFloat = isPad ? 65 : 49        // UITabBar height (taller on iPad)
+            let homeInset = Self.bottomSafeInset          // real home-indicator strip
+            let tabBarH: CGFloat = isPad ? 50 : 49        // standard UITabBar height
             let barTop = max(proxy.size.height - homeInset - tabBarH, 0)
             let tabW = proxy.size.width / 5
             let cardW = min(248, proxy.size.width - 24)
@@ -80,6 +81,7 @@ struct ProductTourView: View {
             ZStack(alignment: .bottomLeading) {
                 // Block taps to the live app (incl. the tab bar) during the tour.
                 Color.black.opacity(0.001)
+                    .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { }
 
@@ -109,6 +111,17 @@ struct ProductTourView: View {
         // running finish() (so Search's keyboard isn't suppressed forever).
         .onDisappear { TabRouter.shared.tourActive = false }
         .animation(.snappy, value: step)
+    }
+
+    /// The key window's real bottom safe-area inset (home-indicator strip). Read
+    /// from UIKit because a GeometryReader under `.ignoresSafeArea()` can report
+    /// its `safeAreaInsets` as 0.
+    private static var bottomSafeInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.bottom ?? 34
     }
 
     /// Position of each tab in the five-slot bar, so the card can sit over it.
