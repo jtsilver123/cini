@@ -192,13 +192,11 @@ struct CiniApp: App {
                         } else {
                             RootTabView()
                                 // Overlay (not a cover) so it can't be dropped
-                                // during the onboarding→app transition. Reads the
-                                // tour anchors published by on-screen controls
-                                // (e.g. the Recs toggle) so the coachmarks can
-                                // point right at them.
-                                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                                // during the onboarding→app transition. The tour
+                                // spotlights each tab by computing its position.
+                                .overlay {
                                     if showTour {
-                                        ProductTourView(anchors: anchors) {
+                                        ProductTourView {
                                             if let uid = SupabaseService.shared.currentUserID?.uuidString {
                                                 markToured(uid)
                                             }
