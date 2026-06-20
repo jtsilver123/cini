@@ -142,6 +142,7 @@ private struct PosterWall: View {
     @State private var begin = Date()
     @State private var scrub: CGFloat = 0      // user-added offset (persists)
     @State private var lastDrag: CGFloat = 0   // last drag translation, for deltas
+    @State private var momentum: Task<Void, Never>?   // post-release inertia glide
 
     /// Deal posters round-robin into three columns; fall back to the seed.
     /// Each column is padded to enough tiles that its looped height always
@@ -179,6 +180,7 @@ private struct PosterWall: View {
         .gesture(
             DragGesture()
                 .onChanged { value in
+                    momentum?.cancel()   // a new touch stops any glide
                     // Track the finger incrementally so `scrub` always equals the
                     // exact release point — no jump when the gesture ends.
                     scrub += value.translation.height - lastDrag
@@ -186,10 +188,21 @@ private struct PosterWall: View {
                 }
                 .onEnded { value in
                     lastDrag = 0
-                    // Inertia: glide the remaining predicted distance out with a
-                    // decelerating curve, continuing smoothly from the release.
-                    let momentum = value.predictedEndTranslation.height - value.translation.height
-                    withAnimation(.easeOut(duration: 0.6)) { scrub += momentum }
+                    // Inertia: glide the remaining predicted distance out by
+                    // stepping `scrub` each frame (NOT withAnimation — animating
+                    // scrub would tween every poster's wrapped offset and fling
+                    // the ones crossing the loop seam across the screen).
+                    let total = value.predictedEndTranslation.height - value.translation.height
+                    momentum?.cancel()
+                    momentum = Task { @MainActor in
+                        var remaining = total
+                        while abs(remaining) > 0.5 && !Task.isCancelled {
+                            let step = remaining * 0.12   // decelerating glide
+                            scrub += step
+                            remaining -= step
+                            try? await Task.sleep(for: .milliseconds(16))
+                        }
+                    }
                 }
         )
     }

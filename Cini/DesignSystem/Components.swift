@@ -1042,14 +1042,30 @@ struct MovieFilterBar: View {
                         Haptics.tap()
                         onFilterTap()
                     } label: {
-                        Image(systemName: "line.3.horizontal.decrease")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(filters.isActive ? Theme.background : Theme.ink)
-                            .padding(9)
-                            .background(Circle().fill(filters.isActive ? Theme.marquee : Theme.fill))
+                        let count = filters.activeCount
+                        HStack(spacing: 5) {
+                            Image(systemName: "line.3.horizontal.decrease")
+                                .font(.subheadline.weight(.semibold))
+                            // Beli-style count badge once filters are applied.
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.caption2.weight(.heavy))
+                                    .foregroundStyle(Theme.marquee)
+                                    .frame(width: 17, height: 17)
+                                    .background(Circle().fill(Theme.background))
+                            }
+                        }
+                        .foregroundStyle(count > 0 ? Theme.background : Theme.ink)
+                        .padding(.vertical, 9)
+                        .padding(.horizontal, count > 0 ? 11 : 9)
+                        .background(
+                            Capsule().fill(count > 0 ? Theme.marquee : Theme.fill)
+                        )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Filters and sort")
+                    .accessibilityLabel(filters.activeCount > 0
+                        ? "Filters and sort, \(filters.activeCount) active"
+                        : "Filters and sort")
                 } else if filters.isActive {
                     Button {
                         withAnimation(.snappy) { filters = MovieFilters() }

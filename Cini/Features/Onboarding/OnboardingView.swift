@@ -25,7 +25,6 @@ struct OnboardingView: View {
     /// the opposite way (new step in from the left, old out to the right).
     @State private var navBack = false
     @State private var showFindFriends = false
-    @State private var showSkipFriendsNudge = false
     @State private var username = ""
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
@@ -402,27 +401,12 @@ struct OnboardingView: View {
             Spacer()
             PillButton(title: "Find friends", style: .filled) { showFindFriends = true }
                 .padding(.horizontal, 28)
-            Button("Maybe later") { showSkipFriendsNudge = true }
+            Button("Maybe later") { advance() }
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
         .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
             // Pull the contact list up immediately instead of showing a button.
             InviteSheet(autoFindContacts: true)
-        }
-        // Beli-style nudge: one more chance to invite before skipping. A
-        // standard centered alert (the system confirmationDialog had been
-        // rendering as a misplaced popover bubble).
-        .alert("Cini is so much better with friends", isPresented: $showSkipFriendsNudge) {
-            Button("Invite friends") {
-                // Let the alert dismiss before presenting the contacts sheet.
-                Task {
-                    try? await Task.sleep(for: .milliseconds(300))
-                    showFindFriends = true
-                }
-            }
-            Button("Skip for now", role: .cancel) { advance() }
-        } message: {
-            Text("Invite one friend to unlock a feature. The moment they join, you'll see what they're watching.")
         }
     }
 
