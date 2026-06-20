@@ -61,6 +61,9 @@ struct LogFlowView: View {
     @State private var showStillWatching = false
     @State private var swSeason = 1
     @State private var swEpisode = 1
+    /// A show's episode structure — lets "I'm all caught up" record the latest
+    /// aired episode (not S1·E1) so Currently Watching reflects where you are.
+    @State private var showInfo: TMDBService.ExtendedDetails?
 
     enum Phase {
         case sentiment      // picking a bucket
@@ -187,6 +190,13 @@ struct LogFlowView: View {
         .overlay { CelebrationOverlay() }
         .task {
             movieCast = (try? await TMDBService.shared.cast(for: movie.tmdbID)) ?? []
+        }
+        .task {
+            // For a show, learn its latest aired episode so "I'm all caught up"
+            // records the right spot in Currently Watching.
+            if movie.mediaKind == "tv" {
+                showInfo = try? await TMDBService.shared.extendedDetails(for: movie.tmdbID)
+            }
         }
     }
 
@@ -434,7 +444,11 @@ struct LogFlowView: View {
     /// next episode), which lets friends see the "all caught up" beat.
     private func saveStillWatching(caughtUp: Bool) {
         Haptics.success()
-        let s = swSeason, e = swEpisode
+        // "All caught up" records the latest aired episode so Currently Watching
+        // shows where you actually are (not the default S1·E1); the explicit
+        // "Add to Currently Watching" uses the stepper position you set.
+        let s = caughtUp ? (showInfo?.lastAiredSeason ?? swSeason) : swSeason
+        let e = caughtUp ? (showInfo?.lastAiredEpisode ?? swEpisode) : swEpisode
         Task {
             do {
                 try await SupabaseService.shared.cacheMovie(movie)   // FK needs the show cached
