@@ -144,16 +144,20 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Recs").font(Theme.pageHeader)
                 Spacer()
-                // The find-to-watch vs rank-watched split is a compact icon
-                // toggle up here next to Import; the note above each
-                // grid/deck spells out what the current mode is for.
-                compactLayoutToggle
+                // Movies/TV stays a real, equal toggle (not a genre-style
+                // filter) — just compact, since the page's primary split is
+                // rank-vs-find below.
+                compactKindToggle
                 importButton
             }
+            // The primary job of the page: rank what you've watched vs find
+            // something new. Grid leads (the default), cards on the right.
             SegmentedPillControl(
-                segments: ["Movies", "TV Shows"],
-                selection: Binding(get: { suggestTV ? 1 : 0 },
-                                   set: { suggestTV = $0 == 1 }))
+                segments: ["Rank watched", "Find to watch"],
+                selection: Binding(get: { layout == .grid ? 0 : 1 },
+                                   set: { layout = $0 == 0 ? .grid : .cards }))
+            // The product tour points its coachmark at this control ("tap Find").
+            .tourAnchor("recsToggle")
         }
     }
 
@@ -174,30 +178,26 @@ struct SwipeView: View {
         .accessibilityLabel("Import your history")
     }
 
-    /// Compact two-segment toggle: Cards = "Find to watch", Grid =
-    /// "Rank watched". Icon-only to sit neatly beside Import — the mode note
-    /// above each layout carries the wording.
-    private var compactLayoutToggle: some View {
+    /// Compact, equal Movies | TV toggle for the header. Only the selected
+    /// segment shows its word (icon-only when inactive) so it stays narrow and
+    /// the header never overflows / clips labels to "…". It's a real toggle, not
+    /// a genre-style filter — Movies and TV stay equal top-level types.
+    private var compactKindToggle: some View {
         HStack(spacing: 2) {
-            compactSegment(.grid, icon: "square.grid.2x2", short: "Rank", label: "Rank watched")
-            compactSegment(.cards, icon: "rectangle.stack", short: "Find", label: "Find to watch")
+            compactKindSegment(tv: false, icon: "film", short: "Movies")
+            compactKindSegment(tv: true, icon: "tv", short: "TV")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
-        // Let the product tour aim its coachmark at this toggle.
-        .tourAnchor("recsToggle")
     }
 
-    private func compactSegment(_ option: Layout, icon: String, short: String, label: String) -> some View {
-        let on = layout == option
+    private func compactKindSegment(tv: Bool, icon: String, short: String) -> some View {
+        let on = suggestTV == tv
         return Button {
-            withAnimation(.snappy) { layout = option }
+            withAnimation(.snappy) { suggestTV = tv }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: icon).font(.caption2.weight(.bold))
-                // Only the selected segment shows its word — keeps the control
-                // narrow so the header (title + toggle + Import) never overflows
-                // and clips the labels to "…". fixedSize so it can't truncate.
                 if on {
                     Text(short).font(.caption.weight(.semibold)).fixedSize()
                 }
@@ -209,7 +209,7 @@ struct SwipeView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label)\(on ? ", selected" : "")")
+        .accessibilityLabel("\(tv ? "TV Shows" : "Movies")\(on ? ", selected" : "")")
     }
 
     /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the
