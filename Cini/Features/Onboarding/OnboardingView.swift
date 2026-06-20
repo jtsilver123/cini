@@ -9,9 +9,8 @@ import SwiftUI
 ///   2. Find your friends — contacts + invite
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
 ///   4. Stay in the loop — notifications opt-in (re-asked after the first rank)
-///   5. Rank your first movie — a poster grid of iconic titles (required)
-///   6. Meet your Recs — a swipe deck of picks based on what they ranked,
-///      teaching the swipe-to-bookmark gesture (mirrors the Recs tab)
+///   5. Meet your Recs — a swipe deck of trending picks, teaching the
+///      swipe-to-bookmark / + to rank gesture (mirrors the Recs tab)
 ///
 /// Finishing hands off to the one-time ProductTourView (wired in CiniApp).
 /// Shown once (per account) when an authenticated user has zero rankings.
@@ -43,8 +42,7 @@ struct OnboardingView: View {
     @State private var showCropPicker = false
     @State private var showImport = false
     @State private var importStartsWithPaste = false
-    @State private var starters: [Movie] = []
-    /// Movies vs TV toggle on the grid + card onboarding steps (mirrors Recs).
+    /// Movies vs TV toggle on the Meet-your-Recs step (mirrors Recs).
     @State private var onbTV = false
     @State private var logMovie: Movie?
     @State private var notifsEnabled = false
@@ -132,24 +130,6 @@ struct OnboardingView: View {
                 firstName = parts.first ?? ""
                 lastName = parts.count > 1 ? parts[1] : ""
             }
-            // Iconic, instantly-recognizable titles so the first rank is easy —
-            // movies (positive ids) AND shows (negative ids, the app's TV
-            // convention) so the Movies/TV toggle has a full grid either way.
-            let iconicIDs = [238, 278, 155, 680, 11, 27205, 603, 13, 157336,
-                             597, 329, 120, 24428, 550, 496243, 98,
-                             -1396, -1399, -66732, -1668, -2316, -1398,
-                             -94605, -95396, -82856, -76331, -60625, -456]
-            let fetched = await withTaskGroup(of: Movie?.self) { group in
-                for id in iconicIDs {
-                    group.addTask { try? await TMDBService.shared.details(for: id) }
-                }
-                var out: [Movie] = []
-                for await m in group where (m?.posterPath != nil) { if let m { out.append(m) } }
-                return out
-            }
-            let order = Dictionary(uniqueKeysWithValues: iconicIDs.enumerated().map { ($1, $0) })
-            starters = fetched.sorted { (order[$0.tmdbID] ?? 99) < (order[$1.tmdbID] ?? 99) }
-            for movie in starters { store.cache(movie) }
             // Reflect any permissions already granted (re-entering onboarding).
             notifsEnabled = await PushManager.isAuthorized()
             founder = try? await SupabaseService.shared.profile(id: Self.founderID).asProfile
@@ -173,7 +153,7 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 12)
             HStack(spacing: 6) {
-                ForEach(1..<7, id: \.self) { index in
+                ForEach(1..<6, id: \.self) { index in
                     Capsule()
                         .fill(index <= step ? Theme.gold : Theme.fill)
                         .frame(height: 4)
@@ -190,13 +170,13 @@ struct OnboardingView: View {
     private func advance() {
         navBack = false
         guard focus != nil else {
-            withAnimation(.snappy) { step = min(step + 1, 6) }
+            withAnimation(.snappy) { step = min(step + 1, 5) }
             return
         }
         focus = nil
         Task {
             try? await Task.sleep(for: .milliseconds(260))
-            withAnimation(.snappy) { step = min(step + 1, 6) }
+            withAnimation(.snappy) { step = min(step + 1, 5) }
         }
     }
 
@@ -229,7 +209,6 @@ struct OnboardingView: View {
         case 2: findFriendsStep
         case 3: importStep
         case 4: notificationsStep
-        case 5: firstRankStep
         default: recTutorialStep   // swipe picks to Want to Watch
         }
     }
@@ -568,134 +547,12 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 5 — Rank your first movie
+    // MARK: 5 — Meet your Recs (swipe deck of personalized picks)
 
-    /// A Recs-style teaching block for the onboarding grid/card steps: the same
-    /// view-toggle control the Recs page uses, shown LOCKED to this step's mode,
-    /// plus a line on what it's best for and that it's switchable on Recs.
-    private func recsViewTeacher(isGrid: Bool) -> some View {
-        VStack(spacing: 10) {
-            // The locked view toggle — the SAME purpose-labeled control the Recs
-            // page uses, current one selected, a lock so they just learn it here.
-            HStack(spacing: 0) {
-                // Cards ("Find to watch") on the left, grid ("Rank watched")
-                // on the right — matches the Recs page, where card view leads.
-                ForEach([false, true], id: \.self) { grid in
-                    let on = (grid == isGrid)
-                    HStack(spacing: 5) {
-                        Image(systemName: grid ? "square.grid.2x2" : "rectangle.stack")
-                            .font(.caption.weight(.bold))
-                        Text(grid ? "Rank watched" : "Find to watch")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(on ? Theme.background : Theme.gray)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(Capsule().fill(on ? Theme.marquee : .clear))
-                }
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.gray)
-                    .padding(.horizontal, 6)
-            }
-            .padding(4)
-            .background(Capsule().fill(Theme.fill))
-
-            Text(isGrid
-                 ? "“Rank watched” is best for ranking things you've already seen. Find both views on your Recs page."
-                 : "“Find to watch” is best for discovering new things. Find both views on your Recs page.")
-                .font(.subheadline).foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center).padding(.horizontal, 30)
-        }
-    }
-
-    /// Starters / rec candidates filtered to the Movies/TV toggle.
-    private var visibleStarters: [Movie] {
-        starters.filter { onbTV ? $0.mediaKind == "tv" : $0.mediaKind != "tv" }
-    }
+    /// Rec candidates filtered to the Movies/TV toggle.
     private var visibleRecCandidates: [YourListsView.RecCandidate] {
         recCandidates.filter { onbTV ? $0.movie.mediaKind == "tv" : $0.movie.mediaKind != "tv" }
     }
-
-    private var firstRankStep: some View {
-        VStack(spacing: 14) {
-            Text("Rank your first movie/show")
-                .font(Theme.serif(30))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .padding(.top, 26)
-            recsViewTeacher(isGrid: true)
-
-            SegmentedPillControl(
-                segments: ["Movies", "TV Shows"],
-                selection: Binding(get: { onbTV ? 1 : 0 }, set: { onbTV = $0 == 1 }))
-                .padding(.horizontal, 24)
-
-            if starters.isEmpty {
-                // Posters come from TMDB; if that didn't load (e.g. no network
-                // on first launch) don't show a blank grid — point them at search.
-                Spacer()
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 40)).foregroundStyle(Theme.gray)
-                Text("We couldn't load suggestions. Search for anything you've watched and tap + to rank it.")
-                    .font(.subheadline).foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center).padding(.horizontal, 36)
-                Spacer()
-            } else if visibleStarters.isEmpty {
-                // Toggled to a kind with nothing left — nudge to the other tab.
-                Spacer()
-                Text("No \(onbTV ? "shows" : "movies") here — try the \(onbTV ? "Movies" : "TV Shows") tab above.")
-                    .font(.subheadline).foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center).padding(.horizontal, 36)
-                Spacer()
-            } else {
-                ScrollView(showsIndicators: false) {
-                    // Shared grid (CIN-33): tap to rank, ✕ to dismiss, hold to
-                    // save to Want to Watch.
-                    SuggestionGrid(
-                        movies: visibleStarters,
-                        onRank: { logMovie = $0 },
-                        onSave: { movie in
-                            guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                            Task { await store.toggleWatchlist(movie: movie) }
-                            ToastCenter.shared.show("Bookmarked to Want to Watch ✓")
-                        },
-                        onDismiss: { movie in
-                            withAnimation(.snappy) { starters.removeAll { $0.tmdbID == movie.tmdbID } }
-                        }
-                    )
-                    .padding(.horizontal, 24)
-                    .padding(.top, 6)
-                }
-            }
-
-            // Ranking the first title is encouraged but no longer required —
-            // once they've ranked one, "Continue" leads into the rec tutorial;
-            // otherwise a gentle nudge plus a skip so no one ever gets stuck.
-            if store.watchedCount > 0 {
-                PillButton(title: "Continue · \(store.watchedCount) ranked", style: .filled) { advance() }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 24)
-            } else if starters.isEmpty {
-                // No posters loaded (offline) — let them through to explore.
-                Button("Start exploring") { finishOnboarding() }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .padding(.bottom, 24)
-            } else {
-                VStack(spacing: 12) {
-                    Label("Tap a poster to rank your first", systemImage: "hand.tap")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.gray)
-                    Button("Skip for now") { advance() }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
-                }
-                .padding(.bottom, 24)
-            }
-        }
-    }
-
-    // MARK: 6 — Meet your Recs (swipe deck of personalized picks)
 
     private var recTutorialStep: some View {
         VStack(spacing: 14) {
@@ -703,20 +560,20 @@ struct OnboardingView: View {
                 .font(Theme.serif(30))
                 .minimumScaleFactor(0.8)
                 .padding(.top, 24)
-            recsViewTeacher(isGrid: false)
 
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
                 selection: Binding(get: { onbTV ? 1 : 0 }, set: { onbTV = $0 == 1 }))
                 .padding(.horizontal, 24)
 
-            Spacer(minLength: 8)
-
             if !recsLoaded {
+                Spacer()
                 ProgressView()
+                Spacer()
             } else if visibleRecCandidates.isEmpty {
                 // Rare (offline / no posters / none of this kind) — don't trap
                 // them on an empty deck.
+                Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "sparkles").font(.title).foregroundStyle(Theme.gray)
                     Text("More picks once you've ranked a few")
@@ -725,8 +582,9 @@ struct OnboardingView: View {
                         .font(.caption).foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center).padding(.horizontal, 36)
                 }
+                Spacer()
             } else {
-                // Same concise cue as the real Recs deck.
+                // Concise cue, sitting directly under the toggle, then the deck.
                 Label("Swipe right to save · left to skip · + to rank", systemImage: "hand.tap")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(Theme.gray)
@@ -749,9 +607,8 @@ struct OnboardingView: View {
                 // Match the Recs page's standard gutter so the onboarding deck
                 // has the same margin as the real Recs/Feed cards.
                 .screenHPadding()
+                Spacer(minLength: 8)
             }
-
-            Spacer(minLength: 8)
 
             PillButton(title: "Done", style: .filled) { finishOnboarding() }
                 .padding(.horizontal, 28)
@@ -760,8 +617,9 @@ struct OnboardingView: View {
         .task { await loadOnboardingRecs() }
     }
 
-    /// Build the post-rank picks from the title they just ranked: titles
-    /// similar to their current #1, topped up with this week's trending.
+    /// Build the tutorial deck: if they've already ranked something, lead with
+    /// titles similar to their current #1; otherwise (the common case now that
+    /// the first-rank step is gone) it's this week's trending.
     private func loadOnboardingRecs(force: Bool = false) async {
         if force { recCandidates = []; recsLoaded = false }
         guard recCandidates.isEmpty else { return }

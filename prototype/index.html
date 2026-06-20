@@ -2671,7 +2671,7 @@ function obPhoneFmt(v){ const d=v.replace(/\D/g,"").slice(0,10); if(!d)return"";
 function obPwLen(){ return obPw.length>=8; }
 function obPwValid(){ return obPwLen(); }
 function renderOnboarding(){
-  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9,10].map(i=>
+  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
   let body="";
   if(obStep===0) body=`
@@ -2794,37 +2794,10 @@ function renderOnboarding(){
       <button class="pill" style="justify-content:center; padding:13px; width:100%; max-width:320px;" onclick="toast('Notifications permission prompt appears here'); obNext();">Turn on notifications</button>
       <button style="background:none; border:none; color:var(--gray); font:inherit; font-weight:600; cursor:pointer;" onclick="obNext()">Maybe later</button>
     </div>`;
-  else if(obStep===9) body=`
-    <div style="flex:1; display:flex; flex-direction:column; gap:12px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
-      <div class="serif" style="font-size:28px; font-weight:700;">Rank your first movie</div>
-      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 0;">
-        <div style="display:inline-flex; background:var(--surface-2); border-radius:999px; padding:4px;">
-          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 12px; color:var(--gray); font-size:13px; font-weight:700;">${I("stack",14)} Find to watch</span>
-          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:999px; background:var(--marquee); color:var(--bg); font-size:13px; font-weight:700;">${I("grid",14)} Rank watched</span>
-        </div>
-        <span style="color:var(--gray); font-size:13px;">${I("lock",13)||"🔒"}</span>
-      </div>
-      <div class="sub">“Rank watched” is best for ranking things you've already seen. Find both views on your Recs page.</div>
-      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:8px;">
-        ${Object.keys(MOVIES).slice(0,6).map(k=>`
-          <div style="cursor:pointer; opacity:${obRanked?.55:1};" onclick="obRanked=true; renderOnboarding(); toast('Ranked! Tap Continue to keep going.');">
-            <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(MOVIES[k].p)}');"></div>
-            <div style="font-size:11px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${MOVIES[k].t}</div>
-          </div>`).join("")}
-      </div>
-      <button class="pill" style="justify-content:center; padding:13px; margin:8px 0 24px;" onclick="obNext()">${obRanked?"Continue · 1 ranked":"Skip for now"}</button>
-    </div>`;
   else body=`
     <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px 24px 0; text-align:center; overflow-y:auto;">
       <div class="serif" style="font-size:28px; font-weight:700;">Meet your Recs</div>
-      <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:2px 0;">
-        <div style="display:inline-flex; background:var(--surface-2); border-radius:999px; padding:4px;">
-          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:999px; background:var(--marquee); color:var(--bg); font-size:13px; font-weight:700;">${I("stack",14)} Find to watch</span>
-          <span style="display:inline-flex; align-items:center; gap:5px; padding:6px 12px; color:var(--gray); font-size:13px; font-weight:700;">${I("grid",14)} Rank watched</span>
-        </div>
-        <span style="color:var(--gray); font-size:13px;">${I("lock",13)}</span>
-      </div>
-      <div class="sub" style="padding:0 4px;">“Find to watch” is best for discovering new things — swipe right to bookmark, left to pass, or + to rank one you've seen. Find both views on your Recs page.</div>
+      <div class="sub" style="padding:0 4px;">Swipe right to bookmark, left to pass, or + to rank one you've seen.</div>
       ${(()=>{const ks=Object.keys(MOVIES); const k=ks[6]||ks[0]; const m=MOVIES[k]; return `
       <div style="width:196px; border-radius:18px; overflow:hidden; background:var(--surface); border:1px solid var(--hair); box-shadow:0 12px 30px rgba(0,0,0,.32); margin-top:4px;">
         <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>
@@ -2841,7 +2814,7 @@ function renderOnboarding(){
     </div>`;
   $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
 }
-function obNext(){ buzz(); obStep++; if(obStep>10){ finishOnboarding(); return; } renderOnboarding(); }
+function obNext(){ buzz(); obStep++; if(obStep>9){ finishOnboarding(); return; } renderOnboarding(); }
 function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
 
 /* =================== BOOT =================== */
