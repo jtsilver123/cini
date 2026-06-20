@@ -268,7 +268,7 @@ struct PlanWatchSheet: View {
             do {
                 try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
                 Haptics.tap()
-                ToastCenter.shared.show("Let them know you can't make it 👍")
+                ToastCenter.shared.show("Replied — they'll see you can't make it 👍")
                 dismiss()
             } catch {
                 // Don't dismiss as if it worked — the inviter would still be waiting.
