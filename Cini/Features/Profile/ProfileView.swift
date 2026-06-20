@@ -52,6 +52,8 @@ struct ProfileScreen: View {
     @State private var showAskRec = false
     @State private var matchPct: Double?
     @State private var globalRank: Int?
+    /// Tapping the profile photo opens a full-screen view of it.
+    @State private var zoomAvatar = false
     @State private var watchlistCount = 0
     /// Member's watchlist rows also on the viewer's list (member profiles only).
     @State private var bothWantToWatch: [WatchlistRow] = []
@@ -160,6 +162,10 @@ struct ProfileScreen: View {
         }
         .fullScreenCover(item: $logMovie) { movie in
             LogFlowView(movie: movie)
+        }
+        .fullScreenCover(isPresented: $zoomAvatar) {
+            AvatarZoomView(url: profile?.avatarURL,
+                           name: profile.map { $0.displayName.isEmpty ? $0.username : $0.displayName } ?? (username ?? ""))
         }
         .navigationDestination(isPresented: $showSettings) {
             AccountSettingsView()
@@ -479,6 +485,14 @@ struct ProfileScreen: View {
         VStack(spacing: 8) {
             AvatarView(url: profile?.avatarURL, size: 104,
                        name: profile.map { $0.displayName.isEmpty ? $0.username : $0.displayName } ?? username)
+                // Tap a real photo to see it full-screen.
+                .contentShape(Circle())
+                .onTapGesture {
+                    guard profile?.avatarURL != nil else { return }
+                    Haptics.tap()
+                    zoomAvatar = true
+                }
+                .accessibilityAddTraits(profile?.avatarURL != nil ? .isButton : [])
             Text("@\(profile?.username ?? username ?? "—")").font(.headline)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
             if let bio = profile?.bio, !bio.isEmpty {
@@ -1905,5 +1919,58 @@ struct ProfileView: View {
         NavigationStack {
             ProfileScreen(userID: nil)
         }
+    }
+}
+
+/// Full-screen viewer for a profile photo. Tap anywhere, the ✕, or swipe down
+/// to dismiss — a plain, robust image viewer (no fragile custom transitions).
+struct AvatarZoomView: View {
+    let url: URL?
+    let name: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var drag: CGFloat = 0
+
+    private var dimmed: Double { 1 - min(abs(drag) / 600, 0.7) }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(dimmed).ignoresSafeArea()
+            Group {
+                CachedAsyncImage(url: url) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    // No photo loaded yet → large initials, never a blank screen.
+                    AvatarView(url: nil, size: 180, name: name)
+                }
+            }
+            .padding(28)
+            .offset(y: drag)
+            .gesture(
+                DragGesture()
+                    .onChanged { drag = $0.translation.height }
+                    .onEnded { value in
+                        if abs(value.translation.height) > 120 { dismiss() }
+                        else { withAnimation(.snappy) { drag = 0 } }
+                    }
+            )
+        }
+        // Tap the backdrop (or photo) to close.
+        .contentShape(Rectangle())
+        .onTapGesture { dismiss() }
+        .overlay(alignment: .topTrailing) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(12)
+                    .background(Circle().fill(.black.opacity(0.45)))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .accessibilityLabel("Close")
+        }
+        .statusBarHidden()
     }
 }
