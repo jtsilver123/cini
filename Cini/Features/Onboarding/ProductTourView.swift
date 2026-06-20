@@ -71,20 +71,22 @@ struct ProductTourView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let hole = tabRect(tabIndex(stop.tab), in: proxy)
-            let caretX = min(max(hole.midX, 46), proxy.size.width - 46)
+            // Highlight the WHOLE tab bar (full width) rather than one tab — far
+            // more robust than pinpointing a single UIKit tab item. The tour
+            // makes the target tab the gold/active one and the bubble names it.
+            let band = barBand(in: proxy)
 
             ZStack {
-                // Dim the whole app, but punch a rounded hole over the active
-                // tab so it shows through at full brightness.
+                // Dim the whole app, but cut out the tab-bar band so it shows
+                // through at full brightness.
                 Color.black.opacity(0.64)
                     .ignoresSafeArea()
                     .mask {
                         ZStack {
                             Rectangle().ignoresSafeArea()
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .frame(width: hole.width, height: hole.height)
-                                .position(x: hole.midX, y: hole.midY)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .frame(width: band.width, height: band.height)
+                                .position(x: band.midX, y: band.midY)
                                 .blendMode(.destinationOut)
                         }
                         .compositingGroup()
@@ -92,23 +94,23 @@ struct ProductTourView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { }   // swallow taps to the live app beneath
 
-                // Gold ring framing the spotlighted tab.
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                // Gold ring around the whole bar.
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(Theme.marquee, lineWidth: 2)
-                    .frame(width: hole.width, height: hole.height)
-                    .position(x: hole.midX, y: hole.midY)
+                    .frame(width: band.width, height: band.height)
+                    .position(x: band.midX, y: band.midY)
 
-                // Caret bridging the bubble down to the spotlight.
+                // A single caret centered above the bar.
                 CoachCaret()
                     .fill(Theme.velvet)
-                    .frame(width: 26, height: 13)
-                    .position(x: caretX, y: hole.minY - 11)
+                    .frame(width: 22, height: 11)
+                    .position(x: proxy.size.width / 2, y: band.minY - 9)
 
-                // The coachmark bubble, sitting just above the caret.
+                // The coachmark bubble, sitting just above the bar.
                 bubble
-                    .frame(maxWidth: 380)
+                    .frame(maxWidth: 360)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, (proxy.size.height - hole.minY) + 22)
+                    .padding(.bottom, (proxy.size.height - band.minY) + 18)
             }
         }
         .onAppear {
@@ -122,64 +124,47 @@ struct ProductTourView: View {
         .animation(.snappy, value: step)
     }
 
-    private func tabIndex(_ tab: RootTabView.Tab) -> Int {
-        switch tab {
-        case .feed: return 0
-        case .swipe: return 1
-        case .search: return 2
-        case .lists: return 3
-        case .profile: return 4
-        }
-    }
-
-    /// The frame of tab `i` in the bottom bar. The horizontal center is exact
-    /// (the bar splits the width into five); the vertical sits in the bottom
-    /// chrome where the tab items live. Sized generously so the spotlight reads
-    /// as "this tab" and tolerates the bar's small per-device height variance.
-    private func tabRect(_ i: Int, in proxy: GeometryProxy) -> CGRect {
-        let tabW = proxy.size.width / 5
-        let cx = tabW * (CGFloat(i) + 0.5)
-        let barH = min(max(proxy.safeAreaInsets.bottom, 49), 60)
-        // Center over the tab item (icon + label). Generous height so the
-        // spotlight comfortably covers it regardless of the bar's exact height.
-        let cy = proxy.size.height + barH / 2 - 14
-        let w = min(tabW - 6, 82)
-        let h: CGFloat = 58
-        return CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
+    /// A full-width highlight band over the bottom tab bar. The bar lives in the
+    /// bottom safe-area inset, so a band from just above the safe-area edge down
+    /// to the screen bottom covers it on every device — no fragile per-tab math.
+    private func barBand(in proxy: GeometryProxy) -> CGRect {
+        let inset = max(proxy.safeAreaInsets.bottom, 49)
+        let top = proxy.size.height - 6
+        return CGRect(x: 8, y: top, width: proxy.size.width - 16, height: inset + 6)
     }
 
     private var bubble: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack {
                 Text("\(step + 1) of \(stops.count)")
-                    .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
+                    .font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.65))
                 Spacer()
                 Button("Skip") { finish() }
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
+                    .font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.7))
             }
-            Text(stop.title)
-                .font(Theme.serif(24)).foregroundStyle(.white)
-            Text(stop.body)
-                .font(.subheadline).foregroundStyle(.white.opacity(0.92))
-                .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Spacer()
+            HStack(alignment: .firstTextBaseline) {
+                Text(stop.title)
+                    .font(Theme.serif(20)).foregroundStyle(.white)
+                Spacer(minLength: 8)
                 Button { isLast ? finish() : advance() } label: {
                     Text(isLast ? "Start swiping" : "Got it!")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(.white)
-                        .padding(.horizontal, 22).padding(.vertical, 10)
+                        .font(.footnote.weight(.bold)).foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 7)
                         .overlay(Capsule().strokeBorder(.white.opacity(0.9), lineWidth: 1.5))
                 }
                 .buttonStyle(.plain)
             }
+            Text(stop.body)
+                .font(.footnote).foregroundStyle(.white.opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(18)
+        .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Theme.velvet)
-                .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+                .shadow(color: .black.opacity(0.35), radius: 14, y: 5)
         )
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 20)
     }
 
     private func advance() {
