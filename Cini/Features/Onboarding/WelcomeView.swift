@@ -147,9 +147,10 @@ private struct PosterWall: View {
     @State private var momentum: Task<Void, Never>?   // post-release inertia glide
 
     /// Deal posters round-robin into three columns; fall back to the seed.
-    /// Each column is padded to enough tiles that its looped height always
-    /// exceeds the tallest iPhone — otherwise the wrap happens ON screen and you
-    /// see tiles teleport. ~9 tiles ≈ 1560pt, taller than any device.
+    /// Each column is repeated until it has ≥9 tiles (appending the whole column,
+    /// so a 7–8 tile column lands at 14–16). That makes the looped height
+    /// (~2.4k pt) far taller than any iPhone, so the wrap always happens
+    /// off-screen and tiles never visibly teleport.
     private var columns: [[String]] {
         let source = posters.isEmpty ? Self.seed : posters
         var cols: [[String]] = [[], [], []]
@@ -207,6 +208,7 @@ private struct PosterWall: View {
                     }
                 }
         )
+        .onDisappear { momentum?.cancel() }
     }
 }
 
