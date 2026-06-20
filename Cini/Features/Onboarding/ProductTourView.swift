@@ -25,6 +25,7 @@ struct ProductTourView: View {
     var onDone: () -> Void
 
     @State private var step = 0
+    @Environment(\.horizontalSizeClass) private var hSize
     /// Same key SwipeView reads — the tour seeds the default card view so a new
     /// user's first look at Swipe is the deck, not the grid.
     @AppStorage("swipe.layout") private var swipeLayout = "cards"
@@ -63,12 +64,17 @@ struct ProductTourView: View {
             // full screen and exposes the real insets, so we can place the dim
             // exactly above the tab bar (no magic numbers but the standard bar
             // height) on every device.
+            let isPad = hSize == .regular
             let homeInset = proxy.safeAreaInsets.bottom   // home-indicator strip
-            let tabBarH: CGFloat = 49                     // standard UITabBar height
+            let tabBarH: CGFloat = isPad ? 65 : 49        // UITabBar height (taller on iPad)
             let barTop = max(proxy.size.height - homeInset - tabBarH, 0)
             let tabW = proxy.size.width / 5
             let cardW = min(248, proxy.size.width - 24)
-            let centerX = tabW * (CGFloat(tabIndex(stop.tab)) + 0.5)
+            // iPad centers its tab items in a cluster (not 5 equal slots), so a
+            // width/5 slot would mis-point — center the card there instead and let
+            // the title + the bright bar orient the user.
+            let centerX = isPad ? proxy.size.width / 2
+                                : tabW * (CGFloat(tabIndex(stop.tab)) + 0.5)
             let leading = min(max(centerX - cardW / 2, 12), proxy.size.width - cardW - 12)
 
             ZStack(alignment: .bottomLeading) {

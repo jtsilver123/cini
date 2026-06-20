@@ -137,8 +137,13 @@ private struct PosterWall: View {
         "/udDclJoHjfjb8Ekgsd4FDteOkCU.jpg", // Joker
     ]
 
-    private let tileW: CGFloat = 108
-    private let tileH: CGFloat = 162
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var isPad: Bool { hSize == .regular }
+    // More, larger columns on iPad so the wall fills the wide canvas instead of
+    // sitting as a thin ribbon in the middle. iPhone is unchanged.
+    private var colCount: Int { isPad ? 5 : 3 }
+    private var tileW: CGFloat { isPad ? 168 : 108 }
+    private var tileH: CGFloat { isPad ? 252 : 162 }
     private let spacing: CGFloat = 12
 
     @State private var begin = Date()
@@ -153,8 +158,8 @@ private struct PosterWall: View {
     /// off-screen and tiles never visibly teleport.
     private var columns: [[String]] {
         let source = posters.isEmpty ? Self.seed : posters
-        var cols: [[String]] = [[], [], []]
-        for (i, p) in source.enumerated() { cols[i % 3].append(p) }
+        var cols = Array(repeating: [String](), count: colCount)
+        for (i, p) in source.enumerated() { cols[i % colCount].append(p) }
         return cols.map { col in
             guard !col.isEmpty else { return col }
             var out = col
@@ -169,8 +174,8 @@ private struct PosterWall: View {
             let t = CGFloat(ctx.date.timeIntervalSince(begin))
             HStack(spacing: spacing) {
                 ForEach(Array(cols.enumerated()), id: \.offset) { idx, paths in
-                    let dir: CGFloat = idx == 1 ? -1 : 1          // middle drifts up
-                    let speed: CGFloat = 16 + CGFloat(idx) * 3    // gentle parallax
+                    let dir: CGFloat = idx % 2 == 0 ? 1 : -1      // alternate up/down
+                    let speed: CGFloat = 16 + CGFloat(idx % 3) * 3   // gentle parallax
                     let phase = CGFloat(idx) * (tileH + spacing) * 0.5   // brick offset
                     PosterColumn(paths: paths, tileW: tileW, tileH: tileH, spacing: spacing,
                                  offset: t * speed * dir + scrub + phase)

@@ -11,9 +11,12 @@ struct SuggestionGrid: View {
     var posterWidth: CGFloat = 104
 
     @Environment(RankingStore.self) private var store
+    @Environment(\.horizontalSizeClass) private var hSize
 
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: posterWidth), spacing: 12)]
+        // Slightly larger posters on iPad so the grid isn't a field of tiny tiles.
+        let minimum = hSize == .regular ? max(posterWidth, 132) : posterWidth
+        [GridItem(.adaptive(minimum: minimum), spacing: 12)]
     }
 
     var body: some View {

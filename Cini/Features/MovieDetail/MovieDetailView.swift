@@ -12,6 +12,9 @@ struct MovieDetailView: View {
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
     @Environment(AppSession.self) private var session
+    @Environment(\.horizontalSizeClass) private var hSize
+    /// A taller hero on iPad so it doesn't read as a thin band on the big canvas.
+    private var heroHeight: CGFloat { hSize == .regular ? 400 : 300 }
 
     @State private var showUnlocks = false
     /// The aggregated "what all of Cini thinks" score is a referral-unlock.
@@ -248,7 +251,7 @@ struct MovieDetailView: View {
             // intrinsic width and inflates the whole page wider than the
             // screen (titles and pills clipped at both edges).
             Color.clear
-                .frame(height: 300)
+                .frame(height: heroHeight)
                 .frame(maxWidth: .infinity)
                 .overlay {
                     CachedAsyncImage(url: movie.backdropURL) { image in
@@ -327,7 +330,7 @@ struct MovieDetailView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
         }
-        .frame(height: 300)
+        .frame(height: heroHeight)
         .clipped()
         .onAppear {
             withAnimation(.snappy(duration: 0.5)) { heroAppeared = true }

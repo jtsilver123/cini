@@ -224,6 +224,9 @@ struct TonightStack: View {
     var onDismiss: (Int) -> Void = { _ in }
 
     @State private var drag: CGSize = .zero
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var isPad: Bool { hSize == .regular }
+    private var cardH: CGFloat { isPad ? 420 : 220 }
 
     var body: some View {
         let cards = Array(items.prefix(3))
@@ -235,6 +238,7 @@ struct TonightStack: View {
                     TonightPickCard(
                         movie: item.movie, reason: item.reason,
                         service: item.service, serviceLogo: item.serviceLogo,
+                        height: cardH,
                         dragX: idx == 0 ? drag.width : 0,
                         onOpen: onOpen, onQuickAdd: onRank,
                         onDismiss: idx == 0 ? { onDismiss(item.id) } : nil
@@ -250,7 +254,9 @@ struct TonightStack: View {
                 }
             }
             // Reserve the card height plus the stack's peek offset.
-            .frame(height: 240)
+            .frame(height: cardH + 20)
+            .frame(maxWidth: isPad ? 460 : .infinity)   // cap width on iPad
+            .frame(maxWidth: .infinity)                 // center within the column
             // Whenever the deck changes (a card actioned), make sure the new top
             // card isn't left carrying the previous card's drag offset.
             .onChange(of: items.count) { _, _ in drag = .zero }

@@ -28,6 +28,7 @@ struct ProfileScreen: View {
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
+    @Environment(\.horizontalSizeClass) private var hSize
 
     @State private var profile: Profile?
     @State private var rankings: [RankingRow] = []
@@ -414,7 +415,7 @@ struct ProfileScreen: View {
                     Button {
                         detailMovie = entry.movie
                     } label: {
-                        PosterView(url: entry.movie.posterURL, width: 92)
+                        PosterView(url: entry.movie.posterURL, width: hSize == .regular ? 132 : 92)
                             .overlay(alignment: .topLeading) {
                                 Text("#\(index + 1)")
                                     .font(.system(size: 12, weight: .heavy, design: .rounded))

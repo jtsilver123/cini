@@ -57,14 +57,20 @@ struct RecCardDeck: View {
                   subtitle: "No one sees what you pass.", save: false),
         ] : []
     }
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var isPad: Bool { hSize == .regular }
+
     private var items: [DeckItem] { demos + candidates.map(DeckItem.rec) }
 
     /// Card height: roomy on full-size phones, trimmed on short ones (iPhone SE)
-    /// so the controls below the deck never clip.
+    /// so the controls below the deck never clip. On iPad the card is width-capped
+    /// (below) and kept tall so it stays a portrait card, not a wide letterbox.
     private var cardHeight: CGFloat {
-        guard richDetail else { return 220 }
-        return UIScreen.main.bounds.height > 750 ? 320 : 284
+        guard richDetail else { return isPad ? 360 : 220 }
+        return isPad ? 560 : (UIScreen.main.bounds.height > 750 ? 320 : 284)
     }
+    /// Cap the deck width on iPad so the swipe card keeps phone-like proportions.
+    private var deckMaxWidth: CGFloat { isPad ? 460 : .infinity }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -111,7 +117,8 @@ struct RecCardDeck: View {
             // ZStack, making the deck — and the whole Recs view — wider than the
             // screen (everything shifts off the left edge). maxWidth:.infinity
             // forces the deck to take exactly the width it's offered.
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: deckMaxWidth)   // capped on iPad to stay portrait
+            .frame(maxWidth: .infinity)      // center within the column
             .frame(height: cardHeight)
         }
     }
@@ -326,6 +333,10 @@ struct FriendRecDeck: View {
     @State private var flyOff: CGFloat = 0
     @State private var advancing = false
     @State private var lastSaved: (index: Int, movie: Movie)?
+    @Environment(\.horizontalSizeClass) private var hSize
+    private var isPad: Bool { hSize == .regular }
+    private var cardH: CGFloat { isPad ? 460 : 220 }
+    private var deckMaxWidth: CGFloat { isPad ? 460 : .infinity }
 
     private func reason(_ rec: DirectRecRow) -> String {
         let who = firstName(rec.profiles?.displayName, rec.profiles?.username) ?? "A friend"
@@ -342,17 +353,17 @@ struct FriendRecDeck: View {
                     Text("No more friend recs to go through right now.")
                         .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: .infinity).frame(height: 232)
+                .frame(maxWidth: .infinity).frame(height: cardH)
             } else {
                 ZStack {
                     if index + 1 < recs.count, let next = recs[index + 1].movies?.asMovie {
                         TonightPickCard(movie: next, reason: reason(recs[index + 1]),
-                                        service: nil, showTonightBadge: false)
+                                        service: nil, showTonightBadge: false, height: cardH)
                             .scaleEffect(0.96).offset(y: 12).zIndex(0)
                     }
                     if let movie = recs[index].movies?.asMovie {
                         TonightPickCard(movie: movie, reason: reason(recs[index]),
-                                        service: nil, showTonightBadge: false,
+                                        service: nil, showTonightBadge: false, height: cardH,
                                         dragX: drag.width + flyOff,
                                         onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
                             .offset(x: drag.width + flyOff, y: drag.height)
@@ -370,7 +381,9 @@ struct FriendRecDeck: View {
                             .animation(.snappy, value: drag)
                     }
                 }
-                .frame(height: 232)
+                .frame(height: cardH)
+                .frame(maxWidth: deckMaxWidth)   // capped on iPad to stay portrait
+                .frame(maxWidth: .infinity)      // center within the column
             }
             controls
         }

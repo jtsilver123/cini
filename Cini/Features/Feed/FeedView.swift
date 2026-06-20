@@ -2025,6 +2025,7 @@ struct NotificationsView: View {
             }
         }
         .listStyle(.plain)
+        .nativeContentWidth()   // cap width so rows don't stretch on iPad
         .background(Theme.background)
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
