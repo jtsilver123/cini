@@ -310,7 +310,9 @@ struct FeedView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Cini's better with more friends")
                                 .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                            Text("You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more and your feed comes alive.")
+                            Text(friends == 0
+                                 ? "Invite a few friends and your feed comes alive."
+                                 : "You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more and your feed comes alive.")
                                 .font(.caption).foregroundStyle(Theme.gray)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
