@@ -67,6 +67,7 @@ struct ProfileScreen: View {
     @State private var showSuggested = false
     @State private var suggested: [SuggestedMember] = []
     @State private var followedSuggested: Set<UUID> = []
+    @State private var requestedSuggested: Set<UUID> = []
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
     @State private var commentsLink: CommentsLink?
@@ -774,19 +775,29 @@ struct ProfileScreen: View {
                                     followedSuggested.remove(member.id)
                                     do { try await SupabaseService.shared.unfollow(member.id) }
                                     catch { followedSuggested.insert(member.id); ToastCenter.shared.saveFailed() }
+                                } else if requestedSuggested.contains(member.id) {
+                                    requestedSuggested.remove(member.id)
+                                    do { try await SupabaseService.shared.cancelFollowRequest(member.id) }
+                                    catch { requestedSuggested.insert(member.id); ToastCenter.shared.saveFailed() }
                                 } else {
-                                    followedSuggested.insert(member.id)
-                                    do { try await SupabaseService.shared.requestFollow(member.id) }
-                                    catch { followedSuggested.remove(member.id); ToastCenter.shared.saveFailed() }
+                                    do {
+                                        // Public follows instantly; private returns "requested".
+                                        let result = try await SupabaseService.shared.requestFollow(member.id)
+                                        if result == "requested" { requestedSuggested.insert(member.id) }
+                                        else { followedSuggested.insert(member.id) }
+                                    }
+                                    catch { ToastCenter.shared.saveFailed() }
                                 }
                             }
                         } label: {
-                            Text(followedSuggested.contains(member.id) ? "Following" : "Follow")
+                            let isFollowing = followedSuggested.contains(member.id)
+                            let isRequested = requestedSuggested.contains(member.id)
+                            Text(isFollowing ? "Following" : (isRequested ? "Requested" : "Follow"))
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(followedSuggested.contains(member.id) ? Theme.marquee : .white)
+                                .foregroundStyle(isFollowing || isRequested ? Theme.marquee : .white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 6)
-                                .background(Capsule().fill(followedSuggested.contains(member.id)
+                                .background(Capsule().fill(isFollowing || isRequested
                                                            ? Theme.marqueeSoft : Theme.velvet))
                         }
                         .buttonStyle(.plain)

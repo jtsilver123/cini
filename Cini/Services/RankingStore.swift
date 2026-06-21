@@ -262,14 +262,14 @@ final class RankingStore {
                     watchDate: watchDate
                 )
             } catch {
-                // Both attempts failed: undo the local commit so we don't
-                // celebrate a rank that only exists on-device (and would
-                // vanish on the next refresh). Returning nil tells the log
-                // flow to show an error instead of the result ticket.
-                var reverted = lists[key] ?? RankingList()
-                reverted.remove(session.newItemID)
-                lists[key] = reverted
-                listChanged()
+                // Both attempts failed: resync from the server so we don't
+                // celebrate a rank that only exists on-device. This is correct
+                // for both paths — a first-time rank vanishes (the server never
+                // got it) while a failed RE-rank is restored to its prior
+                // position (the server still holds it); a blind local remove
+                // would have deleted an existing rank. Returning nil tells the
+                // log flow to show an error instead of the result ticket.
+                await load()
                 ToastCenter.shared.saveFailed()
                 return nil
             }

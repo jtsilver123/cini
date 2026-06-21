@@ -1347,15 +1347,16 @@ final class SupabaseService {
         return Set(rows.map(\.event_id))
     }
 
-    func toggleLike(eventID: UUID) async throws {
+    /// Idempotent on the *intended* state (`like`), not the observed one — a
+    /// read-modify-write here let rapid taps double-insert or lose an unlike.
+    /// The (user_id, event_id) primary key makes the upsert a no-op when already set.
+    func toggleLike(eventID: UUID, like: Bool) async throws {
         guard let me = currentUserID else { return }
-        struct Row: Encodable { let user_id: UUID; let event_id: UUID }
-        let existing: [Row2] = try await client.from("likes")
-            .select("event_id")
-            .eq("user_id", value: me).eq("event_id", value: eventID)
-            .execute().value
-        if existing.isEmpty {
-            try await client.from("likes").insert(Row(user_id: me, event_id: eventID)).execute()
+        if like {
+            struct Row: Encodable { let user_id: UUID; let event_id: UUID }
+            try await client.from("likes")
+                .upsert(Row(user_id: me, event_id: eventID), onConflict: "user_id,event_id")
+                .execute()
         } else {
             try await client.from("likes").delete()
                 .eq("user_id", value: me).eq("event_id", value: eventID).execute()
@@ -2202,11 +2203,6 @@ struct PerformanceCount: Codable, Hashable {
     }
 
     var photoURL: URL? { TMDBService.imageURL(path: profilePath, size: .profile) }
-}
-
-private struct Row2: Codable {
-    let eventId: UUID
-    enum CodingKeys: String, CodingKey { case eventId = "event_id" }
 }
 
 struct RecRow: Codable, Identifiable, Hashable {

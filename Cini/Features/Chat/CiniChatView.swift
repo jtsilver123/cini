@@ -587,7 +587,7 @@ struct CiniChatAvailableView: View {
                 // The on-device model refuses some legit movie topics
                 // (mental-health docs, true crime) — say what happened
                 // instead of a generic shrug.
-                await reveal("Apple's on-device safety filter balked at that one — it can be touchy about heavy subject matter. Ask it a different way and I'll take another swing.")
+                await reveal("Apple's on-device safety filter balked at that one — it can be touchy about heavy subject matter. Try asking a different way and I'll take another swing.")
             case .exceededContextWindowSize:
                 // The chat outgrew the model's window: fresh session
                 // (taste context intact), then retry this prompt once.

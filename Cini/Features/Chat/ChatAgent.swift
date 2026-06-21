@@ -438,7 +438,11 @@ struct CurateListTool: Tool {
 
         var added: [String] = []
         for movie in pool where movie.mediaKind == list.kind {
-            try? await SupabaseService.shared.cacheMovie(movie)
+            do {
+                try await SupabaseService.shared.cacheMovie(movie)
+            } catch {
+                SupabaseService.logSwallowed("curate_cache_movie", error)
+            }
             if (try? await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)) != nil {
                 added.append(movie.title)
             }
@@ -527,7 +531,11 @@ struct RemoveFromListTool: Tool {
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
-        try? await SupabaseService.shared.removeFromList(list.id, movieID: movie.tmdbID)
+        do {
+            try await SupabaseService.shared.removeFromList(list.id, movieID: movie.tmdbID)
+        } catch {
+            return "Couldn't remove \(movie.title) — connection trouble."
+        }
         await ChatAgentBridge.shared.store?.refreshCustomLists()
         await ChatAgentBridge.shared.note("minus.circle", "\(movie.title) ✕ “\(list.name)”", destination: .customList(list.id))
         return "Removed \(movie.title) from “\(list.name)”."
@@ -628,7 +636,11 @@ struct UnfollowMemberTool: Tool {
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
-        try? await SupabaseService.shared.unfollow(member.id)
+        do {
+            try await SupabaseService.shared.unfollow(member.id)
+        } catch {
+            return "Couldn't unfollow @\(member.username) — connection trouble."
+        }
         await FriendsCache.shared.refresh()
         await ChatAgentBridge.shared.note("person.badge.minus", "Unfollowed @\(member.username)", destination: .member(member.id, member.username))
         return "Unfollowed @\(member.username)."

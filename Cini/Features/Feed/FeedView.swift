@@ -1052,7 +1052,7 @@ struct FeedCard: View {
         likeCount += liked ? 1 : -1
         Task {
             defer { likeInFlight = false }
-            do { try await SupabaseService.shared.toggleLike(eventID: event.id) }
+            do { try await SupabaseService.shared.toggleLike(eventID: event.id, like: liked) }
             catch {
                 liked.toggle()
                 likeCount += liked ? 1 : -1
@@ -1631,7 +1631,7 @@ struct CommentsSheet: View {
         headerLiked.toggle()
         headerLikeCount += headerLiked ? 1 : -1
         Task {
-            do { try await SupabaseService.shared.toggleLike(eventID: eventID) }
+            do { try await SupabaseService.shared.toggleLike(eventID: eventID, like: headerLiked) }
             catch {
                 headerLiked.toggle()
                 headerLikeCount += headerLiked ? 1 : -1

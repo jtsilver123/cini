@@ -159,6 +159,7 @@ struct InviteSheet: View {
     @State private var loadingContacts = false
     @State private var autoTried = false
     @State private var followed: Set<UUID> = []
+    @State private var requested: Set<UUID> = []
     @State private var query = ""
     @State private var showShare = false
     /// Phone digits we've already texted an invite to — persisted so a contact
@@ -294,8 +295,10 @@ struct InviteSheet: View {
                 Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
             }
             Spacer()
-            PillButton(title: followed.contains(member.id) ? "Following" : "Follow",
-                       style: followed.contains(member.id) ? .outlined : .filled) {
+            let isFollowing = followed.contains(member.id)
+            let isRequested = requested.contains(member.id)
+            PillButton(title: isFollowing ? "Following" : (isRequested ? "Requested" : "Follow"),
+                       style: isFollowing || isRequested ? .outlined : .filled) {
                 Task { await toggleFollow(member.id) }
             }
         }
@@ -333,11 +336,19 @@ struct InviteSheet: View {
     private func toggleFollow(_ id: UUID) async {
         if followed.contains(id) {
             followed.remove(id)
-            try? await SupabaseService.shared.unfollow(id)
+            do { try await SupabaseService.shared.unfollow(id) }
+            catch { followed.insert(id); ToastCenter.shared.saveFailed() }
+        } else if requested.contains(id) {
+            requested.remove(id)
+            do { try await SupabaseService.shared.cancelFollowRequest(id) }
+            catch { requested.insert(id); ToastCenter.shared.saveFailed() }
         } else {
-            followed.insert(id)
-            do { try await SupabaseService.shared.requestFollow(id) }
-            catch { followed.remove(id); ToastCenter.shared.saveFailed() }
+            do {
+                // Public follows instantly; private returns "requested".
+                let result = try await SupabaseService.shared.requestFollow(id)
+                if result == "requested" { requested.insert(id) } else { followed.insert(id) }
+            }
+            catch { ToastCenter.shared.saveFailed() }
         }
     }
 

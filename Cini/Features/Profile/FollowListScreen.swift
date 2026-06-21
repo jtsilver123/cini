@@ -12,6 +12,7 @@ struct FollowListScreen: View {
 
     @State private var members: [ProfileRow] = []
     @State private var iFollow: Set<UUID> = []
+    @State private var requested: Set<UUID> = []
     @State private var followInFlight: Set<UUID> = []
     @State private var loaded = false
 
@@ -77,7 +78,7 @@ struct FollowListScreen: View {
         .background(Theme.background)
         .navigationTitle("Friends")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: direction == .followers) { await load() }
+        .task(id: direction) { await load() }
         .refreshable { await load() }
     }
 
@@ -113,8 +114,9 @@ struct FollowListScreen: View {
                 subtitle: "@\(member.username)"
             ) {
                 if member.id != session.profile?.id {
-                    PillButton(title: iFollow.contains(member.id) ? "Following" : "Follow",
-                               style: .outlined) {
+                    let label = iFollow.contains(member.id) ? "Following"
+                        : (requested.contains(member.id) ? "Requested" : "Follow")
+                    PillButton(title: label, style: .outlined) {
                         Task { await toggleFollow(member.id) }
                     }
                 }
@@ -133,18 +135,31 @@ struct FollowListScreen: View {
             iFollow.remove(id)
             do { try await SupabaseService.shared.unfollow(id) }
             catch { iFollow.insert(id); ToastCenter.shared.saveFailed() }
+        } else if requested.contains(id) {
+            // Tap "Requested" to withdraw a pending request to a private account.
+            requested.remove(id)
+            do { try await SupabaseService.shared.cancelFollowRequest(id) }
+            catch { requested.insert(id); ToastCenter.shared.saveFailed() }
         } else {
-            iFollow.insert(id)
-            do { try await SupabaseService.shared.requestFollow(id) }
-            catch { iFollow.remove(id); ToastCenter.shared.saveFailed() }
+            do {
+                // Public follows instantly; private returns "requested" (pending).
+                let result = try await SupabaseService.shared.requestFollow(id)
+                if result == "requested" { requested.insert(id) } else { iFollow.insert(id) }
+            }
+            catch { ToastCenter.shared.saveFailed() }
         }
     }
 
     private func load() async {
-        members = (try? await SupabaseService.shared
-            .followMembers(of: userID, direction: direction)) ?? []
+        // Tag the load with its direction so a slow first tab can't land last
+        // and overwrite the tab the user has since switched to.
+        let d = direction
+        let rows = (try? await SupabaseService.shared
+            .followMembers(of: userID, direction: d)) ?? []
         // which of these do *I* already follow (for the button state)
         let mine = (try? await SupabaseService.shared.following()) ?? []
+        guard d == direction else { return }
+        members = rows
         iFollow = Set(mine.map(\.id))
         loaded = true
     }
