@@ -77,9 +77,9 @@ struct FeedView: View {
             .task { await loadFeed() }   // loadFeed also refreshes friendsWatchingRows
             .task(id: store.isLoaded) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
-            // Profile loads slightly after the store, and both the day-5
-            // Tonight's-Pick gate and the notifications re-ask need it — so
-            // re-run once memberSince/watchedCount are actually known.
+            // The notifications re-ask needs the profile (memberSince), which
+            // loads slightly after the store — re-run once it's known. (The
+            // Tonight's-Pick gate is taste-based now and rides store.isLoaded.)
             .task(id: session.profile?.id) {
                 await loadTonightStack()
                 await maybeAskNotifications()
@@ -523,10 +523,10 @@ struct FeedView: View {
                 .zIndex(1)
             } else if tonightUnlocked && !dismissedTonightToday().isEmpty {
                 // Only after the user has actually cleared TODAY's deck (picks
-                // exist past day 5, and they've dismissed/ranked through them).
+                // are unlocked, and they've dismissed/ranked through them).
                 // Driving this off the persisted 24h suppression alone made the
                 // "that's a wrap" card appear with no cards ever shown — e.g. a
-                // stale window, the morning after a late clear, or before day 5.
+                // stale window, the morning after a late clear, or before unlock.
                 TonightEmptyState {
                     tabRouter.selection = .swipe
                 }
@@ -708,12 +708,16 @@ struct FeedView: View {
         Date().timeIntervalSince1970 < tonightSuppressedUntil
     }
 
-    /// Tonight's Picks unlock on day 5. A brand-new account has little taste
-    /// signal yet, so the first few days steer toward ranking; the daily
-    /// "watch this tonight" hook arrives once recs can actually be personal.
+    /// How many ranked titles before the daily pick can be personal. Low enough
+    /// that a user who ranks during onboarding unlocks it the same day, high
+    /// enough that we never lead with a pick drawn from almost no taste signal.
+    private static let tonightUnlockRanks = 5
+
+    /// Tonight's Picks unlock on taste signal, not a fixed wait: once there are
+    /// a few ranked titles the daily "watch this tonight" hook can be personal,
+    /// so a motivated new user gets it on day one instead of after five days.
     private var tonightUnlocked: Bool {
-        guard let since = session.profile?.memberSince else { return false }
-        return Date().timeIntervalSince(since) >= 5 * 24 * 60 * 60
+        store.watchedCount >= Self.tonightUnlockRanks
     }
 
     /// The second, well-timed notifications ask. Onboarding no longer nags on
@@ -734,8 +738,8 @@ struct FeedView: View {
     }
 
     private func loadTonightStack(force: Bool = false) async {
-        // Held back for the first 5 days (see tonightUnlocked) — no Tonight's
-        // Pick section at all until then.
+        // Held back until there's enough taste signal (see tonightUnlocked) —
+        // no Tonight's Pick section until a few titles are ranked.
         guard tonightUnlocked else { tonightCards = []; return }
         // Cleared the deck in the last 24h? Stay empty (the empty state shows),
         // even on a manual refresh — no new picks until the window passes.
