@@ -89,8 +89,10 @@ struct MovieDetailView: View {
                 WatchingControl(movie: movie, info: extended)
                     .padding(.horizontal, 16)
                 nextEpisodeRow
-                histogramSection
                 yourDetailsSection
+                // Cast, the ratings histogram, and extra metadata live under a
+                // collapsed "More" — the page leads with your take, where to
+                // watch, and what people think (notes stay always-visible below).
                 moreInfoSection
                 performancesSection
                 peopleSection
@@ -506,14 +508,14 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private var moreInfoSection: some View {
-        if !cast.isEmpty || extended != nil {
+        if !cast.isEmpty || extended != nil || !histogram.isEmpty {
             VStack(alignment: .leading, spacing: 18) {
                 Button {
                     Haptics.tap()
                     withAnimation(.snappy) { showMoreInfo.toggle() }
                 } label: {
                     HStack {
-                        Text("Cast & Details")
+                        Text("More")
                             .font(.title3.weight(.bold))
                             .foregroundStyle(Theme.ink)
                         Spacer()
@@ -528,6 +530,7 @@ struct MovieDetailView: View {
 
                 if showMoreInfo {
                     castSection
+                    histogramSection
                     detailsSection
                 }
             }
