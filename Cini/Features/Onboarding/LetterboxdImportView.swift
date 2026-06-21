@@ -132,8 +132,14 @@ struct LetterboxdImportView: View {
                 isPresented: $showPicker,
                 allowedContentTypes: [.zip, .commaSeparatedText, .plainText]
             ) { pickResult in
-                if case .success(let url) = pickResult {
+                switch pickResult {
+                case .success(let url):
                     importTask = Task { await runImport(from: [url]) }
+                case .failure:
+                    // iOS failed to hand us the file — say so instead of leaving
+                    // the user on a silent pick screen wondering what happened.
+                    Haptics.error()
+                    errorMessage = "Couldn't open that file — try again, or paste your list instead."
                 }
             }
         }
@@ -547,7 +553,11 @@ struct LetterboxdImportView: View {
             transferCode = nil
             await runImport(from: urls)
         } catch {
-            errorMessage = "Got your file but couldn't read it - try again."
+            // Clear the transfer code too, otherwise the "Waiting for your
+            // upload…" spinner hangs forever behind the error.
+            transferCode = nil
+            Haptics.error()
+            errorMessage = "Got your file but couldn't read it — try again."
         }
     }
 
@@ -619,18 +629,27 @@ struct LetterboxdImportView: View {
                 }
             }
 
-            // Letterboxd watchlist → Cini watchlist.
+            // Letterboxd watchlist → Cini watchlist. Keep the bar moving and
+            // honor Stop — these are one network call per title, so a big
+            // watchlist would otherwise look frozen at 100%.
             if importWatchlist {
-                for match in outcome.watchlist
-                where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
+                let pending = outcome.watchlist.filter {
+                    !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
+                }
+                for (i, match) in pending.enumerated() {
+                    if Task.isCancelled { break }
+                    progressText = "Saving your watchlist… \(i + 1) of \(pending.count)"
+                    progressFraction = Double(i + 1) / Double(max(pending.count, 1))
                     await store.toggleWatchlist(movie: match.movie)
                 }
             }
 
             // Letterboxd custom lists → Cini lists (same name reused).
-            if !outcome.importedLists.isEmpty {
+            if !Task.isCancelled, !outcome.importedLists.isEmpty {
+                progressText = "Rebuilding your lists…"
                 let existing = (try? await SupabaseService.shared.myLists()) ?? []
                 for list in outcome.importedLists {
+                    if Task.isCancelled { break }
                     var target = existing.first {
                         $0.name.localizedCaseInsensitiveCompare(list.name) == .orderedSame
                     }
@@ -639,6 +658,7 @@ struct LetterboxdImportView: View {
                     }
                     guard let target else { continue }
                     for match in list.matches {
+                        if Task.isCancelled { break }
                         store.cache(match.movie)
                         try? await SupabaseService.shared.cacheMovie(match.movie)
                         try? await SupabaseService.shared.addToList(target.id, movieID: match.movie.tmdbID)
@@ -651,6 +671,10 @@ struct LetterboxdImportView: View {
             Haptics.success()
             ToastCenter.shared.show(successLine(for: outcome))
             withAnimation(.snappy) { phase = .summary }
+        } catch is CancellationError {
+            // User tapped Stop during matching — return to the picker quietly,
+            // no error banner.
+            withAnimation(.snappy) { phase = .pick }
         } catch {
             Haptics.error()
             errorMessage = (error as? LocalizedError)?.errorDescription
