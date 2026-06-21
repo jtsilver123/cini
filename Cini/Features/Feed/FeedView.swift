@@ -284,77 +284,85 @@ struct FeedView: View {
         .padding(.top, 8)
     }
 
-    /// A standing "bring friends in" card for the lonely feed — the social
-    /// layer is what makes the app sing, so a solo user always has a one-tap
-    /// path to it. Disappears on its own once friends start showing up.
-    private var inviteNudge: some View {
-        HairlineCard {
-            HStack(spacing: 12) {
-                Image(systemName: "person.2.fill")
-                    .font(.title3)
-                    .foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Cini's better with friends")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Compare taste and see what they're watching.")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Button {
-                    Haptics.tap()
-                    showInviteSheet = true
-                } label: {
-                    Text("Invite")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(Theme.background)
-                        .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(Capsule().fill(Theme.marquee))
-                }
-                .buttonStyle(.plain)
-            }
-        }
+    /// Go follow more people — the in-app, highest-yield way to fuel the feed.
+    private func openFindFriends() {
+        tabRouter.openMembersSearch = true
+        tabRouter.selection = .search
     }
 
-    /// Friendless-but-active feed: the feed only comes alive with friends, so
-    /// lead with the payoff — "see what your friends are watching" — and one
-    /// clear way to bring them in. This is the single strongest referral moment:
-    /// the user is already getting value from ranking, and the empty feed is the
-    /// reason to invite. Find friends (in-app) is primary; invite (off-app) is
-    /// the secondary path for friends who aren't on Cini yet.
-    private var friendsFeedCTA: some View {
-        HairlineCard {
-            VStack(spacing: 14) {
-                Image(systemName: "person.2.fill")
-                    .font(.title)
-                    .foregroundStyle(Theme.marquee)
-                Text("See what your friends are watching")
-                    .font(Theme.serif(24))
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Theme.ink)
-                Text("Your feed lights up the moment your friends join — their rankings, reviews, and what they're watching now.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-                    .multilineTextAlignment(.center)
-
-                PillButton(title: "Find your friends", systemImage: "magnifyingglass") {
-                    tabRouter.openMembersSearch = true
-                    tabRouter.selection = .search
+    /// "Bring friends in" card, shown until you follow enough people for a lively
+    /// feed (`friendsFeedBar`). The feed — friends' rankings and what they're
+    /// watching — is the payoff worth referring for, so we keep this in front of
+    /// thin-graph users. Two treatments share the same two actions (find friends
+    /// in-app; invite off-app):
+    ///   • `compact: false` — a big payoff card for a user who follows no one.
+    ///   • `compact: true`  — a slim "follow a few more" card once they've got
+    ///     at least one friend, so it doesn't dominate an active feed.
+    @ViewBuilder private func friendsFeedCTA(compact: Bool) -> some View {
+        if compact {
+            HairlineCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.2.fill")
+                            .font(.title3)
+                            .foregroundStyle(Theme.marquee)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Cini's better with more friends")
+                                .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
+                            Text("Follow a few more to fill your feed with what they're watching.")
+                                .font(.caption).foregroundStyle(Theme.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: 14) {
+                        PillButton(title: "Find friends", systemImage: "magnifyingglass") {
+                            openFindFriends()
+                        }
+                        Button {
+                            Haptics.tap()
+                            showInviteSheet = true
+                        } label: {
+                            Text("Invite")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                Button {
-                    Haptics.tap()
-                    showInviteSheet = true
-                } label: {
-                    Text("Invite friends to Cini")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.marquee)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-        }
+        } else {
+            HairlineCard {
+                VStack(spacing: 14) {
+                    Image(systemName: "person.2.fill")
+                        .font(.title)
+                        .foregroundStyle(Theme.marquee)
+                    Text("See what your friends are watching")
+                        .font(Theme.serif(24))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(Theme.ink)
+                    Text("Your feed lights up the moment your friends join — their rankings, reviews, and what they're watching now.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+
+                    PillButton(title: "Find your friends", systemImage: "magnifyingglass") {
+                        openFindFriends()
+                    }
+                    Button {
+                        Haptics.tap()
+                        showInviteSheet = true
+                    } label: {
+                        Text("Invite friends to Cini")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 4)
+            }
     }
 
     /// "Popular on Cini" — a horizontal poster shelf of trending titles with
@@ -588,28 +596,15 @@ struct FeedView: View {
                 askForRecsRow
             }
 
-            // Active but friendless: the feed is dark because you follow no one.
-            // Lead with the payoff — friends' rankings and what they're watching —
-            // since the feed is the thing worth bringing people in for. Placed
-            // ABOVE the Popular shelf so the referral ask is the headline, not a
-            // footnote. (Brand-new users with nothing ranked still get the
-            // "rank your first" empty state below instead.)
-            if feedLoaded, events.isEmpty,
-               friendsCache.following.isEmpty, store.watchedCount > 0 {
-                friendsFeedCTA
-            }
-
-            // The feed is only as alive as your friend list — while it's sparse
-            // (but not empty, where the empty state already nudges follows),
-            // keep a standing reason to bring people in. Self-limiting: it
-            // disappears once friends' activity fills the feed. Held until the
-            // user is engaged (≥5 ranked, the app-wide "engaged" bar) so we
-            // never lead a brand-new feed with an invite ask — the Popular shelf
-            // below carries the cold-start until then.
-            if feedLoaded, !events.isEmpty, events.count < 3,
-               store.watchedCount >= Self.engagedRankBar {
-                inviteNudge
-                    .padding(.top, 4)
+            // Bring-friends-in card, shown until the friend graph is big enough
+            // for a lively feed (gated on friend COUNT — see friendsNudgeMode).
+            // Placed ABOVE the Popular shelf so the referral ask is the headline,
+            // not a footnote. `.full` is the big payoff card for a friendless
+            // user; `.compact` is a slim "follow a few more" card once they've
+            // got at least one friend, so it doesn't dominate an active feed.
+            if let mode = friendsNudgeMode {
+                friendsFeedCTA(compact: mode == .compact)
+                    .padding(.top, mode == .compact ? 4 : 0)
             }
 
             // Popular on Cini — keeps a thin/new feed alive with fresh titles
@@ -622,10 +617,11 @@ struct FeedView: View {
 
             if events.isEmpty {
                 if feedLoaded {
-                    // The friendless-but-active CTA is rendered above (over the
-                    // Popular shelf). Here we only handle the brand-new user and
-                    // the "has friends but quiet feed" cases.
-                    if !(friendsCache.following.isEmpty && store.watchedCount > 0) {
+                    // The friends nudge above already covers the thin-graph cases.
+                    // Here we only show the first-run "rank your first movie"
+                    // state when no friends card is being shown (brand-new user,
+                    // or a user with enough friends but a momentarily quiet feed).
+                    if friendsNudgeMode == nil {
                         emptyState
                     }
                 } else {
@@ -780,6 +776,33 @@ struct FeedView: View {
     /// card). Low enough that a user who ranks during onboarding clears it the
     /// same day, high enough that we never pile asks onto a near-empty account.
     private static let engagedRankBar = 5
+
+    /// Below this many followed accounts, the feed is too thin to feel alive, so
+    /// we keep a "bring friends in" card in front of the user. (A user who only
+    /// follows the founder still has a one-person graph even if that account
+    /// posts a lot — so this gates on friend COUNT, not feed volume.)
+    private static let friendsFeedBar = 5
+
+    /// Which "bring friends in" card to show, if any. Gated on how many people
+    /// you follow, not how full the feed looks.
+    private enum FriendsNudge { case full, compact }
+    private var friendsNudgeMode: FriendsNudge? {
+        guard feedLoaded else { return nil }
+        let friends = friendsCache.following.count
+        guard friends < Self.friendsFeedBar else { return nil }
+        if friends == 0 {
+            // The feed is built from people you follow, so a non-empty feed with
+            // a zero friend count just means the friends cache hasn't loaded yet
+            // — fall back to the slim card instead of flashing the big "no
+            // friends" card over real activity.
+            if !events.isEmpty { return .compact }
+            // Truly friendless + empty feed: only an already-active user gets the
+            // big payoff card. A brand-new user with nothing ranked sees the
+            // first-run "rank your first movie" state instead.
+            return store.watchedCount > 0 ? .full : nil
+        }
+        return .compact
+    }
 
     /// Tonight's Picks unlock on taste signal, not a fixed wait: once there are
     /// a few ranked titles the daily "watch this tonight" hook can be personal,
