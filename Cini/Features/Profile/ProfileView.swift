@@ -467,11 +467,13 @@ struct ProfileScreen: View {
                 }
                 .accessibilityAddTraits(profile?.avatarURL != nil ? .isButton : [])
             Text("@\(profile?.username ?? username ?? "—")").font(.headline)
+                .lineLimit(1).truncationMode(.tail)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
             if let bio = profile?.bio, !bio.isEmpty {
                 Text(bio)
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
+                    .lineLimit(3)
                     .padding(.horizontal, 24)
             }
             if let links = profile?.socialLinks, !links.isEmpty {
@@ -496,7 +498,7 @@ struct ProfileScreen: View {
             // show a gentle placeholder instead of hiding it.
             if !isSelf {
                 VStack(spacing: 6) {
-                    Text(matchPct.map { "+\(Int($0))% Match" } ?? "Taste match pending")
+                    Text(matchPct.map { "\(Int($0))% match" } ?? "Rank more to see your match")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(matchPct == nil ? Theme.gray : Theme.scoreGreen)
                     if matchPct != nil {

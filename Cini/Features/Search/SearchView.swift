@@ -325,7 +325,7 @@ struct SearchView: View {
             }
             if results.isEmpty {
                 if browseLoaded {
-                    Text("Nothing here right now — try another filter.")
+                    Text("Nothing playing under this filter — try Movies, TV, or another genre.")
                         .font(.subheadline).foregroundStyle(Theme.gray)
                         .padding(.vertical, 12)
                 } else {

@@ -495,6 +495,13 @@ struct LogFlowView: View {
             Text("Which do you prefer?")
                 .font(.title3.weight(.bold))
 
+            // A finite, advancing bar so it's clear how close the comparisons
+            // are to done — otherwise repeated questions feel open-ended.
+            ProgressView(value: current.progress)
+                .tint(Theme.marquee)
+                .frame(maxWidth: 180)
+                .animation(.snappy, value: current.progress)
+
             if let opponentID = current.currentOpponent {
                 HStack(spacing: 0) {
                     comparisonOption(

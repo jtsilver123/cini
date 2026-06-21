@@ -151,7 +151,7 @@ struct ProductTourView: View {
                     .font(Theme.serif(20)).foregroundStyle(.white)
                 Spacer(minLength: 8)
                 Button { isLast ? finish() : advance() } label: {
-                    Text(isLast ? "Start swiping" : "Got it!")
+                    Text(isLast ? "Start ranking" : "Got it!")
                         .font(.footnote.weight(.bold)).foregroundStyle(.white)
                         .padding(.horizontal, 16).padding(.vertical, 7)
                         .overlay(Capsule().strokeBorder(.white.opacity(0.9), lineWidth: 1.5))

@@ -36,7 +36,7 @@ struct PlanWatchSheet: View {
             .navigationTitle("Movie night")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
         .task { await load() }

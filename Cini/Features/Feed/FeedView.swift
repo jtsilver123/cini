@@ -231,7 +231,7 @@ struct FeedView: View {
                     ReleaseCalendarView()
                 } label: {
                     Image(systemName: "calendar")
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Release calendar")
@@ -244,7 +244,7 @@ struct FeedView: View {
                                 Circle().fill(.red).frame(width: 7, height: 7).offset(x: 2, y: -2)
                             }
                         }
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Notifications")
@@ -276,7 +276,7 @@ struct FeedView: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Menu")

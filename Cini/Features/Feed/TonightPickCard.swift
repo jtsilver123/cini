@@ -127,9 +127,11 @@ struct TonightPickCard: View {
                         .foregroundStyle(.white)
                         .padding(7)
                         .background(Circle().fill(.black.opacity(0.45)))
+                        .frame(width: 44, height: 44)   // full 44pt tap target
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(12)
+                .padding(.all, 4)
                 .accessibilityLabel("Not tonight")
             }
         }

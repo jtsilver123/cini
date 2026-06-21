@@ -1,185 +1,5 @@
 import SwiftUI
 
-// MARK: - All of someone's lists (profile row)
-
-struct CustomListsScreen: View {
-    let userID: UUID?
-    let isSelf: Bool
-
-    @Environment(TabRouter.self) private var tabRouter
-    @Environment(RankingStore.self) private var store
-    @State private var lists: [CustomList] = []
-    @State private var loaded = false
-    @State private var newName = ""
-    // A list holds one media kind — let the creator pick (Movies or TV) so a
-    // TV list isn't silently forced to Movies and then hidden from the TV tab.
-    @State private var newKind = "movie"
-    @State private var doomedLists: [CustomList] = []
-    @State private var renameTarget: CustomList?
-    @State private var renameText = ""
-
-    var body: some View {
-        List {
-            if isSelf {
-                VStack(spacing: 10) {
-                    HStack {
-                        TextField("New list", text: $newName)
-                        Button("Create") {
-                            Task {
-                                let name = newName.trimmingCharacters(in: .whitespaces)
-                                guard !name.isEmpty else { return }
-                                guard await store.createList(name: name, mediaKind: newKind) != nil else {
-                                    ToastCenter.shared.saveFailed()
-                                    return
-                                }
-                                newName = ""
-                                // Reconcile from the shared cache so the
-                                // add-to-list picker sees it too.
-                                lists = store.customLists
-                            }
-                        }
-                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                    Picker("List type", selection: $newKind) {
-                        Text("Movies").tag("movie")
-                        Text("TV Shows").tag("tv")
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .listRowBackground(Theme.background)
-            }
-
-            if !loaded {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Theme.background)
-            } else if lists.isEmpty {
-                Text(isSelf ? "No lists yet — make your first above, then add titles from any movie or show page."
-                            : "No public lists yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.gray)
-                    .listRowBackground(Theme.background)
-            }
-
-            ForEach(lists) { list in
-                Group {
-                    if isSelf {
-                        // Your own list opens in the Lists tab, selected —
-                        // one home for your lists, never an in-profile copy.
-                        Button {
-                            tabRouter.pendingCustomListID = list.id
-                            tabRouter.selection = .lists
-                        } label: {
-                            listLabel(list)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        NavigationLink {
-                            CustomListScreen(list: list, isSelf: isSelf)
-                        } label: {
-                            listLabel(list)
-                        }
-                    }
-                }
-                .listRowBackground(Theme.background)
-                .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                    if isSelf {
-                        Button {
-                            renameTarget = list
-                            renameText = list.name
-                        } label: {
-                            Label("Rename", systemImage: "pencil")
-                        }
-                        .tint(Theme.marquee)
-                    }
-                }
-            }
-            .onDelete(perform: isSelf ? { offsets in
-                doomedLists = offsets.map { lists[$0] }
-            } : nil)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .nativeContentWidth()
-        .background(Theme.background)
-        // A whole list is hours of curation — deleting one confirms.
-        .alert(
-            "Delete \(doomedLists.first?.name ?? "this list")?",
-            isPresented: Binding(get: { !doomedLists.isEmpty },
-                                 set: { if !$0 { doomedLists = [] } })
-        ) {
-            Button("Delete list", role: .destructive) {
-                let doomed = doomedLists
-                doomedLists = []
-                lists.removeAll { list in doomed.contains { $0.id == list.id } }
-                Task {
-                    for list in doomed {
-                        await store.deleteList(list.id)
-                    }
-                    // The store is now authoritative — reconcile this
-                    // screen so a failed delete can't leave a phantom.
-                    if let userID, userID == SupabaseService.shared.currentUserID {
-                        lists = store.customLists
-                    }
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Its titles stay on your other lists — only this list goes.")
-        }
-        .alert("Rename list", isPresented: Binding(
-            get: { renameTarget != nil },
-            set: { if !$0 { renameTarget = nil } })
-        ) {
-            TextField("List name", text: $renameText)
-            Button("Save") {
-                guard let target = renameTarget else { return }
-                let name = renameText.trimmingCharacters(in: .whitespaces)
-                renameTarget = nil
-                guard !name.isEmpty, name != target.name else { return }
-                Task {
-                    if await store.renameList(target.id, to: name) {
-                        lists = store.customLists
-                    }
-                }
-            }
-            .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
-            Button("Cancel", role: .cancel) { renameTarget = nil }
-        } message: {
-            Text("Pick a new name — it updates everywhere this list appears.")
-        }
-        .navigationTitle("Lists")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            if let userID {
-                lists = (try? await SupabaseService.shared.lists(of: userID)) ?? []
-            }
-            loaded = true
-        }
-    }
-
-    private func listLabel(_ list: CustomList) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: "list.star")
-                .font(.title3)
-                .foregroundStyle(Theme.marquee)
-                .frame(width: 30)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(list.name).font(.headline).foregroundStyle(Theme.ink)
-                Text("\(list.count) title\(list.count == 1 ? "" : "s")")
-                    .font(.caption)
-                    .foregroundStyle(Theme.gray)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-}
-
 // MARK: - One list's movies
 
 struct CustomListScreen: View {
@@ -349,18 +169,17 @@ struct CustomListScreen: View {
         let doomed = offsets.map { movieIDs[$0] }
         withAnimation { movieIDs.remove(atOffsets: offsets) }
         Task {
+            // Through the store so listsRevision bumps and other surfaces
+            // refresh (it toasts on failure).
             var failed = false
             for id in doomed {
-                do {
-                    try await SupabaseService.shared.removeFromList(list.id, movieID: id)
-                } catch { failed = true }
+                if !(await store.removeFromList(list.id, movieID: id)) { failed = true }
             }
             if failed {
                 // A swallowed failure used to "resurrect" the title on the next
                 // fetch in some random spot. Restore the original order in place
-                // and say it didn't stick, so the user keeps their bearings.
+                // so the user keeps their bearings.
                 withAnimation { movieIDs = previous }
-                ToastCenter.shared.saveFailed()
             } else {
                 ToastCenter.shared.showUndo(
                     doomed.count == 1 ? "Removed from list" : "Removed \(doomed.count) from list"
@@ -370,7 +189,8 @@ struct CustomListScreen: View {
                     withAnimation { movieIDs = previous }
                     Task {
                         for id in doomed {
-                            try? await SupabaseService.shared.addToList(list.id, movieID: id)
+                            if let m = store.movie(id) { await store.addToList(list.id, movie: m) }
+                            else { try? await SupabaseService.shared.addToList(list.id, movieID: id) }
                         }
                         movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? previous
                     }
