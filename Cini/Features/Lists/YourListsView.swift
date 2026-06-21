@@ -1,8 +1,8 @@
 import SwiftUI
 import RankingEngine
 
-/// "MY LISTS": category switcher, Watched/Watchlist/Recs/Guides sub-tabs,
-/// filter pills, sort control, and ranked rows.
+/// "MY LISTS": category switcher, Watched/Want to Watch/Watching/Friend Recs
+/// sub-tabs, filter pills, sort control, and ranked rows.
 struct YourListsView: View {
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
