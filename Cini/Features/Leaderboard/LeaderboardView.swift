@@ -196,9 +196,9 @@ struct InviteSheet: View {
                 // (that's what made this screen feel glitchy while scrolling).
                 LazyVStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Bring your movie crew")
+                        Text("See what your friends are watching")
                             .font(Theme.serif(30)).foregroundStyle(Theme.ink)
-                        Text("Cini comes alive with friends — invite a few and you'll see what they're watching and how your taste lines up. When someone joins with your link, you follow each other automatically, so your feed fills up right away.")
+                        Text("Invite them to Cini — when they join, you follow each other automatically.")
                             .font(.subheadline).foregroundStyle(Theme.gray)
                     }
 
