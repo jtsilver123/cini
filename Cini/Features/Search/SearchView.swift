@@ -18,6 +18,9 @@ struct SearchView: View {
     /// Pending follow requests to private accounts — shown as "Requested" so the
     /// button doesn't claim "Following" before they approve.
     @State private var requestedFromSearch: Set<UUID> = []
+    /// Suggestion cards the user dismissed (✕) this session — hidden from the
+    /// People-you-may-know / Suggested carousels.
+    @State private var dismissedSuggestions: Set<UUID> = []
     @State private var suggested: [SuggestedMember] = []
     @State private var peopleYouMayKnow: [SuggestedMember] = []
     @State private var contactMatches: [SuggestedMember] = []
@@ -434,32 +437,20 @@ struct SearchView: View {
             }
 
             // People you may know — friends of friends. The strongest signal, so
-            // it leads, and the lowest-friction way to grow your graph (follow,
-            // don't cold-invite). Hidden until there's at least one to show.
-            if !peopleYouMayKnow.isEmpty {
-                Text("PEOPLE YOU MAY KNOW")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Theme.gray)
-                    .padding(.top, 10)
-                ForEach(peopleYouMayKnow) { member in
-                    suggestedRow(member, reason: mutualsReason(member))
-                    Divider()
-                }
+            // it leads. Shown as a Beli-style avatar-card carousel.
+            if !visiblePeopleYouMayKnow.isEmpty {
+                sectionHeader("PEOPLE YOU MAY KNOW")
+                memberCarousel(visiblePeopleYouMayKnow, reason: mutualsReason)
             }
 
-            Text("SUGGESTED FOR YOU")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Theme.gray)
-                .padding(.top, 10)
-            if dedupedSuggested.isEmpty {
+            sectionHeader("SUGGESTED FOR YOU")
+            if visibleSuggested.isEmpty {
                 Text("Suggestions appear as more people join — invite a few friends.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .padding(.vertical, 12)
-            }
-            ForEach(dedupedSuggested) { member in
-                suggestedRow(member, reason: suggestionReason(member))
-                Divider()
+            } else {
+                memberCarousel(visibleSuggested, reason: suggestionReason)
             }
 
             Button {
@@ -506,6 +497,84 @@ struct SearchView: View {
         return suggested.filter { !pymk.contains($0.id) }
     }
 
+    /// People-you-may-know minus cards the user dismissed this session.
+    private var visiblePeopleYouMayKnow: [SuggestedMember] {
+        peopleYouMayKnow.filter { !dismissedSuggestions.contains($0.id) }
+    }
+    /// Deduped suggestions minus dismissed cards.
+    private var visibleSuggested: [SuggestedMember] {
+        dedupedSuggested.filter { !dismissedSuggestions.contains($0.id) }
+    }
+
+    private func sectionHeader(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Theme.gray)
+            .padding(.top, 10)
+    }
+
+    /// Beli-style horizontal carousel of avatar cards. Bleeds to the screen
+    /// edges (cancels the parent's screen padding) so cards scroll off-screen.
+    private func memberCarousel(_ members: [SuggestedMember],
+                                reason: @escaping (SuggestedMember) -> String) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(members) { member in
+                    memberCard(member, reason: reason(member))
+                }
+            }
+            .padding(.horizontal, Theme.screenH)
+            .padding(.vertical, 4)
+        }
+        .padding(.horizontal, -Theme.screenH)
+    }
+
+    /// A single suggestion card: big circular avatar + name + reason + Follow,
+    /// with a ✕ to dismiss. The avatar/name tap opens the profile; the ✕ and
+    /// Follow are separate buttons on top (nesting them in the link would break
+    /// hit-testing).
+    private func memberCard(_ member: SuggestedMember, reason: String) -> some View {
+        VStack(spacing: 10) {
+            ZStack(alignment: .topTrailing) {
+                NavigationLink {
+                    MemberProfileView(userID: member.id, username: member.username)
+                } label: {
+                    VStack(spacing: 8) {
+                        AvatarView(url: member.avatarUrl.flatMap(URL.init), size: 72,
+                                   name: member.displayName.isEmpty ? member.username : member.displayName)
+                        VStack(spacing: 2) {
+                            Text(firstName(member.displayName, member.username) ?? member.username)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink).lineLimit(1)
+                            Text(reason)
+                                .font(.caption).foregroundStyle(Theme.gray)
+                                .lineLimit(1).multilineTextAlignment(.center)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    Haptics.tap()
+                    withAnimation(.snappy) { _ = dismissedSuggestions.insert(member.id) }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Theme.gray)
+                        .padding(6)
+                        .background(Circle().fill(Theme.fill))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss \(member.username)")
+            }
+            followButton(member.id, fill: true)
+        }
+        .padding(12)
+        .frame(width: 150)
+        .floatingCard(cornerRadius: 18)
+    }
+
     private func suggestionReason(_ member: SuggestedMember) -> String {
         if let pct = member.matchPct, pct > 0 {
             return "\(Int(pct))% taste match · \(member.watched) titles"
@@ -540,11 +609,12 @@ struct SearchView: View {
 
     /// Follow / Requested / Following, styled and accurate (private accounts go
     /// to "Requested," not a premature "Following"). Shared by every member row.
-    @ViewBuilder private func followButton(_ id: UUID) -> some View {
+    @ViewBuilder private func followButton(_ id: UUID, fill: Bool = false) -> some View {
         let following = followedFromSearch.contains(id)
         let requested = requestedFromSearch.contains(id)
         PillButton(title: following ? "Following" : (requested ? "Requested" : "Follow"),
-                   style: (following || requested) ? .outlined : .filled) {
+                   style: (following || requested) ? .outlined : .filled,
+                   fill: fill) {
             Task { await toggleFollow(id) }
         }
     }

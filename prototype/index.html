@@ -1234,6 +1234,17 @@ function renderMembersTab(){
       <div style="flex:1; text-align:center; padding-bottom:10px; border-bottom:2.5px solid var(--marquee); color:var(--marquee); font-weight:700;">${I("users",17)} Members</div>
     </div>
     <div class="pad" style="margin-top:16px;"><div class="searchfield" style="color:var(--gray);">${I("search",17)}&ensp;Search members</div></div>
+    <div class="pad" style="margin-top:16px; font-size:12px; letter-spacing:.06em; color:var(--gray); font-weight:700;">PEOPLE YOU MAY KNOW</div>
+    <div class="row-scroll" style="padding-left:16px; padding-right:16px; margin-top:10px;">
+      ${MEMBERS.map((p,i)=>`<div style="flex:0 0 auto; width:148px; background:var(--surface); border:1px solid var(--hair); border-radius:18px; padding:12px; text-align:center; position:relative;">
+        <button aria-label="Dismiss" onclick="toast('Dismissed')" style="position:absolute; top:8px; right:8px; border:none; background:var(--surface-2); border-radius:50%; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; color:var(--gray); cursor:pointer;">${I("x",12)}</button>
+        <div class="avatar ${p.av}" style="width:64px; height:64px; margin:2px auto 0; font-size:24px; cursor:pointer;" onclick="openMember('${p.u}')">${p.n[0]}</div>
+        <div style="font-weight:700; margin-top:8px; cursor:pointer;" onclick="openMember('${p.u}')">${p.n}</div>
+        <div class="sub" style="font-size:12px;">${i+2} mutual friends</div>
+        <button class="pill ${S.followed[p.u]?"ghost on":""}" style="width:100%; justify-content:center; margin-top:10px;" onclick="toggleFollow('${p.u}')">${S.followed[p.u]?"Following":"Follow"}</button>
+      </div>`).join("")}
+    </div>
+    <div class="pad" style="margin-top:18px; font-size:12px; letter-spacing:.06em; color:var(--gray); font-weight:700;">ALL MEMBERS</div>
     <div style="margin-top:8px;">
       ${MEMBERS.map(p=>`<div class="listrow" style="align-items:center;">
         <div class="avatar ${p.av}" style="width:46px;height:46px;" onclick="openMember('${p.u}')">${p.n[0]}</div>
