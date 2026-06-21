@@ -286,8 +286,11 @@ struct OnboardingView: View {
                             }
                         switch availability {
                         case .available: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                                .accessibilityLabel("Username available")
                         case .taken: Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.scoreRed)
+                                .accessibilityLabel("Username taken")
                         case .checking: ProgressView().controlSize(.small)
+                                .accessibilityLabel("Checking username availability")
                         case .unknown: EmptyView()
                         }
                     }
@@ -675,6 +678,10 @@ struct OnboardingView: View {
                     Text("As you rank, Cini learns your taste and starts suggesting what to watch.")
                         .font(.caption).foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center).padding(.horizontal, 36)
+                    PillButton(title: "Try again", style: .outlined) {
+                        Task { await loadOnboardingRecs(force: true) }
+                    }
+                    .padding(.top, 4)
                 }
                 Spacer()
             } else {

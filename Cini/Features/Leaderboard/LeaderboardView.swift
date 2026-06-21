@@ -1,7 +1,7 @@
 import SwiftUI
 import Contacts
 
-/// Serif "Leaderboard" header, Invite pill, Watched/Influence/Notes/Photos
+/// Serif "Leaderboard" header, Invite pill, Watched/Influence/Notes
 /// metric control, genre filter, and ranked rows with taste-match lines.
 struct LeaderboardView: View {
     @Environment(AppSession.self) private var session

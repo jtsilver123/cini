@@ -257,6 +257,10 @@ final class RankingStore {
             // One retry — a transient network blip shouldn't drop a rank.
             try? await Task.sleep(for: .seconds(1))
             do {
+                if let movie = movies[session.newItemID] {
+                    // rank_insert FKs onto movies — the cache isn't optional.
+                    try await supabase.cacheMovie(movie)
+                }
                 _ = try await supabase.rankInsert(
                     movieID: session.newItemID,
                     bucket: session.sentiment,
@@ -469,7 +473,8 @@ final class RankingStore {
             detailed.streamingOn = providers.streamingNames
         }
         movies[movieID] = detailed
-        try? await supabase.cacheMovie(detailed)
+        do { try await supabase.cacheMovie(detailed) }
+        catch { SupabaseService.logSwallowed("enrich_cache_movie", error) }
     }
 }
 

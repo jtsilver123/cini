@@ -480,9 +480,9 @@ struct SearchView: View {
 
     private func suggestionReason(_ member: SuggestedMember) -> String {
         if let pct = member.matchPct, pct > 0 {
-            return "\(Int(pct))% taste match · \(member.watched) films"
+            return "\(Int(pct))% taste match · \(member.watched) titles"
         }
-        return member.watched > 0 ? "\(member.watched) films ranked" : "New here too"
+        return member.watched > 0 ? "\(member.watched) titles ranked" : "New here too"
     }
 
     private func suggestedRow(_ member: SuggestedMember, reason: String) -> some View {

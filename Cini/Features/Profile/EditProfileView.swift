@@ -96,8 +96,10 @@ struct EditProfileView: View {
                             }
                         if usernameTaken {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.scoreRed)
+                                .accessibilityLabel("Username taken")
                         } else if usernameValid && username.lowercased() != profile.username {
                             Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                                .accessibilityLabel("Username available")
                         }
                     }
                     if !usernameValid {

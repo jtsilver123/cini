@@ -1284,7 +1284,9 @@ struct YourListsView: View {
         .listStyle(.plain)
         .overlay {
             if recsLoaded && filteredRecs.isEmpty {
-                emptyList("No recs match these filters — loosen one, or follow more friends.")
+                emptyList(hasActiveFilters
+                    ? "No recs match these filters — loosen one, or follow more friends."
+                    : "No recs yet — follow friends or rank a few titles to get started.")
             } else if !recsLoaded && recCandidates.isEmpty {
                 SearchSkeleton(kind: .titles, rows: 6)
                     .screenHPadding()

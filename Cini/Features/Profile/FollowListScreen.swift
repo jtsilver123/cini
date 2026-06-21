@@ -77,7 +77,7 @@ struct FollowListScreen: View {
         }
         .nativeContentWidth()
         .background(Theme.background)
-        .navigationTitle("Friends")
+        .navigationTitle(direction == .followers ? "Followers" : "Following")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: direction) { await load() }
         .refreshable { await load() }

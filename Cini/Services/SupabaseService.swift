@@ -472,7 +472,7 @@ final class SupabaseService {
         let rows: [Row] = (try? await client.rpc("predicted_scores",
                                                  params: Params(p_movie_ids: movieIDs))
             .execute().value) ?? []
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.movie_id, $0.predicted) })
+        return Dictionary(rows.map { ($0.movie_id, $0.predicted) }, uniquingKeysWith: { _, new in new })
     }
 
     // MARK: - My details on a movie (notes, performances, labels, watch)
@@ -1669,7 +1669,7 @@ final class SupabaseService {
         let rows: [Row] = (try? await client.rpc("watchlist_counts",
                                                  params: Params(p_movie_ids: movieIDs))
             .execute().value) ?? []
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.movie_id, $0.n) })
+        return Dictionary(rows.map { ($0.movie_id, $0.n) }, uniquingKeysWith: { _, new in new })
     }
 
     // MARK: - Detail page aggregates

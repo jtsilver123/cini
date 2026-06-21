@@ -544,16 +544,21 @@ struct RespondPickerView: View {
                             sent += 1
                         }
                     }
-                    if sent > 0 {
-                        // The recs are sent either way; completion is
-                        // bookkeeping — if it fails, leave the ask
-                        // visible so it can be cleared later.
+                    if sent == picked.count {
+                        // All sends landed. Completion is bookkeeping — if it
+                        // fails, leave the ask visible so it can be cleared later.
                         let completed = await SupabaseService.shared.completeRecRequest(id: request.id)
                         Haptics.success()
                         ToastCenter.shared.show("Sent \(sent) rec\(sent == 1 ? "" : "s") to @\(request.profiles?.username ?? "them") 🎬")
                         sending = false
                         if completed { onFulfilled(request.id) }
                         dismiss()
+                    } else if sent > 0 {
+                        // Partial send: don't mark the ask done, leave the sheet
+                        // open so the rest can be retried.
+                        sending = false
+                        Haptics.error()
+                        ToastCenter.shared.show("Sent \(sent) of \(picked.count) — couldn't reach the rest, try again")
                     } else {
                         sending = false
                         Haptics.error()

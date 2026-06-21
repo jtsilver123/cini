@@ -1163,7 +1163,8 @@ struct ProfileScreen: View {
     }
 
     private func activityLine(_ event: FeedEventRow) -> AttributedString {
-        let who = isSelf ? "You" : "@\(profile?.username ?? username ?? "They")"
+        let handle = profile?.username ?? username
+        let who = isSelf ? "You" : (handle.map { "@\($0)" } ?? "Someone")
         let title = event.movies?.title ?? "a movie"
         let text: String
         switch event.eventType {
