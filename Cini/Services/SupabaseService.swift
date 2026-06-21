@@ -84,7 +84,21 @@ final class SupabaseService {
     /// regardless. Returns false only on a network/transport error.
     func sendPasswordReset(email: String) async -> Bool {
         do {
-            try await client.auth.resetPasswordForEmail(email)
+            // The link in the email comes back to the app via cini://reset, where
+            // we exchange it for a recovery session and let them set a new password.
+            try await client.auth.resetPasswordForEmail(email, redirectTo: URL(string: "cini://reset"))
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Exchange a password-recovery deep link (cini://reset?code=…) for a
+    /// session, so the subsequent updatePassword applies to that account.
+    @discardableResult
+    func completePasswordRecovery(url: URL) async -> Bool {
+        do {
+            try await client.auth.session(from: url)
             return true
         } catch {
             return false

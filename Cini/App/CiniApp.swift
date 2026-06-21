@@ -15,6 +15,8 @@ struct CiniApp: App {
     @State private var sharedList: CustomList?
     /// A list link tapped while signed out — opened once the user is in the app.
     @State private var pendingListID: UUID?
+    /// Showing the "set a new password" screen after a recovery link opened the app.
+    @State private var showResetPassword = false
 
     private func isOnboarded(_ uid: String) -> Bool {
         onboardedUserIDsRaw.split(separator: ",").map(String.init).contains(uid)
@@ -100,6 +102,23 @@ struct CiniApp: App {
     ///     when an invite/list link is tapped from Messages, Mail, etc.
     private func handleURL(_ url: URL) {
         guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+
+        // Password recovery comes back as cini://reset?code=… — handle it before
+        // the invite fallback (which would otherwise claim any cini:// host).
+        let isReset = (url.scheme == "cini" && url.host == "reset")
+            || (url.scheme == "https"
+                && (url.host == "trycini.com" || url.host == "www.trycini.com")
+                && url.path.hasPrefix("/reset"))
+        if isReset {
+            Task {
+                if await SupabaseService.shared.completePasswordRecovery(url: url) {
+                    showResetPassword = true
+                } else {
+                    ToastCenter.shared.show("That reset link expired — request a new one.")
+                }
+            }
+            return
+        }
 
         let isList: Bool
         let isInvite: Bool
@@ -247,6 +266,11 @@ struct CiniApp: App {
                 // Same shared router the tab bar uses, so a tapped movie/profile
                 // inside the list navigates correctly.
                 .environment(TabRouter.shared)
+            }
+            // Opened from a password-recovery link — must finish before doing
+            // anything else, so it's a non-dismissable cover.
+            .fullScreenCover(isPresented: $showResetPassword) {
+                SetNewPasswordView { showResetPassword = false }
             }
         }
     }
