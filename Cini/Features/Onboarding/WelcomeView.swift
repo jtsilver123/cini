@@ -5,8 +5,12 @@ import SwiftUI
 /// own and the user can drag to scrub it faster — it sets the movie-night tone
 /// the instant the app opens.
 struct WelcomeView: View {
-    @State private var showAuth = false
-    @State private var startInSignUp = true
+    // Drive the auth sheet off an item, not a bool + side state. Setting the
+    // mode and a separate `isPresented` in one tap let the cover capture the
+    // STALE mode (it defaulted to sign-up), so "I already have an account"
+    // opened sign-up. Passing the mode as the item makes it atomic.
+    private enum AuthMode: Int, Identifiable { case signUp, signIn; var id: Int { rawValue } }
+    @State private var authMode: AuthMode?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -60,8 +64,7 @@ struct WelcomeView: View {
 
                 VStack(spacing: 12) {
                     Button {
-                        startInSignUp = true
-                        showAuth = true
+                        authMode = .signUp
                     } label: {
                         Text("Get started")
                             .font(.headline).foregroundStyle(.white)
@@ -71,8 +74,7 @@ struct WelcomeView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        startInSignUp = false
-                        showAuth = true
+                        authMode = .signIn
                     } label: {
                         Text("I already have an account")
                             .font(.subheadline.weight(.semibold))
@@ -94,8 +96,8 @@ struct WelcomeView: View {
                 .padding(.bottom, 24)
             }
         }
-        .fullScreenCover(isPresented: $showAuth) {
-            AuthView(startInSignUp: startInSignUp)
+        .fullScreenCover(item: $authMode) { mode in
+            AuthView(startInSignUp: mode == .signUp)
         }
     }
 }

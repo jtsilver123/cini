@@ -137,8 +137,10 @@ struct EnrichmentCard: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    .padding(.trailing, 2)
                 }
-                .scrollClipDisabled()
+                // No scrollClipDisabled here: with many friends the pills must
+                // clip at the row's edge and scroll, not bleed off-screen.
             } else {
                 Text("Follow friends to tag them here.")
                     .font(.caption)

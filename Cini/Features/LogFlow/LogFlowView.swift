@@ -93,7 +93,7 @@ struct LogFlowView: View {
                             // fall away so the ticket lands in view, no scrolling.
                             resultCard(scored)
                                 .id("result")
-                                .padding(.top, 40)
+                                .padding(.top, 12)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         } else {
                             titleCard
@@ -692,7 +692,7 @@ struct LogFlowView: View {
         let profile = appSession.profile
         let name = (profile?.displayName.isEmpty == false ? profile!.displayName : (profile?.username ?? ""))
         let ticketName = firstName(profile?.displayName, profile?.username) ?? name
-        return VStack(spacing: 16) {
+        return VStack(spacing: 14) {
             RankTicket(
                 movie: movie,
                 rank: scored.rank,
@@ -750,15 +750,21 @@ struct LogFlowView: View {
                             .font(.headline)
                             .foregroundStyle(Theme.ink)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Capsule().strokeBorder(Theme.hairline, lineWidth: 1.5))
+                            .padding(.vertical, 11)
+                            // Solid fill, not just a hairline outline: the sheet
+                            // sits over a clear background, so an outline-only
+                            // button read as transparent text on the tab bar.
+                            .background(
+                                Capsule().fill(Theme.surface)
+                                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                            )
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Done")
                 }
                 .frame(maxWidth: 300)
                 .frame(maxWidth: .infinity)   // center the capsules
-                .padding(.bottom, 24)
+                .padding(.bottom, 12)
                 .transition(.opacity)
             }
         }
@@ -774,7 +780,7 @@ struct LogFlowView: View {
         .font(.headline)
         .foregroundStyle(Theme.background)        // dark text on gold = high contrast
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
+        .padding(.vertical, 11)
         .background(Capsule().fill(Theme.marquee))
     }
 
