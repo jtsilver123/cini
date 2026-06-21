@@ -1854,6 +1854,10 @@ struct SuggestedMember: Decodable, Identifiable, Hashable {
     /// People-you-may-know only: how many of the people you follow also follow
     /// this person. nil for the other suggestion sources.
     let mutuals: Int?
+    /// Contact-match only: how many friends (followers) this person has on Cini,
+    /// shown as social proof next to a contact who's already a member. nil
+    /// elsewhere.
+    let friendsOnCini: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, username, watched
@@ -1861,6 +1865,7 @@ struct SuggestedMember: Decodable, Identifiable, Hashable {
         case avatarUrl = "avatar_url"
         case matchPct = "match_pct"
         case mutuals = "mutuals_count"
+        case friendsOnCini = "friends_count"
     }
 
     init(from decoder: Decoder) throws {
@@ -1872,6 +1877,7 @@ struct SuggestedMember: Decodable, Identifiable, Hashable {
         matchPct = try? c.decode(Double.self, forKey: .matchPct)
         watched = (try? c.decode(Int.self, forKey: .watched)) ?? 0
         mutuals = try? c.decode(Int.self, forKey: .mutuals)
+        friendsOnCini = try? c.decode(Int.self, forKey: .friendsOnCini)
     }
 }
 

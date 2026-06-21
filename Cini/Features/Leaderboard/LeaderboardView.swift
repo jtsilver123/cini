@@ -164,6 +164,11 @@ struct InviteSheet: View {
     /// Phone digits we've already texted an invite to — persisted so a contact
     /// who never joined shows "Remind" (and a gentler nudge) on a later visit.
     @AppStorage("cini.invitedPhones") private var invitedPhonesRaw = ""
+    /// Contacts dismissed from the "Unclaimed invites" list (tapped ✕) — hidden
+    /// so the user isn't nagged about people they've decided not to pester.
+    @AppStorage("cini.dismissedContacts") private var dismissedContactsRaw = ""
+    /// "Unclaimed invites" section is collapsible (Beli-style).
+    @State private var showUnclaimed = true
 
     private var inviteURL: String {
         AppLinks.invite(session.profile?.username ?? "")
@@ -183,9 +188,27 @@ struct InviteSheet: View {
         guard !d.isEmpty, !isInvited(contact) else { return }
         invitedPhonesRaw += invitedPhonesRaw.isEmpty ? d : ",\(d)"
     }
+    private func isDismissed(_ contact: PhoneContact) -> Bool {
+        dismissedContactsRaw.split(separator: ",").map(String.init).contains(phoneDigits(contact.phone))
+    }
+    private func dismissContact(_ contact: PhoneContact) {
+        let d = phoneDigits(contact.phone)
+        guard !d.isEmpty, !isDismissed(contact) else { return }
+        dismissedContactsRaw += dismissedContactsRaw.isEmpty ? d : ",\(d)"
+    }
     private var filteredContacts: [PhoneContact] {
-        query.isEmpty ? contacts
+        let base = query.isEmpty ? contacts
             : contacts.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        return base.filter { !isDismissed($0) }
+    }
+    /// Contacts you've already texted an invite to but who haven't joined —
+    /// Beli's "Unclaimed invites." Surfaced first, with a Remind nudge.
+    private var unclaimedContacts: [PhoneContact] {
+        filteredContacts.filter { isInvited($0) }
+    }
+    /// The rest of your address book — first-time invites.
+    private var freshContacts: [PhoneContact] {
+        filteredContacts.filter { !isInvited($0) }
     }
 
     var body: some View {
@@ -221,10 +244,16 @@ struct InviteSheet: View {
                     if contactsDenied {
                         enableContactsButton
                     } else if contactsChecked {
-                        if !filteredContacts.isEmpty {
-                            sectionHeader("INVITE YOUR CONTACTS")
-                            ForEach(filteredContacts) { contact in contactRow(contact) }
-                        } else if contactMembers.isEmpty {
+                        if !unclaimedContacts.isEmpty {
+                            unclaimedHeader
+                            if showUnclaimed {
+                                ForEach(unclaimedContacts) { contact in unclaimedRow(contact) }
+                            }
+                        }
+                        if !freshContacts.isEmpty {
+                            sectionHeader("YOUR CONTACTS")
+                            ForEach(freshContacts) { contact in contactRow(contact) }
+                        } else if unclaimedContacts.isEmpty && contactMembers.isEmpty {
                             Text("No contacts to show.")
                                 .font(.subheadline).foregroundStyle(Theme.gray)
                         }
@@ -323,7 +352,14 @@ struct InviteSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(firstName(member.displayName, member.username) ?? member.username)
                     .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
-                Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+                // Lead with friend-count social proof when they're well-connected;
+                // fall back to the @username otherwise.
+                if let f = member.friendsOnCini, f > 0 {
+                    Text("\(f) \(f == 1 ? "friend" : "friends") on Cini")
+                        .font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+                } else {
+                    Text("@\(member.username)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+                }
             }
             Spacer()
             let isFollowing = followed.contains(member.id)
@@ -344,6 +380,47 @@ struct InviteSheet: View {
             let invited = isInvited(contact)
             PillButton(title: invited ? "Remind" : "Invite",
                        style: invited ? .outlined : .filled) { inviteContact(contact) }
+        }
+    }
+
+    /// Collapsible header for the "Unclaimed invites" group, with a live count.
+    private var unclaimedHeader: some View {
+        Button {
+            withAnimation(.snappy) { showUnclaimed.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text("UNCLAIMED INVITES (\(unclaimedContacts.count))")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
+                Spacer()
+                Image(systemName: showUnclaimed ? "chevron.up" : "chevron.down")
+                    .font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(.top, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// A contact you've already invited: Remind to re-send, ✕ to stop nudging.
+    private func unclaimedRow(_ contact: PhoneContact) -> some View {
+        HStack(spacing: 12) {
+            Circle().fill(Theme.surface2).frame(width: 44, height: 44)
+                .overlay(Text(initials(contact.name)).font(.subheadline.weight(.bold)).foregroundStyle(Theme.gray))
+            Text(contact.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+            Spacer()
+            PillButton(title: "Remind", style: .outlined) { inviteContact(contact) }
+            Button {
+                Haptics.tap()
+                withAnimation(.snappy) { dismissContact(contact) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Stop reminding \(contact.name)")
         }
     }
 
