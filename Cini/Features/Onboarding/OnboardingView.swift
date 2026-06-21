@@ -405,7 +405,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 16) {
                 friendBenefit("eye.fill", "See what they think before you watch")
                 friendBenefit("percent", "See how your taste matches theirs")
-                friendBenefit("paperplane.fill", "Swap movie picks")
+                friendBenefit("paperplane.fill", "Swap recommendations")
             }
             .padding(.horizontal, 40)
             .padding(.top, 6)
@@ -499,7 +499,7 @@ struct OnboardingView: View {
                 let followed = await SupabaseService.shared.redeemInvite(from: inviter)
                 pendingInviter = ""
                 ToastCenter.shared.show(followed
-                    ? "You're now following @\(inviter) 🎬"
+                    ? "You and @\(inviter) now follow each other 🎬"
                     : "Couldn't find @\(inviter) — you can add friends later.")
             }
             await session.loadProfile()
@@ -519,7 +519,7 @@ struct OnboardingView: View {
             ImportHandoffBadge()
             Text("Bring your history")
                 .font(Theme.serif(34))
-            Text("Track movies somewhere else? Bring your whole list over and rank it — favorites first.")
+            Text("Track what you watch somewhere else? Bring your whole list over and rank it — favorites first.")
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)

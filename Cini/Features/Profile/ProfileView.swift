@@ -941,7 +941,7 @@ struct ProfileScreen: View {
                             .font(globalRank == nil ? .headline : .title2.weight(.bold))
                             .foregroundStyle(Theme.marquee)
                         if globalRank == nil && isSelf {
-                            Text("Rank a movie to enter the board")
+                            Text("Rank a title to enter the board")
                                 .font(.caption2)
                                 .foregroundStyle(Theme.gray)
                         }
@@ -960,7 +960,7 @@ struct ProfileScreen: View {
                         .foregroundStyle(Theme.marquee)
                     if isSelf, let p = profile {
                         if p.streakWeeks == 0 {
-                            Text("Rank one movie to light the flame")
+                            Text("Rank one title to light the flame")
                                 .font(.caption2)
                                 .foregroundStyle(Theme.gray)
                         } else if !p.hasLoggedThisWeek {
@@ -1055,8 +1055,8 @@ struct ProfileScreen: View {
                 EmptyStateView(
                     icon: "film.stack",
                     title: "Build your taste",
-                    message: "Rank or import a movie and your stats, top films, and activity fill in right here.",
-                    actionTitle: "Rank a movie") { tabRouter.selection = .search }
+                    message: "Rank or import something you've watched and your stats, top picks, and activity fill in right here.",
+                    actionTitle: "Rank a title") { tabRouter.selection = .search }
             } else {
                 Text(username.map { "@\($0) is just getting started — no rankings yet." } ?? "No rankings yet — your taste starts here.")
                     .font(.subheadline)
@@ -1165,7 +1165,7 @@ struct ProfileScreen: View {
                 EmptyStateView(
                     icon: "chart.pie.fill",
                     title: "See what you like",
-                    message: isSelf ? "Rank a few movies and we'll show what you're into."
+                    message: isSelf ? "Rank a few titles and we'll show what you're into."
                                     : "Nothing to show here yet.")
             }
         } else {

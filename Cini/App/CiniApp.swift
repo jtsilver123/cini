@@ -160,7 +160,7 @@ struct CiniApp: App {
                 if await SupabaseService.shared.redeemInvite(from: username) {
                     pendingInviter = ""
                     await session.loadProfile()
-                    ToastCenter.shared.show("You're now following @\(username) 🎬")
+                    ToastCenter.shared.show("You and @\(username) now follow each other 🎬")
                 }
             }
         }

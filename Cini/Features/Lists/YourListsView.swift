@@ -192,7 +192,7 @@ struct YourListsView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Its movies stay on your other lists — only this list goes.")
+                Text("Its titles stay on your other lists — only this list goes.")
             }
             .onChange(of: tabRouter.pendingCustomListID) { _, _ in
                 consumePendingCustomList()
@@ -296,7 +296,7 @@ struct YourListsView: View {
            let list = customLists.first(where: { $0.id == selectedListID }) {
             return listShareText(name: list.name, movies: customListMovies)
         }
-        return "My movie rankings live on Cini 🎬\n\(AppLinks.appStore)"
+        return "My movie & TV rankings live on Cini 🎬\n\(AppLinks.appStore)"
     }
 
     /// Plain HStack with generous tap targets — the old overlay-based
@@ -798,7 +798,9 @@ struct YourListsView: View {
             }
         }
         .listStyle(.plain)
-        .task(id: selectedListID) {
+        // Re-keyed on listsRevision too, so adding a title from a movie page or
+        // Chat refreshes the open list tab instead of leaving it stale.
+        .task(id: "\(selectedListID?.uuidString ?? "none")#\(store.listsRevision)") {
             guard let listID = selectedListID else { return }
             customListMovies = []
             customListLoaded = false
@@ -1034,7 +1036,7 @@ struct YourListsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Find \(category == .movies ? "movies" : "shows") to watch")
                         .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Swipe through recs picked for your taste")
+                    Text("Browse recs picked for your taste")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
                 Spacer()
@@ -1217,7 +1219,7 @@ struct YourListsView: View {
                 emptyList(
                     otherCount > 0
                         ? "No \(category == .movies ? "movies" : "shows") here yet — your other saves are under \(otherCategory.title)."
-                        : "Your watch-later stash. Swipe through Recs to fill it, or bookmark any title you come across.",
+                        : "Nothing saved to Want to Watch yet. Tap the bookmark on any title to save it for later.",
                     actionTitle: "Find \(category == .movies ? "movies" : "shows") to watch",
                     actionIcon: "rectangle.stack") {
                     // Land on Recs with the active media kind, in the last mode.

@@ -353,7 +353,7 @@ struct FeedView: View {
                         .font(Theme.serif(24))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Theme.ink)
-                    Text("Invite a few friends and your feed comes alive — you'll follow each other automatically.")
+                    Text("Invite a few friends — your feed comes alive.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)

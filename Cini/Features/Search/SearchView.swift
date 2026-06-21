@@ -611,7 +611,7 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Movies you may have seen")
                         .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Swipe titles you've already watched to rank them")
+                    Text("Pick titles you've already watched to rank them")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
                 Spacer(minLength: 8)

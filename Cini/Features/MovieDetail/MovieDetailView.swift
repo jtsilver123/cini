@@ -874,7 +874,7 @@ struct MovieDetailView: View {
                 if !friendsLoaded {
                     ListSkeleton(rows: 3)
                 } else if friends.isEmpty {
-                    Text("None of your friends have ranked this yet.")
+                    Text("None of your friends have ranked this yet. Be the first to rank it.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                 }
@@ -1186,7 +1186,7 @@ struct MovieDetailView: View {
                 }
             }
             .listStyle(.plain).background(Theme.background)
-            .navigationTitle("Want to watch").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Want to Watch").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { showWantSheet = false } } }
         }
         .presentationDetents([.medium, .large])

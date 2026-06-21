@@ -149,7 +149,7 @@ struct LetterboxdImportView: View {
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
-                Text("Takes about 1 minute. Bring your history from Letterboxd, IMDb, or Netflix — the export works best from a computer, so email yourself a link, do it there, and it beams straight to your phone.")
+                Text("Takes about a minute. Import from Letterboxd, IMDb, or Netflix — easiest on a computer, so we'll email you a link.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -240,7 +240,7 @@ struct LetterboxdImportView: View {
                             Divider()
                             summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
                                        label: "saved to Want to Watch",
-                                       detail: importWatchlist ? nil : "Watchlist import was off.")
+                                       detail: importWatchlist ? nil : "Want to Watch import was off.")
                         }
                         let reviewCount = result.watched.filter { $0.imported.review != nil }.count
                         if reviewCount > 0 {

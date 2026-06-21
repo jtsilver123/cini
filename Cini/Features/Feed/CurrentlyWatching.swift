@@ -269,7 +269,7 @@ struct WatchingControl: View {
                             ToastCenter.shared.show("Moved out of Want to Watch")
                         }
                         watching = true
-                        save()
+                        save(starting: true)
                     } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "play.tv.fill").foregroundStyle(Theme.marquee)
@@ -428,7 +428,10 @@ struct WatchingControl: View {
         .font(.title3)
     }
 
-    private func save(caughtUp: Bool = false) {
+    /// `starting` is true for the first "I'm watching this" tap — if that write
+    /// fails we revert the optimistic `watching = true` so the UI doesn't show
+    /// the active controls over a server with no progress row.
+    private func save(caughtUp: Bool = false, starting: Bool = false) {
         let s = season, e = episode
         Task {
             do {
@@ -439,6 +442,7 @@ struct WatchingControl: View {
                 // step so the bookmark/list don't show it as still saved.
                 store.watchlistSuperseded(movieID: movie.tmdbID)
             } catch {
+                if starting { watching = false }
                 ToastCenter.shared.saveFailed()
             }
         }

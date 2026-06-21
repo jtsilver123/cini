@@ -926,7 +926,7 @@ function renderLists(){
       <span class="serif" style="font-size:30px; font-weight:700;">Lists</span>
       <span class="spacer"></span>
       <button onclick="openImport()" style="display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:999px; border:0; cursor:pointer; background:rgba(255,255,255,.07); color:var(--marquee); font-weight:700; font-size:13px;">${I("download",15)} Import</button>
-      <button class="iconbtn" onclick="share('My movie rankings live on Cini 🎬')">${I("share",18)}</button>
+      <button class="iconbtn" onclick="share('My movie & TV rankings live on Cini 🎬')">${I("share",18)}</button>
       <button class="iconbtn" onclick="openListsMenu()">${I("dots",18)}</button>
     </div>
     <div class="pad" style="margin-top:8px;">
@@ -966,7 +966,7 @@ function renderLists(){
         <span style="color:var(--marquee);">${I("stack",20)}</span>
         <div style="flex:1;">
           <div style="font-weight:700; font-size:14px;">Find ${S.category==="TV"?"shows":"movies"} to watch</div>
-          <div class="sub" style="margin-top:1px;">Swipe through recs picked for your taste</div>
+          <div class="sub" style="margin-top:1px;">Browse recs picked for your taste</div>
         </div><span class="sub">${I("chevR",16)}</span>
       </div>
     </div>`:""}
@@ -1246,7 +1246,7 @@ function renderMembersTab(){
 }
 
 /* =================== LEADERBOARD =================== */
-const LB_META=[["Watched","Number of movies on your watched list", p=>p.watched],
+const LB_META=[["Watched","How many titles you've ranked", p=>p.watched],
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
@@ -1661,7 +1661,7 @@ function friendsInterest(type){
   const people = watching
     ? [["maddy","maddyc","av1","S2 · E4"],["Jordan","jordanwatches","av3","All caught up"]]
     : [["maddy","maddyc","av1",""]];
-  memberSheet(watching?"Watching now":"Want to watch", ()=>
+  memberSheet(watching?"Watching now":"Want to Watch", ()=>
     people.map(([n,u,av,sub])=>`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--hair);">
       <span class="avatar ${av}" style="width:40px;height:40px;font-size:16px;">${n[0].toUpperCase()}</span>
       <div style="flex:1;"><b>${n}</b><div class="sub" style="${sub==='All caught up'?'color:var(--scoregreen,#4ade80);':''}">${sub||'@'+u}</div></div>
@@ -1896,13 +1896,13 @@ function openCustomLists(){
     <div class="sheet-body">
       <div style="display:flex; gap:8px; margin-bottom:10px;">
         <input placeholder="New list (e.g. Best heist movies)" style="flex:1; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:11px 13px; color:var(--ink); font:inherit; outline:none;">
-        <button class="pill" onclick="toast('List created — add movies from any movie page')">Create</button>
+        <button class="pill" onclick="toast('List created — add titles from any movie or show page')">Create</button>
       </div>
       ${[["Date night",2,"past,poor"],["2023 catch-up",3,"opp,hold,anat"]].map(([n,c,keys])=>`
         <div class="erow">
           <span class="ic" style="color:var(--marquee);">${I("star",18)}</span>
           <span style="flex:1; font-weight:600; cursor:pointer;" onclick="toast('${n} — full list page in the app')">${n}<div class="sub" style="margin-top:1px;">${c} titles</div></span>
-          <button class="iconbtn" style="color:var(--red);" onclick="event.stopPropagation(); if(confirm('Delete &quot;${n}&quot;? Its movies stay on your other lists.')) toast('List deleted')">${I("trash",17)}</button>
+          <button class="iconbtn" style="color:var(--red);" onclick="event.stopPropagation(); if(confirm('Delete &quot;${n}&quot;? Its titles stay on your other lists.')) toast('List deleted')">${I("trash",17)}</button>
         </div>`).join("")}
       <div class="sub" style="margin-top:10px; font-size:11.5px;">Add any movie from its page with "Add to List".</div>
     </div>`);
@@ -2593,7 +2593,7 @@ function chatComposer(){
     </div>
     <div style="display:flex; gap:10px; margin:0 16px 96px;">
       <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="askCini('What should I watch tonight?')">🍿 What to watch</button>
-      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="openChatReview()">✍️ Review a movie</button>
+      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="openChatReview()">✍️ Review something</button>
     </div>`;
 }
 function renderChat(){
@@ -2622,7 +2622,7 @@ function renderChat(){
 }
 function openChatAttach(){
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Talk about a movie</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Talk about a title</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       ${Object.keys(MOVIES).map(k=>`<div class="erow" onclick="chatAttach='${k}'; closeOverlay(); renderChat(); setTimeout(()=>{const e=$('chatInput'); if(e)e.focus();},50)">
@@ -2633,7 +2633,7 @@ function openChatAttach(){
 }
 function openChatReview(){
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Review a movie</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Review something</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div class="sub" style="margin-bottom:8px;">Pick one and the rating flow opens right here.</div>
@@ -2669,7 +2669,7 @@ function askCini(q){
       a=`Done — <b>${MOVIES[namedKey].t}</b> (${MOVIES[namedKey].y}) is on your Want to Watch. ${MOVIES[namedKey].on?.[0]?`It's streaming on ${MOVIES[namedKey].on[0]} whenever you're ready.`:""}`;
       acts=[`Saved ${MOVIES[namedKey].t}`];
     }
-    else if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review a movie</b> below and make it count.`;
+    else if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review something</b> below and make it count.`;
     else if(ql.includes("date")) a=`For date night: <b>Past Lives</b> (2023) — quiet, romantic, 1h 45m, on Paramount+. One pick, full confidence. Bring tissues.`;
     else if(ql.includes("short")&&top) a=`You loved <b>${top.t}</b> — same wavelength in under two hours: <b>The Zone of Interest</b> (1h 45m, on Max). Watch it tonight, thank me tomorrow.`;
     else if(wl) a=`Easy: <b>${wl.t}</b> is sitting right on your watchlist — ${wl.rt}, on ${wl.on[0]}, friends average ${wl.avg.toFixed(1)}. That's tonight's movie. Deal?`;

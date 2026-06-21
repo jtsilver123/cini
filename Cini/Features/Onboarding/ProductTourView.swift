@@ -52,7 +52,7 @@ struct ProductTourView: View {
              body: "Everything you rank and bookmark, all in one place."),
         Stop(tab: .profile,
              title: "Profile",
-             body: "Your stats, top films, and your rank on Cini."),
+             body: "Your stats, top picks, and your rank on Cini."),
     ]
 
     private var stop: Stop { stops[min(step, stops.count - 1)] }

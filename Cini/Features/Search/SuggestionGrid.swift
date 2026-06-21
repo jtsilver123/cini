@@ -45,7 +45,7 @@ struct SuggestionGrid: View {
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(.white)
                                 .padding(5)
-                                .background(Circle().fill(.black.opacity(0.55)))
+                                .background(Circle().fill(.black.opacity(0.45)))
                                 .padding(5)
                                 // 44pt hit target so a corner tap dismisses
                                 // instead of accidentally ranking the title.
@@ -56,19 +56,21 @@ struct SuggestionGrid: View {
                         .accessibilityLabel("Dismiss \(movie.title)")
                     }
                 }
-                // Save to Want to Watch — a visible bookmark (top-right).
-                .overlay(alignment: .topTrailing) {
+                // Save to Want to Watch — a visible bookmark in the standard
+                // bottom-right quick-action corner (matches ArtworkQuickActions
+                // everywhere else).
+                .overlay(alignment: .bottomTrailing) {
                     if !ranked {
                         Button { onSave(movie) } label: {
                             Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
                                 .padding(5)
-                                .background(Circle().fill(.black.opacity(0.55)))
+                                .background(Circle().fill(.black.opacity(0.45)))
                                 .padding(5)
                                 // 44pt hit target so a corner tap saves
                                 // instead of accidentally ranking the title.
-                                .frame(width: 44, height: 44, alignment: .topTrailing)
+                                .frame(width: 44, height: 44, alignment: .bottomTrailing)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)

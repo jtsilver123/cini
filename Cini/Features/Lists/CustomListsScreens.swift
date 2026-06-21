@@ -54,7 +54,7 @@ struct CustomListsScreen: View {
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Theme.background)
             } else if lists.isEmpty {
-                Text(isSelf ? "No lists yet — make your first above, then add movies from any movie page."
+                Text(isSelf ? "No lists yet — make your first above, then add titles from any movie or show page."
                             : "No public lists yet.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
@@ -125,7 +125,7 @@ struct CustomListsScreen: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Its movies stay on your other lists — only this list goes.")
+            Text("Its titles stay on your other lists — only this list goes.")
         }
         .alert("Rename list", isPresented: Binding(
             get: { renameTarget != nil },
@@ -484,7 +484,7 @@ struct EditListsSheet: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Its movies stay on your other lists — only this list goes.")
+                Text("Its titles stay on your other lists — only this list goes.")
             }
             .alert("Rename list", isPresented: Binding(
                 get: { renameTarget != nil },

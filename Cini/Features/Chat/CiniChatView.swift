@@ -215,7 +215,7 @@ struct CiniChatAvailableView: View {
             }
         }
         .sheet(isPresented: $showReviewPicker) {
-            ChatReviewPicker(title: "Review a movie") { movie in
+            ChatReviewPicker(title: "Review something") { movie in
                 // Let the picker finish dismissing before presenting the log
                 // cover — two presentations in one runloop can swallow the
                 // second on device.
@@ -228,7 +228,7 @@ struct CiniChatAvailableView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showAttachPicker) {
-            ChatReviewPicker(title: "Talk about a movie") { movie in
+            ChatReviewPicker(title: "Talk about a title") { movie in
                 attachedMovie = movie
                 showAttachPicker = false
             }
@@ -338,7 +338,7 @@ struct CiniChatAvailableView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.pencil")
-                    Text("Review a movie")
+                    Text("Review something")
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Theme.marquee)
@@ -600,7 +600,7 @@ struct CiniChatAvailableView: View {
                    let retried = try? await fresh.respond(to: prompt) {
                     await reveal(retried.content)
                 } else {
-                    await reveal("Our chat got too long for the on-device model, so I started fresh — ask me that again.")
+                    await reveal("Our chat got long, so I started fresh — ask me that again.")
                 }
             default:
                 await retryOnce(session: session, prompt: prompt)
@@ -625,7 +625,7 @@ struct CiniChatAvailableView: View {
     private func offerRow(for movie: Movie) -> some View {
         HStack(spacing: 8) {
             if store.isOnWatchlist(movie.tmdbID) {
-                offerChip(icon: "checkmark", title: "Bookmarked", disabled: true) {}
+                offerChip(icon: "checkmark", title: "On Want to Watch", disabled: true) {}
             } else if !store.isWatched(movie.tmdbID) {
                 offerChip(icon: "bookmark", title: "Want to Watch", disabled: false) {
                     Task { await store.toggleWatchlist(movie: movie) }
@@ -842,7 +842,7 @@ struct ThinkingTicker: View {
 /// "Review a movie" from the chat: quick picker over your Want to Watch
 /// plus full TMDB search — picking one opens the standard log flow.
 struct ChatReviewPicker: View {
-    var title: String = "Review a movie"
+    var title: String = "Review something"
     var onPick: (Movie) -> Void
 
     @Environment(RankingStore.self) private var store

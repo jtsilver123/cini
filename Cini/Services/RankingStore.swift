@@ -25,6 +25,11 @@ final class RankingStore {
     /// The user's custom lists — cached so a bookmark tap can decide
     /// instantly whether to offer a destination chooser.
     private(set) var customLists: [CustomList] = []
+    /// Bumped whenever a title is added to a custom list, so an open list tab
+    /// can re-fetch its contents even when the add happened from another screen
+    /// (a movie page, Chat) — otherwise the open tab would show stale contents
+    /// until you switched away and back.
+    private(set) var listsRevision = 0
     private(set) var isLoaded = false
 
     private let supabase: SupabaseService
@@ -185,6 +190,24 @@ final class RankingStore {
             return true
         } catch {
             customLists = previous            // pull the truth back
+            ToastCenter.shared.saveFailed()
+            return false
+        }
+    }
+
+    /// Add a title to a custom list through the shared store, so an open list
+    /// tab refreshes (via `listsRevision`) no matter where the add came from.
+    /// Caches the movie first (the membership FK needs it). Returns false and
+    /// toasts on failure.
+    @discardableResult
+    func addToList(_ listID: UUID, movie: Movie) async -> Bool {
+        do {
+            try await supabase.cacheMovie(movie)
+            try await supabase.addToList(listID, movieID: movie.tmdbID)
+            cache(movie)
+            listsRevision += 1
+            return true
+        } catch {
             ToastCenter.shared.saveFailed()
             return false
         }

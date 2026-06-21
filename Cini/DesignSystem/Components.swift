@@ -647,15 +647,12 @@ struct SaveToListSheet: View {
                                     Haptics.tap()
                                     let saved = effectiveMovie
                                     Task {
-                                        try? await SupabaseService.shared.cacheMovie(saved)
-                                        do {
-                                            try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                                        // Through the store so an open list tab refreshes
+                                        // (listsRevision) and the count stays in step.
+                                        if await store.addToList(list.id, movie: saved) {
                                             Haptics.success()
-                                            // Keep the shared cache's count in step.
                                             await store.refreshCustomLists()
                                             ToastCenter.shared.show("Added to \(list.name)")
-                                        } catch {
-                                            ToastCenter.shared.saveFailed()
                                         }
                                     }
                                     dismiss()
@@ -687,17 +684,13 @@ struct SaveToListSheet: View {
                         guard !name.isEmpty else { return }
                         let saved = effectiveMovie
                         Task {
-                            do {
-                                let list = try await SupabaseService.shared.createList(
-                                    name: name, mediaKind: saved.mediaKind)
-                                try? await SupabaseService.shared.cacheMovie(saved)
-                                // Surface a real add failure — don't claim success.
-                                try await SupabaseService.shared.addToList(list.id, movieID: saved.tmdbID)
+                            // Both writes go through the store so an open list tab
+                            // refreshes and failures surface (no false success).
+                            guard let list = await store.createList(
+                                name: name, mediaKind: saved.mediaKind) else { return }
+                            if await store.addToList(list.id, movie: saved) {
                                 Haptics.success()
-                                await store.refreshCustomLists()
                                 ToastCenter.shared.show("New list ready — added to \(list.name)")
-                            } catch {
-                                ToastCenter.shared.saveFailed()
                             }
                         }
                         dismiss()

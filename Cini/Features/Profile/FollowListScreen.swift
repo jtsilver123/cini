@@ -61,7 +61,7 @@ struct FollowListScreen: View {
                             .font(.subheadline.weight(.semibold))
                         Text(direction == .followers
                              ? "Share your profile so friends can find you."
-                             : "Find friends in Search → Members.")
+                             : "Tap Find friends above to get started.")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                     }

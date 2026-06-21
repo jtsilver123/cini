@@ -90,7 +90,7 @@ struct ShowtimesSheet: View {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         case .notConfigured:
             placeholder(icon: "ticket", title: "Showtimes coming soon",
-                        message: "Showtimes aren't enabled in this build.")
+                        message: "Showtimes aren't available right now.")
         case .error(let message):
             placeholder(icon: "exclamationmark.triangle", title: "Couldn't load showtimes", message: message)
         case .loaded:
