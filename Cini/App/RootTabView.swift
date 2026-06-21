@@ -250,7 +250,7 @@ struct RootTabView: View {
                 .tag(Tab.feed)
 
             SwipeView()
-                .tabItem { Label("Swipe", systemImage: "rectangle.stack") }
+                .tabItem { Label("Recs", systemImage: "rectangle.stack") }
                 .tag(Tab.swipe)
 
             SearchView()

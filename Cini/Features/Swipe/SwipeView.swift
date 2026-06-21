@@ -153,7 +153,7 @@ struct SwipeView: View {
     private var header: some View {
         VStack(spacing: 12) {
             HStack(spacing: 10) {
-                Text("Swipe").font(Theme.pageHeader)
+                Text("Recs").font(Theme.pageHeader)
                 Spacer()
                 // Card vs grid is a compact icon toggle up here; the big toggle
                 // below is the content split (Movies vs TV).

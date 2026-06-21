@@ -50,6 +50,8 @@ struct OnboardingView: View {
     /// tapping one ranks it, which is the fastest way to build taste signal.
     @State private var seenGridMovies: [Movie] = []
     @State private var seenGridLoaded = false
+    /// Movies vs TV toggle on the "seen any of these?" grid (mirrors Recs).
+    @State private var seenTV = false
     @State private var notifsEnabled = false
     /// Personalized picks for the post-rank "save what to watch" tutorial,
     /// built from the title they just ranked (similar + trending fallback).
@@ -549,6 +551,11 @@ struct OnboardingView: View {
     /// the button from a low-pressure "Skip" to "Continue".
     private var rankedAnySeen: Bool { store.watchedCount > 0 }
 
+    /// The grid filtered to the Movies/TV toggle.
+    private var visibleSeenGrid: [Movie] {
+        seenGridMovies.filter { seenTV ? $0.mediaKind == "tv" : $0.mediaKind != "tv" }
+    }
+
     /// A wall of recognizable titles. The grid is the fastest way to build taste
     /// signal — you scan posters and tap the ones you've seen, all at once —
     /// which is exactly what unlocks personal recs (next screen) and the day-one
@@ -571,32 +578,39 @@ struct OnboardingView: View {
                 Spacer()
                 ProgressView()
                 Spacer()
-            } else if seenGridMovies.isEmpty {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gray)
-                    Text("You can rank anytime")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Search any movie or show and tap to rank it whenever you like.")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                        .multilineTextAlignment(.center).padding(.horizontal, 36)
-                }
-                Spacer()
             } else {
-                ScrollView(showsIndicators: false) {
-                    SuggestionGrid(
-                        movies: seenGridMovies,
-                        onRank: { logMovie = $0 },
-                        onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
-                        onDismiss: { movie in
-                            withAnimation(.snappy) {
-                                seenGridMovies.removeAll { $0.tmdbID == movie.tmdbID }
+                SegmentedPillControl(
+                    segments: ["Movies", "TV Shows"],
+                    selection: Binding(get: { seenTV ? 1 : 0 }, set: { seenTV = $0 == 1 }))
+                    .padding(.horizontal, 24)
+
+                if visibleSeenGrid.isEmpty {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gray)
+                        Text("All caught up here")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Check the other tab, or search any title to rank it anytime.")
+                            .font(.caption).foregroundStyle(Theme.gray)
+                            .multilineTextAlignment(.center).padding(.horizontal, 36)
+                    }
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        SuggestionGrid(
+                            movies: visibleSeenGrid,
+                            onRank: { logMovie = $0 },
+                            onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
+                            onDismiss: { movie in
+                                withAnimation(.snappy) {
+                                    seenGridMovies.removeAll { $0.tmdbID == movie.tmdbID }
+                                }
                             }
-                        }
-                    )
-                    .screenHPadding()
-                    .padding(.top, 4)
-                    .padding(.bottom, 8)
+                        )
+                        .screenHPadding()
+                        .padding(.top, 4)
+                        .padding(.bottom, 8)
+                    }
                 }
             }
 
@@ -610,26 +624,14 @@ struct OnboardingView: View {
         .task { await loadSeenGrid() }
     }
 
-    /// Popular movies AND shows the user is likely to recognize, minus anything
-    /// already ranked. Capped to one screen's worth so it reads as "a few," not
-    /// an endless catalog.
+    /// The hand-picked catalog of instantly-recognizable titles (movies AND TV),
+    /// minus anything already ranked. Local — no network, so the grid can't be
+    /// stranded by a connectivity blip.
     private func loadSeenGrid() async {
-        guard seenGridMovies.isEmpty, !seenGridLoaded else { return }
-        // One retry: a transient blip shouldn't strand the step on its empty
-        // state for the rest of onboarding (the .task only fires once).
-        var titles = (try? await TMDBService.shared.popular()) ?? []
-        if titles.isEmpty {
-            try? await Task.sleep(for: .seconds(1))
-            titles = (try? await TMDBService.shared.popular()) ?? []
-        }
-        var pool: [Movie] = []
-        var seen = Set<Int>()
-        for movie in titles
-        where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
-            store.cache(movie)
-            pool.append(movie)
-        }
-        seenGridMovies = Array(pool.prefix(24))
+        guard !seenGridLoaded else { return }
+        let pool = CuratedTitles.movies.filter { !store.isWatched($0.tmdbID) }
+        for movie in pool { store.cache(movie) }
+        seenGridMovies = pool
         seenGridLoaded = true
     }
 
