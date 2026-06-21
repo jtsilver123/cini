@@ -27,6 +27,8 @@ struct EnrichmentCard: View {
     @Binding var activeRow: Row?
 
     @State private var friendsCache = FriendsCache.shared
+    /// Fast log flow: detail rows are hidden until the user taps "Add details".
+    @State private var showDetails = false
 
     private var friends: [ProfileRow] { friendsCache.following }
 
@@ -37,35 +39,25 @@ struct EnrichmentCard: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Notes lead the card — capturing what you thought while it's fresh
-            // is the point of logging, so it's the elevated, can't-miss row.
-            notesRow
-            divider
-            if showsWatchedWith {
-                watchedWithSection
-                divider
-            }
-            if showsWatchedWhere {
-                watchedWhereSection
-                divider
-            }
-            enrichmentRow(.performances, icon: "star", title: "Add favorite performances",
-                          detail: draft.cast.isEmpty ? nil : draft.cast.map(\.name).joined(separator: ", "))
-            divider
-            enrichmentRow(.date, icon: "calendar", title: "Add watch date",
-                          detail: draft.watchDate?.formatted(date: .abbreviated, time: .omitted))
-            if showsStealth {
-                divider
-                stealthRow
-            }
-
-            if !isLocked && showsOkay {
+            if showsOkay && !isLocked {
+                // Fast log path: details are optional and tucked behind a toggle,
+                // so the default is just "how was it? → Start ranking." Notes,
+                // who-with, date, etc. are one tap away for the moments you want them.
+                addDetailsToggle
+                if showDetails {
+                    divider
+                    detailRows
+                }
                 // The primary action — a full-width filled button so it clearly
-                // reads as "tap here next," not a faint text link.
+                // reads as "tap here next."
                 PillButton(title: "Start ranking", style: .filled, fill: true) {
                     onOkay()
                 }
                 .padding(.top, 14)
+            } else {
+                // The movie-page editor (and the locked, in-progress state) show
+                // the rows directly — editing the details is the whole point there.
+                detailRows
             }
         }
         .padding(.horizontal, 16)
@@ -80,6 +72,53 @@ struct EnrichmentCard: View {
         .onChange(of: activeRow) { _, row in
             if row == .date { dateAutoFilled = false }
         }
+    }
+
+    /// All the optional detail rows, shown expanded in the editor and behind the
+    /// "Add details" toggle in the fast log flow.
+    @ViewBuilder private var detailRows: some View {
+        notesRow
+        divider
+        if showsWatchedWith {
+            watchedWithSection
+            divider
+        }
+        if showsWatchedWhere {
+            watchedWhereSection
+            divider
+        }
+        enrichmentRow(.performances, icon: "star", title: "Add favorite performances",
+                      detail: draft.cast.isEmpty ? nil : draft.cast.map(\.name).joined(separator: ", "))
+        divider
+        enrichmentRow(.date, icon: "calendar", title: "Add watch date",
+                      detail: draft.watchDate?.formatted(date: .abbreviated, time: .omitted))
+        if showsStealth {
+            divider
+            stealthRow
+        }
+    }
+
+    /// Collapsed-by-default header that reveals the detail rows on tap.
+    private var addDetailsToggle: some View {
+        Button {
+            withAnimation(.snappy) { showDetails.toggle() }
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "square.and.pencil").frame(width: 28).foregroundStyle(Theme.ink)
+                Text(showDetails ? "Details" : "Add details")
+                    .foregroundStyle(Theme.ink)
+                if !showDetails {
+                    Text("notes, who with, date…")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                }
+                Spacer()
+                Image(systemName: showDetails ? "chevron.up" : "chevron.down")
+                    .font(.caption).foregroundStyle(Theme.gray)
+            }
+            .contentShape(Rectangle())
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
     }
 
     private var divider: some View {
