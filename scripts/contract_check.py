@@ -164,6 +164,7 @@ RPCS = [
     # without writing analytics noise (invalid actions are ignored server-side).
     ("log_featured_event", {"p_movie_id": 27205, "p_action": "contract_check"}),
     ("members_from_phones", {"p_phones": []}),
+    ("contact_network_counts", {"p_phones": ["5555550100"]}),
     # No follower rates movie 2 highly → no-op insert.
     ("notify_friends_of_rating", {"p_movie_id": 2}),
     # delete_account deliberately excluded.

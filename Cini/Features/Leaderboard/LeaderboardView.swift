@@ -169,6 +169,10 @@ struct InviteSheet: View {
     @AppStorage("cini.dismissedContacts") private var dismissedContactsRaw = ""
     /// "Unclaimed invites" section is collapsible (Beli-style).
     @State private var showUnclaimed = true
+    /// Per-contact "N on Cini know them" — how many members have this number in
+    /// their contacts. Keyed by 10-digit phone key. Drives the social-proof line
+    /// and the invite-list sort order.
+    @State private var contactKnownBy: [String: Int] = [:]
 
     private var inviteURL: String {
         AppLinks.invite(session.profile?.username ?? "")
@@ -180,6 +184,10 @@ struct InviteSheet: View {
         "Still want in on Cini? Here's my invite 🎬\n\(inviteURL)"
     }
     private func phoneDigits(_ p: String) -> String { p.filter(\.isNumber) }
+    /// Matches the server's phone_key (last 10 digits) so we can look up the
+    /// network count returned by contact_network_counts.
+    private func phoneKey(_ p: String) -> String { String(phoneDigits(p).suffix(10)) }
+    private func knownBy(_ contact: PhoneContact) -> Int { contactKnownBy[phoneKey(contact.phone)] ?? 0 }
     private func isInvited(_ contact: PhoneContact) -> Bool {
         invitedPhonesRaw.split(separator: ",").map(String.init).contains(phoneDigits(contact.phone))
     }
@@ -206,9 +214,15 @@ struct InviteSheet: View {
     private var unclaimedContacts: [PhoneContact] {
         filteredContacts.filter { isInvited($0) }
     }
-    /// The rest of your address book — first-time invites.
+    /// The rest of your address book — first-time invites, most-connected first
+    /// (how many Cini users already have them in contacts), then alphabetical.
     private var freshContacts: [PhoneContact] {
         filteredContacts.filter { !isInvited($0) }
+            .sorted {
+                let a = knownBy($0), b = knownBy($1)
+                if a != b { return a > b }
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
     }
 
     var body: some View {
@@ -375,7 +389,16 @@ struct InviteSheet: View {
         HStack(spacing: 12) {
             Circle().fill(Theme.surface2).frame(width: 44, height: 44)
                 .overlay(Text(initials(contact.name)).font(.subheadline.weight(.bold)).foregroundStyle(Theme.gray))
-            Text(contact.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(contact.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink).lineLimit(1)
+                // Network-effect social proof — how many members already have
+                // them in contacts. Surfaces the highest-value people to invite.
+                let known = knownBy(contact)
+                if known > 0 {
+                    Text("\(known) on Cini know them")
+                        .font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+                }
+            }
             Spacer()
             let invited = isInvited(contact)
             PillButton(title: invited ? "Remind" : "Invite",
@@ -437,6 +460,9 @@ struct InviteSheet: View {
         var seen = Set<UUID>()
         contactMembers = (byEmail + byPhone).filter { seen.insert($0.id).inserted }
         contacts = people
+        // "N on Cini know them" per contact — sorts the invite list so the
+        // best people to invite rise to the top (Beli-style).
+        contactKnownBy = await SupabaseService.shared.contactNetworkCounts(people.map(\.phone))
         contactsChecked = true
         // If they tapped "Don't Allow" on the prompt, show the Settings path
         // rather than a bare "No contacts to show."

@@ -417,6 +417,24 @@ final class SupabaseService {
         _ = try? await client.rpc("forget_contacts").execute()
     }
 
+    /// "N on Cini know them" per contact: how many Cini users have each number
+    /// in their address book (aggregate counts only, no identities). Returned
+    /// keyed by 10-digit phone key; absent phones mean zero.
+    func contactNetworkCounts(_ phones: [String]) async -> [String: Int] {
+        guard !phones.isEmpty else { return [:] }
+        struct Params: Encodable { let p_phones: [String] }
+        struct Row: Decodable { let phoneKey: String; let knownBy: Int
+            enum CodingKeys: String, CodingKey {
+                case phoneKey = "phone_key"
+                case knownBy = "known_by"
+            }
+        }
+        let rows: [Row] = (try? await client.rpc("contact_network_counts",
+                                                 params: Params(p_phones: phones))
+            .execute().value) ?? []
+        return Dictionary(rows.map { ($0.phoneKey, $0.knownBy) }, uniquingKeysWith: { a, _ in a })
+    }
+
     func membersFromEmails(_ emails: [String]) async throws -> [SuggestedMember] {
         struct Params: Encodable { let p_emails: [String] }
         return try await client.rpc("members_from_emails", params: Params(p_emails: emails))
