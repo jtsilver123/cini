@@ -218,6 +218,12 @@ struct CiniApp: App {
             .environment(session)
             .environment(session.rankingStore)
             .tint(Theme.marquee)
+            // Cap Dynamic Type so the dense card/deck layouts stay intact at
+            // large accessibility text. Fonts still scale up to xLarge (and the
+            // custom serif/display faces now scale too, via relativeTo), so
+            // larger-text users get a real, coherent bump without the layout
+            // breaking. Tunable — raise once specific screens are verified.
+            .dynamicTypeSize(...DynamicTypeSize.xLarge)
             .preferredColorScheme(colorScheme)
             .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }

@@ -81,7 +81,10 @@ enum Theme {
     /// the wordmark and big section headers; all-caps by nature, so it
     /// reads like a marquee sign.
     static func display(_ size: CGFloat) -> Font {
-        .custom("Limelight", size: size)
+        // relativeTo: scales with Dynamic Type so headers grow alongside the
+        // system body/caption text instead of staying fixed (which read as a
+        // size mismatch at larger text settings).
+        .custom("Limelight", size: size, relativeTo: .title)
     }
 
     /// Editorial face for content that stays readable in mixed case
@@ -89,7 +92,8 @@ enum Theme {
     /// poster didone (OFL). The weight parameter is kept only for
     /// call-site compatibility — the face is a single weight.
     static func serif(_ size: CGFloat, weight: Font.Weight = .bold) -> Font {
-        .custom("DM Serif Display", size: size)
+        // relativeTo: scales with Dynamic Type (see display()).
+        .custom("DM Serif Display", size: size, relativeTo: .title)
     }
 
     /// Marquee letters are wider than a didone, so the wordmark sits a
