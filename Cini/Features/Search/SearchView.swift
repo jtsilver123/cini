@@ -16,6 +16,7 @@ struct SearchView: View {
     @State private var memberMatches: [UUID: Double] = [:]
     @State private var followedFromSearch: Set<UUID> = []
     @State private var suggested: [SuggestedMember] = []
+    @State private var peopleYouMayKnow: [SuggestedMember] = []
     @State private var contactMatches: [SuggestedMember] = []
     @State private var contactsChecked = false
     @State private var showInvite = false
@@ -429,6 +430,20 @@ struct SearchView: View {
                     .padding(.vertical, 6)
             }
 
+            // People you may know — friends of friends. The strongest signal, so
+            // it leads, and the lowest-friction way to grow your graph (follow,
+            // don't cold-invite). Hidden until there's at least one to show.
+            if !peopleYouMayKnow.isEmpty {
+                Text("PEOPLE YOU MAY KNOW")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(.top, 10)
+                ForEach(peopleYouMayKnow) { member in
+                    suggestedRow(member, reason: mutualsReason(member))
+                    Divider()
+                }
+            }
+
             Text("SUGGESTED FOR YOU")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.gray)
@@ -475,6 +490,9 @@ struct SearchView: View {
             if suggested.isEmpty {
                 suggested = (try? await SupabaseService.shared.suggestedMembers()) ?? []
             }
+            if peopleYouMayKnow.isEmpty {
+                peopleYouMayKnow = (try? await SupabaseService.shared.peopleYouMayKnow()) ?? []
+            }
         }
     }
 
@@ -483,6 +501,15 @@ struct SearchView: View {
             return "\(Int(pct))% taste match · \(member.watched) titles"
         }
         return member.watched > 0 ? "\(member.watched) titles ranked" : "New here too"
+    }
+
+    /// Lead with the mutual-friends count (the reason this person is here);
+    /// fall back to taste/activity if the count didn't come through.
+    private func mutualsReason(_ member: SuggestedMember) -> String {
+        let m = member.mutuals ?? 0
+        if m > 0 { return "\(m) mutual \(m == 1 ? "friend" : "friends")" }
+        if let pct = member.matchPct, pct > 0 { return "\(Int(pct))% taste match" }
+        return member.watched > 0 ? "\(member.watched) titles ranked" : "Suggested for you"
     }
 
     private func suggestedRow(_ member: SuggestedMember, reason: String) -> some View {

@@ -122,6 +122,7 @@ RPCS = [
     ("username_available", {"p_username": "contract_check_zz"}),
     ("search_members", {"p_query": "a"}),
     ("suggested_members", {"p_limit": 5}),
+    ("people_you_may_know", {"p_limit": 5}),
     ("members_from_emails", {"p_emails": ["nobody@example.com"]}),
     ("predicted_scores", {"p_movie_ids": [27205]}),
     ("watchlist_counts", {"p_movie_ids": [27205]}),

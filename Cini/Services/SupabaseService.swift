@@ -350,6 +350,16 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// "People you may know" — friends of friends you don't already follow,
+    /// ranked by how many of your follows also follow them. The strongest,
+    /// most honest discovery signal, and the lowest-friction path to a fuller
+    /// feed (no cold invite required).
+    func peopleYouMayKnow(limit: Int = 12) async throws -> [SuggestedMember] {
+        struct Params: Encodable { let p_limit: Int }
+        return try await client.rpc("people_you_may_know", params: Params(p_limit: limit))
+            .execute().value
+    }
+
     /// Save the user's (optional, unverified) phone number for contact
     /// matching. Returns false on failure so a required save can be retried.
     @discardableResult
@@ -427,8 +437,7 @@ final class SupabaseService {
         }
     }
 
-    /// How many friends this user has brought to Cini — each one is a credit
-    /// they can spend to unlock a feature.
+    /// How many friends this user has brought to Cini via their invite link.
     func referralCount() async -> Int {
         (try? await client.rpc("referral_count").execute().value) ?? 0
     }
@@ -1834,7 +1843,7 @@ struct RecRequestRow: Decodable, Identifiable, Hashable {
     }
 }
 
-/// Row from suggested_members / members_from_emails.
+/// Row from suggested_members / members_from_emails / people_you_may_know.
 struct SuggestedMember: Decodable, Identifiable, Hashable {
     let id: UUID
     let username: String
@@ -1842,12 +1851,16 @@ struct SuggestedMember: Decodable, Identifiable, Hashable {
     let avatarUrl: String?
     let matchPct: Double?
     let watched: Int
+    /// People-you-may-know only: how many of the people you follow also follow
+    /// this person. nil for the other suggestion sources.
+    let mutuals: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, username, watched
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
         case matchPct = "match_pct"
+        case mutuals = "mutuals_count"
     }
 
     init(from decoder: Decoder) throws {
@@ -1858,6 +1871,7 @@ struct SuggestedMember: Decodable, Identifiable, Hashable {
         avatarUrl = try? c.decode(String.self, forKey: .avatarUrl)
         matchPct = try? c.decode(Double.self, forKey: .matchPct)
         watched = (try? c.decode(Int.self, forKey: .watched)) ?? 0
+        mutuals = try? c.decode(Int.self, forKey: .mutuals)
     }
 }
 

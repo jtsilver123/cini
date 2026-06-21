@@ -300,6 +300,7 @@ struct FeedView: View {
     ///     at least one friend, so it doesn't dominate an active feed.
     @ViewBuilder private func friendsFeedCTA(compact: Bool) -> some View {
         if compact {
+            let friends = friendsCache.following.count
             HairlineCard {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
@@ -309,21 +310,30 @@ struct FeedView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Cini's better with more friends")
                                 .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                            Text("Follow a few more to fill your feed with what they're watching.")
+                            Text("You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more and your feed comes alive.")
                                 .font(.caption).foregroundStyle(Theme.gray)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)
                     }
+                    // Soft progress toward a lively feed — visible momentum, not a
+                    // hard quota (the copy never says "get to N"). Caps the fill at
+                    // the bar so it reads as "almost there," then the card retires.
+                    ProgressView(value: Double(min(friends, Self.friendsFeedBar)),
+                                 total: Double(Self.friendsFeedBar))
+                        .tint(Theme.marquee)
+                    // Invite leads: at launch almost no one's friends are on Cini
+                    // yet, so bringing people in is the growth lever; "find friends"
+                    // (already-on-Cini) is the secondary path.
                     HStack(spacing: 14) {
-                        PillButton(title: "Find friends", systemImage: "magnifyingglass") {
-                            openFindFriends()
-                        }
-                        Button {
+                        PillButton(title: "Invite friends", systemImage: "square.and.arrow.up") {
                             Haptics.tap()
                             showInviteSheet = true
+                        }
+                        Button {
+                            openFindFriends()
                         } label: {
-                            Text("Invite")
+                            Text("Find friends")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.marquee)
                         }
@@ -341,19 +351,19 @@ struct FeedView: View {
                         .font(Theme.serif(24))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Theme.ink)
-                    Text("Your feed lights up the moment your friends join — their rankings, reviews, and what they're watching now.")
+                    Text("Your feed comes alive once your friends are here. Invite a few — when they join with your link, you follow each other automatically.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
 
-                    PillButton(title: "Find your friends", systemImage: "magnifyingglass") {
-                        openFindFriends()
-                    }
-                    Button {
+                    PillButton(title: "Invite friends", systemImage: "square.and.arrow.up") {
                         Haptics.tap()
                         showInviteSheet = true
+                    }
+                    Button {
+                        openFindFriends()
                     } label: {
-                        Text("Invite friends to Cini")
+                        Text("Find friends on Cini")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.marquee)
                     }
