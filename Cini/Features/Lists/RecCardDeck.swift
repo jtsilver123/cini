@@ -109,7 +109,9 @@ struct RecCardDeck: View {
                                     else { withAnimation(.snappy) { drag = .zero } }
                                 }
                             : nil)
-                        .animation(.snappy, value: drag)
+                        // No implicit animation on `drag`: the card must track the
+                        // finger 1:1. Snap-back and fly-off use explicit
+                        // withAnimation above, so removing this kills the rubber-band lag.
                 }
             }
             // Hard-cap the deck to the offered width. Without this, the card's

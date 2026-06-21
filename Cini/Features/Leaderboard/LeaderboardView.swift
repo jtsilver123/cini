@@ -83,7 +83,7 @@ struct LeaderboardView: View {
     }
 
     private var rankedRows: some View {
-        VStack(spacing: 0) {
+        LazyVStack(spacing: 0) {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 NavigationLink {
                     MemberProfileView(userID: row.userId, username: row.username)

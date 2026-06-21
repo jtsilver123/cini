@@ -154,6 +154,10 @@ final class RankingStore {
             return nil
         }
         customLists.insert(list, at: 0)
+        // Building a list is high-effort curation — confirm it the way every
+        // other save does, so it doesn't land silently.
+        Haptics.success()
+        ToastCenter.shared.show("Created “\(name)” 🎬")
         return list
     }
 
@@ -205,6 +209,21 @@ final class RankingStore {
             try await supabase.cacheMovie(movie)
             try await supabase.addToList(listID, movieID: movie.tmdbID)
             cache(movie)
+            listsRevision += 1
+            return true
+        } catch {
+            ToastCenter.shared.saveFailed()
+            return false
+        }
+    }
+
+    /// Remove a title from a custom list through the store, so every surface
+    /// (open list tab, counts) refreshes via `listsRevision` — the mirror of
+    /// addToList. Returns false and toasts on failure so the caller can revert.
+    @discardableResult
+    func removeFromList(_ listID: UUID, movieID: Int) async -> Bool {
+        do {
+            try await supabase.removeFromList(listID, movieID: movieID)
             listsRevision += 1
             return true
         } catch {
@@ -383,7 +402,14 @@ final class RankingStore {
 
     // MARK: - Watchlist
 
+    /// Titles with an in-flight watchlist toggle, so a rapid double-tap can't
+    /// fire add+remove racing the network and desync the saved state.
+    @ObservationIgnored private var togglingWatchlist: Set<Int> = []
+
     func toggleWatchlist(movie: Movie) async {
+        guard !togglingWatchlist.contains(movie.tmdbID) else { return }
+        togglingWatchlist.insert(movie.tmdbID)
+        defer { togglingWatchlist.remove(movie.tmdbID) }
         cache(movie)
         Haptics.tap()
         let wasSaved: Bool

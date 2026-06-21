@@ -52,6 +52,7 @@ struct LogFlowView: View {
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
     @State private var choosing = false   // guards against double-tapping a comparison
+    @State private var committing = false  // guards against a double commit (commit can exceed the 200ms tap guard)
     @State private var showDiscardConfirm = false
     /// The streak before this rank committed — lets the reveal tell a streak
     /// that just *advanced* from one that merely held.
@@ -618,12 +619,17 @@ struct LogFlowView: View {
     }
 
     private func commit(_ finished: InsertionSession<Int>) {
+        // A commit can take longer than the 200ms comparison tap-guard, and
+        // startComparisons() can call this directly — guard against a double save.
+        guard !committing else { return }
+        committing = true
         Task {
             // nil = the rank didn't reach the server (store already reverted
             // and toasted). Don't show the celebratory ticket for a save that
             // failed — bail back out so the user can retry.
             guard let result = await store.commit(finished, watchDate: draft.watchDate,
                                                   stealth: draft.stealthMode) else {
+                committing = false
                 dismiss()
                 return
             }

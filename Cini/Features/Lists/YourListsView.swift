@@ -134,7 +134,9 @@ struct YourListsView: View {
                 SendRecMoviePicker()
             }
             .task {
-                customLists = (try? await SupabaseService.shared.myLists()) ?? []
+                // Only overwrite on success — a transient failure shouldn't
+                // blank the list tabs.
+                if let fresh = try? await SupabaseService.shared.myLists() { customLists = fresh }
             }
             .task(id: subTab) {
                 if subTab == .watching, let me = SupabaseService.shared.currentUserID {
@@ -148,7 +150,7 @@ struct YourListsView: View {
                 Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Stop. Friends can see what you're watching.")
             }
             .sheet(isPresented: $showEditLists, onDismiss: {
-                Task { customLists = (try? await SupabaseService.shared.myLists()) ?? [] }
+                Task { if let fresh = try? await SupabaseService.shared.myLists() { customLists = fresh } }
                 if selectedListID != nil && !customLists.contains(where: { $0.id == selectedListID }) {
                     selectedListID = nil
                 }
@@ -771,27 +773,24 @@ struct YourListsView: View {
                 let doomedIDs = Set(doomed.map(\.tmdbID))
                 customListMovies.removeAll { doomedIDs.contains($0.tmdbID) }
                 Task {
+                    // Through the store so listsRevision bumps and other
+                    // surfaces refresh (it also toasts on failure).
                     var failed = false
                     for movie in doomed {
-                        do {
-                            try await SupabaseService.shared.removeFromList(listID, movieID: movie.tmdbID)
-                        } catch { failed = true }
+                        if !(await store.removeFromList(listID, movieID: movie.tmdbID)) { failed = true }
                     }
                     // Reconcile from the server so a failed remove can't
                     // leave a title that reappears on next open.
                     if failed {
                         let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
                         customListMovies = ids.compactMap { store.movie($0) }
-                        ToastCenter.shared.saveFailed()
                     } else {
                         // Offer Undo — consistent with Want to Watch / watched.
                         let label = doomed.count == 1
                             ? "Removed \(doomed[0].title)" : "Removed \(doomed.count) titles"
                         ToastCenter.shared.showUndo(label) {
                             Task {
-                                for movie in doomed {
-                                    try? await SupabaseService.shared.addToList(listID, movieID: movie.tmdbID)
-                                }
+                                for movie in doomed { await store.addToList(listID, movie: movie) }
                                 let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
                                 customListMovies = ids.compactMap { store.movie($0) }
                             }
@@ -1191,6 +1190,10 @@ struct YourListsView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { detailMovie = movie }
                     .listRowBackground(Theme.background)
+                    // Hydrate streaming/runtime so the "Streaming" and runtime
+                    // filters actually work on Want to Watch (the core "what can
+                    // I watch tonight?" tool).
+                    .task { await store.enrich(item.movieID) }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             Task {

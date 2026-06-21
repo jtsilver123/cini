@@ -5,6 +5,9 @@ struct FeedView: View {
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
+    @Environment(\.scenePhase) private var scenePhase
+    /// Throttle foreground refreshes so a quick app-switch doesn't re-fetch.
+    @State private var lastFeedLoad = Date.distantPast
 
     @State private var events: [FeedEventRow] = []
     @State private var likedEventIDs: Set<UUID> = []
@@ -78,6 +81,12 @@ struct FeedView: View {
             .background(Theme.background)
             .task { await loadFeed() }   // loadFeed also refreshes friendsWatchingRows
             .task { friendsCache.refreshIfStale() }   // for the ask-friends gate
+            // Coming back to the app after a while should show a fresh feed,
+            // not yesterday's — throttled so a quick switch-away doesn't refetch.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active, Date().timeIntervalSince(lastFeedLoad) > 45 else { return }
+                Task { await loadFeed() }
+            }
             .task(id: store.isLoaded) { await loadTonightStack() }
             // Also re-check when the rank count changes — the unlock is taste-
             // based, so crossing the threshold (e.g. ranking during onboarding)
@@ -555,7 +564,9 @@ struct FeedView: View {
     // MARK: Feed
 
     private var yourFeed: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        // Lazy so an unbounded feed only builds the cards on screen — keeps
+        // scrolling smooth as the feed grows.
+        LazyVStack(alignment: .leading, spacing: 16) {
             // What friends are binging right now — story circles at the top.
             if !hideWatchingStories {
                 FriendsWatchingShelf(rows: friendsWatchingRows, onTap: { watchingStory = $0 })
@@ -943,6 +954,7 @@ struct FeedView: View {
     }
 
     private func loadFeed() async {
+        lastFeedLoad = Date()
         // Cold start: show the last feed from disk instantly while the
         // fresh one loads — the app never opens to a blank screen.
         if events.isEmpty, let cached = FeedDiskCache.load() {
