@@ -384,7 +384,7 @@ struct EnrichmentEditorOverlay: View {
                         .datePickerStyle(.graphical)
                         .padding(.horizontal, 12)
                     case .notes:
-                        NoteEditor(title: "Notes", subtitle: "Visible to your friends",
+                        NoteEditor(title: "Notes", subtitle: "Public — shown on this title's page",
                                    text: $draft.notes,
                                    containsSpoilers: $draft.notesContainSpoilers)
                     case .performances:
