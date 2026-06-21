@@ -808,7 +808,10 @@ struct ProfileScreen: View {
             Divider()
             jumpRow(icon: "play.tv", title: "Watching", count: watchingRows.count, tab: .watching)
             Divider()
-            jumpRow(icon: "heart", title: "Recs for You", count: nil, tab: .recs)
+            Button { tabRouter.selection = .swipe } label: {
+                listRow(icon: "heart", title: "Recs for You", count: nil)
+            }
+            .buttonStyle(.plain)
         }
     }
 

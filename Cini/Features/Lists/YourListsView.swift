@@ -19,12 +19,6 @@ struct YourListsView: View {
     @AppStorage("lists.streamingProvider") private var streamingProviderFilter: String?
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
-    @State private var recCandidates: [RecCandidate] = []
-    @State private var recsLoaded = false
-    // Recs default to the swipe-card view (CIN-28); List stays available.
-    // A rec the user is currently ranking — so we can confirm "moved to
-    // Watched" once the rank flow closes (CIN-30).
-    @State private var pendingRecLog: Movie?
     @State private var watchingRows: [WatchingRow] = []
     @State private var watchingLoaded = false
     @State private var showWatchingInfo = false
@@ -69,8 +63,6 @@ struct YourListsView: View {
             // Currently Watching is a TV-only concept (you binge shows, not
             // movies) — hide it under the Movies category.
             case .watching: return category == .tvShows
-            // The dedicated Recs tab now covers personalized recs.
-            case .recs: return false
             case .friendRecs: return !hiddenTabs.contains(tab.rawValue)
             default: return true
             }
@@ -87,7 +79,6 @@ struct YourListsView: View {
         case watched = "Watched"
         case watchlist = "Want to Watch"
         case watching = "Watching"
-        case recs = "Recs"
         case friendRecs = "Friend Recs"
     }
 
@@ -120,15 +111,7 @@ struct YourListsView: View {
             }
             .nativeContentWidth()
             .background(Theme.background)
-            .fullScreenCover(item: $logMovie, onDismiss: {
-                // Ranked a rec → it's now in Watched; confirm where it went.
-                if let m = pendingRecLog {
-                    if store.isWatched(m.tmdbID) {
-                        ToastCenter.shared.show("Moved to your Watched list ✓")
-                    }
-                    pendingRecLog = nil
-                }
-            }) { movie in
+            .fullScreenCover(item: $logMovie) { movie in
                 LogFlowView(movie: movie)
             }
             .sheet(isPresented: $showImport) {
@@ -726,7 +709,6 @@ struct YourListsView: View {
             case .watched: watchedList
             case .watchlist: watchlistList
             case .watching: watchingList
-            case .recs: recsList
             case .friendRecs: friendRecsList
             }
         }
@@ -1241,131 +1223,6 @@ struct YourListsView: View {
                     // Land on Recs with the active media kind, in the last mode.
                     tabRouter.pendingRecsTV = (category == .tvShows)
                     tabRouter.selection = .swipe
-                }
-            }
-        }
-    }
-
-    private var filteredRecs: [RecCandidate] {
-        // Once you've rated a rec it's no longer a rec — drop it so it doesn't
-        // linger in either the card deck or the list (CIN-30).
-        recCandidates.filter { !store.isWatched($0.movie.tmdbID) && passesFilters($0.movie) }
-    }
-
-    /// Recs: friends' loves weighted by taste match, then TMDB-similar to the
-    /// user's #1, then trending — first match wins per movie. The filter
-    /// pills above (genre/decade/runtime/streaming/language) apply here too,
-    /// so "what should I watch tonight?" is just Recs + a couple of taps.
-    /// Recs as a list (the swipe-card view lives on the Swipe tab now).
-    private var recsList: some View {
-        recsAsList
-            .task { await loadRecs() }
-    }
-
-    private var recsAsList: some View {
-        List {
-            listTopAnchor
-            ForEach(filteredRecs) { candidate in
-                VStack(alignment: .leading, spacing: 4) {
-                    WatchlistRowView(movie: candidate.movie,
-                                     predicted: predicted[candidate.movie.tmdbID]) {
-                        pendingRecLog = candidate.movie
-                        logMovie = candidate.movie
-                    }
-                    Text(candidate.reason)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.scoreGreen)
-                }
-                .contentShape(Rectangle())
-                .onTapGesture { detailMovie = candidate.movie }
-                .listRowBackground(Theme.background)
-            }
-        }
-        .listStyle(.plain)
-        .overlay {
-            if recsLoaded && filteredRecs.isEmpty {
-                emptyList(hasActiveFilters
-                    ? "No recs match these filters — loosen one, or follow more friends."
-                    : "No recs yet — follow friends or rank a few titles to get started.")
-            } else if !recsLoaded && recCandidates.isEmpty {
-                SearchSkeleton(kind: .titles, rows: 6)
-                    .screenHPadding()
-                    .frame(maxHeight: .infinity, alignment: .top)
-            }
-        }
-    }
-
-    private func loadRecs() async {
-        guard recCandidates.isEmpty else { return }
-        // All three sources fetch concurrently; the order of the tab
-        // stays friends → similar → trending.
-        let topID = store.watchedItems.first?.id
-        async let friendRecsTask = SupabaseService.shared.recsForUser()
-        async let similarTask = similarToTop(topID)
-        async let trendingTask = TMDBService.shared.trending()
-
-        var pending: [(id: Int, reason: String)] = []
-        var seen = Set<Int>()
-
-        // 1. Friend-powered (taste-match weighted) from the database.
-        if let friendRecs = try? await friendRecsTask {
-            let rows = (try? await SupabaseService.shared.movies(ids: friendRecs.map(\.movieId))) ?? []
-            for row in rows { store.cache(row.asMovie) }
-            for rec in friendRecs where seen.insert(rec.movieId).inserted {
-                let who = rec.topFriendUsername.map { "@\($0)" } ?? "friends"
-                pending.append((rec.movieId, rec.friendCount > 1
-                    ? "Loved by \(who) + \(rec.friendCount - 1) more"
-                    : "Loved by \(who)"))
-            }
-        }
-
-        // 2. Similar to the user's current #1.
-        if let similar = await similarTask {
-            let topTitle = topID.flatMap { store.movie($0)?.title } ?? "your #1"
-            for movie in similar.prefix(10)
-            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
-                store.cache(movie)
-                pending.append((movie.tmdbID, "Because you loved \(topTitle)"))
-            }
-        }
-
-        // 3. Trending keeps the tab alive while the social graph is small.
-        if pending.count < 10, let trending = try? await trendingTask {
-            for movie in trending.prefix(10)
-            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
-                store.cache(movie)
-                pending.append((movie.tmdbID, "Trending this week"))
-            }
-        }
-
-        // Enrich a few at a time instead of one by one — serially this
-        // was dozens of back-to-back round-trips before recs appeared.
-        await enrichConcurrently(pending.map(\.id))
-
-        recCandidates = pending.compactMap { candidate in
-            store.movie(candidate.id).map { RecCandidate(movie: $0, reason: candidate.reason) }
-        }
-        recsLoaded = true
-    }
-
-    private func similarToTop(_ topID: Int?) async -> [Movie]? {
-        guard let topID else { return nil }
-        return try? await TMDBService.shared.similar(to: topID)
-    }
-
-    /// At most six enriches in flight — parallel enough to be fast,
-    /// polite enough for TMDB.
-    private func enrichConcurrently(_ ids: [Int]) async {
-        let store = self.store
-        await withTaskGroup(of: Void.self) { group in
-            var remaining = ids[...]
-            for _ in 0..<min(6, remaining.count) {
-                let id = remaining.removeFirst()
-                group.addTask { await store.enrich(id) }
-            }
-            while await group.next() != nil {
-                if let id = remaining.popFirst() {
-                    group.addTask { await store.enrich(id) }
                 }
             }
         }
