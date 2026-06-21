@@ -543,8 +543,12 @@ struct FeedView: View {
             // The feed is only as alive as your friend list — while it's sparse
             // (but not empty, where the empty state already nudges follows),
             // keep a standing reason to bring people in. Self-limiting: it
-            // disappears once friends' activity fills the feed.
-            if feedLoaded, !events.isEmpty, events.count < 3 {
+            // disappears once friends' activity fills the feed. Held until the
+            // user is engaged (≥5 ranked, the app-wide "engaged" bar) so we
+            // never lead a brand-new feed with an invite ask — the Popular shelf
+            // below carries the cold-start until then.
+            if feedLoaded, !events.isEmpty, events.count < 3,
+               store.watchedCount >= Self.tonightUnlockRanks {
                 inviteNudge
                     .padding(.top, 4)
             }
