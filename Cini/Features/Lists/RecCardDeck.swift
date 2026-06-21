@@ -155,7 +155,7 @@ struct RecCardDeck: View {
         VStack(spacing: 10) {
             Image(systemName: save ? "hand.point.right.fill" : "hand.point.left.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(save ? Theme.scoreGreen : Theme.scoreRed)
+                .foregroundStyle(save ? Theme.marquee : Theme.scoreRed)
             Text(title).font(Theme.serif(24)).foregroundStyle(Theme.ink)
             Text(subtitle).font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -175,7 +175,7 @@ struct RecCardDeck: View {
             let d = max(0, min(-dragX / 100, 1))
             ZStack {
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                    .strokeBorder(Theme.scoreGreen, lineWidth: 4).opacity(s)
+                    .strokeBorder(Theme.marquee, lineWidth: 4).opacity(s)
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                     .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(d)
             }
@@ -202,17 +202,19 @@ struct RecCardDeck: View {
                 .accessibilityLabel("Pass")
 
             controlButton(action: { act(save: true) },
-                          icon: "bookmark.fill", size: 62, fg: .white,
-                          bg: Theme.scoreGreen, caption: "Bookmark")
+                          icon: "bookmark.fill", size: 62, fg: Theme.background,
+                          bg: Theme.marquee, caption: "Bookmark")
                 .disabled(index >= items.count)
                 .accessibilityLabel("Bookmark to Want to Watch")
 
             // Already seen it? Rank it head-to-head. Small, balancing Undo so
             // the two big swipe buttons stay centered on the card.
             if showRank {
+                // Green = rank/rate (the "loved" color), now that save is gold —
+                // so the colors map cleanly: red pass · gold save · green rank.
                 controlButton(action: { rankCurrent() },
                               icon: "plus", size: 46,
-                              fg: Theme.marquee, bg: Theme.fill, caption: "Rank")
+                              fg: .white, bg: Theme.scoreGreen, caption: "Rank")
                     .disabled(index >= items.count)
                     .accessibilityLabel("Rank this — you've seen it")
             }
@@ -410,11 +412,11 @@ struct FriendRecDeck: View {
             .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Pass")
 
             Button { act(save: true) } label: {
-                Image(systemName: "heart.fill").font(.title.weight(.bold)).foregroundStyle(.white)
-                    .frame(width: 62, height: 62).background(Circle().fill(Theme.scoreGreen))
-                    .shadow(color: Theme.scoreGreen.opacity(0.4), radius: 8, y: 3)
+                Image(systemName: "bookmark.fill").font(.title.weight(.bold)).foregroundStyle(Theme.background)
+                    .frame(width: 62, height: 62).background(Circle().fill(Theme.marquee))
+                    .shadow(color: Theme.marquee.opacity(0.4), radius: 8, y: 3)
             }
-            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Bookmark to Want to Watch")
+            .buttonStyle(.plain).disabled(index >= recs.count).accessibilityLabel("Save to Want to Watch")
         }
     }
 

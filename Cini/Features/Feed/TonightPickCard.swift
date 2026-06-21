@@ -178,25 +178,28 @@ struct TonightPickCard: View {
         let save = max(0, min(dragX / 100, 1))
         let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
+            // Save = the gold bookmark accent (NOT green): green is the "loved"
+            // rating color, so a green right-swipe read as "I liked it" rather
+            // than "save to Want to Watch." The stamp text spells out the outcome.
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                .strokeBorder(Theme.scoreGreen, lineWidth: 4).opacity(save)
+                .strokeBorder(Theme.marquee, lineWidth: 4).opacity(save)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
-            stamp("Bookmark", "bookmark.fill", Theme.scoreGreen)
+            stamp("Bookmark", "bookmark.fill", Theme.marquee, fg: Theme.background)
                 .rotationEffect(.degrees(-10)).opacity(save)
-            stamp("Pass", "xmark", Theme.scoreRed)
+            stamp("Pass", "xmark", Theme.scoreRed, fg: .white)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
     }
 
-    private func stamp(_ text: String, _ icon: String, _ color: Color) -> some View {
+    private func stamp(_ text: String, _ icon: String, _ color: Color, fg: Color) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
             Text(text).tracking(1)
         }
         .font(.title3.weight(.heavy))
-        .foregroundStyle(.white)
+        .foregroundStyle(fg)
         .padding(.horizontal, 18).padding(.vertical, 10)
         .background(Capsule().fill(color))
         .shadow(color: .black.opacity(0.35), radius: 7, y: 2)
