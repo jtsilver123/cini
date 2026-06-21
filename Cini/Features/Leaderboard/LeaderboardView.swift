@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import Contacts
 
 /// Serif "Leaderboard" header, Invite pill, Watched/Influence/Notes
@@ -151,6 +152,9 @@ struct InviteSheet: View {
     @State private var contacts: [PhoneContact] = []
     @State private var contactMembers: [SuggestedMember] = []
     @State private var contactsChecked = false
+    /// Contacts access is denied/restricted — show the "open Settings" path
+    /// instead of a button that can't re-prompt.
+    @State private var contactsDenied = false
     @State private var loadingContacts = false
     @State private var autoTried = false
     @State private var followed: Set<UUID> = []
@@ -214,7 +218,9 @@ struct InviteSheet: View {
                         ForEach(contactMembers) { member in memberRow(member) }
                     }
 
-                    if contactsChecked {
+                    if contactsDenied {
+                        enableContactsButton
+                    } else if contactsChecked {
                         if !filteredContacts.isEmpty {
                             sectionHeader("INVITE YOUR CONTACTS")
                             ForEach(filteredContacts) { contact in contactRow(contact) }
@@ -240,8 +246,11 @@ struct InviteSheet: View {
                 // manual "Find friends" button stays so they can still opt in.
                 guard !autoTried, !contactsChecked else { return }
                 autoTried = true
-                if CNContactStore.authorizationStatus(for: .contacts) != .denied {
-                    await loadContacts()
+                let status = CNContactStore.authorizationStatus(for: .contacts)
+                if status == .denied || status == .restricted {
+                    contactsDenied = true   // already declined — point to Settings
+                } else {
+                    await loadContacts()    // authorized loads silently; undetermined prompts
                 }
             }
         }
@@ -280,6 +289,31 @@ struct InviteSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(loadingContacts)
+    }
+
+    /// Shown when contacts access is denied/restricted — the OS won't prompt
+    /// again, so the only way forward is Settings.
+    private var enableContactsButton: some View {
+        Button {
+            Haptics.tap()
+            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.2.fill").font(.title3).foregroundStyle(Theme.marquee)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Turn on Contacts to find friends")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
+                    Text("Enable Contacts for Cini in Settings — we only check who's already here, and never store it.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.forward.app").font(.caption).foregroundStyle(Theme.gray)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.surface))
+        }
+        .buttonStyle(.plain)
     }
 
     private func memberRow(_ member: SuggestedMember) -> some View {
@@ -327,6 +361,10 @@ struct InviteSheet: View {
         contactMembers = (byEmail + byPhone).filter { seen.insert($0.id).inserted }
         contacts = people
         contactsChecked = true
+        // If they tapped "Don't Allow" on the prompt, show the Settings path
+        // rather than a bare "No contacts to show."
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        contactsDenied = (status == .denied || status == .restricted)
         loadingContacts = false
     }
 
