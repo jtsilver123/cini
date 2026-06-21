@@ -365,7 +365,7 @@ struct LaunchView: View {
                     .font(Theme.display(64))
                     .foregroundStyle(Theme.marquee)
                     .shadow(color: Theme.marquee.opacity(glow ? 0.55 : 0.2), radius: glow ? 22 : 10)
-                Text("EVERY FILM · RANKED")
+                Text("EVERYTHING YOU WATCH · RANKED")
                     .font(.caption2.weight(.bold))
                     .tracking(4)
                     .foregroundStyle(Theme.gray)

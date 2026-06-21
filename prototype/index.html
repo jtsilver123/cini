@@ -709,7 +709,7 @@ function renderFeed(){
   $("screen-feed").innerHTML = `
     <div style="position:sticky; top:0; z-index:30; background:var(--bg); padding-bottom:10px; box-shadow:0 8px 14px -12px rgba(0,0,0,.7);">
       <div class="pad" style="display:flex; align-items:center; padding-top:10px;">
-        <span><span class="wordmark serif">cini</span><span class="tagline">EVERY FILM · RANKED</span></span>
+        <span><span class="wordmark serif">cini</span><span class="tagline">EVERYTHING YOU WATCH · RANKED</span></span>
         ${S.streak>0?`<button onclick="openStreakInfo()" title="${S.streak}-week ranking streak" style="display:inline-flex; gap:3px; align-items:center; margin-left:9px; padding:4px 8px; border-radius:999px; border:0; cursor:pointer; font-weight:800; font-size:12px; ${(!S.rankedThisWeek)?'background:var(--gold); color:var(--bg);':'background:rgba(232,182,76,.16); color:var(--gold);'}">${I("flame",12)}${S.streak}</button>`:""}
         <span class="spacer"></span>
         <span style="display:flex; gap:6px; align-items:center;">
@@ -2711,7 +2711,7 @@ function renderOnboarding(){
   if(obStep===0) body=`
     <div style="flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; padding:0 32px; text-align:center;">
       <div class="serif" style="font-size:46px; font-weight:700;">cini</div>
-      <div style="font-size:11px; letter-spacing:.35em; color:var(--gray); font-weight:700;">EVERY FILM · RANKED</div>
+      <div style="font-size:11px; letter-spacing:.35em; color:var(--gray); font-weight:700;">EVERYTHING YOU WATCH · RANKED</div>
       <b style="font-size:21px; margin-top:8px;">No star ratings. Ever.</b>
       <div class="sub" style="font-size:14px; line-height:1.55;">You'll answer one question — <b style="color:var(--ink);">"Which did you like more?"</b> — and Cini builds your perfectly ordered list, with scores that come from your own taste.</div>
       <div style="display:flex; justify-content:center; gap:22px; margin-top:8px;">
