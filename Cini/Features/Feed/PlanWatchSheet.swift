@@ -329,7 +329,9 @@ struct PlanWatchSheet: View {
         let cal = Calendar.current
         var date = at(20, daysFromNow: 0)
         for _ in 0..<7 {
-            if cal.component(.weekday, from: date) == 7 { return date }   // 7 = Saturday
+            // Saturday, but never in the past — if it's already Saturday evening,
+            // roll to next week so "Weekend" can't propose a time that's gone.
+            if cal.component(.weekday, from: date) == 7 && date > Date() { return date }   // 7 = Saturday
             date = cal.date(byAdding: .day, value: 1, to: date) ?? date
         }
         return date

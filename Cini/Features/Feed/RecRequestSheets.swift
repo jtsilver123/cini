@@ -299,7 +299,7 @@ struct RequestRecsSheet: View {
                         dismiss()
                     } else {
                         Haptics.error()
-                        ToastCenter.shared.show("Couldn't send that — try again")
+                        ToastCenter.shared.show("Couldn't send — try again")
                     }
                 }
             }

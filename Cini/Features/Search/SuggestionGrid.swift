@@ -46,9 +46,13 @@ struct SuggestionGrid: View {
                                 .foregroundStyle(.white)
                                 .padding(5)
                                 .background(Circle().fill(.black.opacity(0.55)))
+                                .padding(5)
+                                // 44pt hit target so a corner tap dismisses
+                                // instead of accidentally ranking the title.
+                                .frame(width: 44, height: 44, alignment: .topLeading)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(5)
                         .accessibilityLabel("Dismiss \(movie.title)")
                     }
                 }
@@ -61,9 +65,13 @@ struct SuggestionGrid: View {
                                 .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : .white)
                                 .padding(5)
                                 .background(Circle().fill(.black.opacity(0.55)))
+                                .padding(5)
+                                // 44pt hit target so a corner tap saves
+                                // instead of accidentally ranking the title.
+                                .frame(width: 44, height: 44, alignment: .topTrailing)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .padding(5)
                         .accessibilityLabel("Bookmark \(movie.title) to Want to Watch")
                     }
                 }

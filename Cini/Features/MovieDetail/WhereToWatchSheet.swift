@@ -98,7 +98,7 @@ struct WhereToWatchSheet: View {
         case name.contains("apple tv"): "https://tv.apple.com/search?term=\(query)"
         case name.contains("peacock"): "https://www.peacocktv.com/watch/search?q=\(query)"
         case name.contains("paramount"): "https://www.paramountplus.com/search/\(query)/"
-        case name.contains("youtube"): "https://www.youtube.com/results?search_query=\(query)%20movie"
+        case name.contains("youtube"): "https://www.youtube.com/results?search_query=\(query)"
         default: nil
         }
         return template.flatMap(URL.init)

@@ -1313,9 +1313,11 @@ struct FeedCard: View {
             liked = isLiked
         }
         // Adopt the server like count on first render and reconcile to it on
-        // every refresh. Optimistic toggles change local state, not this server
-        // snapshot, so they're never clobbered (same pattern as `liked`).
+        // every refresh — but never while our own like/unlike is still in
+        // flight, or a refresh that lands before the write completes would
+        // clobber the optimistic count back to the stale server snapshot.
         .onChange(of: event.likeCount, initial: true) { _, count in
+            guard !likeInFlight else { return }
             likeCount = count
         }
     }

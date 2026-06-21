@@ -826,8 +826,14 @@ struct MovieDetailView: View {
     }
 
     private func ratingCountLabel(_ count: Int) -> String {
-        count >= 1000 ? "\(count / 1000)k ratings"
-                      : "\(count) rating\(count == 1 ? "" : "s")"
+        // Don't truncate 1,500 down to a misleading "1k": abbreviate with one
+        // decimal in the thousands, drop the decimal only at 10k+.
+        if count >= 10_000 { return "\(count / 1000)k ratings" }
+        if count >= 1_000 {
+            let k = (Double(count) / 1000).formatted(.number.precision(.fractionLength(1)))
+            return "\(k)k ratings"
+        }
+        return "\(count) rating\(count == 1 ? "" : "s")"
     }
 
     /// "What people think" — Friends (everyone you follow who ranked it)

@@ -75,7 +75,7 @@ struct AuthView: View {
             authField("Email, phone, or username", text: $email, keyboard: .emailAddress)
             authField("Password", text: $password, secure: true)
             primaryButton("Sign in", loading: isWorking,
-                          disabled: email.isEmpty || password.count < 6) {
+                          disabled: email.isEmpty || password.isEmpty) {
                 Task { await signIn() }
             }
             messages
