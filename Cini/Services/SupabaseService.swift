@@ -233,18 +233,21 @@ final class SupabaseService {
 
     // MARK: - Rankings (atomic via RPC)
 
-    func rankInsert(movieID: Int, bucket: Sentiment, position: Int, watchDate: Date? = nil) async throws -> RankingRow {
+    func rankInsert(movieID: Int, bucket: Sentiment, position: Int, watchDate: Date? = nil,
+                    stealth: Bool = false) async throws -> RankingRow {
         struct Params: Encodable {
             let p_movie_id: Int
             let p_bucket: String
             let p_position: Int
             let p_watch_date: String?
+            let p_stealth: Bool
         }
         let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
         return try await client.rpc(
             "rank_insert",
             params: Params(p_movie_id: movieID, p_bucket: bucket.rawValue,
-                           p_position: position, p_watch_date: dateString)
+                           p_position: position, p_watch_date: dateString,
+                           p_stealth: stealth)
         ).single().execute().value
     }
 

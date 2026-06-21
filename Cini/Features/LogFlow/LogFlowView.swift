@@ -622,7 +622,8 @@ struct LogFlowView: View {
             // nil = the rank didn't reach the server (store already reverted
             // and toasted). Don't show the celebratory ticket for a save that
             // failed — bail back out so the user can retry.
-            guard let result = await store.commit(finished, watchDate: draft.watchDate) else {
+            guard let result = await store.commit(finished, watchDate: draft.watchDate,
+                                                  stealth: draft.stealthMode) else {
                 dismiss()
                 return
             }
@@ -647,17 +648,9 @@ struct LogFlowView: View {
     private func persistDraft() async {
         let supabase = SupabaseService.shared
         var anySaveFailed = false
-        // Privacy first: hide the rank event before the other detail writes so
-        // the window where a stealthed rank is visible to friends is as small as
-        // possible. A hide failure gets its OWN clear message — it's not just a
-        // missing "detail," it means the rank is public.
-        if draft.stealthMode {
-            do {
-                try await supabase.hideRankEvent(movieID: movie.tmdbID)
-            } catch {
-                ToastCenter.shared.show("Couldn't hide this from friends — open the movie page to retry.")
-            }
-        }
+        // Stealth is handled atomically inside rank_insert (it simply never
+        // emits the 'ranked' feed event), so there's no public window to close
+        // here and no separate hide step that could fail.
         if !draft.notes.isEmpty {
             do {
                 try await supabase.upsertNote(movieID: movie.tmdbID, body: draft.notes,

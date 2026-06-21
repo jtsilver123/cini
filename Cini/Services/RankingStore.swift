@@ -227,7 +227,8 @@ final class RankingStore {
 
     /// Commit locally and mirror to the rank_insert RPC.
     @discardableResult
-    func commit(_ session: InsertionSession<Int>, watchDate: Date? = nil) async -> ScoredItem<Int>? {
+    func commit(_ session: InsertionSession<Int>, watchDate: Date? = nil,
+                stealth: Bool = false) async -> ScoredItem<Int>? {
         guard session.isComplete else { return nil }
         guard let bucketPosition = session.resolvedBucketPosition else {
             // Engine state should make this impossible; never crash on it.
@@ -249,7 +250,8 @@ final class RankingStore {
                 movieID: session.newItemID,
                 bucket: session.sentiment,
                 position: bucketPosition,
-                watchDate: watchDate
+                watchDate: watchDate,
+                stealth: stealth
             )
         } catch {
             // One retry — a transient network blip shouldn't drop a rank.
@@ -259,7 +261,8 @@ final class RankingStore {
                     movieID: session.newItemID,
                     bucket: session.sentiment,
                     position: bucketPosition,
-                    watchDate: watchDate
+                    watchDate: watchDate,
+                    stealth: stealth
                 )
             } catch {
                 // Both attempts failed: resync from the server so we don't
@@ -278,9 +281,12 @@ final class RankingStore {
         // (doing this before the write would drop it from "pending to rate"
         // even if the rank failed and we reverted).
         ImportQueue.shared.markRanked(session.newItemID)
-        // Tell friends who already love this title that you just rated it.
-        let ratedID = session.newItemID
-        Task { await supabase.notifyFriendsOfRating(movieID: ratedID) }
+        // Tell friends who already love this title that you just rated it —
+        // but never for a stealth rank, which must stay invisible to everyone.
+        if !stealth {
+            let ratedID = session.newItemID
+            Task { await supabase.notifyFriendsOfRating(movieID: ratedID) }
+        }
         return scored
     }
 

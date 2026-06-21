@@ -232,7 +232,7 @@ def main():
             ("cache_movie", {"p_tmdb_id": 27205, "p_media_kind": "movie",
                              "p_title": "Inception", "p_genres": []}),
             ("rank_insert", {"p_movie_id": 27205, "p_bucket": "loved",
-                             "p_position": 0, "p_watch_date": None}),
+                             "p_position": 0, "p_watch_date": None, "p_stealth": False}),
             ("set_ranking_labels", {"p_movie_id": 27205, "p_labels": ["Mind-bending"]}),
             ("watchlist_toggle", {"p_movie_id": 27205}),
             ("watchlist_toggle", {"p_movie_id": 27205}),

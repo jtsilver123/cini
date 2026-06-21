@@ -306,6 +306,7 @@ final class AppSession {
 
     func loadProfile() async {
         guard let id = supabase.currentUserID else { return }
+        await flushPendingPhone()
         async let profileRow = supabase.profile(id: id)
         async let rank = supabase.globalRank(userID: id)
         async let referrals = supabase.referralCount()
@@ -318,6 +319,27 @@ final class AppSession {
         globalRank = try? await rank
         referralCount = await referrals
         unlockedFeatures = Set(await unlocked)
+    }
+
+    /// Finish a phone save that didn't land at signup (network blip). Bounded so
+    /// a number that's genuinely taken can't retry forever — after several tries
+    /// we drop it and the user can set one in Settings.
+    private func flushPendingPhone() async {
+        let phoneKey = "cini.pendingPhoneE164"
+        let triesKey = "cini.pendingPhoneTries"
+        guard let phone = UserDefaults.standard.string(forKey: phoneKey) else { return }
+        if await supabase.setPhone(phone) {
+            UserDefaults.standard.removeObject(forKey: phoneKey)
+            UserDefaults.standard.removeObject(forKey: triesKey)
+            return
+        }
+        let tries = UserDefaults.standard.integer(forKey: triesKey) + 1
+        if tries >= 5 {
+            UserDefaults.standard.removeObject(forKey: phoneKey)
+            UserDefaults.standard.removeObject(forKey: triesKey)
+        } else {
+            UserDefaults.standard.set(tries, forKey: triesKey)
+        }
     }
 
     func signOut() async {

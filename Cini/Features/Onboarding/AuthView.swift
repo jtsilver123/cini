@@ -352,11 +352,19 @@ struct AuthView: View {
                 username: "user_\(UUID().uuidString.prefix(8).lowercased())")
             // Email confirmation is off, so signUp returns a live session — the
             // auth state flips and onboarding takes over automatically. Save the
-            // number we collected up front (phone-first signup); if it's already
-            // on Cini, they can change it later in Settings.
-            let saved = await SupabaseService.shared.setPhone(e164Phone)
+            // number we collected up front (phone-first signup). Retry a couple
+            // times so a transient blip right at signup doesn't silently drop it;
+            // if it still won't save, stash it so loadProfile finishes the job
+            // (otherwise a tear-down toast no one sees was the only signal, and
+            // friends couldn't find the user by number).
+            var saved = false
+            for attempt in 0..<3 {
+                saved = await SupabaseService.shared.setPhone(e164Phone)
+                if saved { break }
+                try? await Task.sleep(for: .seconds(Double(attempt + 1)))
+            }
             if !saved {
-                ToastCenter.shared.show("That number's already on Cini — you can update it in Settings.")
+                UserDefaults.standard.set(e164Phone, forKey: "cini.pendingPhoneE164")
             }
         } catch {
             errorMessage = friendly(error)

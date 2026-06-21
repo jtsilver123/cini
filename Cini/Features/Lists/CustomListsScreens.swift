@@ -11,6 +11,9 @@ struct CustomListsScreen: View {
     @State private var lists: [CustomList] = []
     @State private var loaded = false
     @State private var newName = ""
+    // A list holds one media kind — let the creator pick (Movies or TV) so a
+    // TV list isn't silently forced to Movies and then hidden from the TV tab.
+    @State private var newKind = "movie"
     @State private var doomedLists: [CustomList] = []
     @State private var renameTarget: CustomList?
     @State private var renameText = ""
@@ -18,23 +21,30 @@ struct CustomListsScreen: View {
     var body: some View {
         List {
             if isSelf {
-                HStack {
-                    TextField("New list", text: $newName)
-                    Button("Create") {
-                        Task {
-                            let name = newName.trimmingCharacters(in: .whitespaces)
-                            guard !name.isEmpty else { return }
-                            guard await store.createList(name: name, mediaKind: "movie") != nil else {
-                                ToastCenter.shared.saveFailed()
-                                return
+                VStack(spacing: 10) {
+                    HStack {
+                        TextField("New list", text: $newName)
+                        Button("Create") {
+                            Task {
+                                let name = newName.trimmingCharacters(in: .whitespaces)
+                                guard !name.isEmpty else { return }
+                                guard await store.createList(name: name, mediaKind: newKind) != nil else {
+                                    ToastCenter.shared.saveFailed()
+                                    return
+                                }
+                                newName = ""
+                                // Reconcile from the shared cache so the
+                                // add-to-list picker sees it too.
+                                lists = store.customLists
                             }
-                            newName = ""
-                            // Reconcile from the shared cache so the
-                            // add-to-list picker sees it too.
-                            lists = store.customLists
                         }
+                        .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                    .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Picker("List type", selection: $newKind) {
+                        Text("Movies").tag("movie")
+                        Text("TV Shows").tag("tv")
+                    }
+                    .pickerStyle(.segmented)
                 }
                 .listRowBackground(Theme.background)
             }
@@ -381,6 +391,8 @@ struct EditListsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(RankingStore.self) private var store
     @State private var newName = ""
+    // Lists hold one media kind — let the creator choose.
+    @State private var newKind = "movie"
     @State private var doomedLists: [CustomList] = []
     @State private var renameTarget: CustomList?
     @State private var renameText = ""
@@ -416,6 +428,11 @@ struct EditListsSheet: View {
                         }
                         .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
+                    Picker("List type", selection: $newKind) {
+                        Text("Movies").tag("movie")
+                        Text("TV Shows").tag("tv")
+                    }
+                    .pickerStyle(.segmented)
                     ForEach(lists) { list in
                         HStack {
                             Text(list.name)
@@ -502,7 +519,7 @@ struct EditListsSheet: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         newName = ""
-        if await store.createList(name: name, mediaKind: "movie") != nil {
+        if await store.createList(name: name, mediaKind: newKind) != nil {
             lists = store.customLists   // keep every surface in sync
         }
     }
