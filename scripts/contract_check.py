@@ -107,7 +107,7 @@ READS = [
     ("follow_edges_both", "follows", "follower_id, following_id"),
     ("watched_with_tags", "rankings", "watched_with"),
     ("feed", "feed_events", "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)"),
-    ("taste_match", "taste_matches", "pct"),
+    ("taste_match", "taste_matches", "user_a, user_b, pct"),
     ("my_likes", "likes", "event_id"),
     ("my_comment_likes", "comment_likes", "comment_id"),
     ("member_note", "notes", "body"),

@@ -11,6 +11,9 @@ struct SearchView: View {
     @State private var query = ""
     @State private var movieResults: [Movie] = []
     @State private var memberResults: [ProfileRow] = []
+    /// Taste-match % per member id, fetched for the current results so each row
+    /// can show "X% match" instead of a bare @username.
+    @State private var memberMatches: [UUID: Double] = [:]
     @State private var followedFromSearch: Set<UUID> = []
     @State private var suggested: [SuggestedMember] = []
     @State private var contactMatches: [SuggestedMember] = []
@@ -514,10 +517,12 @@ struct SearchView: View {
                 NavigationLink {
                     MemberProfileView(userID: member.id, username: member.username)
                 } label: {
+                    let pct = memberMatches[member.id]
                     MemberRow(
                         avatarURL: member.avatarUrl.flatMap(URL.init),
                         title: firstName(member.displayName, member.username) ?? member.username,
-                        subtitle: "@\(member.username)"
+                        subtitle: pct.map { "\(Int($0))% match · @\(member.username)" } ?? "@\(member.username)",
+                        subtitleColor: pct != nil ? Theme.scoreGreen : Theme.gray
                     ) {
                         PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
                                    style: .outlined) {
@@ -776,6 +781,11 @@ struct SearchView: View {
                 guard !Task.isCancelled else { return }
                 memberResults = found
                 completedQuery = text
+                // Upgrade the rows from "@username" to "X% match" once the
+                // batch lookup returns (results already render meanwhile).
+                let matches = await SupabaseService.shared.memberMatchPcts(found.map(\.id))
+                guard !Task.isCancelled else { return }
+                memberMatches = matches
             }
         }
     }

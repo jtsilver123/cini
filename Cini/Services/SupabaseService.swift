@@ -1159,6 +1159,33 @@ final class SupabaseService {
         return rows?.first?.pct
     }
 
+    /// Taste-match % for a batch of members, keyed by member id. Reads the
+    /// nightly-computed taste_matches table (RLS already lets a viewer read
+    /// their own pairs, same as tasteMatch(with:)); members with no computed
+    /// match are simply absent from the result. Used to show "X% match" on
+    /// member rows without an N+1 of single lookups.
+    func memberMatchPcts(_ ids: [UUID]) async -> [UUID: Double] {
+        guard let me = currentUserID else { return [:] }
+        let meStr = me.uuidString.lowercased()
+        let idStrs = ids.filter { $0 != me }.map { $0.uuidString.lowercased() }
+        guard !idStrs.isEmpty else { return [:] }
+        struct Row: Decodable { let user_a: String; let user_b: String; let pct: Double }
+        // Pairs are stored ordered (lo, hi), so the viewer can be either column —
+        // query both sides and merge.
+        let aRows: [Row] = (try? await client.from("taste_matches")
+            .select("user_a,user_b,pct")
+            .eq("user_a", value: meStr).in("user_b", values: idStrs)
+            .execute().value) ?? []
+        let bRows: [Row] = (try? await client.from("taste_matches")
+            .select("user_a,user_b,pct")
+            .eq("user_b", value: meStr).in("user_a", values: idStrs)
+            .execute().value) ?? []
+        var out: [UUID: Double] = [:]
+        for r in aRows { if let id = UUID(uuidString: r.user_b) { out[id] = r.pct } }
+        for r in bRows { if let id = UUID(uuidString: r.user_a) { out[id] = r.pct } }
+        return out
+    }
+
     func isFollowing(_ userID: UUID) async -> Bool {
         guard let me = currentUserID else { return false }
         let response = try? await client.from("follows")

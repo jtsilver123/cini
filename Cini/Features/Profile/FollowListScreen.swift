@@ -11,6 +11,7 @@ struct FollowListScreen: View {
     @Environment(TabRouter.self) private var tabRouter
 
     @State private var members: [ProfileRow] = []
+    @State private var memberMatches: [UUID: Double] = [:]
     @State private var iFollow: Set<UUID> = []
     @State private var requested: Set<UUID> = []
     @State private var followInFlight: Set<UUID> = []
@@ -108,10 +109,12 @@ struct FollowListScreen: View {
         NavigationLink {
             MemberProfileView(userID: member.id, username: member.username)
         } label: {
+            let pct = memberMatches[member.id]
             MemberRow(
                 avatarURL: member.avatarUrl.flatMap(URL.init),
                 title: firstName(member.displayName, member.username) ?? member.username,
-                subtitle: "@\(member.username)"
+                subtitle: pct.map { "\(Int($0))% match · @\(member.username)" } ?? "@\(member.username)",
+                subtitleColor: pct != nil ? Theme.scoreGreen : Theme.gray
             ) {
                 if member.id != session.profile?.id {
                     let label = iFollow.contains(member.id) ? "Following"
@@ -162,5 +165,9 @@ struct FollowListScreen: View {
         members = rows
         iFollow = Set(mine.map(\.id))
         loaded = true
+        // Show "X% match" where a taste match exists (batch lookup).
+        let matches = await SupabaseService.shared.memberMatchPcts(rows.map(\.id))
+        guard d == direction else { return }
+        memberMatches = matches
     }
 }
