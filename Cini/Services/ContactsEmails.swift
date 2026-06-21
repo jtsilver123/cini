@@ -36,12 +36,15 @@ enum ContactsList {
                     CNContactPhoneNumbersKey] as [CNKeyDescriptor]
         let request = CNContactFetchRequest(keysToFetch: keys)
         var out: [PhoneContact] = []
+        // De-dupe by phone (last 10 digits), NOT name — two different people can
+        // share a display name, and collapsing by name silently dropped them.
         var seen = Set<String>()
         try? store.enumerateContacts(with: request) { contact, _ in
             let name = [contact.givenName, contact.familyName]
                 .filter { !$0.isEmpty }.joined(separator: " ")
-            guard !name.isEmpty, let phone = contact.phoneNumbers.first?.value.stringValue,
-                  seen.insert(name.lowercased()).inserted else { return }
+            guard !name.isEmpty, let phone = contact.phoneNumbers.first?.value.stringValue else { return }
+            let key = String(phone.filter(\.isNumber).suffix(10))
+            guard !key.isEmpty, seen.insert(key).inserted else { return }
             out.append(PhoneContact(name: name, phone: phone))
         }
         return out.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }

@@ -43,6 +43,9 @@ struct YourListsView: View {
     @State private var selectedListID: UUID?
     @State private var customListMovies: [Movie] = []
     @State private var customListLoaded = false
+    /// The list id `customListMovies` currently holds — so a listsRevision-only
+    /// refresh refetches in place instead of clearing to a skeleton.
+    @State private var loadedListID: UUID?
     @State private var showEditLists = false
     @State private var showNewList = false
     @State private var newListName = ""
@@ -802,14 +805,20 @@ struct YourListsView: View {
         // Chat refreshes the open list tab instead of leaving it stale.
         .task(id: "\(selectedListID?.uuidString ?? "none")#\(store.listsRevision)") {
             guard let listID = selectedListID else { return }
-            customListMovies = []
-            customListLoaded = false
+            // Only clear/skeleton when the list itself changed. A listsRevision
+            // bump (a title added from elsewhere) refetches in place, so the
+            // open list updates without flashing a skeleton over its rows.
+            if loadedListID != listID {
+                customListMovies = []
+                customListLoaded = false
+            }
             let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
             let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
             let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.tmdbId, $0.asMovie) })
             customListMovies = ids.compactMap { byID[$0] ?? store.movie($0) }
             for movie in customListMovies { store.cache(movie) }
             customListLoaded = true
+            loadedListID = listID
         }
     }
 

@@ -448,13 +448,13 @@ struct SearchView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.gray)
                 .padding(.top, 10)
-            if suggested.isEmpty {
+            if dedupedSuggested.isEmpty {
                 Text("Suggestions appear as more people join — invite a few friends.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .padding(.vertical, 12)
             }
-            ForEach(suggested) { member in
+            ForEach(dedupedSuggested) { member in
                 suggestedRow(member, reason: suggestionReason(member))
                 Divider()
             }
@@ -494,6 +494,13 @@ struct SearchView: View {
                 peopleYouMayKnow = (try? await SupabaseService.shared.peopleYouMayKnow()) ?? []
             }
         }
+    }
+
+    /// "Suggested for you" minus anyone already shown under "People you may
+    /// know," so a friend-of-friend who's also a taste match isn't listed twice.
+    private var dedupedSuggested: [SuggestedMember] {
+        let pymk = Set(peopleYouMayKnow.map(\.id))
+        return suggested.filter { !pymk.contains($0.id) }
     }
 
     private func suggestionReason(_ member: SuggestedMember) -> String {

@@ -188,19 +188,21 @@ struct InviteSheet: View {
     /// network count returned by contact_network_counts.
     private func phoneKey(_ p: String) -> String { String(phoneDigits(p).suffix(10)) }
     private func knownBy(_ contact: PhoneContact) -> Int { contactKnownBy[phoneKey(contact.phone)] ?? 0 }
+    // Invited/dismissed persist under the same last-10 phone key as the network
+    // lookup, so a contact stored with vs. without a country code stays matched.
     private func isInvited(_ contact: PhoneContact) -> Bool {
-        invitedPhonesRaw.split(separator: ",").map(String.init).contains(phoneDigits(contact.phone))
+        invitedPhonesRaw.split(separator: ",").map(String.init).contains(phoneKey(contact.phone))
     }
     private func markInvited(_ contact: PhoneContact) {
-        let d = phoneDigits(contact.phone)
+        let d = phoneKey(contact.phone)
         guard !d.isEmpty, !isInvited(contact) else { return }
         invitedPhonesRaw += invitedPhonesRaw.isEmpty ? d : ",\(d)"
     }
     private func isDismissed(_ contact: PhoneContact) -> Bool {
-        dismissedContactsRaw.split(separator: ",").map(String.init).contains(phoneDigits(contact.phone))
+        dismissedContactsRaw.split(separator: ",").map(String.init).contains(phoneKey(contact.phone))
     }
     private func dismissContact(_ contact: PhoneContact) {
-        let d = phoneDigits(contact.phone)
+        let d = phoneKey(contact.phone)
         guard !d.isEmpty, !isDismissed(contact) else { return }
         dismissedContactsRaw += dismissedContactsRaw.isEmpty ? d : ",\(d)"
     }
@@ -213,6 +215,16 @@ struct InviteSheet: View {
     /// Beli's "Unclaimed invites." Surfaced first, with a Remind nudge.
     private var unclaimedContacts: [PhoneContact] {
         filteredContacts.filter { isInvited($0) }
+    }
+    /// "Already on Cini" matches, filtered by the same search box as the
+    /// contact rows (otherwise searching emptied the contacts but left the
+    /// members list fully shown, which read as a broken search).
+    private var filteredMembers: [SuggestedMember] {
+        guard !query.isEmpty else { return contactMembers }
+        return contactMembers.filter {
+            $0.displayName.localizedCaseInsensitiveContains(query)
+                || $0.username.localizedCaseInsensitiveContains(query)
+        }
     }
     /// The rest of your address book — first-time invites, most-connected first
     /// (how many Cini users already have them in contacts), then alphabetical.
@@ -250,9 +262,9 @@ struct InviteSheet: View {
                         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
                     }
 
-                    if !contactMembers.isEmpty {
+                    if !filteredMembers.isEmpty {
                         sectionHeader("ALREADY ON CINI")
-                        ForEach(contactMembers) { member in memberRow(member) }
+                        ForEach(filteredMembers) { member in memberRow(member) }
                     }
 
                     if contactsDenied {
@@ -267,7 +279,7 @@ struct InviteSheet: View {
                         if !freshContacts.isEmpty {
                             sectionHeader("YOUR CONTACTS")
                             ForEach(freshContacts) { contact in contactRow(contact) }
-                        } else if unclaimedContacts.isEmpty && contactMembers.isEmpty {
+                        } else if unclaimedContacts.isEmpty && filteredMembers.isEmpty {
                             Text("No contacts to show.")
                                 .font(.subheadline).foregroundStyle(Theme.gray)
                         }
