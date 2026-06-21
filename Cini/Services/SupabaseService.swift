@@ -433,25 +433,6 @@ final class SupabaseService {
         (try? await client.rpc("referral_count").execute().value) ?? 0
     }
 
-    /// The feature keys this user has unlocked (aggregate_scores, …).
-    func unlockedFeatures() async -> [String] {
-        (try? await client.rpc("unlocked_features").execute().value) ?? []
-    }
-
-    /// Spend a referral credit to unlock a feature. Returns false if there's
-    /// no unspent credit (or the key is unknown).
-    @discardableResult
-    func unlockFeature(_ feature: String) async -> Bool {
-        struct Params: Encodable { let p_feature: String }
-        do {
-            return try await client.rpc("unlock_feature", params: Params(p_feature: feature))
-                .execute().value
-        } catch {
-            Self.logSwallowed("unlock_feature", error)
-            return false
-        }
-    }
-
     /// After you rank a title, notify the people who follow you and already
     /// rate that same title highly ("a friend rated one of your favorites").
     func notifyFriendsOfRating(movieID: Int) async {

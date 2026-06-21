@@ -561,16 +561,6 @@ struct FeedView: View {
                     .padding(.top, 4)
             }
 
-            // Beli-style unlock progress — until everything's unlocked. Held
-            // until the user is engaged (same bar as the invite nudge / Tonight's
-            // Pick) so a brand-new feed isn't led with a "rank 1, now invite"
-            // ask before they've gotten any value.
-            if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }),
-               store.watchedCount >= Self.engagedRankBar {
-                FeedUnlockCard()
-                    .padding(.top, 6)
-            }
-
             if events.isEmpty {
                 if feedLoaded {
                     emptyState

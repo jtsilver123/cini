@@ -258,14 +258,8 @@ final class AppSession {
     var didResolveAuth = false
     var profile: Profile?
     var globalRank: Int?
-    /// Friends brought to Cini (= unlock credits) and the features unlocked
-    /// with them. Drive the referral-unlock wall (aggregate scores, etc.).
+    /// Friends brought to Cini.
     var referralCount = 0
-    var unlockedFeatures: Set<String> = []
-
-    /// Referral credits not yet spent on an unlock.
-    var availableUnlocks: Int { max(0, referralCount - unlockedFeatures.count) }
-    func isUnlocked(_ feature: String) -> Bool { unlockedFeatures.contains(feature) }
 
     let rankingStore = RankingStore()
     private let supabase = SupabaseService.shared
@@ -310,7 +304,6 @@ final class AppSession {
         async let profileRow = supabase.profile(id: id)
         async let rank = supabase.globalRank(userID: id)
         async let referrals = supabase.referralCount()
-        async let unlocked = supabase.unlockedFeatures()
         await rankingStore.load()
         // Keep the server's idea of our timezone current for the evening
         // Tonight's Pick push (sent at ~7pm local).
@@ -318,7 +311,6 @@ final class AppSession {
         profile = try? await profileRow.asProfile
         globalRank = try? await rank
         referralCount = await referrals
-        unlockedFeatures = Set(await unlocked)
     }
 
     /// Finish a phone save that didn't land at signup (network blip). Bounded so

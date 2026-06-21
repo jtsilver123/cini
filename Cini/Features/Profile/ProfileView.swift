@@ -82,7 +82,6 @@ struct ProfileScreen: View {
     @State private var showLogoutConfirm = false
     @State private var showTop5Share = false
     @State private var showMatchShare = false
-    @State private var showUnlocks = false
 
     private var isSelf: Bool { userID == nil || userID == session.profile?.id }
     private var resolvedID: UUID? { userID ?? session.profile?.id }
@@ -110,7 +109,6 @@ struct ProfileScreen: View {
                             identity
                             topThree
                             if isSelf, !rankings.isEmpty { shareTopFiveButton }
-                            if isSelf, session.availableUnlocks > 0 { unlockBanner }
                             statRow
                             buttonRow
                             listRows
@@ -200,9 +198,6 @@ struct ProfileScreen: View {
                 avatarURL: profile?.avatarURL,
                 movieEntries: topEntries("movie"),
                 showEntries: topEntries("tv"))
-        }
-        .sheet(isPresented: $showUnlocks) {
-            UnlocksView()
         }
         .sheet(isPresented: $showMatchShare) {
             if let pct = matchPct {
@@ -369,11 +364,6 @@ struct ProfileScreen: View {
                     } label: {
                         Label("Invite a Friend", systemImage: "person.badge.plus")
                     }
-                    Button {
-                        showUnlocks = true
-                    } label: {
-                        Label("Unlock Features", systemImage: "gift")
-                    }
                     Button(role: .destructive) {
                         showLogoutConfirm = true
                     } label: {
@@ -450,27 +440,6 @@ struct ProfileScreen: View {
         .buttonStyle(.plain)
     }
 
-    /// Self-only nudge: spendable referral unlocks waiting to be used.
-    private var unlockBanner: some View {
-        Button {
-            Haptics.tap()
-            showUnlocks = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "gift.fill").foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(session.availableUnlocks) unlock\(session.availableUnlocks == 1 ? "" : "s") ready")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Choose a feature to unlock").font(.caption).foregroundStyle(Theme.gray)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
-            }
-            .padding(14)
-            .background(RoundedRectangle(cornerRadius: 16).fill(Theme.marqueeSoft))
-        }
-        .buttonStyle(.plain)
-    }
 
     /// Top ranked entries for one kind ("movie"/"tv"), best first, 1-based rank.
     private func topEntries(_ kind: String) -> [TopFiveShareSheet.Entry] {

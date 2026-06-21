@@ -16,10 +16,6 @@ struct MovieDetailView: View {
     /// A taller hero on iPad so it doesn't read as a thin band on the big canvas.
     private var heroHeight: CGFloat { hSize == .regular ? 400 : 300 }
 
-    @State private var showUnlocks = false
-    /// The aggregated "what all of Cini thinks" score is a referral-unlock.
-    private var scoresLocked: Bool { !session.isUnlocked("aggregate_scores") }
-
     @State private var community: CommunityScore?
     @State private var friends: [FriendScoreRow] = []
     @State private var friendsLoaded = false
@@ -138,9 +134,6 @@ struct MovieDetailView: View {
         }
         .sheet(isPresented: $showWantSheet) { wantToWatchSheet }
         .sheet(isPresented: $showWatchingSheet) { watchingSheet }
-        .sheet(isPresented: $showUnlocks) {
-            UnlocksView()
-        }
         // Pushed onto the nav stack so it gets a native back + swipe-back; a
         // tapped commenter pushes their profile on top.
         .navigationDestination(item: $commentsTarget) { target in
@@ -289,7 +282,7 @@ struct MovieDetailView: View {
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
 
                 HStack(spacing: 10) {
-                    if let community, !scoresLocked {
+                    if let community {
                         ScoreChip(score: community.avgScore)
                         Text("(\(community.ratingCount.formatted()) ratings)")
                             .font(.subheadline)
@@ -418,16 +411,15 @@ struct MovieDetailView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    if scoresLocked { showUnlocks = true } else { scoreInfo = .average }
+                    scoreInfo = .average
                 } label: {
                     scoreColumn(
-                        badge: scoresLocked ? nil : community.map { ScoreBadge(score: $0.avgScore, count: $0.ratingCount, size: 60) },
-                        emptyIcon: scoresLocked ? "lock.fill" : "sparkles",
-                        emptyTint: scoresLocked ? Theme.marquee : Theme.gray,
+                        badge: community.map { ScoreBadge(score: $0.avgScore, count: $0.ratingCount, size: 60) },
+                        emptyIcon: "sparkles",
+                        emptyTint: Theme.gray,
                         title: "Average Score",
-                        subtitle: scoresLocked ? "Invite a friend to unlock"
-                                  : (community == nil ? "Be the first to rank it"
-                                                      : "What all of Cini thinks")
+                        subtitle: community == nil ? "Be the first to rank it"
+                                                   : "What all of Cini thinks"
                     )
                 }
                 .buttonStyle(.plain)
@@ -692,7 +684,7 @@ struct MovieDetailView: View {
     /// distribution on the right with just the 0.0 / 10.0 endpoints.
     private var histogramSection: some View {
         Group {
-            if !histogram.isEmpty, let community, !scoresLocked {
+            if !histogram.isEmpty, let community {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Ratings Breakdown").font(.title3.weight(.bold))
                     HStack(alignment: .center, spacing: 20) {

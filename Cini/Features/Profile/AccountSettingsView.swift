@@ -302,7 +302,7 @@ private struct HelpScreen: View {
         QA(q: "What's a Rec Score?",
            a: "It's our prediction of how much you'll like something you haven't seen yet, based on the taste your rankings reveal. It needs a handful of ranked titles to get accurate."),
         QA(q: "Why can't I see the average score on a movie?",
-           a: "Cini hides the crowd average until you've ranked a title yourself, so it can't sway your own take. Full average scores are an unlockable feature — invite a friend to unlock it."),
+           a: "You can — Cini shows the full crowd average on any title that has enough ratings. A brand-new or obscure title just may not have one yet."),
         QA(q: "How do I make my account private?",
            a: "Settings → Privacy → Private account. After that, people send a follow request you can approve or decline, and only approved followers see your activity."),
         QA(q: "How do I find friends?",
