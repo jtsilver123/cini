@@ -525,12 +525,13 @@ struct FeedView: View {
                 // it drawn above the rows below — otherwise "Ask friends for a
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
-            } else if tonightUnlocked && !dismissedTonightToday().isEmpty {
-                // Only after the user has actually cleared TODAY's deck (picks
-                // are unlocked, and they've dismissed/ranked through them).
-                // Driving this off the persisted 24h suppression alone made the
-                // "that's a wrap" card appear with no cards ever shown — e.g. a
-                // stale window, the morning after a late clear, or before unlock.
+            } else if !dismissedTonightToday().isEmpty {
+                // You cleared today's deck → point to the full Recs deck. Gated
+                // purely on "dismissed at least one pick today" — date-scoped, so
+                // it never lingers into a new day, and NOT gated on the unlock
+                // signal: having dismissed picks today already proves they were
+                // shown, so a store reload that momentarily reads a low rank
+                // count can't make the "that's a wrap" card vanish.
                 TonightEmptyState {
                     tabRouter.selection = .swipe
                 }
