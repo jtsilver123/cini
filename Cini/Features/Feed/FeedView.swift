@@ -311,8 +311,8 @@ struct FeedView: View {
                             Text("Cini's better with more friends")
                                 .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
                             Text(friends == 0
-                                 ? "Invite a few friends and your feed comes alive."
-                                 : "You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more and your feed comes alive.")
+                                 ? "Invite a few to fill out your feed."
+                                 : "You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more to fill out your feed.")
                                 .font(.caption).foregroundStyle(Theme.gray)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -353,7 +353,7 @@ struct FeedView: View {
                         .font(Theme.serif(24))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Theme.ink)
-                    Text("Your feed comes alive once your friends are here. Invite a few — when they join with your link, you follow each other automatically.")
+                    Text("Invite a few friends and your feed comes alive — you'll follow each other automatically.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)

@@ -398,7 +398,7 @@ struct OnboardingView: View {
                 .font(.system(size: 54)).foregroundStyle(Theme.marquee)
             Text("Find your friends")
                 .font(Theme.serif(32)).multilineTextAlignment(.center)
-            Text("Cini is better with friends. When someone joins with your link, you follow each other automatically — so your feed comes alive right away.")
+            Text("Friends make Cini better — you'll auto-follow each other when they join with your link.")
                 .font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center).padding(.horizontal, 28)
 

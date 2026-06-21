@@ -449,7 +449,7 @@ struct SearchView: View {
                 .foregroundStyle(Theme.gray)
                 .padding(.top, 10)
             if suggested.isEmpty {
-                Text("Suggestions appear as members join — invite your crew!")
+                Text("Suggestions appear as more people join — invite a few friends.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .padding(.vertical, 12)
@@ -470,7 +470,7 @@ struct SearchView: View {
                         Text("Invite friends to Cini")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.ink)
-                        Text("They enter your @username when they join — you follow each other automatically")
+                        Text("Join with your link and you'll follow each other automatically")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                     }

@@ -144,9 +144,9 @@ struct LeaderboardView: View {
 // MARK: - Invite sheet (growth loop)
 
 struct InviteSheet: View {
-    /// When true the contact list loads itself as the sheet appears (used from
-    /// the feed's unlock card so the list is pre-populated). Elsewhere the user
-    /// taps "Find friends" first.
+    /// When true the contact list loads itself as the sheet appears (used when
+    /// invoked from a "bring friends in" card so the list is pre-populated).
+    /// Elsewhere the user taps "Find friends" first.
     var autoFindContacts = false
 
     @Environment(AppSession.self) private var session
