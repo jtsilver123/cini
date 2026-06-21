@@ -129,7 +129,10 @@ struct RecCardDeck: View {
         case .rec(let c):
             TonightPickCard(
                 movie: c.movie, reason: c.reason,
-                service: richDetail ? c.movie.streamingOn.first : nil,
+                // No streaming badge on the Recs cards: many movies aren't on a
+                // subscription service, so it could only ever show for some — not
+                // consistent. Where-to-watch lives on the detail page.
+                service: nil,
                 showTonightBadge: false,
                 height: cardHeight,
                 detail: richDetail ? Self.metaLine(c.movie) : nil,
