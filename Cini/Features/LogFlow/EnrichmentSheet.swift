@@ -60,21 +60,17 @@ struct EnrichmentCard: View {
             }
 
             if !isLocked && showsOkay {
-                Button {
+                // The primary action — a full-width filled button so it clearly
+                // reads as "tap here next," not a faint text link.
+                PillButton(title: "Start ranking", style: .filled, fill: true) {
                     onOkay()
-                } label: {
-                    Text("Start ranking")
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Theme.marquee)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
                 }
-                .buttonStyle(.plain)
+                .padding(.top, 14)
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 4)
-        .padding(.bottom, isLocked ? 10 : 0)
+        .padding(.bottom, isLocked ? 10 : 14)
         .frame(maxWidth: .infinity)
         .floatingCard()
         .task {
