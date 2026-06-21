@@ -363,6 +363,7 @@ struct FeedView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 4)
             }
+        }
     }
 
     /// "Popular on Cini" — a horizontal poster shelf of trending titles with
