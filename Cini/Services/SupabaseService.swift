@@ -79,6 +79,18 @@ final class SupabaseService {
         try await client.auth.resend(email: email, type: .signup)
     }
 
+    /// Send a password-reset email. Supabase always returns success (it won't
+    /// reveal whether the address exists), so the UI confirms "check your email"
+    /// regardless. Returns false only on a network/transport error.
+    func sendPasswordReset(email: String) async -> Bool {
+        do {
+            try await client.auth.resetPasswordForEmail(email)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     var currentEmail: String? { client.auth.currentUser?.email }
 
     /// Sends a confirmation link to the new address; the change applies

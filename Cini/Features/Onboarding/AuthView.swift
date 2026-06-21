@@ -15,6 +15,8 @@ struct AuthView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
+    @State private var showForgot = false
+    @State private var resetEmail = ""
     @State private var errorMessage: String?
     @State private var revealPassword = false
     @FocusState private var focused: Bool
@@ -78,11 +80,36 @@ struct AuthView: View {
                           disabled: email.isEmpty || password.isEmpty) {
                 Task { await signIn() }
             }
+            Button("Forgot password?") {
+                // Prefill with the typed value if it looks like an email.
+                resetEmail = email.contains("@") ? email : ""
+                showForgot = true
+            }
+            .font(.subheadline).foregroundStyle(Theme.gray)
             messages
             Button("New to Cini? Create an account") { switchMode(toSignUp: true) }
                 .font(.subheadline).foregroundStyle(Theme.marquee)
             Spacer(minLength: 20)
             legal
+        }
+        .alert("Reset password", isPresented: $showForgot) {
+            TextField("Email", text: $resetEmail)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+            Button("Send link") {
+                let target = resetEmail.trimmingCharacters(in: .whitespaces)
+                guard target.contains("@") else {
+                    ToastCenter.shared.show("Enter the email on your account.")
+                    return
+                }
+                Task {
+                    _ = await SupabaseService.shared.sendPasswordReset(email: target)
+                    ToastCenter.shared.show("Check your email for a reset link 🎬")
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("We'll email you a link to set a new password.")
         }
     }
 
