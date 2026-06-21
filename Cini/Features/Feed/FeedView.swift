@@ -525,13 +525,13 @@ struct FeedView: View {
                 // it drawn above the rows below — otherwise "Ask friends for a
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
-            } else if !dismissedTonightToday().isEmpty {
-                // You cleared today's deck → point to the full Recs deck. Gated
-                // purely on "dismissed at least one pick today" — date-scoped, so
-                // it never lingers into a new day, and NOT gated on the unlock
-                // signal: having dismissed picks today already proves they were
-                // shown, so a store reload that momentarily reads a low rank
-                // count can't make the "that's a wrap" card vanish.
+            } else if store.watchedCount >= Self.engagedRankBar,
+                      !dismissedTonightToday().isEmpty {
+                // You're unlocked AND cleared today's deck → point to the full
+                // Recs deck. The watchedCount gate (now stable, not the old 5-day
+                // timer) is what was actually missing before; the date-scoped
+                // dismissed check keeps it from lingering into a new day or
+                // showing for someone who never had picks.
                 TonightEmptyState {
                     tabRouter.selection = .swipe
                 }
@@ -548,7 +548,7 @@ struct FeedView: View {
             // never lead a brand-new feed with an invite ask — the Popular shelf
             // below carries the cold-start until then.
             if feedLoaded, !events.isEmpty, events.count < 3,
-               store.watchedCount >= Self.tonightUnlockRanks {
+               store.watchedCount >= Self.engagedRankBar {
                 inviteNudge
                     .padding(.top, 4)
             }
@@ -561,8 +561,12 @@ struct FeedView: View {
                     .padding(.top, 4)
             }
 
-            // Beli-style unlock progress — until everything's unlocked.
-            if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }) {
+            // Beli-style unlock progress — until everything's unlocked. Held
+            // until the user is engaged (same bar as the invite nudge / Tonight's
+            // Pick) so a brand-new feed isn't led with a "rank 1, now invite"
+            // ask before they've gotten any value.
+            if unlockCatalog.contains(where: { !session.isUnlocked($0.id) }),
+               store.watchedCount >= Self.engagedRankBar {
                 FeedUnlockCard()
                     .padding(.top, 6)
             }
@@ -717,16 +721,17 @@ struct FeedView: View {
         Date().timeIntervalSince1970 < tonightSuppressedUntil
     }
 
-    /// How many ranked titles before the daily pick can be personal. Low enough
-    /// that a user who ranks during onboarding unlocks it the same day, high
-    /// enough that we never lead with a pick drawn from almost no taste signal.
-    private static let tonightUnlockRanks = 5
+    /// The app-wide "this user is engaged" bar: how many ranked titles before we
+    /// surface engagement asks (the daily pick, the invite nudge, the unlock
+    /// card). Low enough that a user who ranks during onboarding clears it the
+    /// same day, high enough that we never pile asks onto a near-empty account.
+    private static let engagedRankBar = 5
 
     /// Tonight's Picks unlock on taste signal, not a fixed wait: once there are
     /// a few ranked titles the daily "watch this tonight" hook can be personal,
     /// so a motivated new user gets it on day one instead of after five days.
     private var tonightUnlocked: Bool {
-        store.watchedCount >= Self.tonightUnlockRanks
+        store.watchedCount >= Self.engagedRankBar
     }
 
     /// The second, well-timed notifications ask. Onboarding no longer nags on
