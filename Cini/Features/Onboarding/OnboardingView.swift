@@ -44,6 +44,10 @@ struct OnboardingView: View {
     /// Movies vs TV toggle on the Meet-your-Recs step (mirrors Recs).
     @State private var onbTV = false
     @State private var logMovie: Movie?
+    /// Popular, recognizable titles for the optional "seen any of these?" grid —
+    /// tapping one ranks it, which is the fastest way to build taste signal.
+    @State private var seenGridMovies: [Movie] = []
+    @State private var seenGridLoaded = false
     @State private var notifsEnabled = false
     /// Personalized picks for the post-rank "save what to watch" tutorial,
     /// built from the title they just ranked (similar + trending fallback).
@@ -152,7 +156,7 @@ struct OnboardingView: View {
             }
             .padding(.horizontal, 12)
             HStack(spacing: 6) {
-                ForEach(1..<6, id: \.self) { index in
+                ForEach(1..<7, id: \.self) { index in
                     Capsule()
                         .fill(index <= step ? Theme.gold : Theme.fill)
                         .frame(height: 4)
@@ -169,13 +173,13 @@ struct OnboardingView: View {
     private func advance() {
         navBack = false
         guard focus != nil else {
-            withAnimation(.snappy) { step = min(step + 1, 5) }
+            withAnimation(.snappy) { step = min(step + 1, 6) }
             return
         }
         focus = nil
         Task {
             try? await Task.sleep(for: .milliseconds(260))
-            withAnimation(.snappy) { step = min(step + 1, 5) }
+            withAnimation(.snappy) { step = min(step + 1, 6) }
         }
     }
 
@@ -208,7 +212,8 @@ struct OnboardingView: View {
         case 2: findFriendsStep
         case 3: importStep
         case 4: notificationsStep
-        default: recTutorialStep   // swipe picks to Want to Watch
+        case 5: rankSeenStep       // tap a grid of titles you've seen to rank them
+        default: recTutorialStep   // swipe recs to Want to Watch
         }
     }
 
@@ -533,7 +538,92 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: 5 — Meet your Recs (swipe deck of personalized picks)
+    // MARK: 5 — Rank a few you've seen (optional, grid = fast recognition)
+
+    /// At least one ranked title (from this grid, or an earlier import) — flips
+    /// the button from a low-pressure "Skip" to "Continue".
+    private var rankedAnySeen: Bool { store.watchedCount > 0 }
+
+    /// A wall of recognizable titles. The grid is the fastest way to build taste
+    /// signal — you scan posters and tap the ones you've seen, all at once —
+    /// which is exactly what unlocks personal recs (next screen) and the day-one
+    /// Tonight's Pick. Optional: nobody is blocked from continuing.
+    private var rankSeenStep: some View {
+        VStack(spacing: 14) {
+            VStack(spacing: 6) {
+                Text("Seen any of these?")
+                    .font(Theme.serif(30))
+                    .minimumScaleFactor(0.8)
+                Text("Tap the ones you've watched to rank them — it's the fastest way for Cini to learn your taste.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+            }
+            .padding(.top, 24)
+
+            if !seenGridLoaded {
+                Spacer()
+                ProgressView()
+                Spacer()
+            } else if seenGridMovies.isEmpty {
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gray)
+                    Text("You can rank anytime")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Search any movie or show and tap to rank it whenever you like.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center).padding(.horizontal, 36)
+                }
+                Spacer()
+            } else {
+                ScrollView(showsIndicators: false) {
+                    SuggestionGrid(
+                        movies: seenGridMovies,
+                        onRank: { logMovie = $0 },
+                        onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
+                        onDismiss: { movie in
+                            withAnimation(.snappy) {
+                                seenGridMovies.removeAll { $0.tmdbID == movie.tmdbID }
+                            }
+                        }
+                    )
+                    .screenHPadding()
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                }
+            }
+
+            // Skip until they've ranked something, then it reads as Continue —
+            // never a forced count, but a few taps unlock personal recs next.
+            PillButton(title: rankedAnySeen ? "Continue" : "Skip for now",
+                       style: rankedAnySeen ? .filled : .outlined) { advance() }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 24)
+        }
+        .task { await loadSeenGrid() }
+    }
+
+    /// Popular movies AND shows the user is likely to recognize, minus anything
+    /// already ranked. Capped to one screen's worth so it reads as "a few," not
+    /// an endless catalog.
+    private func loadSeenGrid() async {
+        guard seenGridMovies.isEmpty, !seenGridLoaded else { return }
+        var pool: [Movie] = []
+        var seen = Set<Int>()
+        if let popular = try? await TMDBService.shared.popular() {
+            for movie in popular
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+                store.cache(movie)
+                pool.append(movie)
+            }
+        }
+        seenGridMovies = Array(pool.prefix(24))
+        seenGridLoaded = true
+    }
+
+    // MARK: 6 — Meet your Recs (swipe deck of personalized picks)
 
     /// Rec candidates filtered to the Movies/TV toggle.
     private var visibleRecCandidates: [YourListsView.RecCandidate] {
@@ -542,10 +632,21 @@ struct OnboardingView: View {
 
     private var recTutorialStep: some View {
         VStack(spacing: 14) {
-            Text("Meet your Recs")
-                .font(Theme.serif(30))
-                .minimumScaleFactor(0.8)
-                .padding(.top, 24)
+            VStack(spacing: 4) {
+                // Reads as a payoff once they've ranked — "here's what your taste
+                // gets you" — and a plain intro otherwise.
+                Text(rankedAnySeen ? "Your recs, ready" : "Meet your Recs")
+                    .font(Theme.serif(30))
+                    .minimumScaleFactor(0.8)
+                if rankedAnySeen {
+                    Text("Picked for you from what you just ranked.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 28)
+                }
+            }
+            .padding(.top, 24)
 
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
