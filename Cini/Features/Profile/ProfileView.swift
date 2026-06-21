@@ -1197,6 +1197,14 @@ struct ProfileScreen: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 16) {
+                // A plain-language summary so the taste profile reads as an
+                // identity ("here's who I am") before the breakdown.
+                if let headline = taste.headline {
+                    Text(headline)
+                        .font(Theme.serif(20))
+                        .foregroundStyle(Theme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 HStack(spacing: 0) {
                     sentimentStat(taste.lovedCount, Theme.sentimentLoved, "Liked")
                     sentimentStat(taste.fineCount, Theme.sentimentFine, "Fine")
@@ -1922,6 +1930,19 @@ struct TasteSummary {
         topGenres = genreCounts.sorted { $0.value > $1.value }.prefix(3)
             .map { ($0.key, genreTotal > 0 ? Double($0.value) / Double(genreTotal) : 0) }
         favoriteDecade = decadeCounts.max { $0.value < $1.value }?.key
+    }
+
+    /// A one-line, plain-language taste descriptor for the top of the profile's
+    /// Taste tab — built from the same genres/decade shown below it, so the
+    /// headline can never contradict the chart. Nil until there's enough signal.
+    var headline: String? {
+        let genres = topGenres.prefix(2).map(\.name)
+        guard !genres.isEmpty else { return nil }
+        let genrePart = genres.count == 1 ? genres[0] : "\(genres[0]) & \(genres[1])"
+        if let decade = favoriteDecade {
+            return "Big on \(genrePart), with a soft spot for the \(decade)s."
+        }
+        return "Big on \(genrePart)."
     }
 }
 
