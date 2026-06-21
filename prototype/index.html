@@ -2046,7 +2046,7 @@ function logCards(){
   if(log.bucket && log.stage==="enrich"){
     html+=`
       <div class="fcard">
-        <div class="erow" style="background:color-mix(in srgb, var(--marquee) 13%, transparent); border-radius:14px; padding:12px; margin-bottom:2px;" onclick="toast('Add notes — full editor in the app')"><span class="ic" style="color:var(--marquee);">${I("pencil",18)}</span><span style="flex:1;"><b>Add notes</b><div class="sub" style="margin-top:1px;">What did you think? Capture it while it's fresh.</div></span><span class="sub">${I("chevR",14)}</span></div>
+        <div class="erow" style="background:color-mix(in srgb, var(--marquee) 13%, transparent); border-radius:14px; padding:12px; margin-bottom:2px;" onclick="toast('Add notes — full editor in the app')"><span class="ic" style="color:var(--marquee);">${I("pencil",18)}</span><span style="flex:1;"><b>Add notes</b> <span style="font-size:10px; font-weight:700; color:var(--gray); background:rgba(255,255,255,.08); border-radius:999px; padding:1px 7px; vertical-align:middle;">Optional</span><div class="sub" style="margin-top:1px;">What did you think? Capture it while it's fresh.</div></span><span class="sub">${I("chevR",14)}</span></div>
         <div class="erow" style="padding-top:2px;" onclick="openWatchedWithPicker()"><span class="ic">${I("users",18)}</span><span style="flex:1;">Who did you watch with?</span><span class="sub">${I("chevR",14)}</span></div>
         <div class="chips">${MEMBERS.slice(0,3).map(p=>`<button class="chip-f ${log.with&&log.with.includes(p.u)?"on":""}" onclick="toggleWatchedWith('${p.u}',this)">${p.n}</button>`).join("")}</div>
         ${[["star","Add favorite performances"],["calendar","Add watch date"]].map(([ic,l])=>
