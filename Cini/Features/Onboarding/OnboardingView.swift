@@ -417,8 +417,8 @@ struct OnboardingView: View {
                 .font(.subheadline).foregroundStyle(Theme.gray).padding(.bottom, 30)
         }
         .sheet(isPresented: $showFindFriends, onDismiss: { advance() }) {
-            // Pull the contact list up immediately instead of showing a button.
-            InviteSheet(autoFindContacts: true)
+            // The contact list auto-populates on open now (no "Find friends" tap).
+            InviteSheet()
         }
     }
 

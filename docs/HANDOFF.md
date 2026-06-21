@@ -31,10 +31,11 @@ A user-requested build was last triggered off `claude/ecstatic-cori-k7s2n0`
   (compare / ranked list / friends) instead of lone icons; custom page dots
   from adaptive `Theme` tokens (the default UIPageControl dots washed out in
   light mode).
-- **Invite/unlock flow:** the feed's `FeedUnlockCard` feature circles each open
-  a `FeatureDetailSheet` explainer (and unlock when a credit is ready); the
-  button opens `InviteSheet(autoFindContacts: true)` with contacts pre-loaded —
-  the separate "Unlock Features" screen is gone from that path.
+- **Invite flow:** `InviteSheet` auto-populates the contact list on open
+  (no "Find friends" tap) unless contacts were previously denied. The old
+  invite-to-unlock mechanic (`FeedUnlockCard`, `FeatureDetailSheet`, referral
+  credits, the "Unlock Features" screen) has been removed — every feature is
+  available to everyone; invites now just produce a mutual follow.
 - **Follow + approve** (private accounts, migration 0057): `request_follow` /
   `respond_follow_request` / `incoming_follow_requests`; followers and
   following can differ. **Founder auto-follow** on signup (0056). **New

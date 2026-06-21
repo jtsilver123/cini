@@ -144,11 +144,6 @@ struct LeaderboardView: View {
 // MARK: - Invite sheet (growth loop)
 
 struct InviteSheet: View {
-    /// When true the contact list loads itself as the sheet appears (used when
-    /// invoked from a "bring friends in" card so the list is pre-populated).
-    /// Elsewhere the user taps "Find friends" first.
-    var autoFindContacts = false
-
     @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
@@ -239,9 +234,11 @@ struct InviteSheet: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $showShare) { ActivityShareSheet(items: [inviteText]) }
             .task {
-                // Pre-populate the list when asked, unless contacts were already
-                // denied — then leave the "Find friends" button so they can opt in.
-                guard autoFindContacts, !autoTried, !contactsChecked else { return }
+                // Auto-populate the contact list on open (the whole point of the
+                // sheet), so the user doesn't have to tap "Find friends" first.
+                // Skipped only if they've previously denied access — then the
+                // manual "Find friends" button stays so they can still opt in.
+                guard !autoTried, !contactsChecked else { return }
                 autoTried = true
                 if CNContactStore.authorizationStatus(for: .contacts) != .denied {
                     await loadContacts()
