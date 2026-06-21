@@ -28,6 +28,8 @@ struct FeedView: View {
     @State private var showAskRecs = false
     @State private var showRespondRecs = false
     @State private var pendingAsks: [RecRequestRow] = []
+    /// Observed so "Ask your friends for recs" can hide until you have friends.
+    @State private var friendsCache = FriendsCache.shared
     @State private var tonightCards: [TonightCardItem] = []
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
@@ -75,6 +77,7 @@ struct FeedView: View {
             .nativeContentWidth()
             .background(Theme.background)
             .task { await loadFeed() }   // loadFeed also refreshes friendsWatchingRows
+            .task { friendsCache.refreshIfStale() }   // for the ask-friends gate
             .task(id: store.isLoaded) { await loadTonightStack() }
             // Also re-check when the rank count changes — the unlock is taste-
             // based, so crossing the threshold (e.g. ranking during onboarding)
@@ -538,7 +541,11 @@ struct FeedView: View {
                 .padding(.top, 2)
             }
 
-            askForRecsRow
+            // Only when there's someone to ask — a friendless new user shouldn't
+            // see "Ask your friends for recs" (a dead-end prompt).
+            if !friendsCache.following.isEmpty {
+                askForRecsRow
+            }
 
             // The feed is only as alive as your friend list — while it's sparse
             // (but not empty, where the empty state already nudges follows),
