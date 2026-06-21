@@ -588,6 +588,17 @@ struct FeedView: View {
                 askForRecsRow
             }
 
+            // Active but friendless: the feed is dark because you follow no one.
+            // Lead with the payoff — friends' rankings and what they're watching —
+            // since the feed is the thing worth bringing people in for. Placed
+            // ABOVE the Popular shelf so the referral ask is the headline, not a
+            // footnote. (Brand-new users with nothing ranked still get the
+            // "rank your first" empty state below instead.)
+            if feedLoaded, events.isEmpty,
+               friendsCache.following.isEmpty, store.watchedCount > 0 {
+                friendsFeedCTA
+            }
+
             // The feed is only as alive as your friend list — while it's sparse
             // (but not empty, where the empty state already nudges follows),
             // keep a standing reason to bring people in. Self-limiting: it
@@ -611,13 +622,10 @@ struct FeedView: View {
 
             if events.isEmpty {
                 if feedLoaded {
-                    if friendsCache.following.isEmpty, store.watchedCount > 0 {
-                        // You're ranking, but the feed is dark because you follow
-                        // no one. The feed — friends' rankings and what they're
-                        // watching — is the payoff worth bringing people in for, so
-                        // lead with it instead of repeating "rank your first movie."
-                        friendsFeedCTA
-                    } else {
+                    // The friendless-but-active CTA is rendered above (over the
+                    // Popular shelf). Here we only handle the brand-new user and
+                    // the "has friends but quiet feed" cases.
+                    if !(friendsCache.following.isEmpty && store.watchedCount > 0) {
                         emptyState
                     }
                 } else {
