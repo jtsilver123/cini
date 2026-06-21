@@ -316,6 +316,47 @@ struct FeedView: View {
         }
     }
 
+    /// Friendless-but-active feed: the feed only comes alive with friends, so
+    /// lead with the payoff — "see what your friends are watching" — and one
+    /// clear way to bring them in. This is the single strongest referral moment:
+    /// the user is already getting value from ranking, and the empty feed is the
+    /// reason to invite. Find friends (in-app) is primary; invite (off-app) is
+    /// the secondary path for friends who aren't on Cini yet.
+    private var friendsFeedCTA: some View {
+        HairlineCard {
+            VStack(spacing: 14) {
+                Image(systemName: "person.2.fill")
+                    .font(.title)
+                    .foregroundStyle(Theme.marquee)
+                Text("See what your friends are watching")
+                    .font(Theme.serif(24))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Theme.ink)
+                Text("Your feed lights up the moment your friends join — their rankings, reviews, and what they're watching now.")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .multilineTextAlignment(.center)
+
+                PillButton(title: "Find your friends", systemImage: "magnifyingglass") {
+                    tabRouter.openMembersSearch = true
+                    tabRouter.selection = .search
+                }
+                Button {
+                    Haptics.tap()
+                    showInviteSheet = true
+                } label: {
+                    Text("Invite friends to Cini")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.marquee)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+    }
+
     /// "Popular on Cini" — a horizontal poster shelf of trending titles with
     /// the standard (+)/bookmark quick actions, so even a friendless feed has
     /// something to do. Reuses ArtworkQuickActions so the placements can't drift.
@@ -570,7 +611,15 @@ struct FeedView: View {
 
             if events.isEmpty {
                 if feedLoaded {
-                    emptyState
+                    if friendsCache.following.isEmpty, store.watchedCount > 0 {
+                        // You're ranking, but the feed is dark because you follow
+                        // no one. The feed — friends' rankings and what they're
+                        // watching — is the payoff worth bringing people in for, so
+                        // lead with it instead of repeating "rank your first movie."
+                        friendsFeedCTA
+                    } else {
+                        emptyState
+                    }
                 } else {
                     FeedSkeleton()
                         .padding(.top, 4)

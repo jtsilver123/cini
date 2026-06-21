@@ -40,13 +40,15 @@ struct EnrichmentCard: View {
     var body: some View {
         VStack(spacing: 0) {
             if showsOkay && !isLocked {
-                // Fast log path: details are optional and tucked behind a toggle,
-                // so the default is just "how was it? → Start ranking." Notes,
-                // who-with, date, etc. are one tap away for the moments you want them.
+                // Fast log path: notes are the reason to log while it's fresh, so
+                // the notes tile is always visible (and clearly optional). The
+                // rest — who-with, date, where — tuck behind "Add details," one
+                // tap away. Default is "jot a note (or not) → Start ranking."
+                notesRow
                 addDetailsToggle
                 if showDetails {
                     divider
-                    detailRows
+                    detailRows(includeNotes: false)
                 }
                 // The primary action — a full-width filled button so it clearly
                 // reads as "tap here next."
@@ -57,7 +59,7 @@ struct EnrichmentCard: View {
             } else {
                 // The movie-page editor (and the locked, in-progress state) show
                 // the rows directly — editing the details is the whole point there.
-                detailRows
+                detailRows()
             }
         }
         .padding(.horizontal, 16)
@@ -75,10 +77,13 @@ struct EnrichmentCard: View {
     }
 
     /// All the optional detail rows, shown expanded in the editor and behind the
-    /// "Add details" toggle in the fast log flow.
-    @ViewBuilder private var detailRows: some View {
-        notesRow
-        divider
+    /// "Add details" toggle in the fast log flow. The fast flow pulls notes out
+    /// to keep them always-visible, so it passes `includeNotes: false`.
+    @ViewBuilder private func detailRows(includeNotes: Bool = true) -> some View {
+        if includeNotes {
+            notesRow
+            divider
+        }
         if showsWatchedWith {
             watchedWithSection
             divider
@@ -108,7 +113,7 @@ struct EnrichmentCard: View {
                 Text(showDetails ? "Details" : "Add details")
                     .foregroundStyle(Theme.ink)
                 if !showDetails {
-                    Text("notes, who with, date…")
+                    Text("who with, date, where…")
                         .font(.caption).foregroundStyle(Theme.gray)
                 }
                 Spacer()
@@ -278,9 +283,19 @@ struct EnrichmentCard: View {
                     .frame(width: 28)
                     .foregroundStyle(Theme.marquee)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(draft.notes.isEmpty ? "Add notes" : "Notes")
-                        .font(.headline)
-                        .foregroundStyle(Theme.ink)
+                    HStack(spacing: 7) {
+                        Text(draft.notes.isEmpty ? "Add notes" : "Notes")
+                            .font(.headline)
+                            .foregroundStyle(Theme.ink)
+                        if draft.notes.isEmpty {
+                            Text("Optional")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Theme.gray)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Theme.fill))
+                        }
+                    }
                     Text(draft.notes.isEmpty
                          ? "What did you think? Capture it while it's fresh."
                          : draft.notes)
