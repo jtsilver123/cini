@@ -694,6 +694,7 @@ struct SearchView: View {
         guard !text.isEmpty else {
             movieResults = []
             memberResults = []
+            memberMatches = [:]
             return
         }
         searchTask = Task {

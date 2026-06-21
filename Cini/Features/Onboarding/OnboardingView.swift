@@ -9,8 +9,10 @@ import SwiftUI
 ///   2. Find your friends — contacts + invite
 ///   3. Bring your history — Letterboxd ZIP / Apple Notes paste / skip
 ///   4. Stay in the loop — notifications opt-in (re-asked after the first rank)
-///   5. Meet your Recs — a swipe deck of trending picks, teaching the
-///      swipe-to-bookmark / + to rank gesture (mirrors the Recs tab)
+///   5. Seen any of these? — an optional, skippable grid of popular titles;
+///      tapping ranks them (recognition is the fastest way to build taste)
+///   6. Meet your Recs — a swipe deck (personalized once they've ranked a few),
+///      teaching the swipe-to-bookmark / + to rank gesture (mirrors the Recs tab)
 ///
 /// Finishing hands off to the one-time ProductTourView (wired in CiniApp).
 /// Shown once (per account) when an authenticated user has zero rankings.
@@ -610,14 +612,19 @@ struct OnboardingView: View {
     /// an endless catalog.
     private func loadSeenGrid() async {
         guard seenGridMovies.isEmpty, !seenGridLoaded else { return }
+        // One retry: a transient blip shouldn't strand the step on its empty
+        // state for the rest of onboarding (the .task only fires once).
+        var titles = (try? await TMDBService.shared.popular()) ?? []
+        if titles.isEmpty {
+            try? await Task.sleep(for: .seconds(1))
+            titles = (try? await TMDBService.shared.popular()) ?? []
+        }
         var pool: [Movie] = []
         var seen = Set<Int>()
-        if let popular = try? await TMDBService.shared.popular() {
-            for movie in popular
-            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
-                store.cache(movie)
-                pool.append(movie)
-            }
+        for movie in titles
+        where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+            store.cache(movie)
+            pool.append(movie)
         }
         seenGridMovies = Array(pool.prefix(24))
         seenGridLoaded = true
@@ -639,7 +646,7 @@ struct OnboardingView: View {
                     .font(Theme.serif(30))
                     .minimumScaleFactor(0.8)
                 if rankedAnySeen {
-                    Text("Picked for you from what you just ranked.")
+                    Text("Picked for your taste.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)

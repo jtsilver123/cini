@@ -76,6 +76,10 @@ struct FeedView: View {
             .background(Theme.background)
             .task { await loadFeed() }   // loadFeed also refreshes friendsWatchingRows
             .task(id: store.isLoaded) { await loadTonightStack() }
+            // Also re-check when the rank count changes — the unlock is taste-
+            // based, so crossing the threshold (e.g. ranking during onboarding)
+            // should reveal Tonight's Pick without waiting for a relaunch.
+            .task(id: store.watchedCount) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
             // The notifications re-ask needs the profile (memberSince), which
             // loads slightly after the store — re-run once it's known. (The
