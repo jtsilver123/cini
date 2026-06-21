@@ -15,6 +15,9 @@ struct SearchView: View {
     /// can show "X% match" instead of a bare @username.
     @State private var memberMatches: [UUID: Double] = [:]
     @State private var followedFromSearch: Set<UUID> = []
+    /// Pending follow requests to private accounts — shown as "Requested" so the
+    /// button doesn't claim "Following" before they approve.
+    @State private var requestedFromSearch: Set<UUID> = []
     @State private var suggested: [SuggestedMember] = []
     @State private var peopleYouMayKnow: [SuggestedMember] = []
     @State private var contactMatches: [SuggestedMember] = []
@@ -395,7 +398,7 @@ struct SearchView: View {
                     .foregroundStyle(Theme.gray)
                     .padding(.top, 4)
                 ForEach(contactMatches) { member in
-                    suggestedRow(member, reason: "In your contacts")
+                    suggestedRow(member, reason: contactReason(member))
                     Divider()
                 }
             } else if !contactsChecked {
@@ -529,20 +532,44 @@ struct SearchView: View {
                 subtitle: reason,
                 subtitleColor: Theme.scoreGreen
             ) {
-                PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
-                           style: followedFromSearch.contains(member.id) ? .outlined : .filled) {
-                    Task { await toggleFollow(member.id) }
-                }
+                followButton(member.id)
             }
         }
         .buttonStyle(.plain)
     }
 
+    /// Follow / Requested / Following, styled and accurate (private accounts go
+    /// to "Requested," not a premature "Following"). Shared by every member row.
+    @ViewBuilder private func followButton(_ id: UUID) -> some View {
+        let following = followedFromSearch.contains(id)
+        let requested = requestedFromSearch.contains(id)
+        PillButton(title: following ? "Following" : (requested ? "Requested" : "Follow"),
+                   style: (following || requested) ? .outlined : .filled) {
+            Task { await toggleFollow(id) }
+        }
+    }
+
+    /// "From your contacts" reason: lead with friend-count social proof when we
+    /// have it, otherwise just say they're in your contacts.
+    private func contactReason(_ member: SuggestedMember) -> String {
+        if let f = member.friendsOnCini, f > 0 {
+            return "\(f) \(f == 1 ? "friend" : "friends") on Cini"
+        }
+        return "In your contacts"
+    }
+
     private func findContacts() async {
         contactsChecked = true
+        // Match on BOTH email and phone (same as the Invite sheet) — a contact
+        // we only have a number for was being missed here. De-dupe by member id,
+        // and store the hashed graph so they get a "contact joined" ping later.
+        let people = await ContactsList.fetch()
         let emails = await ContactsEmails.fetch()
-        guard !emails.isEmpty else { return }
-        contactMatches = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
+        let byEmail = (try? await SupabaseService.shared.membersFromEmails(emails)) ?? []
+        let byPhone = (try? await SupabaseService.shared.membersFromPhones(people.map(\.phone))) ?? []
+        await SupabaseService.shared.storeContacts(people.map(\.phone))
+        var seen = Set<UUID>()
+        contactMatches = (byEmail + byPhone).filter { seen.insert($0.id).inserted }
     }
 
     private var membersSection: some View {
@@ -558,10 +585,7 @@ struct SearchView: View {
                         subtitle: pct.map { "\(Int($0))% match · @\(member.username)" } ?? "@\(member.username)",
                         subtitleColor: pct != nil ? Theme.scoreGreen : Theme.gray
                     ) {
-                        PillButton(title: followedFromSearch.contains(member.id) ? "Following" : "Follow",
-                                   style: .outlined) {
-                            Task { await toggleFollow(member.id) }
-                        }
+                        followButton(member.id)
                     }
                 }
                 .buttonStyle(.plain)
@@ -829,15 +853,33 @@ struct SearchView: View {
     /// error used to leave the button stuck on "Following".
     private func toggleFollow(_ memberID: UUID) async {
         let wasFollowing = followedFromSearch.contains(memberID)
-        if wasFollowing { followedFromSearch.remove(memberID) }
-        else { followedFromSearch.insert(memberID) }
-        do {
-            if wasFollowing { try await SupabaseService.shared.unfollow(memberID) }
-            else { try await SupabaseService.shared.requestFollow(memberID) }
-        } catch {
-            if wasFollowing { followedFromSearch.insert(memberID) }
-            else { followedFromSearch.remove(memberID) }
-            ToastCenter.shared.saveFailed()
+        let wasRequested = requestedFromSearch.contains(memberID)
+        if wasFollowing || wasRequested {
+            // Undo a follow or a pending request.
+            followedFromSearch.remove(memberID)
+            requestedFromSearch.remove(memberID)
+            do {
+                if wasRequested { try await SupabaseService.shared.cancelFollowRequest(memberID) }
+                else { try await SupabaseService.shared.unfollow(memberID) }
+            } catch {
+                if wasFollowing { followedFromSearch.insert(memberID) }
+                if wasRequested { requestedFromSearch.insert(memberID) }
+                ToastCenter.shared.saveFailed()
+            }
+        } else {
+            // Optimistically show "Following"; a private account corrects to
+            // "Requested" once the server says the follow is pending.
+            followedFromSearch.insert(memberID)
+            do {
+                let result = try await SupabaseService.shared.requestFollow(memberID)
+                if result == "requested" {
+                    followedFromSearch.remove(memberID)
+                    requestedFromSearch.insert(memberID)
+                }
+            } catch {
+                followedFromSearch.remove(memberID)
+                ToastCenter.shared.saveFailed()
+            }
         }
     }
 }
