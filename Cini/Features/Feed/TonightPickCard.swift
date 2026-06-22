@@ -262,32 +262,7 @@ struct TonightStack: View {
         if !cards.isEmpty {
             ZStack {
                 ForEach(Array(cards.enumerated()).reversed(), id: \.element.id) { pair in
-                    let idx = pair.offset
-                    let item = pair.element
-                    // Hoist the derived values into typed locals — inlining the
-                    // optional-chain count + the ternaries made this initializer
-                    // call too complex for the Swift type-checker.
-                    let providerCount = item.providers?.flatrate?.count ?? 1
-                    let topDrag: CGFloat = idx == 0 ? drag.width : 0
-                    let dismiss: (() -> Void)? = idx == 0 ? { onDismiss(item.id) } : nil
-                    TonightPickCard(
-                        movie: item.movie, reason: item.reason,
-                        service: item.service, serviceLogo: item.serviceLogo,
-                        height: cardH,
-                        providerCount: providerCount,
-                        onShowProviders: { onShowProviders(item) },
-                        dragX: topDrag,
-                        onOpen: onOpen, onQuickAdd: onRank,
-                        onDismiss: dismiss
-                    )
-                    .scaleEffect(1 - CGFloat(idx) * 0.04)
-                    .offset(y: CGFloat(idx) * 10)
-                    .offset(idx == 0 ? drag : .zero)
-                    .rotationEffect(.degrees(idx == 0 ? Double(drag.width / 22) : 0))
-                    .zIndex(Double(cards.count - idx))
-                    .gesture(idx == 0 ? swipe(item) : nil)
-                    .animation(.snappy, value: drag)
-                    .animation(.snappy, value: items.count)
+                    stackCard(pair.element, idx: pair.offset, count: cards.count)
                 }
             }
             // Reserve the card height plus the stack's peek offset.
@@ -298,6 +273,36 @@ struct TonightStack: View {
             // card isn't left carrying the previous card's drag offset.
             .onChange(of: items.count) { _, _ in drag = .zero }
         }
+    }
+
+    /// One card in the stack, extracted into its own function so the big
+    /// initializer + modifier chain type-checks in isolation (inline in the
+    /// ForEach it tripped "unable to type-check in reasonable time"). Binding the
+    /// card to a `let` separates the init's type-check from the modifier chain's.
+    @ViewBuilder
+    private func stackCard(_ item: TonightCardItem, idx: Int, count: Int) -> some View {
+        let providerCount = item.providers?.flatrate?.count ?? 1
+        let topDrag: CGFloat = idx == 0 ? drag.width : 0
+        let dismiss: (() -> Void)? = idx == 0 ? { onDismiss(item.id) } : nil
+        let card = TonightPickCard(
+            movie: item.movie, reason: item.reason,
+            service: item.service, serviceLogo: item.serviceLogo,
+            height: cardH,
+            providerCount: providerCount,
+            onShowProviders: { onShowProviders(item) },
+            dragX: topDrag,
+            onOpen: onOpen, onQuickAdd: onRank,
+            onDismiss: dismiss
+        )
+        card
+            .scaleEffect(1 - CGFloat(idx) * 0.04)
+            .offset(y: CGFloat(idx) * 10)
+            .offset(idx == 0 ? drag : .zero)
+            .rotationEffect(.degrees(idx == 0 ? Double(drag.width / 22) : 0))
+            .zIndex(Double(count - idx))
+            .gesture(idx == 0 ? swipe(item) : nil)
+            .animation(.snappy, value: drag)
+            .animation(.snappy, value: items.count)
     }
 
     private func swipe(_ item: TonightCardItem) -> some Gesture {
