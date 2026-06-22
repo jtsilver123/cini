@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// A quick tactile press for the deck's circular controls: the button dips when
+/// held and springs back. `.buttonStyle(.plain)` gives no feedback, so taps on
+/// Undo / Pass / Bookmark / Rank felt dead — this makes all four feel alive,
+/// pairing with the drag-enlarge without competing with it.
+private struct DeckButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
+
 /// CIN-28: a Tinder-style swipe deck for Recs. Same card as Tonight's Pick
 /// (minus the daily badge): swipe RIGHT to save to Want to Watch, LEFT to pass.
 /// A couple of one-time demo cards teach the gesture; an Undo brings the last
@@ -250,7 +262,8 @@ struct RecCardDeck: View {
                     .background(Circle().fill(bg))
                     .shadow(color: bg.opacity(bg == Theme.fill ? 0 : 0.4), radius: 8, y: 3)
             }
-            .buttonStyle(.plain)
+            // A quick tactile press on tap (the drag-enlarge handles the gesture).
+            .buttonStyle(DeckButtonStyle())
             if let caption {
                 Text(caption)
                     .font(.caption2.weight(.semibold))
