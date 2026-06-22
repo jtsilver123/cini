@@ -267,13 +267,17 @@ final class SupabaseService {
             let p_position: Int
             let p_watch_date: String?
             let p_stealth: Bool
+            let p_tz: String
         }
         let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
         return try await client.rpc(
             "rank_insert",
             params: Params(p_movie_id: movieID, p_bucket: bucket.rawValue,
                            p_position: position, p_watch_date: dateString,
-                           p_stealth: stealth)
+                           p_stealth: stealth,
+                           // The streak week is anchored to the device's zone so
+                           // "ranked this week" matches the user's calendar.
+                           p_tz: TimeZone.current.identifier)
         ).single().execute().value
     }
 
@@ -1814,7 +1818,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 avatarURL: avatarUrl.flatMap(URL.init),
                 memberSince: memberSince, isPrivate: isPrivate,
                 streakWeeks: streakWeeks,
-                lastLoggedWeek: lastLoggedWeek.flatMap { ISO8601DateFormatter.dateOnly.date(from: $0) },
+                lastLoggedWeek: lastLoggedWeek,   // date-only string, compared lexicographically
                 annualGoal: annualGoal,
                 bio: bio,
                 instagramHandle: instagramHandle, tiktokHandle: tiktokHandle,

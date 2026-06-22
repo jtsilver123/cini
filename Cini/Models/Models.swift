@@ -149,7 +149,10 @@ struct Profile: Identifiable, Codable, Hashable {
     var memberSince: Date
     var isPrivate: Bool = false
     var streakWeeks: Int = 0
-    var lastLoggedWeek: Date?
+    /// Date-only "YYYY-MM-DD" anchor of the week the user last ranked, stamped
+    /// by rank_insert in the user's local timezone. Kept as a String (date-only
+    /// columns can't decode as Date) and compared lexicographically.
+    var lastLoggedWeek: String?
     var annualGoal: Int?
     var bio: String?
     var instagramHandle: String?
@@ -175,26 +178,34 @@ struct Profile: Identifiable, Codable, Hashable {
         "Member since " + memberSince.formatted(.dateTime.month(.wide).year())
     }
 
-    /// Start of the current ISO week, in UTC — `last_logged_week` is a
-    /// date-only column parsed as UTC midnight, so the comparison MUST also be
-    /// in UTC. Using a local-timezone week start made "ranked this week" read
-    /// as false for anyone behind UTC, so the streak banner never cleared.
-    private static var thisWeekStartUTC: Date {
-        var cal = Calendar(identifier: .iso8601)
-        cal.timeZone = TimeZone(identifier: "UTC")!
-        return cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+    /// "YYYY-MM-DD" Monday of the current week in the device's LOCAL timezone —
+    /// the exact anchor rank_insert stamps (it computes the week in the device
+    /// zone too), so the two always agree and match the user's lived week.
+    /// Anchoring in UTC made a Sunday-evening rank (which is already the next
+    /// UTC week for anyone behind UTC) look at-risk right after ranking.
+    static var currentWeekStart: String {
+        let cal = Calendar(identifier: .iso8601)   // device-local timezone
+        let start = cal.dateInterval(of: .weekOfYear, for: .now)?.start ?? .now
+        let f = DateFormatter()
+        f.calendar = cal
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = cal.timeZone
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: start)
     }
 
-    /// True when there's a live streak that hasn't been fed this week.
+    /// True when there's a live streak that hasn't been fed this week. Compares
+    /// date-only strings lexicographically (correct for YYYY-MM-DD), avoiding
+    /// any instant/timezone skew between the stamped date and "now".
     var streakAtRisk: Bool {
         guard streakWeeks > 0 else { return false }
         guard let lastLoggedWeek else { return true }
-        return lastLoggedWeek < Profile.thisWeekStartUTC
+        return lastLoggedWeek < Profile.currentWeekStart
     }
 
     var hasLoggedThisWeek: Bool {
         guard let lastLoggedWeek else { return false }
-        return lastLoggedWeek >= Profile.thisWeekStartUTC
+        return lastLoggedWeek >= Profile.currentWeekStart
     }
 }
 
