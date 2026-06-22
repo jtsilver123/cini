@@ -295,6 +295,12 @@ struct InviteSheet: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $showShare) { ActivityShareSheet(items: [inviteText]) }
             .task {
+                // Seed who you already follow so members show "Following" (and
+                // stay that way after you close and reopen) — the button used to
+                // reset to "Follow" because this set started empty every time.
+                if followed.isEmpty {
+                    followed = await SupabaseService.shared.followingIDs()
+                }
                 // Auto-populate the contact list on open (the whole point of the
                 // sheet), so the user doesn't have to tap "Find friends" first.
                 // Skipped only if they've previously denied access — then the

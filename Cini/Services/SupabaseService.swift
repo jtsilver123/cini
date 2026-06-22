@@ -1114,6 +1114,21 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Just the IDs the current user follows — lighter than `following()` when
+    /// you only need to reflect Follow/Following state in a list. Best-effort.
+    func followingIDs() async -> Set<UUID> {
+        guard let me = currentUserID else { return [] }
+        struct Edge: Decodable {
+            let followingId: UUID
+            enum CodingKeys: String, CodingKey { case followingId = "following_id" }
+        }
+        let edges: [Edge] = (try? await client.from("follows")
+            .select("following_id")
+            .eq("follower_id", value: me)
+            .execute().value) ?? []
+        return Set(edges.map(\.followingId))
+    }
+
     /// How often each friend has been tagged in "watched with" across all
     /// of the user's rankings — ranks the picker so frequent movie
     /// companions surface first.
