@@ -231,7 +231,9 @@ struct RecCardDeck: View {
                     .accessibilityLabel("Rank this — you've seen it")
             }
         }
-        .animation(.snappy, value: drag)
+        // No implicit animation here: the buttons track the drag 1:1 (like the
+        // card and the stamp), then ease back via the explicit withAnimation in
+        // the gesture's snap-back and in act()'s fly-off.
     }
 
     /// A circular action button with an optional caption beneath it, so the
@@ -298,10 +300,19 @@ struct RecCardDeck: View {
             // Past the last demo → don't show them again next time.
             if index + 1 >= demos.count { demoSeen = true }
         }
-        withAnimation(.easeIn(duration: 0.28)) { flyOff = save ? 700 : -700 }
+        // Fly the card off from where the finger left it, and ease `drag` back
+        // to zero in the same animation. Carrying the offset into `flyOff` keeps
+        // the fly-off trajectory identical, while easing `drag` lets the control
+        // buttons relax to size along with the departing card — instead of
+        // snapping when the next card lands (the reset below is jump-cut).
+        withAnimation(.easeIn(duration: 0.28)) {
+            flyOff = drag.width + (save ? 700 : -700)
+            drag = .zero
+        }
         // Advance once the card has flown off. Reset position WITHOUT animation
         // (and in the same transaction as the index bump) so the next card just
-        // appears at center instead of sliding back in from off-screen.
+        // appears at center instead of sliding back in from off-screen. `drag` is
+        // already zero by now, so the buttons don't move here.
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
             var t = Transaction(); t.disablesAnimations = true
