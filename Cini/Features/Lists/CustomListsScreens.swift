@@ -169,7 +169,9 @@ struct CustomListScreen: View {
         // Guard the subscript: a concurrent listsRevision refetch can shrink the
         // array between render and this closure, so map only in-bounds offsets.
         let doomed = offsets.compactMap { movieIDs.indices.contains($0) ? movieIDs[$0] : nil }
-        withAnimation { movieIDs.remove(atOffsets: offsets) }
+        // Remove by the validated ids (not the raw offsets) so this matches the
+        // bounds guard above and can't act on a stale offset after a refetch.
+        withAnimation { movieIDs.removeAll { doomed.contains($0) } }
         Task {
             // Through the store so listsRevision bumps and other surfaces
             // refresh (it toasts on failure).

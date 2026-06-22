@@ -164,10 +164,12 @@ struct SendRecSheet: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
-                    .foregroundStyle(.white)
+                    // Disabled state needs a solid fill + muted text — white on a
+                    // pale 0.4 gray was near-illegible in light mode.
+                    .foregroundStyle(selected == nil ? Theme.gray : .white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(Capsule().fill(selected == nil ? Theme.gray.opacity(0.4) : Theme.velvet))
+                    .background(Capsule().fill(selected == nil ? Theme.surface2 : Theme.velvet))
                 }
                 .buttonStyle(.plain)
                 .disabled(selected == nil || sending)

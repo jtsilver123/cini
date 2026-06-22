@@ -598,7 +598,8 @@ struct SaveToListSheet: View {
                         // flight carrying the original kind; let it
                         // settle so this write wins.
                         try? await Task.sleep(for: .milliseconds(800))
-                        try? await SupabaseService.shared.cacheMovie(adjusted)
+                        do { try await SupabaseService.shared.cacheMovie(adjusted) }
+                        catch { SupabaseService.logSwallowed("cacheMovie kind override", error) }
                     }
                 }
                 .listRowSeparator(.hidden)
@@ -620,7 +621,8 @@ struct SaveToListSheet: View {
                         let saved = effectiveMovie
                         Task {
                             // streaming_alerts FKs onto movies — cache first.
-                            try? await SupabaseService.shared.cacheMovie(saved)
+                            do { try await SupabaseService.shared.cacheMovie(saved) }
+                            catch { SupabaseService.logSwallowed("cacheMovie streaming alert", error) }
                             let ok = await SupabaseService.shared.setStreamingAlert(
                                 movieID: saved.tmdbID, enabled: enabled)
                             if !ok {

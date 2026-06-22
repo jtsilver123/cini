@@ -116,6 +116,8 @@ READS = [
     ("comments", "comments", "*, profiles!comments_user_id_fkey(username, display_name, avatar_url), comment_likes(count)"),
     ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
     ("community_score", "movie_community_scores", "*"),
+    ("watch_plans", "watch_plans", "*"),
+    ("my_show_progress", "show_progress", "season, episode"),
 ]
 
 # Read-only RPCs: (name, params). Param names/types verbatim from the app.
@@ -158,6 +160,11 @@ RPCS = [
     ("propose_watch_plan", {"p_movie_id": 2,
                             "p_invitee": "00000000-0000-0000-0000-000000000000",
                             "p_proposed_at": None}),
+    # Show-progress: a movie the demo isn't watching → harmless no-op upsert,
+    # then cleared, so the pair exercises both signatures without lingering state.
+    ("set_show_progress", {"p_show_id": 2, "p_season": None,
+                           "p_episode": None, "p_caught_up": False}),
+    ("clear_show_progress", {"p_show_id": 2}),
     # respond_watch_plan is deliberately excluded: it raises a P0001 ("no such
     # plan") for any fake id, which is indistinguishable from a real contract
     # break (both are HTTP 400) without seeding a live plan row. propose_watch_plan

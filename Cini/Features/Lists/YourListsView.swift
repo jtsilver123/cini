@@ -1138,7 +1138,7 @@ struct YourListsView: View {
                                 ToastCenter.shared.saveFailed()
                             }
                         }
-                    } label: { Label("Stop", systemImage: "stop.circle") }
+                    } label: { Label("Remove", systemImage: "xmark.circle") }
                 }
             }
         }
@@ -1431,7 +1431,7 @@ struct SendRecMoviePicker: View {
                                         Spacer()
                                         Text(String(format: "%.1f", item.score))
                                             .font(.caption.weight(.bold))
-                                            .foregroundStyle(Theme.scoreGreen)
+                                            .foregroundStyle(Theme.scoreColor(item.score))
                                     }
                                 }
                                 .buttonStyle(.plain)

@@ -1751,6 +1751,7 @@ struct CommentsSheet: View {
                     ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
                         Image(systemName: "paperplane").foregroundStyle(Theme.ink)
                     }
+                    .accessibilityLabel("Share")
                 }
                 Spacer()
                 Text(c.createdAt.formatted(.relative(presentation: .named)))

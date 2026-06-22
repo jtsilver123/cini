@@ -508,7 +508,7 @@ struct RespondPickerView: View {
                 if let scored = store.scoredItem(for: movie.tmdbID) {
                     Text(String(format: "%.1f", scored.score))
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(Theme.scoreGreen)
+                        .foregroundStyle(Theme.scoreColor(scored.score))
                 }
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
