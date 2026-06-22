@@ -166,7 +166,9 @@ struct CustomListScreen: View {
         // Snapshot the exact pre-delete order so a failure or an Undo restores
         // the list precisely where it was — not reshuffled by a server refetch.
         let previous = movieIDs
-        let doomed = offsets.map { movieIDs[$0] }
+        // Guard the subscript: a concurrent listsRevision refetch can shrink the
+        // array between render and this closure, so map only in-bounds offsets.
+        let doomed = offsets.compactMap { movieIDs.indices.contains($0) ? movieIDs[$0] : nil }
         withAnimation { movieIDs.remove(atOffsets: offsets) }
         Task {
             // Through the store so listsRevision bumps and other surfaces
@@ -190,7 +192,12 @@ struct CustomListScreen: View {
                     Task {
                         for id in doomed {
                             if let m = store.movie(id) { await store.addToList(list.id, movie: m) }
-                            else { try? await SupabaseService.shared.addToList(list.id, movieID: id) }
+                            else {
+                                // No cached Movie, so we can't route through the
+                                // store — surface a failure rather than swallow it.
+                                do { try await SupabaseService.shared.addToList(list.id, movieID: id) }
+                                catch { SupabaseService.logSwallowed("undo addToList", error) }
+                            }
                         }
                         movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? previous
                     }
@@ -274,7 +281,7 @@ struct EditListsSheet: View {
                         }
                     }
                     .onDelete { offsets in
-                        doomedLists = offsets.map { lists[$0] }
+                        doomedLists = offsets.compactMap { lists.indices.contains($0) ? lists[$0] : nil }
                     }
                 } header: {
                     Text("Your lists")

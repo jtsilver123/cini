@@ -1682,20 +1682,32 @@ final class SupabaseService {
     func markNotificationsRead() async {
         guard let me = currentUserID else { return }
         struct Update: Encodable { let read_at: Date }
-        _ = try? await client.from("notifications")
-            .update(Update(read_at: .now))
-            .eq("recipient_id", value: me)
-            .is("read_at", value: nil)
-            .execute()
+        do {
+            try await client.from("notifications")
+                .update(Update(read_at: .now))
+                .eq("recipient_id", value: me)
+                .is("read_at", value: nil)
+                .execute()
+        } catch {
+            Self.logSwallowed("markNotificationsRead", error)
+        }
     }
 
-    /// Delete a single notification (swipe-to-delete in the bell).
-    func deleteNotification(_ id: UUID) async {
-        guard let me = currentUserID else { return }
-        _ = try? await client.from("notifications").delete()
-            .eq("id", value: id)
-            .eq("recipient_id", value: me)
-            .execute()
+    /// Delete a single notification (swipe-to-delete in the bell). Returns
+    /// false if the delete didn't reach the server, so the row can be restored.
+    @discardableResult
+    func deleteNotification(_ id: UUID) async -> Bool {
+        guard let me = currentUserID else { return false }
+        do {
+            try await client.from("notifications").delete()
+                .eq("id", value: id)
+                .eq("recipient_id", value: me)
+                .execute()
+            return true
+        } catch {
+            Self.logSwallowed("deleteNotification", error)
+            return false
+        }
     }
 
     /// How many people have each title on their Want to Watch — privacy-safe

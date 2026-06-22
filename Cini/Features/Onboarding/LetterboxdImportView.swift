@@ -644,10 +644,12 @@ struct LetterboxdImportView: View {
                 }
             }
 
-            // Letterboxd custom lists → Cini lists (same name reused).
-            if !Task.isCancelled, !outcome.importedLists.isEmpty {
+            // Letterboxd custom lists → Cini lists (same name reused). A failed
+            // read of existing lists must NOT look like "you have none" — that
+            // would re-create every list as new on a retry. Skip the phase then.
+            if !Task.isCancelled, !outcome.importedLists.isEmpty,
+               let existing = try? await SupabaseService.shared.myLists() {
                 progressText = "Rebuilding your lists…"
-                let existing = (try? await SupabaseService.shared.myLists()) ?? []
                 for list in outcome.importedLists {
                     if Task.isCancelled { break }
                     var target = existing.first {

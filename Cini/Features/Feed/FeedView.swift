@@ -1838,9 +1838,10 @@ struct CommentsSheet: View {
             }
             Button(role: .destructive) {
                 Task {
-                    await SupabaseService.shared.report(
+                    let ok = await SupabaseService.shared.report(
                         kind: "comment", subjectID: comment.id.uuidString)
-                    ToastCenter.shared.show("Reported — we'll review it")
+                    if ok { ToastCenter.shared.show("Reported — we'll review it") }
+                    else { ToastCenter.shared.saveFailed() }
                 }
             } label: {
                 Label("Report comment", systemImage: "flag")
@@ -2242,8 +2243,16 @@ struct NotificationsView: View {
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 let id = row.id
+                let removed = row
                 withAnimation { rows.removeAll { $0.id == id } }
-                Task { await SupabaseService.shared.deleteNotification(id) }
+                Task {
+                    // Put the row back (and tell the user) if the delete failed,
+                    // instead of letting it silently reappear on the next fetch.
+                    if !(await SupabaseService.shared.deleteNotification(id)) {
+                        withAnimation { rows.append(removed); rows.sort { $0.createdAt > $1.createdAt } }
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
             } label: { Label("Delete", systemImage: "trash") }
         }
     }

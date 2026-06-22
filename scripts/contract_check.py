@@ -142,9 +142,38 @@ RPCS = [
     ("leaderboard", {"p_metric": "watched", "p_school": None, "p_genre": None}),
     ("redeem_invite_from", {"p_username": "no_such_user_zz"}),
     # Empty recipients / random id: exercises signatures without writing.
+    # Full 7-param signature (migration 0082) — keep in lockstep with
+    # SupabaseService.requestRecs so a rename of a filter param is caught.
     ("request_recs", {"p_recipients": [], "p_media_kind": None,
-                      "p_genre": None, "p_note": None}),
+                      "p_genre": None, "p_note": None, "p_decade": None,
+                      "p_max_runtime": None, "p_streaming_provider": None}),
     ("complete_rec_request", {"p_request_id": "00000000-0000-0000-0000-000000000000"}),
+    # Social graph / plans / direct recs: zero UUIDs (and a movie the demo
+    # hasn't ranked) make each a clean no-op — a missing target row or RLS gate
+    # — so the signature is exercised without writing, same as notify_mention.
+    ("request_follow", {"p_target": "00000000-0000-0000-0000-000000000000"}),
+    ("respond_follow_request", {"p_requester": "00000000-0000-0000-0000-000000000000",
+                                "p_accept": False}),
+    ("propose_watch_plan", {"p_movie_id": 2,
+                            "p_invitee": "00000000-0000-0000-0000-000000000000",
+                            "p_proposed_at": None}),
+    # respond_watch_plan is deliberately excluded: it raises a P0001 ("no such
+    # plan") for any fake id, which is indistinguishable from a real contract
+    # break (both are HTTP 400) without seeding a live plan row. propose_watch_plan
+    # above already covers the watch-plan signature resolution.
+    ("send_direct_rec", {"p_recipient": "00000000-0000-0000-0000-000000000000",
+                         "p_movie_id": 2, "p_note": None}),
+    ("pass_direct_rec", {"p_rec_id": "00000000-0000-0000-0000-000000000000",
+                         "p_message": None}),
+    # Demo has no ranking for movie 2 → a no-op delete that exercises the signature.
+    ("rank_remove", {"p_movie_id": 2}),
+    # Idempotent best-effort writes (like set_phone): a fixed value each run, so
+    # re-running never changes demo state in a way that matters for review.
+    ("set_timezone", {"p_tz": "America/New_York"}),
+    ("set_home_zip", {"p_zip": "10001"}),
+    # Empty array stores nothing; forget clears the caller's own hashes.
+    ("store_contacts", {"p_phones": []}),
+    ("forget_contacts", {}),
     # Zero event id + empty ids: a no-op (RLS gate fails), exercises the signature.
     ("notify_mention", {"p_event_id": "00000000-0000-0000-0000-000000000000", "p_user_ids": []}),
     # Demo user has no watchlist row for id 2 — a no-op update.

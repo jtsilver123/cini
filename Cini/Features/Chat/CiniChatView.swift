@@ -150,7 +150,7 @@ struct CiniChatAvailableView: View {
                         }
                         .font(Theme.serif(34))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
+                        .screenHPadding()
                         .padding(.bottom, 18)
                         composer
                         starterChips
@@ -304,9 +304,9 @@ struct CiniChatAvailableView: View {
         }
         .padding(14)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .fill(Theme.surface)
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .overlay(RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                     .strokeBorder(Theme.marquee.opacity(0.45), lineWidth: 1.2))
         )
         .padding(.horizontal, 16)
@@ -417,7 +417,7 @@ struct CiniChatAvailableView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.rCard, style: .continuous)
                     .fill(message.isUser ? Theme.marquee : Theme.surface)
                     .shadow(color: Theme.cardShadow, radius: 4, y: 2)
             )

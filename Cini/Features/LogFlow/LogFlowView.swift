@@ -654,6 +654,9 @@ struct LogFlowView: View {
             // note / watch / cast / etc.
             await appSession.loadProfile()
             await persistDraft()
+            // Insurance: if a future change re-shows the comparison card instead
+            // of dismissing, don't leave commit permanently locked.
+            committing = false
         }
     }
 
