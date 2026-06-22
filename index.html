@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#131011">
 <meta name="description" content="Cini — rank every movie and show you watch. No star ratings: quick head-to-head comparisons build your perfectly ordered list, with scores that come from your own taste.">
 <title>Cini — Every Film, Ranked</title>
+<link rel="canonical" href="https://trycini.com/">
 
 <!-- Social link previews -->
 <meta property="og:type" content="website">
@@ -14,7 +15,7 @@
 <meta property="og:description" content="No star ratings. Answer one question — “Which did you like more?” — and Cini builds your perfectly ordered list of everything you’ve watched.">
 <meta property="og:url" content="https://trycini.com/">
 <meta property="og:image" content="https://trycini.com/og.png">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Cini — Every Film, Ranked">
 <meta name="twitter:description" content="No star ratings. Head-to-head comparisons build your perfectly ordered list of every movie and show you watch.">
 <meta name="twitter:image" content="https://trycini.com/og.png">
@@ -23,6 +24,41 @@
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="stylesheet" href="site.css">
+
+<!-- Structured data: the app + the site, so search can show a rich result
+     (app name, category, free price) and understand the publisher. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://trycini.com/#website",
+      "url": "https://trycini.com/",
+      "name": "Cini",
+      "description": "Rank every movie and show you watch — no star ratings, just head-to-head comparisons.",
+      "publisher": { "@id": "https://trycini.com/#org" }
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://trycini.com/#org",
+      "name": "Cini",
+      "url": "https://trycini.com/",
+      "logo": "https://trycini.com/og.png"
+    },
+    {
+      "@type": "MobileApplication",
+      "name": "Cini — Rank Every Film",
+      "operatingSystem": "iOS",
+      "applicationCategory": "EntertainmentApplication",
+      "url": "https://trycini.com/",
+      "downloadUrl": "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "publisher": { "@id": "https://trycini.com/#org" }
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -124,7 +160,11 @@
   <div class="grid">
     <div class="card"><div class="ico">🎯</div><h3>Rec Scores</h3>
       <p>Personal predictions for movies and shows you haven’t seen, computed
-      from the taste your rankings reveal.</p></div>
+      from the taste your rankings reveal — swipe through picks made for you.</p></div>
+    <div class="card"><div class="ico">✨</div><h3>Ask Cini</h3>
+      <p>A built-in movie buddy that knows your taste: ask “what should I watch
+      tonight?” and get picks grounded in what you’ve ranked. Private and free
+      on supported iPhones.</p></div>
     <div class="card"><div class="ico">👥</div><h3>Friends’ takes</h3>
       <p>See what friends scored a title before you commit a Friday night to it —
       and what everyone else thought, spoilers safely blurred.</p></div>
