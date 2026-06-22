@@ -158,7 +158,7 @@ struct TonightPickCard: View {
             HStack(spacing: 5) {
                 if let serviceLogo {
                     CachedAsyncImage(url: serviceLogo) { image in
-                        image.resizable().scaledToFill()
+                        image.resizable().scaledToFit()
                     } placeholder: {
                         Color.clear
                     }
@@ -167,10 +167,14 @@ struct TonightPickCard: View {
                 }
                 Text("ON \(service.uppercased())")
                     .font(.system(size: 10, weight: .heavy)).tracking(0.5)
-                    .foregroundStyle(Theme.background)
+                    .foregroundStyle(.white)
             }
             .padding(.horizontal, 7).padding(.vertical, 3)
-            .background(Capsule().fill(.white.opacity(0.92)))
+            // A dark scrim, not a white pill: white-on-white was illegible in
+            // light mode (the text used the adaptive background color), and a
+            // bright pill clashed with the card's other on-artwork chrome. This
+            // reads on any poster in both modes and matches the ✕ button's scrim.
+            .background(Capsule().fill(.black.opacity(0.55)))
         }
     }
 
