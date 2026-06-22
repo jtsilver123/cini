@@ -264,15 +264,21 @@ struct TonightStack: View {
                 ForEach(Array(cards.enumerated()).reversed(), id: \.element.id) { pair in
                     let idx = pair.offset
                     let item = pair.element
+                    // Hoist the derived values into typed locals — inlining the
+                    // optional-chain count + the ternaries made this initializer
+                    // call too complex for the Swift type-checker.
+                    let providerCount = item.providers?.flatrate?.count ?? 1
+                    let topDrag: CGFloat = idx == 0 ? drag.width : 0
+                    let dismiss: (() -> Void)? = idx == 0 ? { onDismiss(item.id) } : nil
                     TonightPickCard(
                         movie: item.movie, reason: item.reason,
                         service: item.service, serviceLogo: item.serviceLogo,
                         height: cardH,
-                        providerCount: item.providers?.flatrate?.count ?? 1,
+                        providerCount: providerCount,
                         onShowProviders: { onShowProviders(item) },
-                        dragX: idx == 0 ? drag.width : 0,
+                        dragX: topDrag,
                         onOpen: onOpen, onQuickAdd: onRank,
-                        onDismiss: idx == 0 ? { onDismiss(item.id) } : nil
+                        onDismiss: dismiss
                     )
                     .scaleEffect(1 - CGFloat(idx) * 0.04)
                     .offset(y: CGFloat(idx) * 10)
