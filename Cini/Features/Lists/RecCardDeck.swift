@@ -189,7 +189,13 @@ struct RecCardDeck: View {
         // Tinder-style: the two swipe actions (Pass · Bookmark) are the big
         // buttons, centered under the card; Undo and Rank are the small ones
         // flanking them, so the row stays symmetric around the card's center.
-        HStack(alignment: .bottom, spacing: 20) {
+        //
+        // As you drag, the matching big button swells (and the other dims) in
+        // lockstep with the on-card stamp, so the gesture and the buttons read
+        // as one action. A whisper, not a bounce — tied to drag progress.
+        let save = max(0, min(drag.width / 100, 1))
+        let pass = max(0, min(-drag.width / 100, 1))
+        return HStack(alignment: .bottom, spacing: 20) {
             controlButton(action: { undo() },
                           icon: "arrow.uturn.backward", size: 46,
                           fg: history.isEmpty ? Theme.gray.opacity(0.4) : Theme.gold,
@@ -200,12 +206,16 @@ struct RecCardDeck: View {
             controlButton(action: { act(save: false) },
                           icon: "xmark", size: 62, fg: .white,
                           bg: Theme.scoreRed, caption: "Pass")
+                .scaleEffect(1 + 0.12 * pass)
+                .opacity(1 - 0.4 * save)
                 .disabled(index >= items.count)
                 .accessibilityLabel("Pass")
 
             controlButton(action: { act(save: true) },
                           icon: "bookmark.fill", size: 62, fg: Theme.background,
                           bg: Theme.marquee, caption: "Bookmark")
+                .scaleEffect(1 + 0.12 * save)
+                .opacity(1 - 0.4 * pass)
                 .disabled(index >= items.count)
                 .accessibilityLabel("Bookmark to Want to Watch")
 
@@ -221,6 +231,7 @@ struct RecCardDeck: View {
                     .accessibilityLabel("Rank this — you've seen it")
             }
         }
+        .animation(.snappy, value: drag)
     }
 
     /// A circular action button with an optional caption beneath it, so the
