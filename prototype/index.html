@@ -2109,7 +2109,7 @@ function logCards(){
           </div>
         </div>
         <div class="vsctrl">
-          <button class="lnk ${log.history.length?"":"off"}" onclick="undoAnswer()">Undo</button>
+          <button class="lnk" onclick="undoAnswer()">Undo</button>
           <button class="tough" onclick="resolveAt(log._mid+1)">Too tough</button>
           <button class="lnk" onclick="skipAnswer()">Skip</button>
         </div>
@@ -2186,7 +2186,10 @@ function skipAnswer(){
   log.skipOff++; refreshLog();
 }
 function undoAnswer(){
-  const s=log.history.pop(); if(!s) return;
+  const s=log.history.pop();
+  // First comparison — nothing to undo, so step back to the details screen
+  // (sentiment / notes / Start ranking) instead of dead-ending.
+  if(!s){ buzz(); log.stage="enrich"; refreshLog(); return; }
   buzz(); Object.assign(log, s); refreshLog();
 }
 function resolveAt(pos){ commitLog(Math.min(pos, bucketItems().length)); }

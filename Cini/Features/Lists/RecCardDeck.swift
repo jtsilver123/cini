@@ -1,14 +1,35 @@
 import SwiftUI
 
-/// A quick tactile press for the deck's circular controls: the button dips when
-/// held and springs back. `.buttonStyle(.plain)` gives no feedback, so taps on
-/// Undo / Pass / Bookmark / Rank felt dead — this makes all four feel alive,
-/// pairing with the drag-enlarge without competing with it.
+/// Tactile feedback for the deck's circular controls. `.buttonStyle(.plain)`
+/// gives none, and a press-only dip is invisible on a fast tap (the touch is
+/// released before the spring moves). So on *release* we fire a one-shot pop
+/// that plays its full duration no matter how quickly the button was tapped —
+/// the button dips under the finger, then springs up past full size and settles.
 private struct DeckButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+        DeckButtonBody(configuration: configuration)
+    }
+
+    private struct DeckButtonBody: View {
+        let configuration: Configuration
+        @State private var popping = false
+
+        var body: some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.84 : (popping ? 1.18 : 1))
+                .animation(.spring(response: 0.18, dampingFraction: 0.55),
+                           value: configuration.isPressed)
+                .animation(.spring(response: 0.32, dampingFraction: 0.45), value: popping)
+                .onChange(of: configuration.isPressed) { _, pressed in
+                    guard !pressed else { return }
+                    // Released — kick the visible pop, then settle back to size.
+                    popping = true
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(160))
+                        popping = false
+                    }
+                }
+        }
     }
 }
 

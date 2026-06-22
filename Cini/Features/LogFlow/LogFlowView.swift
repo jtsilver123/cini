@@ -532,16 +532,27 @@ struct LogFlowView: View {
 
             HStack {
                 Button {
-                    withAnimation(.snappy(duration: 0.2)) {
-                        session?.undo()
-                        pairID += 1
+                    if current.canUndo {
+                        withAnimation(.snappy(duration: 0.2)) {
+                            session?.undo()
+                            pairID += 1
+                        }
+                    } else {
+                        // First comparison — nothing to undo yet, so step back to
+                        // the details screen (sentiment / notes / Start ranking)
+                        // instead of dead-ending. Drop the in-memory session so
+                        // re-tapping "Start ranking" begins a fresh placement.
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        withAnimation(.snappy) {
+                            session = nil
+                            phase = .enrich
+                        }
                     }
                 } label: {
                     Label("Undo", systemImage: "arrowshape.turn.up.backward.fill")
                         .font(.body.weight(.semibold))
-                        .foregroundStyle(current.canUndo ? Theme.marquee : Theme.gray.opacity(0.5))
+                        .foregroundStyle(Theme.marquee)
                 }
-                .disabled(!current.canUndo)
 
                 Spacer()
 
