@@ -105,6 +105,7 @@ READS = [
     ("performance_tallies", "favorite_performances", "tmdb_person_id, person_name, profile_path"),
     ("following_edges", "follows", "following_id"),
     ("follow_edges_both", "follows", "follower_id, following_id"),
+    ("outgoing_follow_requests", "follow_requests", "target_id"),
     ("watched_with_tags", "rankings", "watched_with"),
     ("feed", "feed_events", "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)"),
     ("taste_match", "taste_matches", "user_a, user_b, pct"),

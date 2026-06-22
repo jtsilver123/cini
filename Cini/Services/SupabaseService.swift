@@ -1129,6 +1129,21 @@ final class SupabaseService {
         return Set(edges.map(\.followingId))
     }
 
+    /// IDs of (private) accounts I have an outstanding follow request to, so a
+    /// list can show "Requested" — and keep showing it after a reopen.
+    func outgoingFollowRequestIDs() async -> Set<UUID> {
+        guard let me = currentUserID else { return [] }
+        struct Row: Decodable {
+            let targetId: UUID
+            enum CodingKeys: String, CodingKey { case targetId = "target_id" }
+        }
+        let rows: [Row] = (try? await client.from("follow_requests")
+            .select("target_id")
+            .eq("requester_id", value: me)
+            .execute().value) ?? []
+        return Set(rows.map(\.targetId))
+    }
+
     /// How often each friend has been tagged in "watched with" across all
     /// of the user's rankings — ranks the picker so frequent movie
     /// companions surface first.

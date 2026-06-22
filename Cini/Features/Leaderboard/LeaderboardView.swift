@@ -301,6 +301,9 @@ struct InviteSheet: View {
                 if followed.isEmpty {
                     followed = await SupabaseService.shared.followingIDs()
                 }
+                if requested.isEmpty {
+                    requested = await SupabaseService.shared.outgoingFollowRequestIDs()
+                }
                 // Auto-populate the contact list on open (the whole point of the
                 // sheet), so the user doesn't have to tap "Find friends" first.
                 // Skipped only if they've previously denied access — then the
