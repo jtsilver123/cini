@@ -288,9 +288,9 @@ struct TonightStack: View {
             movie: item.movie, reason: item.reason,
             service: item.service, serviceLogo: item.serviceLogo,
             height: cardH,
+            dragX: topDrag,
             providerCount: providerCount,
             onShowProviders: { onShowProviders(item) },
-            dragX: topDrag,
             onOpen: onOpen, onQuickAdd: onRank,
             onDismiss: dismiss
         )
