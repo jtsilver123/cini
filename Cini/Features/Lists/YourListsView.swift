@@ -147,7 +147,7 @@ struct YourListsView: View {
             .alert("Currently Watching", isPresented: $showWatchingInfo) {
                 Button("Got it", role: .cancel) {}
             } message: {
-                Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Stop. Friends can see what you're watching.")
+                Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Remove. Friends can see what you're watching.")
             }
             .sheet(isPresented: $showEditLists, onDismiss: {
                 Task { if let fresh = try? await SupabaseService.shared.myLists() { customLists = fresh } }
@@ -430,7 +430,7 @@ struct YourListsView: View {
                                 if tab == .watched && !pendingEntries.isEmpty {
                                     Text("\(pendingEntries.count)")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Theme.background)
+                                        .foregroundStyle(Theme.onMarquee)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(Theme.marquee))
@@ -860,7 +860,7 @@ struct YourListsView: View {
             Text("Pending").font(.headline)
             Text("\(pendingEntries.count)")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Theme.background)
+                .foregroundStyle(Theme.onMarquee)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Theme.marquee))

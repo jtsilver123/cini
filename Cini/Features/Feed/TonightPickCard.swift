@@ -103,7 +103,7 @@ struct TonightPickCard: View {
                     Text("TONIGHT'S PICK").tracking(1.5)
                 }
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(Theme.background)
+                .foregroundStyle(Theme.onMarquee)
                 .padding(.horizontal, 9).padding(.vertical, 5)
                 .background(Capsule().fill(Theme.marquee))
                 .padding(12)

@@ -409,7 +409,7 @@ struct ProfileScreen: View {
                             .overlay(alignment: .topLeading) {
                                 Text("#\(index + 1)")
                                     .font(.system(size: 12, weight: .heavy, design: .rounded))
-                                    .foregroundStyle(Theme.background)
+                                    .foregroundStyle(Theme.onMarquee)
                                     .padding(.horizontal, 7)
                                     .padding(.vertical, 3)
                                     .background(Capsule().fill(Theme.gold))

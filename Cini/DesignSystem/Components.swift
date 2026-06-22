@@ -179,7 +179,7 @@ struct ScoreBadge: View {
             if let countLabel {
                 Text(countLabel)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(Theme.background)
+                    .foregroundStyle(Theme.onMarquee)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 3)
                     .background(Circle().fill(Theme.marquee))

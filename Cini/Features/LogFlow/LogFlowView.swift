@@ -512,7 +512,7 @@ struct LogFlowView: View {
 
                     ZStack {
                         Circle().fill(Theme.marquee).frame(width: 44, height: 44)
-                        Text("OR").font(.caption.weight(.heavy)).foregroundStyle(Theme.background)
+                        Text("OR").font(.caption.weight(.heavy)).foregroundStyle(Theme.onMarquee)
                     }
                     .zIndex(1)
                     .padding(.horizontal, -16)
@@ -805,7 +805,7 @@ struct LogFlowView: View {
             Text(title)
         }
         .font(.headline)
-        .foregroundStyle(Theme.background)        // dark text on gold = high contrast
+        .foregroundStyle(Theme.onMarquee)        // dark text on gold = high contrast
         .frame(maxWidth: .infinity)
         .padding(.vertical, 11)
         .background(Capsule().fill(Theme.marquee))

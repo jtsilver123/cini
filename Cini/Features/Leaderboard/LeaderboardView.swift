@@ -327,7 +327,7 @@ struct InviteSheet: View {
     private var shareLinkRow: some View {
         Button { Haptics.tap(); showShare = true } label: {
             HStack(spacing: 12) {
-                Image(systemName: "square.and.arrow.up").font(.title3).foregroundStyle(Theme.background)
+                Image(systemName: "square.and.arrow.up").font(.title3).foregroundStyle(Theme.onMarquee)
                     .frame(width: 40, height: 40).background(Circle().fill(Theme.marquee))
                 Text("Share your invite link").font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
                 Spacer()

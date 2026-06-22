@@ -370,7 +370,7 @@ struct LetterboxdImportView: View {
                     Text("~1 MIN")
                         .font(.system(size: 10, weight: .heavy))
                         .tracking(1.5)
-                        .foregroundStyle(Theme.background)
+                        .foregroundStyle(Theme.onMarquee)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(Theme.marquee))

@@ -292,7 +292,7 @@ struct CiniChatAvailableView: View {
                 } label: {
                     Image(systemName: "arrow.up")
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(Theme.background)
+                        .foregroundStyle(Theme.onMarquee)
                         .frame(width: 44, height: 44)
                         .background(Circle().fill(Theme.marquee))
                 }

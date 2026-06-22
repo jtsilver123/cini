@@ -34,6 +34,10 @@ enum Theme {
     static let velvet = adaptive(dark: rgb(0xA8352A), light: rgb(0x9E2F25))
     /// Soft gold tint for pressed/selected states.
     static let marqueeSoft = marquee.opacity(0.16)
+    /// Text/icons sitting ON a gold `marquee`/`gold` fill. A FIXED dark ink, so
+    /// it stays high-contrast on gold in BOTH modes — `background` goes cream in
+    /// light mode and washes out on gold, which is why it shouldn't be used there.
+    static let onMarquee = Color(rgb(0x1A1618))
     /// Primary text: screen-glow cream at night, warm near-black by day.
     static let ink = adaptive(dark: rgb(0xF5EEDF), light: rgb(0x221B14))
     /// House lights down: warm charcoal · house lights up: warm cream.

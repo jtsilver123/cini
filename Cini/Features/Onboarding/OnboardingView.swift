@@ -830,7 +830,7 @@ struct NotificationPrimer: View {
             .overlay(
                 Image(systemName: "film.fill")
                     .font(.title3)
-                    .foregroundStyle(Theme.background)
+                    .foregroundStyle(Theme.onMarquee)
             )
     }
 }

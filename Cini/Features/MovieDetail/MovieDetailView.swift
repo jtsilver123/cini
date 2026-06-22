@@ -853,7 +853,7 @@ struct MovieDetailView: View {
                                 if tab == .everyone && !publicNotes.isEmpty {
                                     Text("\(publicNotes.count)")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundStyle(Theme.background)
+                                        .foregroundStyle(Theme.onMarquee)
                                         .padding(.horizontal, 6)
                                         .padding(.vertical, 2)
                                         .background(Capsule().fill(Theme.marquee))

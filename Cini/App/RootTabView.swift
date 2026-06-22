@@ -174,7 +174,7 @@ struct RootTabView: View {
                 } label: {
                     Image(systemName: "sparkles")
                         .font(.title3.weight(.semibold))
-                        .foregroundStyle(Theme.background)
+                        .foregroundStyle(Theme.onMarquee)
                         .frame(width: 50, height: 50)
                         .background(Circle().fill(Theme.marquee))
                         .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
