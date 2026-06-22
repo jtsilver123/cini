@@ -300,14 +300,17 @@ struct RecCardDeck: View {
             // Past the last demo → don't show them again next time.
             if index + 1 >= demos.count { demoSeen = true }
         }
-        // Fly the card off from where the finger left it, and ease `drag` back
-        // to zero in the same animation. Carrying the offset into `flyOff` keeps
-        // the fly-off trajectory identical, while easing `drag` lets the control
-        // buttons relax to size along with the departing card — instead of
-        // snapping when the next card lands (the reset below is jump-cut).
+        // Fly the card off from where the finger left it, and ease drag.width
+        // back to zero in the same animation. Because the card's x-offset is
+        // drag.width + flyOff, moving the offset into flyOff while easing
+        // drag.width to zero leaves the fly-off path (and rotation) mathematically
+        // identical — only the control buttons, which read drag.width, change:
+        // they now relax to size with the departing card instead of snapping when
+        // the next card jump-cuts in. drag.height is left untouched so the card's
+        // vertical behavior is exactly as before.
         withAnimation(.easeIn(duration: 0.28)) {
             flyOff = drag.width + (save ? 700 : -700)
-            drag = .zero
+            drag.width = 0
         }
         // Advance once the card has flown off. Reset position WITHOUT animation
         // (and in the same transaction as the index bump) so the next card just
