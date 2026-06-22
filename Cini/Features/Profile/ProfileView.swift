@@ -28,6 +28,7 @@ struct ProfileScreen: View {
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.horizontalSizeClass) private var hSize
 
     @State private var profile: Profile?
@@ -182,17 +183,12 @@ struct ProfileScreen: View {
             LeaderboardView()
                 .presentationDragIndicator(.visible)
         }
-        // Another member's profile: full name by the back button, with Share
-        // and the ⋯ menu top-right. (Self keeps its own in-content header.)
-        .toolbar {
-            if !isSelf {
-                // The member's name lives in an in-content header (memberHeader)
-                // like your own profile — NOT a toolbar item, which iOS wraps in
-                // a glass pill. Only the share + ⋯ actions sit in the bar.
-                ToolbarItem(placement: .navigationBarTrailing) { memberShareLink }
-                ToolbarItem(placement: .navigationBarTrailing) { memberMenu }
-            }
-        }
+        // A member's profile renders its whole top row in content (back · name ·
+        // share · ⋯) so nothing sits in an iOS 26 glass pill — matching your own
+        // profile, which has no glass. Hiding the system nav bar is what frees us
+        // from that glass treatment; the custom back button below pops the stack.
+        .navigationBarBackButtonHidden(!isSelf)
+        .toolbar(isSelf ? .automatic : .hidden, for: .navigationBar)
         .sheet(isPresented: $showInviteSheet) {
             InviteSheet()
                 .presentationDetents([.large])
@@ -392,16 +388,33 @@ struct ProfileScreen: View {
         }
     }
 
-    /// Another member's header: their first name (or username) top-left in the
-    /// brand face, matching your own profile. No trailing icons — share and the
-    /// ⋯ menu live in the nav bar alongside the system back arrow.
+    /// Another member's header, fully in-content (no nav bar, so no glass): a
+    /// back chevron in line with their first name on the left, Share and the ⋯
+    /// menu on the right — the same plain treatment as your own profile header.
     private var memberHeader: some View {
-        HStack {
+        HStack(spacing: 8) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Back")
             Text(memberTitle)
                 .font(Theme.pageHeader)
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
             Spacer()
+            HStack(spacing: 2) {
+                memberShareLink
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+                memberMenu
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .font(.title3)
         }
     }
 
