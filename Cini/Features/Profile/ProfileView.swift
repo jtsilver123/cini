@@ -648,11 +648,10 @@ struct ProfileScreen: View {
         }
     }
 
-    /// Full name (or @handle) shown next to the back button on another
-    /// member's profile.
+    /// First name (or username) shown next to the back button on another
+    /// member's profile, in the brand header face.
     private var memberTitle: String {
-        let dn = (profile?.displayName ?? "").trimmingCharacters(in: .whitespaces)
-        return dn.isEmpty ? "@\(profile?.username ?? username ?? "")" : dn
+        firstName(profile?.displayName, profile?.username) ?? username ?? ""
     }
 
     /// Share a member's profile (top-right of their page).
