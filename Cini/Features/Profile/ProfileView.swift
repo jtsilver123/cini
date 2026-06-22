@@ -180,12 +180,14 @@ struct ProfileScreen: View {
             if !isSelf {
                 ToolbarItem(placement: .navigationBarLeading) {
                     // The member's name in the brand header face (Limelight),
-                    // matching the page-header on your own profile — not the
-                    // plain system headline it used before.
+                    // matching the page-header on your own profile. fixedSize so
+                    // the toolbar sizes the glass capsule to the whole first name
+                    // instead of squeezing it to one truncated letter ("L…").
                     Text(memberTitle)
                         .font(Theme.display(22))
                         .foregroundStyle(Theme.ink)
                         .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) { memberShareLink }
                 ToolbarItem(placement: .navigationBarTrailing) { memberMenu }
