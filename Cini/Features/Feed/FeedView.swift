@@ -15,6 +15,8 @@ struct FeedView: View {
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     @State private var logMovie: Movie?
+    /// The Tonight's Pick whose streaming badge was tapped → Where-to-Watch.
+    @State private var watchSheetItem: TonightCardItem?
     @State private var memberTarget: MemberRef?
     @State private var likersTarget: LikersTarget?
     @State private var commentsLink: CommentsLink?
@@ -154,6 +156,10 @@ struct FeedView: View {
             }
             .fullScreenCover(item: $logMovie, onDismiss: { clearRankedTonightCards() }) { movie in
                 LogFlowView(movie: movie)
+            }
+            .sheet(item: $watchSheetItem) { item in
+                WhereToWatchSheet(movie: item.movie, providers: item.providers)
+                    .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showMenuImport) {
                 LetterboxdImportView()
@@ -593,7 +599,8 @@ struct FeedView: View {
                     onOpen: { detailMovie = $0 },
                     onRank: { logMovie = $0 },
                     onSave: { saveTonight($0) },
-                    onDismiss: { dismissTonight($0) }
+                    onDismiss: { dismissTonight($0) },
+                    onShowProviders: { watchSheetItem = $0 }
                 )
                 .padding(.top, 2)
                 // The deck reserves a fixed height, but a dragged/rotated card
@@ -883,7 +890,8 @@ struct FeedView: View {
             cards.append(TonightCardItem(movie: movie,
                                          reason: Self.tonightReason(for: pick),
                                          service: provider.providerName,
-                                         serviceLogo: provider.logoURL))
+                                         serviceLogo: provider.logoURL,
+                                         providers: providers))
         }
         tonightCards = cards
     }

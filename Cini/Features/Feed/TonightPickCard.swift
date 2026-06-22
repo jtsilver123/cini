@@ -24,6 +24,11 @@ struct TonightPickCard: View {
     var showQuickActions: Bool = true
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
+    /// Total streaming services this is on — drives the badge's "+N".
+    var providerCount: Int = 1
+    /// Tapping the streaming badge (e.g. to see every service). When nil the
+    /// badge is non-interactive (the Recs/Swipe decks don't pass it).
+    var onShowProviders: (() -> Void)? = nil
     var onOpen: (Movie) -> Void = { _ in }
     var onQuickAdd: (Movie) -> Void = { _ in }
     var onDismiss: (() -> Void)?
@@ -153,28 +158,37 @@ struct TonightPickCard: View {
         .accessibilityLabel("Tonight's pick: \(movie.title). \(reason ?? "")")
     }
 
+    /// The most-popular provider's logo, plus a "+N" when it's on more — tappable
+    /// to open Where-to-Watch. A dark scrim (not a white pill) so it reads on any
+    /// poster in both light and dark, matching the ✕ button's scrim.
     @ViewBuilder private var serviceBadge: some View {
-        if let service {
-            HStack(spacing: 5) {
-                if let serviceLogo {
-                    CachedAsyncImage(url: serviceLogo) { image in
-                        image.resizable().scaledToFit()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(width: 15, height: 15)
-                    .clipShape(RoundedRectangle(cornerRadius: 3.5))
+        if let serviceLogo {
+            let chip = HStack(spacing: 5) {
+                CachedAsyncImage(url: serviceLogo) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    Color.clear
                 }
-                Text("ON \(service.uppercased())")
-                    .font(.system(size: 10, weight: .heavy)).tracking(0.5)
-                    .foregroundStyle(.white)
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                if providerCount > 1 {
+                    Text("+\(providerCount - 1)")
+                        .font(.system(size: 11, weight: .heavy))
+                        .foregroundStyle(.white)
+                }
             }
-            .padding(.horizontal, 7).padding(.vertical, 3)
-            // A dark scrim, not a white pill: white-on-white was illegible in
-            // light mode (the text used the adaptive background color), and a
-            // bright pill clashed with the card's other on-artwork chrome. This
-            // reads on any poster in both modes and matches the ✕ button's scrim.
+            .padding(.horizontal, 6).padding(.vertical, 4)
             .background(Capsule().fill(.black.opacity(0.55)))
+
+            if let onShowProviders {
+                Button(action: onShowProviders) { chip }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(providerCount > 1
+                        ? "On \(service ?? "a service") and \(providerCount - 1) more — see where to watch"
+                        : "On \(service ?? "a service")")
+            } else {
+                chip
+            }
         }
     }
 
@@ -218,6 +232,10 @@ struct TonightCardItem: Identifiable, Equatable {
     let reason: String
     let service: String?
     var serviceLogo: URL?
+    /// The full provider data (already fetched when the card was built) so the
+    /// badge can show a "+N" and tapping it can open Where-to-Watch with no
+    /// extra network call.
+    var providers: WatchProviders?
     var id: Int { movie.tmdbID }
 }
 
@@ -231,6 +249,8 @@ struct TonightStack: View {
     var onSave: (TonightCardItem) -> Void = { _ in }
     /// Swipe left / ✕ → dismiss. Reported up so the feed persists it (stays gone).
     var onDismiss: (Int) -> Void = { _ in }
+    /// Tapped the streaming badge → open Where-to-Watch for that pick.
+    var onShowProviders: (TonightCardItem) -> Void = { _ in }
 
     @State private var drag: CGSize = .zero
     @Environment(\.horizontalSizeClass) private var hSize
@@ -248,6 +268,8 @@ struct TonightStack: View {
                         movie: item.movie, reason: item.reason,
                         service: item.service, serviceLogo: item.serviceLogo,
                         height: cardH,
+                        providerCount: item.providers?.flatrate?.count ?? 1,
+                        onShowProviders: { onShowProviders(item) },
                         dragX: idx == 0 ? drag.width : 0,
                         onOpen: onOpen, onQuickAdd: onRank,
                         onDismiss: idx == 0 ? { onDismiss(item.id) } : nil
