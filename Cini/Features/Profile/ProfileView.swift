@@ -179,9 +179,13 @@ struct ProfileScreen: View {
         .toolbar {
             if !isSelf {
                 ToolbarItem(placement: .navigationBarLeading) {
+                    // The member's name in the brand header face (Limelight),
+                    // matching the page-header on your own profile — not the
+                    // plain system headline it used before.
                     Text(memberTitle)
-                        .font(.headline.weight(.semibold))
+                        .font(Theme.display(22))
                         .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) { memberShareLink }
                 ToolbarItem(placement: .navigationBarTrailing) { memberMenu }

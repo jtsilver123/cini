@@ -1203,21 +1203,26 @@ struct FeedCard: View {
         }
     }
 
-    /// Everything after the name (" ranked <Title>"). The name is rendered
-    /// separately as a bold, tappable run so it can route to the profile while
-    /// the rest of the sentence falls through to the card's open-movie tap.
-    private var headlineRest: Text {
-        let title = Text(movie?.title ?? "a movie").bold()
+    /// The post headline as one flowing run: a bold, tappable name (the name is
+    /// a link routed to the author's profile by the openURL handler on the Text)
+    /// then the action and the bold title. Kept as a single Text so long titles
+    /// wrap cleanly instead of stair-stepping under a separate name view.
+    private static let authorLink = URL(string: "cinifeed://author")!
+
+    private var headlineAttr: AttributedString {
+        var name = AttributedString(actorName)
+        name.inlinePresentationIntent = .stronglyEmphasized
+        name.link = Self.authorLink
+        var title = AttributedString(movie?.title ?? "a movie")
+        title.inlinePresentationIntent = .stronglyEmphasized
+        let connector: String
         switch event.eventType {
-        case "ranked":
-            return Text(" ranked ") + title
-        case "watchlisted":
-            return Text(" bookmarked ") + title
-        case "noted":
-            return Text(" wrote about ") + title
-        default:
-            return Text(" shared an update")
+        case "ranked":      connector = " ranked "
+        case "watchlisted": connector = " bookmarked "
+        case "noted":       connector = " wrote about "
+        default:            return name + AttributedString(" shared an update")
         }
+        return name + AttributedString(connector) + title
     }
 
     /// The note shown under a ranking. Spoilers blur behind a tap-to-reveal
@@ -1266,15 +1271,18 @@ struct FeedCard: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     // One flowing line (name + the rest) so long titles wrap
-                    // cleanly — as two side-by-side views the title used to wrap
-                    // raggedly under the name. The avatar handles profile taps;
-                    // the headline falls through to the card's open-movie tap.
-                    (Text(actorName).bold() + headlineRest)
+                    // cleanly. The name is a tappable link → the author's
+                    // profile; taps anywhere else on the card open the movie.
+                    Text(headlineAttr)
                         .font(.subheadline)
                         .foregroundStyle(Theme.ink)
+                        .tint(Theme.ink)   // the name link reads as bold ink, not blue
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .environment(\.openURL, OpenURLAction { _ in
+                            openActor(); return .handled
+                        })
                     if let movie {
                         Text([movie.genres.first, movie.releaseYear.map(String.init)]
                             .compactMap(\.self).joined(separator: " · "))
