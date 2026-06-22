@@ -95,6 +95,14 @@ struct ProfileScreen: View {
                     .padding(.top, 8)
                     .padding(.bottom, 10)
                     .background(Theme.background)
+            } else {
+                // Mirror the self header's pill-free, top-left name (no glass
+                // capsule like a toolbar item would impose). Back arrow stays.
+                memberHeader
+                    .screenHPadding()
+                    .padding(.top, 8)
+                    .padding(.bottom, 10)
+                    .background(Theme.background)
             }
             ScrollViewReader { proxy in
                 ScrollView {
@@ -178,17 +186,9 @@ struct ProfileScreen: View {
         // and the ⋯ menu top-right. (Self keeps its own in-content header.)
         .toolbar {
             if !isSelf {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    // The member's name in the brand header face (Limelight),
-                    // matching the page-header on your own profile. fixedSize so
-                    // the toolbar sizes the glass capsule to the whole first name
-                    // instead of squeezing it to one truncated letter ("L…").
-                    Text(memberTitle)
-                        .font(Theme.display(22))
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
+                // The member's name lives in an in-content header (memberHeader)
+                // like your own profile — NOT a toolbar item, which iOS wraps in
+                // a glass pill. Only the share + ⋯ actions sit in the bar.
                 ToolbarItem(placement: .navigationBarTrailing) { memberShareLink }
                 ToolbarItem(placement: .navigationBarTrailing) { memberMenu }
             }
@@ -389,6 +389,19 @@ struct ProfileScreen: View {
                 }
             }
             .font(.title3)
+        }
+    }
+
+    /// Another member's header: their first name (or username) top-left in the
+    /// brand face, matching your own profile. No trailing icons — share and the
+    /// ⋯ menu live in the nav bar alongside the system back arrow.
+    private var memberHeader: some View {
+        HStack {
+            Text(memberTitle)
+                .font(Theme.pageHeader)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+            Spacer()
         }
     }
 
