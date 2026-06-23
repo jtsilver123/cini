@@ -214,8 +214,8 @@ struct CustomListScreen: View {
 /// Manage the Lists area: hide the optional default tabs, create new
 /// lists, delete old ones. Watched and Want to Watch always stay.
 struct EditListsSheet: View {
-    @Binding var lists: [CustomList]
-
+    // Lists are read straight off the shared store (@Observable), so a create /
+    // rename / delete here is reflected everywhere with no manual re-sync.
     @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
     @Environment(\.dismiss) private var dismiss
     @Environment(RankingStore.self) private var store
@@ -262,7 +262,7 @@ struct EditListsSheet: View {
                         Text("TV Shows").tag("tv")
                     }
                     .pickerStyle(.segmented)
-                    ForEach(lists) { list in
+                    ForEach(store.customLists) { list in
                         HStack {
                             Text(list.name)
                             Spacer()
@@ -283,6 +283,7 @@ struct EditListsSheet: View {
                         }
                     }
                     .onDelete { offsets in
+                        let lists = store.customLists
                         doomedLists = offsets.compactMap { lists.indices.contains($0) ? lists[$0] : nil }
                     }
                 } header: {
@@ -303,12 +304,12 @@ struct EditListsSheet: View {
                 Button("Delete list", role: .destructive) {
                     let doomed = doomedLists
                     doomedLists = []
-                    lists.removeAll { list in doomed.contains { $0.id == list.id } }
+                    // Each delete reconciles the shared store against the server;
+                    // the list above reads store.customLists, so it updates live.
                     Task {
                         for list in doomed {
                             await store.deleteList(list.id)
                         }
-                        lists = store.customLists   // reconcile with the server truth
                     }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -325,11 +326,7 @@ struct EditListsSheet: View {
                     let name = renameText.trimmingCharacters(in: .whitespaces)
                     renameTarget = nil
                     guard !name.isEmpty, name != target.name else { return }
-                    Task {
-                        if await store.renameList(target.id, to: name) {
-                            lists = store.customLists   // keep every surface in sync
-                        }
-                    }
+                    Task { await store.renameList(target.id, to: name) }
                 }
                 .disabled(renameText.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button("Cancel", role: .cancel) { renameTarget = nil }
@@ -348,9 +345,9 @@ struct EditListsSheet: View {
         let name = newName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         newName = ""
-        if await store.createList(name: name, mediaKind: newKind) != nil {
-            lists = store.customLists   // keep every surface in sync
-        }
+        // store.createList inserts into the shared cache; the list above reads
+        // store.customLists, so the new row appears with no manual re-sync.
+        _ = await store.createList(name: name, mediaKind: newKind)
     }
 }
 

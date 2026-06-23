@@ -37,9 +37,11 @@ struct YourListsView: View {
     @State private var passingRec: DirectRecRow?
     @State private var showRecPicker = false
     // Custom lists live as tabs beside the defaults; defaults can be
-    // hidden from Edit Lists (Watched/Want to Watch always stay).
+    // hidden from Edit Lists (Watched/Want to Watch always stay). The lists
+    // themselves are read straight off the shared store (no parallel @State
+    // copy) so a list created/renamed/deleted from any surface — a movie page,
+    // Chat, the Edit Lists sheet — shows here without a manual re-sync.
     @AppStorage("lists.hiddenTabs") private var hiddenTabsRaw = ""
-    @State private var customLists: [CustomList] = []
     @State private var selectedListID: UUID?
     @State private var customListMovies: [Movie] = []
     @State private var customListLoaded = false
@@ -53,7 +55,7 @@ struct YourListsView: View {
 
     /// The custom list currently open as a tab, if any.
     private var selectedList: CustomList? {
-        selectedListID.flatMap { id in customLists.first { $0.id == id } }
+        selectedListID.flatMap { id in store.customLists.first { $0.id == id } }
     }
 
     private var hiddenTabs: Set<String> {
@@ -134,9 +136,9 @@ struct YourListsView: View {
                 SendRecMoviePicker()
             }
             .task {
-                // Only overwrite on success — a transient failure shouldn't
-                // blank the list tabs.
-                if let fresh = try? await SupabaseService.shared.myLists() { customLists = fresh }
+                // Refresh the shared store's lists; it keeps the prior set on a
+                // transient failure, so the tabs never blank out.
+                await store.refreshCustomLists()
             }
             .task(id: subTab) {
                 if subTab == .watching, let me = SupabaseService.shared.currentUserID {
@@ -150,13 +152,13 @@ struct YourListsView: View {
                 Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Remove. Friends can see what you're watching.")
             }
             .sheet(isPresented: $showEditLists, onDismiss: {
-                Task { if let fresh = try? await SupabaseService.shared.myLists() { customLists = fresh } }
-                if selectedListID != nil && !customLists.contains(where: { $0.id == selectedListID }) {
+                Task { await store.refreshCustomLists() }
+                if selectedListID != nil && !store.customLists.contains(where: { $0.id == selectedListID }) {
                     selectedListID = nil
                 }
                 if !visibleDefaultTabs.contains(subTab) { subTab = .watched }
             }) {
-                EditListsSheet(lists: $customLists)
+                EditListsSheet()
                     .presentationDetents([.medium, .large])
             }
             .alert("New List", isPresented: $showNewList) {
@@ -171,7 +173,6 @@ struct YourListsView: View {
                         // through the store so every surface sees it.
                         if let list = await store.createList(
                             name: name, mediaKind: category.mediaKind) {
-                            customLists = store.customLists
                             withAnimation(.snappy) { selectedListID = list.id }
                         }
                     }
@@ -190,10 +191,7 @@ struct YourListsView: View {
                     // Snap back to Watched, then delete through the store so
                     // every surface (tabs, the add-to-list picker) agrees.
                     withAnimation(.snappy) { selectedListID = nil; subTab = .watched }
-                    Task {
-                        await store.deleteList(doomed.id)
-                        customLists = store.customLists
-                    }
+                    Task { await store.deleteList(doomed.id) }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -211,7 +209,7 @@ struct YourListsView: View {
             // tab just vanished — deselect rather than render a ghost.
             .onChange(of: category) { _, newCategory in
                 if let selectedListID,
-                   let list = customLists.first(where: { $0.id == selectedListID }),
+                   let list = store.customLists.first(where: { $0.id == selectedListID }),
                    list.kind != newCategory.mediaKind {
                     self.selectedListID = nil
                 }
@@ -234,12 +232,12 @@ struct YourListsView: View {
     private func consumePendingCustomList() {
         guard let pending = tabRouter.pendingCustomListID else { return }
         tabRouter.pendingCustomListID = nil
-        if let list = customLists.first(where: { $0.id == pending }) {
+        if let list = store.customLists.first(where: { $0.id == pending }) {
             withAnimation(.snappy) { select(list) }
         } else {
             Task {
-                customLists = (try? await SupabaseService.shared.myLists()) ?? customLists
-                if let list = customLists.first(where: { $0.id == pending }) {
+                await store.refreshCustomLists()
+                if let list = store.customLists.first(where: { $0.id == pending }) {
                     withAnimation(.snappy) { select(list) }
                 }
             }
@@ -298,7 +296,7 @@ struct YourListsView: View {
 
     private var headerShareText: String {
         if let selectedListID,
-           let list = customLists.first(where: { $0.id == selectedListID }) {
+           let list = store.customLists.first(where: { $0.id == selectedListID }) {
             return listShareText(name: list.name, movies: customListMovies)
         }
         return "My movie & TV rankings live on Cini 🎬\n\(AppLinks.appStore)"
@@ -448,7 +446,7 @@ struct YourListsView: View {
                 // Your own lists ride the same row — only the ones that
                 // belong to the active category (a list is movies OR
                 // shows, never both).
-                ForEach(customLists.filter { $0.kind == category.mediaKind }) { list in
+                ForEach(store.customLists.filter { $0.kind == category.mediaKind }) { list in
                     let isOn = selectedListID == list.id
                     Button {
                         withAnimation(.snappy) { selectedListID = list.id }
