@@ -484,7 +484,11 @@ final class RankingStore {
         let previous = watchlist[index].note
         watchlist[index].note = trimmed.isEmpty ? nil : trimmed
         let saved = await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
-        if !saved { watchlist[index].note = previous }
+        // Re-find by id after the await — the list may have changed during the
+        // round-trip, so the captured index could be stale or out of bounds.
+        if !saved, let i = watchlist.firstIndex(where: { $0.movieID == movieID }) {
+            watchlist[i].note = previous
+        }
     }
 
     /// "Watch by" goal — local state plus the server row (nil clears it).
@@ -498,7 +502,10 @@ final class RankingStore {
         let previous = watchlist[index].watchBy
         watchlist[index].watchBy = iso
         let saved = await supabase.setWatchBy(movieID: movieID, date: iso)
-        if !saved { watchlist[index].watchBy = previous }
+        // Re-find by id after the await (the captured index may be stale).
+        if !saved, let i = watchlist.firstIndex(where: { $0.movieID == movieID }) {
+            watchlist[i].watchBy = previous
+        }
     }
 
     static let watchByFormatter: DateFormatter = {
