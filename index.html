@@ -20,6 +20,10 @@
 <meta name="twitter:description" content="No star ratings. Head-to-head comparisons build your perfectly ordered list of every movie and show you watch.">
 <meta name="twitter:image" content="https://trycini.com/og.png">
 
+<!-- Preconnect to the font + image CDNs for faster first paint (Core Web Vitals). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://image.tmdb.org">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="favicon.png">
@@ -55,6 +59,32 @@
       "downloadUrl": "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "publisher": { "@id": "https://trycini.com/#org" }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://trycini.com/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Cini free?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes — Cini is free on the App Store for iPhone. Ranking, recs, lists, friends, and the web pages are all included." }
+        },
+        {
+          "@type": "Question",
+          "name": "How is Cini different from star ratings?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Instead of asking how many stars, Cini asks which you liked more. Quick head-to-head comparisons build a true ranked order, and each title's score out of 10 comes from where it lands in your list." }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I import from Letterboxd or IMDb?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Yes. Export your data from Letterboxd or IMDb and drag it into Cini — your watched films, ratings, watchlist, and custom lists come across." }
+        },
+        {
+          "@type": "Question",
+          "name": "Does Cini cover TV shows too?",
+          "acceptedAnswer": { "@type": "Answer", "text": "Movies and TV are equal first-class citizens — rank, track, and get recommendations for both." }
+        }
+      ]
     }
   ]
 }
@@ -62,15 +92,17 @@
 </head>
 <body>
 
-<header class="nav">
-  <a class="wordmark" href="./">cini</a>
-  <nav>
-    <a href="/search/">Search</a>
-    <a href="/charts/">Charts</a>
-    <a href="#how">How it works</a>
-    <a href="#features">Features</a>
-    <a href="mailto:jtsilver123@gmail.com?subject=Cini%20support">Support</a>
-  </nav>
+<header class="site-header" id="siteHeader">
+  <div class="nav">
+    <a class="wordmark" href="./">cini</a>
+    <nav>
+      <a href="/search/">Search</a>
+      <a href="/charts/">Charts</a>
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="mailto:jtsilver123@gmail.com?subject=Cini%20support">Support</a>
+    </nav>
+  </div>
 </header>
 
 <section class="hero">
@@ -90,12 +122,9 @@
     </p>
     <p class="cta-note">Free on the App Store · iPhone</p>
     <!-- Explore without the app: search Cini's catalog + members on the web. -->
-    <form action="/search/" method="get" role="search"
-          style="display:flex; gap:8px; max-width:440px; margin:22px 0 0;">
-      <input name="q" aria-label="Search Cini" placeholder="Search movies, TV &amp; people on Cini…"
-             style="flex:1; min-width:0; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:13px 15px; color:var(--ink); font:inherit; font-size:15px; outline:none;">
-      <button type="submit"
-              style="background:var(--marquee); color:#131011; font-weight:700; border:none; border-radius:12px; padding:0 18px; font:inherit; cursor:pointer;">Search</button>
+    <form class="hero-search" action="/search/" method="get" role="search">
+      <input name="q" aria-label="Search Cini" placeholder="Search movies, TV &amp; people on Cini…">
+      <button type="submit">Search</button>
     </form>
     <p class="cta-note" style="margin-top:8px;">Browse the catalog and rankings in your browser — no app needed.</p>
   </div>
@@ -142,21 +171,21 @@
 </section>
 
 <section class="section" id="how">
-  <h2>How it works</h2>
-  <p class="sub">Rating a movie 7/10 means nothing. Knowing you liked it more
+  <h2 data-reveal>How it works</h2>
+  <p class="sub" data-reveal>Rating a movie 7/10 means nothing. Knowing you liked it more
   than <i>Whiplash</i> but less than <i>Interstellar</i> means everything.</p>
   <div class="steps">
-    <div class="step">
+    <div class="step" data-reveal>
       <h3>Log what you watched</h3>
       <p>Search any movie or show, tap how you felt — loved it, fine, or didn’t —
       and add the details: who you watched with, where, and what you thought.</p>
     </div>
-    <div class="step">
+    <div class="step" data-reveal>
       <h3>Compare, don’t rate</h3>
       <p>Cini shows you two titles you’ve seen and asks which you liked more.
       A few quick taps slot the new one exactly where it belongs.</p>
     </div>
-    <div class="step">
+    <div class="step" data-reveal>
       <h3>Your taste, scored</h3>
       <p>Every title gets a score out of 10 derived from its place in
       <i>your</i> order — and Cini predicts how much you’ll like what you
@@ -166,39 +195,83 @@
 </section>
 
 <section class="section" id="features">
-  <h2>Built for movie people</h2>
-  <p class="sub">Everything you’d want from a film diary, kept simple.</p>
+  <h2 data-reveal>Built for movie people</h2>
+  <p class="sub" data-reveal>Everything you’d want from a film diary, kept simple.</p>
   <div class="grid">
-    <div class="card"><div class="ico">🎯</div><h3>Rec Scores</h3>
+    <div class="card" data-reveal><div class="ico">🎯</div><h3>Rec Scores</h3>
       <p>Personal predictions for movies and shows you haven’t seen, computed
       from the taste your rankings reveal — swipe through picks made for you.</p></div>
-    <div class="card"><div class="ico">✨</div><h3>Ask Cini</h3>
+    <div class="card" data-reveal><div class="ico">✨</div><h3>Ask Cini</h3>
       <p>A built-in movie buddy that knows your taste: ask “what should I watch
       tonight?” and get picks grounded in what you’ve ranked. Private and free
       on supported iPhones.</p></div>
-    <div class="card"><div class="ico">👥</div><h3>Friends’ takes</h3>
+    <div class="card" data-reveal><div class="ico">👥</div><h3>Friends’ takes</h3>
       <p>See what friends scored a title before you commit a Friday night to it —
       and what everyone else thought, spoilers safely blurred.</p></div>
-    <div class="card"><div class="ico">📥</div><h3>Letterboxd import</h3>
+    <div class="card" data-reveal><div class="ico">📥</div><h3>Letterboxd import</h3>
       <p>Bring your whole history — watched films, ratings, watchlist, and
       custom lists — in one drag-and-drop.</p></div>
-    <div class="card"><div class="ico">📝</div><h3>Lists &amp; diary</h3>
+    <div class="card" data-reveal><div class="ico">📝</div><h3>Lists &amp; diary</h3>
       <p>Want to Watch, custom lists you can share, and a diary of every watch
       and rewatch with dates and company.</p></div>
-    <div class="card"><div class="ico">🍿</div><h3>Showtimes &amp; streaming</h3>
+    <div class="card" data-reveal><div class="ico">🍿</div><h3>Showtimes &amp; streaming</h3>
       <p>Where to stream it tonight, or real theater showtimes nearby — IMAX,
       Dolby, and bargain screenings flagged.</p></div>
-    <div class="card"><div class="ico">🏆</div><h3>Leaderboard</h3>
+    <div class="card" data-reveal><div class="ico">🏆</div><h3>Leaderboard</h3>
       <p>Race your friends on films watched, influence, and notes written.
       Taste is a competitive sport.</p></div>
   </div>
 </section>
 
+<section class="section" id="web">
+  <h2 data-reveal>Explore on the web</h2>
+  <p class="sub" data-reveal>No app needed to look around. Browse the catalog, see how
+  taste stacks up, and find people to follow — all in your browser.</p>
+  <div class="weblinks">
+    <a class="weblink" href="/charts/" data-reveal><span class="wl-ico">📈</span>
+      <span><b>Charts</b><span>The best movies &amp; TV, ranked by taste</span></span>
+      <span class="wl-arrow">→</span></a>
+    <a class="weblink" href="/search/" data-reveal><span class="wl-ico">🔎</span>
+      <span><b>Search</b><span>Find any movie, show, or member</span></span>
+      <span class="wl-arrow">→</span></a>
+    <a class="weblink" href="/reviews/" data-reveal><span class="wl-ico">🎞</span>
+      <span><b>Browse titles</b><span>Community scores &amp; where to watch</span></span>
+      <span class="wl-arrow">→</span></a>
+  </div>
+</section>
+
+<section class="section" id="faq">
+  <h2 data-reveal>Questions</h2>
+  <div class="grid">
+    <div class="card" data-reveal>
+      <h3>Is Cini free?</h3>
+      <p>Yes — Cini is free on the App Store for iPhone. Ranking, recs, lists,
+      friends, and the web pages are all included.</p>
+    </div>
+    <div class="card" data-reveal>
+      <h3>How is Cini different from star ratings?</h3>
+      <p>Instead of asking “how many stars?”, Cini asks “which did you like more?”
+      Quick head-to-head comparisons build a true ranked order, and each title’s
+      score out of 10 comes from where it lands in <i>your</i> list.</p>
+    </div>
+    <div class="card" data-reveal>
+      <h3>Can I import from Letterboxd or IMDb?</h3>
+      <p>Yes. Export your data from Letterboxd or IMDb and drag it into Cini —
+      your watched films, ratings, watchlist, and custom lists come across.</p>
+    </div>
+    <div class="card" data-reveal>
+      <h3>Does Cini cover TV shows too?</h3>
+      <p>Movies and TV are equal first-class citizens — rank, track, and get
+      recommendations for both.</p>
+    </div>
+  </div>
+</section>
+
 <section class="closer">
-  <h2 class="serif">Your taste deserves better than five stars.</h2>
-  <p>Start ranking the movies and shows that made you — and find the next one.</p>
-  <a class="cta" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Download on the App Store</a>
-  <p class="ticket">🎟 ADMIT ONE · CINI</p>
+  <h2 class="serif" data-reveal>Your taste deserves better than five stars.</h2>
+  <p data-reveal>Start ranking the movies and shows that made you — and find the next one.</p>
+  <a class="cta" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898" data-reveal>Download on the App Store</a>
+  <p class="ticket" data-reveal>🎟 ADMIT ONE · CINI</p>
 </section>
 
 <footer>
@@ -211,5 +284,25 @@
   </div>
 </footer>
 
+<script>
+  // Progressive enhancement: mark JS so reveal styles apply (no-JS sees all).
+  var root = document.documentElement;
+  root.classList.add('js');
+  // Frosted header once you scroll past the top.
+  var header = document.getElementById('siteHeader');
+  var onScroll = function(){ if(header) header.classList.toggle('scrolled', window.scrollY > 8); };
+  addEventListener('scroll', onScroll, { passive:true }); onScroll();
+  // Reveal-on-scroll.
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var items = document.querySelectorAll('[data-reveal]');
+  if(reduce || !('IntersectionObserver' in window)){
+    items.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold:.12, rootMargin:'0px 0px -8% 0px' });
+    items.forEach(function(el){ io.observe(el); });
+  }
+</script>
 </body>
 </html>
