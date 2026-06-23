@@ -1459,7 +1459,7 @@ struct FeedCard: View {
                 }
                 .accessibilityLabel("Comments")
                 if let movie {
-                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
+                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.titleLink(movie.tmdbID))") {
                         Image(systemName: "paperplane")
                             .foregroundStyle(Theme.ink)
                     }
@@ -1836,7 +1836,7 @@ struct CommentsSheet: View {
                     }
                 }
                 if let movie = c.movie {
-                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.appStore)") {
+                    ShareLink(item: "\(movie.title) — on Cini 🎬\n\(AppLinks.titleLink(movie.tmdbID))") {
                         Image(systemName: "paperplane").foregroundStyle(Theme.ink)
                     }
                     .accessibilityLabel("Share")

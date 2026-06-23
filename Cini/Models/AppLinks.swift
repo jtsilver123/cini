@@ -17,6 +17,18 @@ enum AppLinks {
     static func listLink(_ id: UUID) -> String {
         "https://trycini.com/l/?id=\(id.uuidString.lowercased())"
     }
+
+    /// Link to a member's public profile. Renders their rankings on the web
+    /// (/u/?u=) for anyone; opens the profile in the app for installed users.
+    static func profileLink(_ username: String) -> String {
+        "https://trycini.com/u/?u=\(username.urlQueryValueEncoded)"
+    }
+
+    /// Link to a title's page — Cini's community score + metadata on the web
+    /// (/m/?id=); opens the title in the app for installed users.
+    static func titleLink(_ tmdbID: Int) -> String {
+        "https://trycini.com/m/?id=\(tmdbID)"
+    }
 }
 
 extension String {

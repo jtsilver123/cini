@@ -354,7 +354,7 @@ struct ProfileScreen: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel("Leaderboard")
-                ShareLink(item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬 \(AppLinks.invite(profile?.username ?? ""))") {
+                ShareLink(item: "See my rankings on Cini — @\(profile?.username ?? "") 🎬 \(AppLinks.profileLink(profile?.username ?? ""))") {
                     Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
                         .frame(width: 36, height: 36)
                         .contentShape(Rectangle())
@@ -576,7 +576,7 @@ struct ProfileScreen: View {
                         showEditProfile = true
                     }
                     PillShareLink(title: "Share profile",
-                                  item: "Follow me on Cini — I'm @\(profile?.username ?? "") 🎬")
+                                  item: "See my rankings on Cini — @\(profile?.username ?? "") 🎬 \(AppLinks.profileLink(profile?.username ?? ""))")
                     Button {
                         withAnimation(.snappy) { showSuggested.toggle() }
                         if suggested.isEmpty {
@@ -663,7 +663,7 @@ struct ProfileScreen: View {
 
     /// Share a member's profile (top-right of their page).
     private var memberShareLink: some View {
-        ShareLink(item: "Check out @\(profile?.username ?? username ?? "") on Cini 🎬 \(AppLinks.invite(profile?.username ?? username ?? ""))") {
+        ShareLink(item: "Check out @\(profile?.username ?? username ?? "") on Cini 🎬 \(AppLinks.profileLink(profile?.username ?? username ?? ""))") {
             Image(systemName: "square.and.arrow.up").foregroundStyle(Theme.ink)
         }
     }

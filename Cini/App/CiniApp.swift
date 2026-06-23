@@ -15,6 +15,12 @@ struct CiniApp: App {
     @State private var sharedList: CustomList?
     /// A list link tapped while signed out — opened once the user is in the app.
     @State private var pendingListID: UUID?
+    /// A member profile / title opened from a shared `/u/` or `/m/` link.
+    @State private var sharedProfile: MemberRef?
+    @State private var sharedMovie: Movie?
+    /// Profile/title links tapped while signed out — opened once in the app.
+    @State private var pendingProfileUsername: String?
+    @State private var pendingMovieID: Int?
     /// Showing the "set a new password" screen after a recovery link opened the app.
     @State private var showResetPassword = false
 
@@ -122,12 +128,18 @@ struct CiniApp: App {
 
         let isList: Bool
         let isInvite: Bool
+        let isProfile: Bool
+        let isMovie: Bool
         if url.scheme == "cini" {
             isList = url.host == "list"
-            isInvite = !isList   // cini://invite (or bare cini://) → invite
+            isProfile = url.host == "user"
+            isMovie = url.host == "movie"
+            isInvite = !isList && !isProfile && !isMovie  // cini://invite or bare
         } else if url.scheme == "https",
                   url.host == "trycini.com" || url.host == "www.trycini.com" {
             isList = url.path.hasPrefix("/l")
+            isProfile = url.path.hasPrefix("/u")
+            isMovie = url.path.hasPrefix("/m")
             isInvite = url.path.hasPrefix("/i")
         } else {
             return
@@ -141,7 +153,47 @@ struct CiniApp: App {
             if session.isAuthenticated { openList(id) } else { pendingListID = id }
             return
         }
+        if isProfile {
+            // /u?u=<username> → open that member's profile.
+            guard let raw = comps.queryItems?.first(where: { $0.name == "u" })?.value else { return }
+            let username = raw.replacingOccurrences(of: "@", with: "").trimmingCharacters(in: .whitespaces)
+            guard !username.isEmpty else { return }
+            if session.isAuthenticated { openProfile(username) } else { pendingProfileUsername = username }
+            return
+        }
+        if isMovie {
+            // /m?id=<tmdb_id> → open that title.
+            guard let idStr = comps.queryItems?.first(where: { $0.name == "id" })?.value,
+                  let id = Int(idStr) else { return }
+            if session.isAuthenticated { openMovie(id) } else { pendingMovieID = id }
+            return
+        }
         if isInvite { handleInvite(comps) }
+    }
+
+    /// Resolve a @handle to its profile and present it. Usernames are stored
+    /// lowercase (the format constraint enforces it), so an exact match is safe.
+    private func openProfile(_ username: String) {
+        let handle = username.lowercased()
+        Task {
+            if let id = await SupabaseService.shared.profileID(username: handle) {
+                sharedProfile = MemberRef(id: id, username: handle)
+            } else {
+                ToastCenter.shared.show("Couldn't find @\(handle).")
+            }
+        }
+    }
+
+    /// Fetch a title by tmdb id (sign convention handles TV) and present it.
+    private func openMovie(_ tmdbID: Int) {
+        Task {
+            if let movie = try? await TMDBService.shared.details(for: tmdbID) {
+                session.rankingStore.cache(movie)
+                sharedMovie = movie
+            } else {
+                ToastCenter.shared.show("Couldn't open that title.")
+            }
+        }
     }
 
     /// Fetch + present a shared list, or explain why it can't open.
@@ -152,13 +204,13 @@ struct CiniApp: App {
         }
     }
 
-    /// Open a stashed list link — only once the user is fully in the app (never
-    /// over onboarding or the tour).
+    /// Open a stashed deep link (list / profile / title) — only once the user
+    /// is fully in the app (never over onboarding or the tour).
     private func consumePendingList() {
-        guard session.isAuthenticated, !showOnboarding, !showTour,
-              let id = pendingListID else { return }
-        pendingListID = nil
-        openList(id)
+        guard session.isAuthenticated, !showOnboarding, !showTour else { return }
+        if let id = pendingListID { pendingListID = nil; openList(id) }
+        if let u = pendingProfileUsername { pendingProfileUsername = nil; openProfile(u) }
+        if let m = pendingMovieID { pendingMovieID = nil; openMovie(m) }
     }
 
     /// `cini://invite?u=<username>` from a friend's invite link: remember the
@@ -265,6 +317,30 @@ struct CiniApp: App {
                 }
                 // Same shared router the tab bar uses, so a tapped movie/profile
                 // inside the list navigates correctly.
+                .environment(TabRouter.shared)
+            }
+            // A shared profile link (/u/?u=) opens that member's profile.
+            .sheet(item: $sharedProfile) { member in
+                NavigationStack {
+                    MemberProfileView(userID: member.id, username: member.username)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { sharedProfile = nil }
+                            }
+                        }
+                }
+                .environment(TabRouter.shared)
+            }
+            // A shared title link (/m/?id=) opens that title's page.
+            .sheet(item: $sharedMovie) { movie in
+                NavigationStack {
+                    MovieDetailView(movie: movie)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button("Done") { sharedMovie = nil }
+                            }
+                        }
+                }
                 .environment(TabRouter.shared)
             }
             // Opened from a password-recovery link — must finish before doing

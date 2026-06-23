@@ -60,6 +60,11 @@ jobs:
           mkdir -p _site/u
           cp u/index.html _site/u/index.html
           cp favicon.png _site/u/favicon.png
+          # Public title page served from /m/?id=<tmdb_id> (TMDB metadata + Cini
+          # community score via the anon public_title RPC).
+          mkdir -p _site/m
+          cp m/index.html _site/m/index.html
+          cp favicon.png _site/m/favicon.png
           # Apple App Site Association — lets iOS open invite/list links
           # (/i/*, /l/*) straight in the app via Universal Links. Served from
           # /.well-known/ with no file extension over https.

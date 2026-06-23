@@ -775,8 +775,8 @@ struct LogFlowView: View {
                         // Card image didn't render — share text so the button
                         // is never silently missing.
                         ShareLink(item: isTop
-                            ? "\(movie.title) is my new #1 on Cini 🎬\n\(AppLinks.appStore)"
-                            : "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.appStore)") {
+                            ? "\(movie.title) is my new #1 on Cini 🎬\n\(AppLinks.titleLink(movie.tmdbID))"
+                            : "\(movie.title) — ranked #\(scored.rank) on Cini 🎬\n\(AppLinks.titleLink(movie.tmdbID))") {
                             shareLabel(isTop ? "Share your new #1" : "Share")
                         }
                         .buttonStyle(.plain)

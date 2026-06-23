@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>A title on Cini</title>
+<meta property="og:title" content="Ranked on Cini">
+<meta property="og:description" content="See how Cini members rank this — no star ratings, just taste, perfectly ordered.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);--green:#3FB55A;}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);}
+  a{color:inherit;}
+  .hero{position:relative;min-height:230px;background:var(--surface2) center/cover no-repeat;}
+  .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg, rgba(19,16,17,.35) 0%, rgba(19,16,17,.85) 70%, var(--bg) 100%);}
+  .topbar{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:20px 16px;max-width:760px;margin:0 auto;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);line-height:1;text-decoration:none;}
+  .getcini{text-decoration:none;font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;white-space:nowrap;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px 60px;}
+  .head{position:relative;z-index:2;display:flex;gap:18px;margin-top:-40px;}
+  .poster{width:120px;flex:none;aspect-ratio:2/3;border-radius:12px;background:var(--surface2) center/cover no-repeat;box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .meta{padding-top:48px;}
+  .title{font-family:"DM Serif Display",Georgia,serif;font-weight:400;font-size:30px;line-height:1.1;}
+  .sub{color:var(--gray);font-size:14px;margin-top:6px;}
+  .kind{display:inline-block;font-size:10px;letter-spacing:.18em;font-weight:800;color:var(--marquee);border:1px solid var(--hair);border-radius:6px;padding:3px 7px;margin-top:10px;}
+  .score{display:flex;align-items:center;gap:16px;margin:28px 0 8px;}
+  .scorenum{font-family:"DM Serif Display",serif;font-size:46px;line-height:1;}
+  .scorelabel{color:var(--gray);font-size:13px;}
+  .hist{display:flex;align-items:flex-end;gap:4px;height:54px;margin:10px 0 6px;}
+  .bar{flex:1;background:var(--marquee);border-radius:3px 3px 0 0;min-height:3px;opacity:.85;}
+  .histaxis{display:flex;justify-content:space-between;color:var(--gray);font-size:10px;}
+  .overview{font-size:15px;line-height:1.6;color:var(--ink);margin:22px 0;opacity:.92;}
+  .genres{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
+  .chip{font-size:12px;color:var(--gray);border:1px solid var(--hair);border-radius:999px;padding:5px 11px;}
+  .divider{height:1px;background:var(--hair);margin:24px 0;}
+  .msg{text-align:center;color:var(--gray);padding:64px 16px;font-size:16px;line-height:1.6;}
+  .cta{display:block;text-decoration:none;font-weight:700;font-size:16px;padding:15px 24px;border-radius:999px;margin:10px auto;max-width:340px;text-align:center;}
+  .primary{background:var(--velvet);color:#fff;box-shadow:0 10px 26px rgba(168,53,42,.32);}
+  .ghost{background:none;border:1px solid var(--hair);color:var(--ink);}
+  .pitch{text-align:center;color:var(--gray);font-size:13px;margin-top:14px;}
+</style>
+</head>
+<body>
+<div class="hero" id="hero">
+  <div class="topbar">
+    <a class="wordmark" href="/">cini</a>
+    <a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a>
+  </div>
+</div>
+<div class="wrap"><div id="content"><div class="msg">Loading…</div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const APP_STORE = "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898";
+
+const $ = (id) => document.getElementById(id);
+const movieId = parseInt((new URLSearchParams(location.search).get('id') || '').replace(/[^0-9-]/g, ''), 10);
+
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function img(path, size){ return path ? `https://image.tmdb.org/t/p/${size}${String(path).replace(/[^A-Za-z0-9/_.\-]/g,'')}` : null; }
+function scoreColor(s){ s=Number(s); return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A"; }
+function notFound(){ $("content").innerHTML=""; $("content").appendChild(el("div","msg","This title isn’t on Cini yet.")); }
+
+async function load(){
+  if(!movieId && movieId !== 0){ notFound(); return; }
+  const { data: t } = await sb.rpc("public_title", { p_movie_id: movieId });
+  if(!t){ notFound(); return; }
+
+  document.title = `${t.title}${t.release_year? " ("+t.release_year+")":""} · Cini`;
+  const back = img(t.backdrop_path, "w780");
+  if(back) $("hero").style.backgroundImage = `url("${back}")`;
+
+  const c = $("content"); c.innerHTML="";
+  const head = el("div","head");
+  const p = el("div","poster"); const pi=img(t.poster_path,"w342"); if(pi) p.style.backgroundImage=`url("${pi}")`; head.appendChild(p);
+  const meta = el("div","meta");
+  meta.appendChild(el("div","title", t.title || "Untitled"));
+  const bits = [t.release_year, t.director, t.runtime_minutes? (t.runtime_minutes+" min"):null].filter(Boolean);
+  meta.appendChild(el("div","sub", bits.join(" · ")));
+  meta.appendChild(el("span","kind", t.media_kind === "tv" ? "TV" : "FILM"));
+  head.appendChild(meta);
+  c.appendChild(head);
+
+  // Cini community score
+  if(t.community){
+    const wrap = el("div");
+    const row = el("div","score");
+    const num = el("div","scorenum", Number(t.community.avg).toFixed(1)); num.style.color = scoreColor(t.community.avg);
+    row.appendChild(num);
+    const lab = el("div");
+    lab.appendChild(el("div",null,"Cini community score"));
+    lab.appendChild(el("div","scorelabel", t.community.count + (t.community.count===1?" ranking":" rankings")));
+    row.appendChild(lab);
+    wrap.appendChild(row);
+    // Histogram 1..10
+    const hist = Array.isArray(t.histogram) ? t.histogram : [];
+    if(hist.length){
+      const byFloor = {}; let max=1;
+      hist.forEach(h => { byFloor[h.floor]=h.n; if(h.n>max) max=h.n; });
+      const bars = el("div","hist");
+      for(let s=1;s<=10;s++){ const b=el("div","bar"); b.style.height = Math.round((byFloor[s]||0)/max*100)+"%"; if(!byFloor[s]) b.style.opacity=".18"; bars.appendChild(b); }
+      wrap.appendChild(bars);
+      const ax = el("div","histaxis"); ax.appendChild(el("span",null,"1")); ax.appendChild(el("span",null,"10")); wrap.appendChild(ax);
+    }
+    c.appendChild(wrap);
+  } else {
+    c.appendChild(el("div","sub","Not ranked on Cini yet — be the first."));
+  }
+
+  if(Array.isArray(t.genres) && t.genres.length){
+    const g = el("div","genres");
+    t.genres.slice(0,5).forEach(name => g.appendChild(el("span","chip", name)));
+    c.appendChild(g);
+  }
+  if(t.overview) c.appendChild(el("div","overview", t.overview));
+
+  c.appendChild(el("div","divider"));
+  const open = el("a","cta primary","Rank it in Cini"); open.href = "cini://movie?id="+movieId; c.appendChild(open);
+  const get = el("a","cta ghost","Get Cini on the App Store"); get.href = APP_STORE; c.appendChild(get);
+  c.appendChild(el("div","pitch","Cini — everything you watch, ranked. No star ratings, just taste."));
+}
+load().catch(notFound);
+</script>
+</body>
+</html>

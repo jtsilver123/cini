@@ -159,6 +159,17 @@ final class SupabaseService {
         try await client.from("profiles").select().eq("id", value: id).single().execute().value
     }
 
+    /// Resolve a @handle to its user id (for opening a profile from a shared
+    /// /u/ deep link). Usernames are stored lowercase, so an exact match works.
+    func profileID(username: String) async -> UUID? {
+        struct Row: Decodable { let id: UUID }
+        let rows: [Row]? = try? await client.from("profiles")
+            .select("id")
+            .eq("username", value: username.lowercased())
+            .limit(1).execute().value
+        return rows?.first?.id
+    }
+
     /// Notification kinds this user has muted (enforced by a DB trigger
     /// at notification creation, silencing both bell and push).
     func mutedNotificationKinds() async -> Set<String> {

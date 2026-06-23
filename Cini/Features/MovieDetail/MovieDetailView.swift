@@ -117,7 +117,7 @@ struct MovieDetailView: View {
         .ignoresSafeArea(edges: .top)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                ShareLink(item: "\(movie.title) on Cini 🎬\n\(AppLinks.appStore)") {
+                ShareLink(item: "\(movie.title) on Cini 🎬\n\(AppLinks.titleLink(movie.tmdbID))") {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
