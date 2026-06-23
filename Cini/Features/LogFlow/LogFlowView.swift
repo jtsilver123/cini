@@ -51,6 +51,12 @@ struct LogFlowView: View {
     // then the score springs in (score screen) — Beli's flow, our brand.
     @State private var scoreRevealed = false
     @State private var didScheduleReveal = false
+    /// The reveal needs BOTH gates: the ~1s calculating beat has played
+    /// (`beatElapsed`) AND the server confirmed the rank (`commitConfirmed`).
+    /// This keeps the ticket instant while never flashing a score for a save
+    /// that ends up failing.
+    @State private var beatElapsed = false
+    @State private var commitConfirmed = false
     @State private var choosing = false   // guards against double-tapping a comparison
     @State private var committing = false  // guards against a double commit (commit can exceed the 200ms tap guard)
     @State private var showDiscardConfirm = false
@@ -642,28 +648,32 @@ struct LogFlowView: View {
         guard !committing else { return }
         committing = true
         Task {
-            // nil = the rank didn't reach the server (store already reverted
-            // and toasted). Don't show the celebratory ticket for a save that
-            // failed — bail back out so the user can retry.
-            guard let result = await store.commit(finished, watchDate: draft.watchDate,
-                                                  stealth: draft.stealthMode) else {
+            // Show the result ticket the instant the local score is known
+            // (onLocalScored), so the screen no longer waits on the rank_insert
+            // round-trip — that write now overlaps the reveal's ~1s "calculating"
+            // beat. The score itself stays hidden until the server confirms.
+            let result = await store.commit(
+                finished, watchDate: draft.watchDate, stealth: draft.stealthMode,
+                onLocalScored: { localScored in
+                    priorStreak = appSession.profile?.streakWeeks ?? 0
+                    withAnimation(.snappy) {
+                        session = nil
+                        scored = localScored
+                        phase = .result
+                    }
+                })
+            // nil = the rank didn't reach the server (store already reverted and
+            // toasted). Leave without ever revealing a score for a failed save.
+            guard result != nil else {
                 committing = false
                 dismiss()
                 return
             }
-            // The score is already known — show the ticket immediately instead of
-            // waiting on the detail writes + profile refresh, which added a ~1s
-            // dead gap between the last comparison and the reveal screen.
-            priorStreak = appSession.profile?.streakWeeks ?? 0
-            withAnimation(.snappy) {
-                session = nil
-                scored = result
-                phase = .result
-            }
-            // Catch up during the reveal's ~1s "calculating" beat: refresh the
-            // streak first (so a milestone celebration sees it), then persist the
-            // note / watch / cast / etc.
+            // Refresh the streak BEFORE unlocking the reveal so a milestone
+            // celebration sees the new value, then let the score spring in.
             await appSession.loadProfile()
+            commitConfirmed = true
+            maybeRevealScore()
             await persistDraft()
             // Insurance: if a future change re-shows the comparison card instead
             // of dismissing, don't leave commit permanently locked.
@@ -812,14 +822,24 @@ struct LogFlowView: View {
     }
 
     /// Auto-reveal a beat after the ticket lands, so the calculating
-    /// animation registers before the score springs in.
+    /// animation registers before the score springs in. The beat runs
+    /// concurrently with the network write; whichever finishes last unlocks
+    /// the reveal via `maybeRevealScore`.
     private func scheduleReveal() {
         guard !didScheduleReveal else { return }
         didScheduleReveal = true
         Task {
             try? await Task.sleep(for: .milliseconds(1000))
-            revealScore()
+            beatElapsed = true
+            maybeRevealScore()
         }
+    }
+
+    /// Reveal only once the calculating beat has played AND the rank is
+    /// confirmed on the server — either event calls this; the second one wins.
+    private func maybeRevealScore() {
+        guard beatElapsed, commitConfirmed else { return }
+        revealScore()
     }
 
     private func revealScore() {

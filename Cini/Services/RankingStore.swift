@@ -267,10 +267,15 @@ final class RankingStore {
         return session
     }
 
-    /// Commit locally and mirror to the rank_insert RPC.
+    /// Commit locally and mirror to the rank_insert RPC. `onLocalScored` fires
+    /// the moment the engine has computed the score — before the network write —
+    /// so the log flow can show the result ticket immediately and let the write
+    /// overlap the reveal's "calculating" beat. The returned value is non-nil
+    /// only once the server confirms (nil = reverted + toasted).
     @discardableResult
     func commit(_ session: InsertionSession<Int>, watchDate: Date? = nil,
-                stealth: Bool = false) async -> ScoredItem<Int>? {
+                stealth: Bool = false,
+                onLocalScored: (ScoredItem<Int>) -> Void = { _ in }) async -> ScoredItem<Int>? {
         guard session.isComplete else { return nil }
         guard let bucketPosition = session.resolvedBucketPosition else {
             // Engine state should make this impossible; never crash on it.
@@ -283,6 +288,9 @@ final class RankingStore {
         lists[key] = kindList
         listChanged()
         watchlist.removeAll { $0.movieID == session.newItemID }
+        // Score is known now (pure engine math) — hand it back so the UI can
+        // reveal the ticket while the round-trip below runs.
+        onLocalScored(scored)
         do {
             if let movie = movies[session.newItemID] {
                 // rank_insert FKs onto movies — the cache isn't optional.
