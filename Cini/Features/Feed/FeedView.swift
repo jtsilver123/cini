@@ -2243,6 +2243,16 @@ struct NotificationsView: View {
         .listStyle(.plain)
         .nativeContentWidth()   // cap width so rows don't stretch on iPad
         .background(Theme.background)
+        // Tapped a name link in a headline → open that member's profile.
+        .environment(\.openURL, OpenURLAction { url in
+            guard url.scheme == "cinimember" else { return .systemAction }
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+            guard let idStr = items?.first(where: { $0.name == "id" })?.value,
+                  let id = UUID(uuidString: idStr) else { return .discarded }
+            let username = items?.first(where: { $0.name == "u" })?.value ?? ""
+            memberTarget = MemberRef(id: id, username: username)
+            return .handled
+        })
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
         }
@@ -2423,6 +2433,26 @@ struct NotificationsView: View {
         case "caught_up": text = "**\(who)** is all caught up on **\(movie)** 🎉"
         default: text = "**\(who)** did something new"
         }
-        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+        var attr = (try? AttributedString(markdown: text)) ?? AttributedString(text)
+        // Tapping the actor's name opens their profile (the avatar already does).
+        // Attach a custom-scheme link to just the name run — the List's openURL
+        // handler routes it — and tint it so it reads as tappable.
+        if let actorId = row.actorId, let actor = row.actor {
+            let token = row.kind == "contact_joined" ? name : who
+            if let r = attr.range(of: token) {
+                var comps = URLComponents()
+                comps.scheme = "cinimember"
+                comps.host = "open"
+                comps.queryItems = [
+                    .init(name: "id", value: actorId.uuidString),
+                    .init(name: "u", value: actor.username)
+                ]
+                if let url = comps.url {
+                    attr[r].link = url
+                    attr[r].foregroundColor = Theme.velvet
+                }
+            }
+        }
+        return attr
     }
 }
