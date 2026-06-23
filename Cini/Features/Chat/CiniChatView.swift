@@ -575,7 +575,10 @@ struct CiniChatAvailableView: View {
         }
 
         messages.append(ChatMessage(isUser: true, text: visible))
-        ChatAgentBridge.shared.lastUserPrompt = prompt
+        // The consent gates must read the user's LITERAL words, not the prompt we
+        // augment with taste-profile context / movie framing — otherwise injected
+        // text could trip a save/add/delete gate the user never asked for.
+        ChatAgentBridge.shared.lastUserPrompt = text
         ChatAgentBridge.shared.startTurn()
         isThinking = true
         do {

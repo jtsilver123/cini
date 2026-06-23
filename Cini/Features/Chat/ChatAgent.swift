@@ -79,23 +79,23 @@ final class ChatAgentBridge {
     var promptAsksToSave: Bool {
         let prompt = lastUserPrompt.lowercased()
         let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
-        let saveWords = ["save", "add", "bookmark", "watchlist", "queue",
-                         "yes", "yeah", "sure", "okay", "ok", "yep"]
-        if saveWords.contains(where: { words.contains($0) }) { return true }
-        return prompt.contains("my list") || prompt.contains("do it")
+        let saveVerbs = ["save", "add", "bookmark", "watchlist", "queue"]
+        if saveVerbs.contains(where: { words.contains($0) }) { return true }
+        return prompt.contains("my list") || isBareAffirmation(prompt, words)
     }
 
     /// Consent gate for adding a title to a custom list — broader verbs
     /// than save ("put it on my heist list", "throw X on date night"),
-    /// plus a named list or an affirmation. Blocks the model from filing
-    /// its own recs onto a list the user didn't ask about.
+    /// plus an affirmation. Blocks the model from filing its own recs onto a
+    /// list the user didn't ask about. (No bare "list" substring — that fired on
+    /// innocent questions like "what's on my list?" or "tell me about Schindler's
+    /// List"; an add verb or a short affirmation is required.)
     var promptAsksToAdd: Bool {
         let prompt = lastUserPrompt.lowercased()
         let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
-        let addWords = ["add", "put", "throw", "stick", "drop", "file", "save",
-                        "queue", "yes", "yeah", "sure", "okay", "ok", "yep"]
-        if addWords.contains(where: { words.contains($0) }) { return true }
-        return prompt.contains("list") || prompt.contains("do it")
+        let addVerbs = ["add", "put", "throw", "stick", "drop", "file", "save", "queue"]
+        if addVerbs.contains(where: { words.contains($0) }) { return true }
+        return isBareAffirmation(prompt, words)
     }
 
     /// Fail-safe gate for DESTRUCTIVE tools — the user's words must
@@ -103,10 +103,19 @@ final class ChatAgentBridge {
     var promptConfirmsDestruction: Bool {
         let prompt = lastUserPrompt.lowercased()
         let words = Set(prompt.split(whereSeparator: { !$0.isLetter }).map(String.init))
-        let confirmWords = ["delete", "remove", "yes", "yeah", "sure",
-                            "okay", "ok", "yep", "confirm", "wipe", "clear"]
-        if confirmWords.contains(where: { words.contains($0) }) { return true }
-        return prompt.contains("do it") || prompt.contains("go ahead")
+        let destructVerbs = ["delete", "remove", "confirm", "wipe", "clear"]
+        if destructVerbs.contains(where: { words.contains($0) }) { return true }
+        return isBareAffirmation(prompt, words)
+    }
+
+    /// A short, standalone yes — the only case where a bare affirmation counts as
+    /// consent. Requiring brevity stops casual acknowledgements ("ok cool, thanks
+    /// for the rec") from authorizing a mutation the assistant didn't just offer.
+    private func isBareAffirmation(_ prompt: String, _ words: Set<String>) -> Bool {
+        if prompt.contains("do it") || prompt.contains("go ahead") { return true }
+        guard words.count <= 4 else { return false }
+        let affirm: Set<String> = ["yes", "yeah", "sure", "okay", "ok", "yep", "yup", "please"]
+        return !affirm.isDisjoint(with: words)
     }
 
     func note(_ icon: String, _ label: String,
@@ -363,7 +372,10 @@ struct CreateListTool: Tool {
         await ChatAgentBridge.shared.step("list.star", "Creating the list")
         let trimmed = arguments.name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return "The list needs a name." }
-        if await ChatAgentBridge.resolveList(named: trimmed) != nil {
+        // Dedupe on an EXACT name match only — the fuzzy resolveList would refuse
+        // to create "Heist Night" just because "Best Heist Movies" exists.
+        let existing = (try? await SupabaseService.shared.myLists()) ?? []
+        if existing.contains(where: { $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }) {
             return "They already have a list called \(trimmed)."
         }
         guard let list = try? await SupabaseService.shared.createList(name: trimmed) else {

@@ -542,7 +542,7 @@ struct FeedView: View {
                 Image(systemName: "xmark")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -2120,8 +2120,12 @@ struct ReleaseCalendarView: View {
                 // Tickets up top, save bottom-right — same corner the
                 // bookmark lives in on every other card.
                 VStack(alignment: .trailing, spacing: 10) {
-                    PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                        activeSheet = .tickets(movie)
+                    // Theatrical tickets only apply to films — TV shows have no
+                    // showtimes (negative tmdb_id = TV in the app's convention).
+                    if movie.tmdbID > 0 {
+                        PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
+                            activeSheet = .tickets(movie)
+                        }
                     }
                     Button {
                         bookmarkTapped(movie: movie, store: store) { activeSheet = .save(movie) }
@@ -2129,7 +2133,7 @@ struct ReleaseCalendarView: View {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                             .font(.title3)
                             .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -2150,11 +2154,9 @@ struct ReleaseCalendarView: View {
                 if !loaded {
                     ProgressView()
                 } else {
-                    ContentUnavailableView {
-                        Label("No upcoming releases", systemImage: "calendar")
-                    } description: {
-                        Text("Check back soon — new movies and shows land here as they're announced.")
-                    }
+                    EmptyStateView(icon: "calendar",
+                                   title: "No upcoming releases",
+                                   message: "Check back soon — new movies and shows land here as they're announced.")
                 }
             }
         }
@@ -2218,23 +2220,18 @@ struct NotificationsView: View {
                     .listRowBackground(Theme.background)
             }
             if rows.isEmpty && loaded {
-                VStack(spacing: 10) {
-                    Image(systemName: "bell").font(.title).foregroundStyle(Theme.gray)
-                    Text("Nothing yet").font(.subheadline.weight(.semibold))
-                    Text("Likes, comments, and friends' activity show up here. Add a few friends to get things moving.")
-                        .font(.caption)
-                        .foregroundStyle(Theme.gray)
-                        .multilineTextAlignment(.center)
-                    PillButton(title: "Find friends", systemImage: "person.badge.plus") {
+                EmptyStateView(
+                    icon: "bell",
+                    title: "Nothing yet",
+                    message: "Likes, comments, and friends' activity show up here. Add a few friends to get things moving.",
+                    actionTitle: "Find friends") {
                         tabRouter.openMembersSearch = true
                         tabRouter.selection = .search
                         dismiss()
                     }
-                    .padding(.top, 2)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
-                .listRowBackground(Theme.background)
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
             }
             // Beli-style grouping: unread first under "New", the rest "Earlier".
             if !unread.isEmpty {

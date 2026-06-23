@@ -341,14 +341,21 @@ struct WatchingControl: View {
                             .foregroundStyle(Theme.marquee)
                     }
                     .buttonStyle(.plain)
-                } else if !(season == c.season && episode == c.episode) {
-                    // Ongoing: jump to the next episode you're waiting on (the cap).
+                } else {
+                    // Ongoing: mark caught up — and if you're not yet at the latest
+                    // episode you're waiting on (the cap), jump there too. Shown
+                    // even once you've manually stepped to the cap, so the
+                    // "caught up" signal still fires for manual steppers.
+                    let atCeiling = (season == c.season && episode == c.episode)
                     let scheduledNext = info?.nextEpisodeNumber != nil
                     Button {
-                        Haptics.tap(); season = c.season; episode = c.episode; save(caughtUp: true)
+                        Haptics.tap()
+                        if !atCeiling { season = c.season; episode = c.episode }
+                        save(caughtUp: true)
                     } label: {
-                        Label(scheduledNext ? "I'm caught up — next is S\(c.season) · E\(c.episode)"
-                                            : "I'm caught up",
+                        Label(!atCeiling && scheduledNext
+                                ? "I'm caught up — next is S\(c.season) · E\(c.episode)"
+                                : "I'm caught up",
                               systemImage: "checkmark.circle.fill")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(Theme.marquee)

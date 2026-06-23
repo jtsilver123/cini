@@ -161,9 +161,13 @@ struct FollowListScreen: View {
             .followMembers(of: userID, direction: d)) ?? []
         // which of these do *I* already follow (for the button state)
         let mine = (try? await SupabaseService.shared.following()) ?? []
+        // ...and which I've sent a still-pending request to, so "Requested"
+        // survives a tab switch instead of reverting to "Follow".
+        let pending = await SupabaseService.shared.outgoingFollowRequestIDs()
         guard d == direction else { return }
         members = rows
         iFollow = Set(mine.map(\.id))
+        requested = pending
         loaded = true
         // Show "X% match" where a taste match exists (batch lookup).
         let matches = await SupabaseService.shared.memberMatchPcts(rows.map(\.id))
