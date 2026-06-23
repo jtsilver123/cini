@@ -349,23 +349,21 @@ struct RecCardDeck: View {
             if index + 1 >= demos.count { demoSeen = true }
         }
         Task { @MainActor in
-            // Tap has no travel of its own, so roll the stamp in to the action
-            // threshold with a clean ease (the matching button swells in step),
-            // hold a beat so it registers, then fly off below — one smooth motion.
-            if preRoll {
-                withAnimation(.easeOut(duration: 0.18)) { drag.width = save ? 120 : -120 }
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-            // Fly the card off from where it sits, easing drag.width back to zero
-            // in the same animation. The card's x-offset is drag.width + flyOff,
-            // so moving the offset into flyOff while drag.width eases to zero
-            // leaves the fly path identical — only the control buttons (which read
-            // drag.width) relax to size with the departing card.
-            withAnimation(.easeIn(duration: 0.28)) {
-                flyOff = drag.width + (save ? 700 : -700)
+            // Fly the card off in ONE continuous motion. The card's x-offset and
+            // the on-card stamp both read dragX = drag.width + flyOff, so easing
+            // flyOff out to off-screen ramps the stamp in during the (slower)
+            // start of the ease, then accelerates the card away — no pre-roll
+            // and no dead hold, so a tap has no stop-start hitch. A tap starts
+            // from drag.width = 0; a swipe continues smoothly from wherever the
+            // finger let go (drag.width eases to 0 so the control buttons relax
+            // in step with the departing card). Taps fly a touch slower so the
+            // stamp clearly registers on the way out.
+            let dir: CGFloat = save ? 1 : -1
+            withAnimation(.easeIn(duration: preRoll ? 0.36 : 0.28)) {
+                flyOff = drag.width + dir * 720
                 drag.width = 0
             }
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(preRoll ? 360 : 300))
             // Advance + reset position WITHOUT animation (same transaction as the
             // index bump) so the next card appears at center, not sliding in.
             var t = Transaction(); t.disablesAnimations = true
