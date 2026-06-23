@@ -223,6 +223,9 @@ struct SegmentedPillControl: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
                         .background { if selection == i { thumb } }
+                        // Make the whole segment tappable, not just the glyphs —
+                        // without this the padding around the word ignores taps.
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
