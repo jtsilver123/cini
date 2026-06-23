@@ -541,6 +541,14 @@ function saveToWatchlist(k){
   S.activity=S.activity.slice(0,8); save(); render();
   toast(`Bookmarked ${MOVIES[k].t} to Want to Watch`);
 }
+/* "Not tonight" on the daily pick: just hide the card for now — it stays on
+   Want to Watch and never informs your taste score (it's a scheduling choice). */
+function dismissTonight(){
+  buzz();
+  const el=document.getElementById("tonightCard");
+  if(el) el.style.display="none";
+  toast("Not tonight — still on your list");
+}
 /* Bookmark with multiple homes: Want to Watch leads, your lists follow. */
 let _saveCat="Movies", _saveTimer=null;
 function openSaveTo(k){
@@ -653,29 +661,47 @@ function renderFeed(){
       </div>
     </div>`;
 
-  // Tonight's Pick — the daily hook, pinned to the very top of the feed.
-  const tk = Object.keys(MOVIES).find(k=>MOVIES[k].bd && k!==pk) || Object.keys(MOVIES)[0];
+  // Tonight's Pick — the daily hook, pinned to the very top of the feed. It's
+  // drawn strictly from your Want to Watch list (unranked saved titles): tap (or
+  // swipe right in the app) opens it — "watch this tonight"; the ✕ is "not
+  // tonight," which leaves it on the list and never touches your taste score.
+  // When there's nothing saved, a zero-state points to Recs instead.
+  const tWatchlist = S.watchlist.filter(k=>MOVIES[k] && !S.watched.some(w=>w.k===k));
+  const tk = tWatchlist.find(k=>MOVIES[k].bd) || tWatchlist[0];
+  let tonight;
+  if(!tk){
+    tonight = `
+    <div class="pad" style="margin-top:16px;">
+      <div class="card" style="text-align:center; padding:18px 16px;">
+        <div style="color:var(--marquee); font-size:30px;">🍿</div>
+        <b style="display:block; margin-top:6px;">Nothing on your Want to Watch yet</b>
+        <span class="sub" style="display:block; margin:4px 0 12px;">Tonight's picks come from your Want to Watch list. Find something you're excited about in Recs.</span>
+        <button class="pill" onclick="go('swipe')">${I("stack",15)} Find something in Recs</button>
+      </div>
+    </div>`;
+  } else {
   const tm = MOVIES[tk];
-  const tRanked = !!myEntry(tk);
-  const tonight = `
-    <div style="position:relative; margin:16px 14px 0;">
+  tonight = `
+    <div id="tonightCard" style="position:relative; margin:16px 14px 0;">
       <div style="position:absolute; inset:0 6px; transform:translateY(10px) scale(.96); background:var(--surface,#1d1719); border-radius:22px; opacity:.6;"></div>
       <div style="position:absolute; inset:0 3px; transform:translateY(5px) scale(.98); background:var(--surface,#1d1719); border-radius:22px; opacity:.8;"></div>
     <div style="cursor:pointer; position:relative; border-radius:22px; overflow:hidden; height:220px; border:1px solid rgba(232,182,76,.45);
         background:linear-gradient(180deg, rgba(0,0,0,.1) 25%, rgba(0,0,0,.88)), url('${IMG(tm.bd||tm.p)}') center/cover no-repeat;"
         onclick="if(!event.target.closest('button'))openDetail('${tk}')">
       <span style="position:absolute; top:12px; left:12px; background:var(--marquee); color:var(--bg); font-size:10px; font-weight:700; letter-spacing:1.5px; padding:5px 9px; border-radius:999px;">🌙 TONIGHT'S PICK</span>
+      <button class="iconbtn" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" aria-label="Not tonight" onclick="dismissTonight()">${I("x",16)}</button>
       <div style="position:absolute; left:14px; bottom:14px; max-width:220px;">
         ${(()=>{const ons=tm.on||[];const first=ons[0]||"Netflix";const [bg,init,fg]=PROVIDER_BRANDS[first]||["#7E251C",first[0]];const more=ons.length>1?`<span style="color:#fff;font-size:11px;font-weight:800;">+${ons.length-1}</span>`:"";return `<button onclick="openWatchSheet('${tk}')" style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.55);border:none;cursor:pointer;padding:4px 7px;border-radius:999px;" aria-label="Where to watch"><span style="width:16px;height:16px;border-radius:4px;background:${bg};color:${fg||'#fff'};font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">${init}</span>${more}</button>`;})()}
         <div class="serif" style="color:#fff; font-size:24px; line-height:1.12; margin-top:4px;">${tm.t}</div>
-        <div style="color:rgba(255,255,255,.88); font-size:12px; margin-top:3px;">We think you'll rate it 8.9 · 2 friends loved it</div>
+        <div style="color:rgba(255,255,255,.88); font-size:12px; margin-top:3px;">On your Want to Watch · 2 friends loved it</div>
       </div>
       <div style="position:absolute; right:12px; bottom:12px; display:flex; gap:12px;">
-        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:${tRanked?'var(--scoregreen,#4ade80)':'#fff'};" onclick="openLog('${tk}')">${tRanked?I("check",18):I("plus",18)}</button>
-        ${tRanked?"":`<button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${tk}')">${bmIcon(tk)}</button>`}
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="openLog('${tk}')">${I("plus",18)}</button>
+        <button class="iconbtn" style="background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" onclick="toggleWatchlist('${tk}')">${bmIcon(tk)}</button>
       </div>
     </div>
     </div>`;
+  }
 
   // "Friends are watching" — Instagram/Snap-style story circles (green ring = caught up).
   const wk = Object.keys(MOVIES);

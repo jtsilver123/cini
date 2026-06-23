@@ -36,6 +36,10 @@ struct FeedView: View {
     /// Observed so "Ask your friends for recs" can hide until you have friends.
     @State private var friendsCache = FriendsCache.shared
     @State private var tonightCards: [TonightCardItem] = []
+    /// Whether a Tonight's Pick load has completed at least once this session, so
+    /// the zero-state only appears after a real attempt — not as a flash before
+    /// the first load resolves.
+    @State private var tonightLoaded = false
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
@@ -598,7 +602,6 @@ struct FeedView: View {
                     items: tonightCards,
                     onOpen: { detailMovie = $0 },
                     onRank: { logMovie = $0 },
-                    onSave: { saveTonight($0) },
                     onDismiss: { dismissTonight($0) },
                     onShowProviders: { watchSheetItem = $0 }
                 )
@@ -608,17 +611,18 @@ struct FeedView: View {
                 // it drawn above the rows below — otherwise "Ask friends for a
                 // rec" paints over it, since VStack draws later siblings on top.
                 .zIndex(1)
-            } else if store.watchedCount >= Self.engagedRankBar,
-                      !dismissedTonightToday().isEmpty {
-                // You're unlocked AND cleared today's deck → point to the full
-                // Recs deck. The watchedCount gate (now stable, not the old 5-day
-                // timer) is what was actually missing before; the date-scoped
-                // dismissed check keeps it from lingering into a new day or
-                // showing for someone who never had picks.
-                TonightEmptyState {
-                    tabRouter.selection = .swipe
+            } else if tonightUnlocked, tonightLoaded {
+                // Unlocked, finished loading, but no card to show — always land on
+                // a zero-state (the deck should never just silently vanish). Which
+                // one depends on WHY it's empty: nothing saved to Want to Watch,
+                // or saved titles but the deck's done for today. Both point to Recs.
+                if store.watchlistCount == 0 {
+                    TonightEmptyState(.emptyWatchlist) { tabRouter.selection = .swipe }
+                        .padding(.top, 2)
+                } else {
+                    TonightEmptyState(.cleared) { tabRouter.selection = .swipe }
+                        .padding(.top, 2)
                 }
-                .padding(.top, 2)
             }
 
             // Only when there's someone to ask — a friendless new user shouldn't
@@ -862,14 +866,14 @@ struct FeedView: View {
     private func loadTonightStack(force: Bool = false) async {
         // Held back until there's enough taste signal (see tonightUnlocked) —
         // no Tonight's Pick section until a few titles are ranked.
-        guard tonightUnlocked else { tonightCards = []; return }
+        guard tonightUnlocked else { tonightCards = []; tonightLoaded = true; return }
         // Cleared the deck in the last 24h? Stay empty (the empty state shows),
         // even on a manual refresh — no new picks until the window passes.
-        if tonightCleared { tonightCards = []; return }
+        if tonightCleared { tonightCards = []; tonightLoaded = true; return }
         // Lazy on the .task path; a manual pull-to-refresh forces a rebuild.
         guard force || tonightCards.isEmpty,
               let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty
-        else { return }
+        else { tonightLoaded = true; return }
         let skip = dismissedTonightToday()
         let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
         var byID: [Int: Movie] = [:]
@@ -894,6 +898,7 @@ struct FeedView: View {
                                          providers: providers))
         }
         tonightCards = cards
+        tonightLoaded = true
     }
 
     private func todayKey() -> String { DateFormatter.posixDay.string(from: Date()) }
@@ -916,7 +921,8 @@ struct FeedView: View {
         }
         if toast {
             Haptics.tap()
-            ToastCenter.shared.show("Dismissed that rec")
+            // It stays on Want to Watch — this is just "not tonight," not a removal.
+            ToastCenter.shared.show("Not tonight — still on your list")
         }
     }
 
@@ -926,20 +932,6 @@ struct FeedView: View {
         for card in tonightCards where store.isWatched(card.movie.tmdbID) {
             dismissTonight(card.id, toast: false)
         }
-    }
-
-    /// Swipe right on a Tonight's Pick → save it to Want to Watch and clear it
-    /// from the deck (remembered so it won't resurface as a pick today).
-    private func saveTonight(_ item: TonightCardItem) {
-        if store.isOnWatchlist(item.movie.tmdbID) {
-            // Already bookmarked — the card clearing is confirmation enough.
-            Haptics.success()
-        } else {
-            // toggleWatchlist provides its own haptic and a failure toast/revert.
-            // The card flying off is the save confirmation — no extra toast.
-            Task { await store.toggleWatchlist(movie: item.movie) }
-        }
-        dismissTonight(item.id, toast: false)
     }
 
     /// A reason that never overstates confidence. Lead with friends when they

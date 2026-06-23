@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The daily hook: one personalized "watch this tonight" pinned to the top of
-/// the feed. The pick comes from the `tonight_pick` RPC (highest-predicted
-/// Want-to-Watch title, else a friend-loved rec). Tapping opens the movie
-/// (where "Where to watch" lives); the standard (+)/bookmark ride the corner.
+/// The daily hook: a "watch this tonight" pulled from your Want to Watch list,
+/// pinned to the top of the feed (the `tonight_picks` RPC — highest-predicted
+/// unranked saved titles). Tapping (or swiping right) opens the movie, where
+/// "Where to watch" lives; the standard (+)/bookmark ride the corner.
 struct TonightPickCard: View {
     let movie: Movie
     var reason: String?
@@ -148,7 +148,7 @@ struct TonightPickCard: View {
                     .padding(12)
             }
         }
-        // Tinder-style stamps: drag right to bookmark, left to pass.
+        // Tinder-style stamps: drag right to watch tonight, left for not tonight.
         .overlay { swipeStamps }
         // A plain tappable surface (not a Button) so the deck's drag gesture
         // and tap-to-open don't fight — the corner buttons still take their taps.
@@ -195,19 +195,19 @@ struct TonightPickCard: View {
     @ViewBuilder private var swipeStamps: some View {
         // Divisor matches the 100pt action threshold so a full-opacity stamp
         // always means "release to act" (no solid stamp that snaps back).
-        let save = max(0, min(dragX / 100, 1))
+        let watch = max(0, min(dragX / 100, 1))
         let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
-            // Save = the gold bookmark accent (NOT green): green is the "loved"
-            // rating color, so a green right-swipe read as "I liked it" rather
-            // than "save to Want to Watch." The stamp text spells out the outcome.
+            // Right = "watch tonight" → the gold marquee accent (NOT green):
+            // green is the "loved" rating color, and these aren't rated yet. The
+            // stamp spells out the outcome — it opens the title, it doesn't rate it.
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                .strokeBorder(Theme.marquee, lineWidth: 4).opacity(save)
+                .strokeBorder(Theme.marquee, lineWidth: 4).opacity(watch)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
-            stamp("Bookmark", "bookmark.fill", Theme.marquee, fg: Theme.background)
-                .rotationEffect(.degrees(-10)).opacity(save)
-            stamp("Pass", "xmark", Theme.scoreRed, fg: .white)
+            stamp("Watch tonight", "play.fill", Theme.marquee, fg: Theme.background)
+                .rotationEffect(.degrees(-10)).opacity(watch)
+            stamp("Not tonight", "moon.zzz.fill", Theme.scoreRed, fg: .white)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
@@ -243,11 +243,14 @@ struct TonightCardItem: Identifiable, Equatable {
 /// (or tap ✕) to reveal the next.
 struct TonightStack: View {
     let items: [TonightCardItem]
+    /// Tap, or swipe right ("watch this tonight") → open the title's detail page.
+    /// These are already on Want to Watch, so there's nothing to save — the
+    /// action is "take me to it."
     var onOpen: (Movie) -> Void = { _ in }
     var onRank: (Movie) -> Void = { _ in }
-    /// Swipe right → save to Want to Watch.
-    var onSave: (TonightCardItem) -> Void = { _ in }
-    /// Swipe left / ✕ → dismiss. Reported up so the feed persists it (stays gone).
+    /// Swipe left / ✕ → not tonight. Dismisses for today with NO taste signal
+    /// (it's a scheduling choice, not "I don't like this"). Reported up so the
+    /// feed persists it (stays gone for the day).
     var onDismiss: (Int) -> Void = { _ in }
     /// Tapped the streaming badge → open Where-to-Watch for that pick.
     var onShowProviders: (TonightCardItem) -> Void = { _ in }
@@ -310,51 +313,94 @@ struct TonightStack: View {
             .onChanged { drag = $0.translation }
             .onEnded { value in
                 let w = value.translation.width
-                if w > 100 {            // right → save
-                    fly(item, toX: 700, height: value.translation.height, save: true)
-                } else if w < -100 {    // left → dismiss
-                    fly(item, toX: -700, height: value.translation.height, save: false)
+                if w > 100 {            // right → watch tonight: open the detail
+                    Haptics.success()
+                    onOpen(item.movie)
+                    // The card stays in the deck (it's still on your Want to
+                    // Watch) — snap it back behind the pushed detail page.
+                    withAnimation(.snappy) { drag = .zero }
+                } else if w < -100 {    // left → not tonight: dismiss for today
+                    fly(item, toX: -700, height: value.translation.height)
                 } else {
                     withAnimation(.snappy) { drag = .zero }
                 }
             }
     }
 
-    /// Send the top card off-screen, then fire the action. Don't reset `drag`
-    /// here — the deck shrinking triggers onChange, which resets it for the new
-    /// top card (resetting now would snap the flying card back for a frame).
-    private func fly(_ item: TonightCardItem, toX: CGFloat, height: CGFloat, save: Bool) {
-        if save { Haptics.success() } else { Haptics.tap() }
+    /// Send the top card off-screen to the left, then dismiss it. Don't reset
+    /// `drag` here — the deck shrinking triggers onChange, which resets it for the
+    /// new top card (resetting now would snap the flying card back for a frame).
+    private func fly(_ item: TonightCardItem, toX: CGFloat, height: CGFloat) {
+        Haptics.tap()
         withAnimation(.snappy) { drag = CGSize(width: toX, height: height) }
         Task {
             try? await Task.sleep(for: .milliseconds(160))
-            if save { onSave(item) } else { onDismiss(item.id) }
+            onDismiss(item.id)
         }
     }
 }
 
-/// Shown in the Tonight's Pick slot once the deck is cleared (dismissed all or
-/// ranked through) — a deep link to the Recs list, where there are plenty more.
+/// Shown in the Tonight's Pick slot when there's no card to swipe — either the
+/// deck was cleared for today, or there's nothing on Want to Watch to draw from.
+/// Both variants deep-link to Recs (where there's a whole deck waiting).
 struct TonightEmptyState: View {
+    /// Why the slot is empty — drives the copy, not the destination (both → Recs).
+    enum Kind {
+        /// Had picks, but dismissed/ranked through them today. Fresh ones tomorrow.
+        case cleared
+        /// Nothing saved to Want to Watch yet, so there's nothing to surface.
+        case emptyWatchlist
+    }
+
+    var kind: Kind = .cleared
     var onSwipe: () -> Void = {}
+
+    init(_ kind: Kind = .cleared, onSwipe: @escaping () -> Void = {}) {
+        self.kind = kind
+        self.onSwipe = onSwipe
+    }
 
     var body: some View {
         HairlineCard {
             VStack(spacing: 10) {
-                Image(systemName: "sparkles")
+                Image(systemName: kind == .cleared ? "sparkles" : "popcorn.fill")
                     .font(.title2)
                     .foregroundStyle(Theme.marquee)
-                Text("That's a wrap on tonight's picks 🎬")
+                Text(title)
                     .font(.subheadline.weight(.bold))
-                Text("Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting.")
+                    .multilineTextAlignment(.center)
+                Text(message)
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                PillButton(title: "Find more in Recs", systemImage: "rectangle.stack") { onSwipe() }
+                PillButton(title: buttonTitle, systemImage: "rectangle.stack") { onSwipe() }
                     .padding(.top, 2)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
+        }
+    }
+
+    private var title: String {
+        switch kind {
+        case .cleared:        return "That's a wrap on tonight's picks 🎬"
+        case .emptyWatchlist: return "Nothing on your Want to Watch yet 🍿"
+        }
+    }
+
+    private var message: String {
+        switch kind {
+        case .cleared:
+            return "Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting."
+        case .emptyWatchlist:
+            return "Tonight's picks come from your Want to Watch list. Find something you're excited about in Recs."
+        }
+    }
+
+    private var buttonTitle: String {
+        switch kind {
+        case .cleared:        return "Find more in Recs"
+        case .emptyWatchlist: return "Find something in Recs"
         }
     }
 }
