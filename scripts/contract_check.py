@@ -219,6 +219,8 @@ RPCS = [
     ("public_taste_match", {"p_a": "appreviewer", "p_b": "jtsilver123"}),
     ("public_title_extras", {"p_movie_id": 13}),
     ("public_profile_lists", {"p_username": "jtsilver123"}),
+    ("public_search_members", {"p_q": "ji", "p_limit": 5}),
+    ("public_search_titles", {"p_q": "the", "p_limit": 5}),
     # delete_account deliberately excluded.
 ]
 

@@ -65,6 +65,8 @@
 <header class="nav">
   <a class="wordmark" href="./">cini</a>
   <nav>
+    <a href="/search/">Search</a>
+    <a href="/charts/">Charts</a>
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
     <a href="mailto:jtsilver123@gmail.com?subject=Cini%20support">Support</a>
@@ -87,6 +89,15 @@
       <a class="cta" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Download on the App Store</a>
     </p>
     <p class="cta-note">Free on the App Store · iPhone</p>
+    <!-- Explore without the app: search Cini's catalog + members on the web. -->
+    <form action="/search/" method="get" role="search"
+          style="display:flex; gap:8px; max-width:440px; margin:22px 0 0;">
+      <input name="q" aria-label="Search Cini" placeholder="Search movies, TV &amp; people on Cini…"
+             style="flex:1; min-width:0; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); border-radius:12px; padding:13px 15px; color:var(--ink); font:inherit; font-size:15px; outline:none;">
+      <button type="submit"
+              style="background:var(--marquee); color:#131011; font-weight:700; border:none; border-radius:12px; padding:0 18px; font:inherit; cursor:pointer;">Search</button>
+    </form>
+    <p class="cta-note" style="margin-top:8px;">Browse the catalog and rankings in your browser — no app needed.</p>
   </div>
 
   <!-- Pure-CSS app mockup: the signature compare → ranked-list flow. -->

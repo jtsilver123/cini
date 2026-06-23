@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>Search Cini — movies, TV & people</title>
+<meta name="description" content="Search movies, TV shows, and people on Cini — everything ranked by taste, no star ratings.">
+<link rel="canonical" href="https://trycini.com/search/">
+<meta property="og:title" content="Search Cini">
+<meta property="og:description" content="Find movies, shows, and people on Cini — ranked by taste.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);--green:#3FB55A;}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(70% 38% at 50% 0%, rgba(232,182,76,.12), transparent 70%), var(--bg);padding:0 16px 60px;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:760px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0 14px;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);}
+  .getcini{font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;}
+  .searchbar{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--hair);border-radius:14px;padding:14px 16px;}
+  .searchbar svg{flex:none;}
+  .searchbar input{flex:1;background:none;border:none;outline:none;color:var(--ink);font:inherit;font-size:17px;}
+  .seg{font-size:11px;letter-spacing:.22em;color:var(--gray);font-weight:800;margin:26px 0 12px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:16px 12px;}
+  .card .poster{width:100%;aspect-ratio:2/3;border-radius:10px;background:var(--surface2) center/cover no-repeat;box-shadow:0 6px 16px rgba(0,0,0,.35);position:relative;}
+  .badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.66);border-radius:8px;font-size:12px;font-weight:800;padding:3px 7px;}
+  .ptitle{font-size:12px;font-weight:600;margin-top:6px;line-height:1.25;}
+  .pyear{font-size:11px;color:var(--gray);}
+  .people{display:flex;flex-direction:column;gap:2px;}
+  .person{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--hair);}
+  .pav{width:44px;height:44px;border-radius:50%;object-fit:cover;background:var(--surface2);flex:none;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--marquee);}
+  .pname{font-weight:700;font-size:15px;} .phandle{color:var(--gray);font-size:13px;}
+  .pcount{margin-left:auto;color:var(--gray);font-size:12px;}
+  .msg{text-align:center;color:var(--gray);padding:48px 16px;font-size:15px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="wordmark" href="/">cini</a><a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a></div>
+  <div class="searchbar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A69C91" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="q" placeholder="Search movies, TV shows, people…" autocapitalize="off" autocorrect="off" autofocus>
+  </div>
+  <div id="content"><div class="msg">Search Cini’s catalog and members — ranked by taste, no star ratings.</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const $ = (id)=>document.getElementById(id);
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function poster(p){return p?`url("https://image.tmdb.org/t/p/w342${String(p).replace(/[^A-Za-z0-9/_.\-]/g,'')}")`:"none";}
+function safeUrl(u){return (typeof u==="string"&&/^https:\/\//i.test(u))?u:null;}
+function scoreColor(s){s=Number(s);return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A";}
+function initials(n,h){const base=(n&&n.trim())||h||"";return base.trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")||"•";}
+
+let seq = 0;
+async function run(q){
+  const mine = ++seq;
+  const [{ data: titles }, { data: people }] = await Promise.all([
+    sb.rpc("public_search_titles", { p_q: q, p_limit: 24 }),
+    sb.rpc("public_search_members", { p_q: q, p_limit: 12 }),
+  ]);
+  if(mine !== seq) return;   // a newer keystroke already fired
+  const c = $("content"); c.innerHTML = "";
+  const T = Array.isArray(titles)?titles:[], P = Array.isArray(people)?people:[];
+  if(!T.length && !P.length){ c.appendChild(el("div","msg",`No matches for “${q}”.`)); return; }
+
+  if(T.length){
+    c.appendChild(el("div","seg","MOVIES & TV"));
+    const grid = el("div","grid");
+    T.forEach(m=>{
+      const a=el("a","card"); a.href="/m/?id="+m.movie_id;
+      const p=el("div","poster"); p.style.backgroundImage=poster(m.poster_path);
+      if(m.avg!=null){ const b=el("div","badge", Number(m.avg).toFixed(1)); b.style.color=scoreColor(m.avg); p.appendChild(b); }
+      a.appendChild(p);
+      a.appendChild(el("div","ptitle", m.title||""));
+      if(m.release_year) a.appendChild(el("div","pyear", String(m.release_year)));
+      grid.appendChild(a);
+    });
+    c.appendChild(grid);
+  }
+  if(P.length){
+    c.appendChild(el("div","seg","PEOPLE"));
+    const list = el("div","people");
+    P.forEach(u=>{
+      const a=el("a","person"); a.href="/u/?u="+encodeURIComponent(u.username);
+      const av=safeUrl(u.avatar_url);
+      if(av){const i=el("img","pav");i.src=av;i.alt="";a.appendChild(i);} else {a.appendChild(el("div","pav",initials(u.display_name,u.username)));}
+      const box=el("div"); box.appendChild(el("div","pname", u.display_name||("@"+u.username))); box.appendChild(el("div","phandle","@"+u.username));
+      a.appendChild(box);
+      a.appendChild(el("div","pcount",(u.ranked_count||0)+" ranked"));
+      list.appendChild(a);
+    });
+    c.appendChild(list);
+  }
+}
+
+let timer;
+function onInput(){
+  const q = $("q").value.trim();
+  history.replaceState(null,"","/search/"+(q?("?q="+encodeURIComponent(q)):""));
+  clearTimeout(timer);
+  if(q.length < 2){ $("content").innerHTML='<div class="msg">Keep typing to search movies, TV shows, and people.</div>'; return; }
+  $("content").innerHTML='<div class="msg">Searching…</div>';
+  timer = setTimeout(()=>run(q), 180);   // debounce
+}
+$("q").addEventListener("input", onInput);
+
+// Prefill from ?q= and run.
+const q0 = new URLSearchParams(location.search).get("q");
+if(q0){ $("q").value = q0; onInput(); }
+</script>
+</body>
+</html>

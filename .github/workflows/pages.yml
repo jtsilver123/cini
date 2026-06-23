@@ -73,6 +73,10 @@ jobs:
           mkdir -p _site/match
           cp match/index.html _site/match/index.html
           cp favicon.png _site/match/favicon.png
+          # Web search (movies/TV + people) served from /search/?q=.
+          mkdir -p _site/search
+          cp search/index.html _site/search/index.html
+          cp favicon.png _site/search/favicon.png
           # Apple App Site Association — lets iOS open invite/list links
           # (/i/*, /l/*) straight in the app via Universal Links. Served from
           # /.well-known/ with no file extension over https.

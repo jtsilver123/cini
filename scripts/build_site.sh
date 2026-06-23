@@ -25,6 +25,7 @@ mkdir -p _site/u        && cp u/index.html _site/u/index.html && cp favicon.png 
 mkdir -p _site/m        && cp m/index.html _site/m/index.html && cp favicon.png _site/m/favicon.png
 mkdir -p _site/charts   && cp charts/index.html _site/charts/index.html && cp favicon.png _site/charts/favicon.png
 mkdir -p _site/match    && cp match/index.html _site/match/index.html && cp favicon.png _site/match/favicon.png
+mkdir -p _site/search   && cp search/index.html _site/search/index.html && cp favicon.png _site/search/favicon.png
 
 mkdir -p _site/.well-known && cp .well-known/apple-app-site-association _site/.well-known/apple-app-site-association
 cp -R reviews _site/reviews
