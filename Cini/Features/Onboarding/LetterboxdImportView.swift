@@ -194,7 +194,7 @@ struct LetterboxdImportView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Theme.scoreRed)
                         .multilineTextAlignment(.center)
                 }
             }

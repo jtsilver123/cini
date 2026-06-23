@@ -389,7 +389,7 @@ struct TopFiveShareSheet: View {
                         .frame(maxHeight: 460)
                         .shadow(color: Theme.cardShadow, radius: 12, y: 6)
                     ShareLink(item: shareImage,
-                              preview: SharePreview("My Top \(entries.count) on Cini", image: shareImage)) {
+                              preview: SharePreview("My Top \(min(entries.count, 5)) on Cini", image: shareImage)) {
                         Label("Share", systemImage: "square.and.arrow.up")
                             .font(.headline).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(.vertical, 14)

@@ -304,7 +304,7 @@ struct RecCardDeck: View {
             Text("Pull in new picks, or adjust your filters.")
                 .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
             PillButton(title: "Refresh recs", systemImage: "arrow.clockwise") {
-                history.removeAll(); index = 0; onRefresh()
+                history.removeAll(); index = 0; drag = .zero; flyOff = 0; onRefresh()
             }
         }
         .frame(maxWidth: .infinity)

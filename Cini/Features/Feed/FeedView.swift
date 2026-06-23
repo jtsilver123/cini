@@ -638,10 +638,12 @@ struct FeedView: View {
                     // Nothing saved at all.
                     TonightEmptyState(.emptyWatchlist) { tabRouter.selection = .swipe }
                         .padding(.top, 2)
-                } else if !tonightEverHadCards {
-                    // Has saved titles but none surfaced this session (all ranked,
-                    // or none on a streaming service) — don't claim they swiped
-                    // through picks they never saw.
+                } else if !tonightEverHadCards && dismissedTonightToday().isEmpty {
+                    // Has saved titles but none surfaced AND none were dismissed
+                    // today — none are streamable / all ranked. Don't claim they
+                    // swiped through picks they never saw. (dismissedTonightToday is
+                    // persisted, so it still proves "had cards" after a relaunch,
+                    // when the in-session tonightEverHadCards flag has reset.)
                     TonightEmptyState(.nothingTonight) { tabRouter.selection = .swipe }
                         .padding(.top, 2)
                 } else if tonightExhausted {
@@ -993,14 +995,16 @@ struct FeedView: View {
         return Set(tonightDismissedIDs.split(separator: ",").compactMap { Int($0) })
     }
 
-    private func dismissTonight(_ id: Int, toast: Bool = true) {
+    private func dismissTonight(_ id: Int, toast: Bool = true, suppress: Bool = true) {
         var set = dismissedTonightToday()
         set.insert(id)
         tonightDismissedDate = todayKey()
         tonightDismissedIDs = set.map(String.init).joined(separator: ",")
         withAnimation(.snappy) { tonightCards.removeAll { $0.id == id } }
-        // Cleared the whole deck → hold off on new picks for 24h.
-        if tonightCards.isEmpty {
+        // Deliberately clearing the whole deck → hold off on new picks for 24h.
+        // Ranking a pick (suppress:false) shouldn't — that's engagement, not "not
+        // tonight," so we let fresh picks refill.
+        if suppress, tonightCards.isEmpty {
             tonightSuppressedUntil = Date().timeIntervalSince1970 + 24 * 60 * 60
         }
         if toast {
@@ -1014,7 +1018,7 @@ struct FeedView: View {
     /// (you've now seen it) — bullet 1 of the deck's behavior.
     private func clearRankedTonightCards() {
         for card in tonightCards where store.isWatched(card.movie.tmdbID) {
-            dismissTonight(card.id, toast: false)
+            dismissTonight(card.id, toast: false, suppress: false)
         }
     }
 
@@ -2149,7 +2153,7 @@ struct ReleaseCalendarView: View {
                     ContentUnavailableView {
                         Label("No upcoming releases", systemImage: "calendar")
                     } description: {
-                        Text("Check back soon — new movies land here as they're announced.")
+                        Text("Check back soon — new movies and shows land here as they're announced.")
                     }
                 }
             }

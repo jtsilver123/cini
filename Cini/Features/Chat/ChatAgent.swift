@@ -609,12 +609,19 @@ struct FollowMemberTool: Tool {
         guard let member = await ChatAgentBridge.resolveMember(arguments.username) else {
             return "No member matched @\(arguments.username)."
         }
+        let result: String
         do {
-            try await SupabaseService.shared.requestFollow(member.id)
+            result = try await SupabaseService.shared.requestFollow(member.id)
         } catch {
             return "Couldn't follow @\(member.username) — connection trouble."
         }
         await FriendsCache.shared.refresh()
+        // A private account returns "requested" — only a pending request was sent,
+        // nothing shows in the feed yet. Don't claim they're now following.
+        if result == "requested" {
+            await ChatAgentBridge.shared.note("person.badge.plus", "Requested @\(member.username)", destination: .member(member.id, member.username))
+            return "Sent a follow request to @\(member.username) — once they approve, their rankings show up in your feed."
+        }
         await ChatAgentBridge.shared.note("person.badge.plus", "Followed @\(member.username)", destination: .member(member.id, member.username))
         return "Following @\(member.username) now — their rankings start showing up in the feed."
     }
