@@ -165,6 +165,10 @@ RPCS = [
     ("set_show_progress", {"p_show_id": 2, "p_season": None,
                            "p_episode": None, "p_caught_up": False}),
     ("clear_show_progress", {"p_show_id": 2}),
+    # Pass then immediately un-pass movie 2 → exercises both signatures and
+    # leaves no rec_passes row behind for the demo.
+    ("pass_rec", {"p_movie_id": 2}),
+    ("unpass_rec", {"p_movie_id": 2}),
     # respond_watch_plan is deliberately excluded: it raises a P0001 ("no such
     # plan") for any fake id, which is indistinguishable from a real contract
     # break (both are HTTP 400) without seeding a live plan row. propose_watch_plan

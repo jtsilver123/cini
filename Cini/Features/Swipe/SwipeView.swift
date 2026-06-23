@@ -300,6 +300,7 @@ struct SwipeView: View {
                         },
                         onDismiss: { movie in
                             recordDismiss(movie.tmdbID)
+                            Task { await SupabaseService.shared.passRec(movie.tmdbID) }
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         }
                     )
@@ -319,8 +320,14 @@ struct SwipeView: View {
                     onUnsave: { m in
                         if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
                     },
-                    onPass: { recordDismiss($0.tmdbID) },
-                    onUndo: { unrecordDismiss($0.tmdbID) },
+                    onPass: { m in
+                        recordDismiss(m.tmdbID)
+                        Task { await SupabaseService.shared.passRec(m.tmdbID) }
+                    },
+                    onUndo: { m in
+                        unrecordDismiss(m.tmdbID)
+                        Task { await SupabaseService.shared.unpassRec(m.tmdbID) }
+                    },
                     onRefresh: { Task { await reloadPool() } },
                     showRank: true,
                     onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },

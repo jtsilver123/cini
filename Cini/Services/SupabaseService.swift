@@ -1512,6 +1512,22 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Record a pass on a rec so the recommender stops surfacing it (a taste
+    /// signal, not just a local hide). Best-effort; the local persist still hides
+    /// it even if this write fails.
+    func passRec(_ movieID: Int) async {
+        struct Params: Encodable { let p_movie_id: Int }
+        do { try await client.rpc("pass_rec", params: Params(p_movie_id: movieID)).execute() }
+        catch { Self.logSwallowed("pass_rec", error) }
+    }
+
+    /// Undo a pass (the card was brought back via Undo).
+    func unpassRec(_ movieID: Int) async {
+        struct Params: Encodable { let p_movie_id: Int }
+        do { try await client.rpc("unpass_rec", params: Params(p_movie_id: movieID)).execute() }
+        catch { Self.logSwallowed("unpass_rec", error) }
+    }
+
     /// The day's single "watch this tonight" pick for the signed-in user, or
     /// nil if there's nothing to recommend yet (brand-new account).
     func tonightPick() async throws -> TonightPickRow? {
