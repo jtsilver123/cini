@@ -14,6 +14,10 @@ struct FeedView: View {
     @State private var feedLoaded = false
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
+    /// Set just before `detailMovie` when the open came from a "watch tonight"
+    /// swipe, so the detail page auto-presents Where to Watch. Cleared on a plain
+    /// tap-open so it never lingers into the next navigation.
+    @State private var detailAutoWatch = false
     @State private var logMovie: Movie?
     /// The Tonight's Pick whose streaming badge was tapped → Where-to-Watch.
     @State private var watchSheetItem: TonightCardItem?
@@ -142,7 +146,7 @@ struct FeedView: View {
                 )
             }
             .navigationDestination(item: $detailMovie) { movie in
-                MovieDetailView(movie: movie)
+                MovieDetailView(movie: movie, autoShowWhereToWatch: detailAutoWatch)
             }
             .navigationDestination(item: $memberTarget) { member in
                 MemberProfileView(userID: member.id, username: member.username)
@@ -600,7 +604,8 @@ struct FeedView: View {
             if !tonightCards.isEmpty {
                 TonightStack(
                     items: tonightCards,
-                    onOpen: { detailMovie = $0 },
+                    onOpen: { detailAutoWatch = false; detailMovie = $0 },
+                    onWatchTonight: { detailAutoWatch = true; detailMovie = $0 },
                     onRank: { logMovie = $0 },
                     onDismiss: { dismissTonight($0) },
                     onShowProviders: { watchSheetItem = $0 }

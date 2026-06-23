@@ -526,6 +526,13 @@ function openDetail(k){
   if(currentScreen!=="detail") detailReturn=currentScreen;
   detailKey=k; go("detail");
 }
+/* "Watch tonight" on the daily pick (the swipe-right action in the app): open
+   the detail page AND auto-surface Where to Watch — the intent is "I want to
+   watch this now," so show the streaming options without another tap. */
+function watchTonight(k){
+  openDetail(k);
+  setTimeout(()=>openWatchSheet(k), 260);
+}
 
 /* ---------- Toggles ---------- */
 function toggleWatchlist(k){
@@ -687,7 +694,7 @@ function renderFeed(){
       <div style="position:absolute; inset:0 3px; transform:translateY(5px) scale(.98); background:var(--surface,#1d1719); border-radius:22px; opacity:.8;"></div>
     <div style="cursor:pointer; position:relative; border-radius:22px; overflow:hidden; height:220px; border:1px solid rgba(232,182,76,.45);
         background:linear-gradient(180deg, rgba(0,0,0,.1) 25%, rgba(0,0,0,.88)), url('${IMG(tm.bd||tm.p)}') center/cover no-repeat;"
-        onclick="if(!event.target.closest('button'))openDetail('${tk}')">
+        onclick="if(!event.target.closest('button'))watchTonight('${tk}')">
       <span style="position:absolute; top:12px; left:12px; background:var(--marquee); color:var(--bg); font-size:10px; font-weight:700; letter-spacing:1.5px; padding:5px 9px; border-radius:999px;">🌙 TONIGHT'S PICK</span>
       <button class="iconbtn" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" aria-label="Not tonight" onclick="dismissTonight()">${I("x",16)}</button>
       <div style="position:absolute; left:14px; bottom:14px; max-width:220px;">

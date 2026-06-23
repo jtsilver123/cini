@@ -243,10 +243,13 @@ struct TonightCardItem: Identifiable, Equatable {
 /// (or tap ✕) to reveal the next.
 struct TonightStack: View {
     let items: [TonightCardItem]
-    /// Tap, or swipe right ("watch this tonight") → open the title's detail page.
-    /// These are already on Want to Watch, so there's nothing to save — the
-    /// action is "take me to it."
+    /// Tap → open the title's detail page. These are already on Want to Watch,
+    /// so there's nothing to save — the action is "take me to it."
     var onOpen: (Movie) -> Void = { _ in }
+    /// Swipe right ("watch this tonight") → open the detail page AND auto-surface
+    /// Where to Watch. Distinct from a plain tap so only the deliberate swipe
+    /// pulls up streaming options.
+    var onWatchTonight: (Movie) -> Void = { _ in }
     var onRank: (Movie) -> Void = { _ in }
     /// Swipe left / ✕ → not tonight. Dismisses for today with NO taste signal
     /// (it's a scheduling choice, not "I don't like this"). Reported up so the
@@ -313,9 +316,9 @@ struct TonightStack: View {
             .onChanged { drag = $0.translation }
             .onEnded { value in
                 let w = value.translation.width
-                if w > 100 {            // right → watch tonight: open the detail
+                if w > 100 {            // right → watch tonight: open detail + Where to Watch
                     Haptics.success()
-                    onOpen(item.movie)
+                    onWatchTonight(item.movie)
                     // The card stays in the deck (it's still on your Want to
                     // Watch) — snap it back behind the pushed detail page.
                     withAnimation(.snappy) { drag = .zero }

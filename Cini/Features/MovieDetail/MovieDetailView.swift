@@ -8,6 +8,11 @@ import UserNotifications
 /// "What your friends think".
 struct MovieDetailView: View {
     @State var movie: Movie
+    /// When opened from a "watch tonight" swipe on the daily pick, auto-present
+    /// Where to Watch as soon as providers load — the user's intent was "I want
+    /// to watch this now," so surface the streaming options without a tap.
+    var autoShowWhereToWatch = false
+    @State private var didAutoShowWatch = false
 
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
@@ -1286,6 +1291,13 @@ struct MovieDetailView: View {
             }
             movie = enriched
             store.cache(enriched)
+        }
+        // Auto-surface Where to Watch for a "watch tonight" open, once (and only
+        // after the push has settled so the sheet presents cleanly).
+        if autoShowWhereToWatch, !didAutoShowWatch {
+            didAutoShowWatch = true
+            try? await Task.sleep(for: .milliseconds(250))
+            showWhereToWatch = true
         }
         myDetails = await myDetailsTask
         let stats = await statsTask
