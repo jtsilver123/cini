@@ -22,9 +22,12 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             if let loaded {
                 content(Image(uiImage: loaded))
             } else if url != nil && !failed && showsLoadingPulse {
-                // Loading: the app-wide skeleton pulse, so a poster mid-fetch
-                // reads as "loading" anywhere it appears — never a dead blank box.
-                Rectangle().fill(Theme.fill).modifier(SkeletonPulse())
+                // Loading: an OPAQUE surface base (so it's never see-through —
+                // Theme.fill is only 7% white) with the app-wide pulse as a
+                // sheen on top, so a poster mid-fetch reads as "loading"
+                // everywhere — never a transparent or dead blank box.
+                Rectangle().fill(Theme.surface2)
+                    .overlay(Rectangle().fill(Theme.fill).modifier(SkeletonPulse()))
             } else {
                 placeholder()
             }

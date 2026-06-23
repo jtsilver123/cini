@@ -777,7 +777,7 @@ private struct ExportRow: View {
             Task { await exportData() }
         } label: {
             HStack {
-                Label("Export my movies", systemImage: "square.and.arrow.up.on.square")
+                Label("Export my movies & TV", systemImage: "square.and.arrow.up.on.square")
                 Spacer()
                 if exporting { ProgressView() }
             }
@@ -796,7 +796,7 @@ private struct ExportRow: View {
         do {
             let urls = try await CiniExporter.makeLetterboxdFiles(store: store)
             guard !urls.isEmpty else {
-                errorMessage = "Nothing to export yet — rank or watchlist a movie first."
+                errorMessage = "Nothing to export yet — rank or save a movie or show first."
                 return
             }
             exportURLs = urls

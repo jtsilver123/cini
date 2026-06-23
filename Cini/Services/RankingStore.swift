@@ -291,45 +291,45 @@ final class RankingStore {
         // Score is known now (pure engine math) — hand it back so the UI can
         // reveal the ticket while the round-trip below runs.
         onLocalScored(scored)
-        do {
-            if let movie = movies[session.newItemID] {
-                // rank_insert FKs onto movies — the cache isn't optional.
-                try await supabase.cacheMovie(movie)
-            }
-            _ = try await supabase.rankInsert(
-                movieID: session.newItemID,
-                bucket: session.sentiment,
-                position: bucketPosition,
-                watchDate: watchDate,
-                stealth: stealth
-            )
-        } catch {
-            // One retry — a transient network blip shouldn't drop a rank.
-            try? await Task.sleep(for: .seconds(1))
-            do {
-                if let movie = movies[session.newItemID] {
-                    // rank_insert FKs onto movies — the cache isn't optional.
-                    try await supabase.cacheMovie(movie)
+
+        // One persist attempt, BOUNDED BY A TIMEOUT. A flaky connection that
+        // hangs (rather than failing fast) would otherwise leave the write
+        // pending ~60s — stranding the user on the "calculating" reveal screen.
+        // Capping it means a bad connection resolves in seconds: we retry once,
+        // then revert + toast so the screen always moves on.
+        func attempt() async -> Bool {
+            let work = Task { () -> Bool in
+                do {
+                    if let movie = movies[session.newItemID] {
+                        try await supabase.cacheMovie(movie)   // rank_insert FKs onto movies
+                    }
+                    _ = try await supabase.rankInsert(
+                        movieID: session.newItemID, bucket: session.sentiment,
+                        position: bucketPosition, watchDate: watchDate, stealth: stealth)
+                    return true
+                } catch {
+                    return false
                 }
-                _ = try await supabase.rankInsert(
-                    movieID: session.newItemID,
-                    bucket: session.sentiment,
-                    position: bucketPosition,
-                    watchDate: watchDate,
-                    stealth: stealth
-                )
-            } catch {
-                // Both attempts failed: resync from the server so we don't
-                // celebrate a rank that only exists on-device. This is correct
-                // for both paths — a first-time rank vanishes (the server never
-                // got it) while a failed RE-rank is restored to its prior
-                // position (the server still holds it); a blind local remove
-                // would have deleted an existing rank. Returning nil tells the
-                // log flow to show an error instead of the result ticket.
-                await load()
-                ToastCenter.shared.saveFailed()
-                return nil
             }
+            let timeout = Task { try? await Task.sleep(for: .seconds(12)); work.cancel() }
+            let ok = await work.value
+            timeout.cancel()
+            return ok
+        }
+
+        var saved = await attempt()
+        if !saved {
+            try? await Task.sleep(for: .seconds(1))   // a transient blip shouldn't drop a rank
+            saved = await attempt()
+        }
+        if !saved {
+            // Both attempts failed/timed out: resync from the server so we don't
+            // celebrate a rank that only exists on-device (a first-time rank
+            // vanishes; a failed RE-rank is restored to its prior position). nil
+            // tells the log flow to show an error instead of the result ticket.
+            await load()
+            ToastCenter.shared.saveFailed()
+            return nil
         }
         // Server confirmed — now it's safe to clear it from the import queue
         // (doing this before the write would drop it from "pending to rate"

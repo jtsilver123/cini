@@ -57,6 +57,9 @@ struct LogFlowView: View {
     /// that ends up failing.
     @State private var beatElapsed = false
     @State private var commitConfirmed = false
+    /// The save is taking a while (slow/unstable connection) — show a "Saving…"
+    /// note on the result screen so the calculating state never feels frozen.
+    @State private var saveSlow = false
     @State private var choosing = false   // guards against double-tapping a comparison
     @State private var committing = false  // guards against a double commit (commit can exceed the 200ms tap guard)
     @State private var showDiscardConfirm = false
@@ -803,10 +806,30 @@ struct LogFlowView: View {
                 .frame(maxWidth: .infinity)   // center the capsules
                 .padding(.bottom, 12)
                 .transition(.opacity)
+            } else if saveSlow {
+                // A slow/unstable connection: tell them it's saving so the
+                // calculating screen never reads as frozen. It resolves on its
+                // own — the score springs in once saved, or the flow bails with
+                // an error toast if the write ultimately fails.
+                HStack(spacing: 8) {
+                    ProgressView().tint(Theme.gray)
+                    Text("Saving your rank — hang tight on this connection…")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 6)
+                .transition(.opacity)
             }
         }
+        .animation(.snappy, value: saveSlow)
         .onAppear { scheduleReveal() }
         .task { await prepareShareCard(scored) }
+        .task {
+            // If the score still hasn't revealed after a beat, the save is slow —
+            // surface the "Saving…" note (cleared implicitly once revealed/dismissed).
+            try? await Task.sleep(for: .milliseconds(2500))
+            if !scoreRevealed { saveSlow = true }
+        }
     }
 
     private func shareLabel(_ title: String) -> some View {

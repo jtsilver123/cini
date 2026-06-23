@@ -917,11 +917,8 @@ struct YourListsView: View {
     private var watchedList: some View {
         List {
             listTopAnchor
-            // Quick way into "Movies/Shows you may have seen" to rank your
-            // back-catalog. Hidden in reorder mode and while searching the list.
-            if !reorderMode && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-                maybeSeenBar
-            }
+            // Discovery lives in the zero state now (the "you may have seen" bar
+            // was removed to declutter a populated list).
             if !pendingEntries.isEmpty && !reorderMode
                 && listQuery.trimmingCharacters(in: .whitespaces).isEmpty {
                 pendingSection
@@ -992,68 +989,6 @@ struct YourListsView: View {
                 }
             }
         }
-    }
-
-    /// Entry bar into "Movies/Shows you may have seen" (a List row styled as a
-    /// card). Adapts its label to the active category.
-    private var maybeSeenBar: some View {
-        Button {
-            Haptics.tap()
-            // Land on Recs with the SAME media kind, in whatever card/grid mode
-            // the user last used — swipe through and tap + to rank.
-            tabRouter.pendingRecsTV = (category == .tvShows)
-            tabRouter.selection = .swipe
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "rectangle.stack")
-                    .font(.title3).foregroundStyle(Theme.marquee)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(category == .movies ? "Movies" : "Shows") you may have seen")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Rank what you've already watched, fast")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
-            }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(Theme.background)
-        .listRowSeparator(.hidden)
-    }
-
-    /// Entry bar into Recs from the Want to Watch list — the discovery
-    /// counterpart to "you may have seen". Mirrors that bar's styling and
-    /// carries the active media kind over to the Recs deck.
-    private var findToWatchBar: some View {
-        Button {
-            Haptics.tap()
-            // Land on Recs with the same media kind, in the user's last mode.
-            tabRouter.pendingRecsTV = (category == .tvShows)
-            tabRouter.selection = .swipe
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "rectangle.stack")
-                    .font(.title3).foregroundStyle(Theme.marquee)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Find \(category == .movies ? "movies" : "shows") to watch")
-                        .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
-                    Text("Browse recs picked for your taste")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                }
-                Spacer()
-                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
-            }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(Theme.background)
-        .listRowSeparator(.hidden)
     }
 
     private var otherCategory: MediaCategory {
@@ -1170,12 +1105,8 @@ struct YourListsView: View {
     private var watchlistList: some View {
         List {
             listTopAnchor
-            // Discovery callout — mirrors "you may have seen" on Watched.
-            // Hidden while searching the list to keep results clean.
-            if listQuery.trimmingCharacters(in: .whitespaces).isEmpty
-                && !filteredWatchlist.isEmpty {
-                findToWatchBar
-            }
+            // Discovery lives in the zero state now (the "find to watch" bar was
+            // removed to declutter a populated list).
             ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
                     // Prefetched at launch — badges render instantly.
