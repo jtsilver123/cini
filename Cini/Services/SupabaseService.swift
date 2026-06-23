@@ -1542,6 +1542,13 @@ final class SupabaseService {
         return try await client.rpc("tonight_picks", params: Params(p_limit: limit)).execute().value
     }
 
+    /// Shows I'm mid-binge on (newest first, caught-up ones excluded) — the
+    /// "Continue watching" lead of Tonight's Picks.
+    func continueWatchingPicks(limit: Int = 10) async throws -> [ContinueWatchingRow] {
+        struct Params: Encodable { let p_limit: Int }
+        return try await client.rpc("continue_watching_picks", params: Params(p_limit: limit)).execute().value
+    }
+
     // MARK: - Watch Match (plan to watch together)
 
     /// Friends (you follow, not blocked) who also have this title on their
@@ -2449,6 +2456,21 @@ struct WatchingRow: Codable, Identifiable, Hashable {
 struct ShowProgressRow: Codable, Hashable {
     let season: Int?
     let episode: Int?
+}
+
+/// One in-progress show for the Tonight's Picks "Continue watching" lead — the
+/// show id plus where I left off (caught-up shows are filtered out server-side).
+struct ContinueWatchingRow: Codable, Hashable {
+    let showId: Int
+    let season: Int?
+    let episode: Int?
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case season, episode
+        case showId = "show_id"
+        case updatedAt = "updated_at"
+    }
 }
 
 /// A watch-together plan between two friends.

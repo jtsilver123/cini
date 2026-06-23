@@ -26,6 +26,9 @@ struct TonightPickCard: View {
     var dragX: CGFloat = 0
     /// Total streaming services this is on — drives the badge's "+N".
     var providerCount: Int = 1
+    /// Show the "Continue watching" badge (a show mid-binge) instead of the
+    /// "Tonight's Pick" moon badge.
+    var continueWatching: Bool = false
     /// Tapping the streaming badge (e.g. to see every service). When nil the
     /// badge is non-interactive (the Recs/Swipe decks don't pass it).
     var onShowProviders: (() -> Void)? = nil
@@ -99,8 +102,8 @@ struct TonightPickCard: View {
         .overlay(alignment: .topLeading) {
             if showTonightBadge {
                 HStack(spacing: 5) {
-                    Image(systemName: "moon.stars.fill")
-                    Text("TONIGHT'S PICK").tracking(1.5)
+                    Image(systemName: continueWatching ? "play.circle.fill" : "moon.stars.fill")
+                    Text(continueWatching ? "CONTINUE WATCHING" : "TONIGHT'S PICK").tracking(1.5)
                 }
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(Theme.onMarquee)
@@ -236,6 +239,9 @@ struct TonightCardItem: Identifiable, Equatable {
     /// badge can show a "+N" and tapping it can open Where-to-Watch with no
     /// extra network call.
     var providers: WatchProviders?
+    /// A show the user is mid-binge on, surfaced ahead of Want to Watch — it
+    /// gets the "Continue watching" badge instead of "Tonight's Pick".
+    var continueWatching: Bool = false
     var id: Int { movie.tmdbID }
 }
 
@@ -296,6 +302,7 @@ struct TonightStack: View {
             height: cardH,
             dragX: topDrag,
             providerCount: providerCount,
+            continueWatching: item.continueWatching,
             onShowProviders: { onShowProviders(item) },
             onOpen: onOpen, onQuickAdd: onRank,
             onDismiss: dismiss

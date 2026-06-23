@@ -135,6 +135,7 @@ RPCS = [
     ("recs_for_user", {"p_limit": 5}),
     ("tonight_pick", {}),
     ("tonight_picks", {"p_limit": 3}),
+    ("continue_watching_picks", {"p_limit": 3}),
     ("movie_watchlist_friends", {"p_movie_id": 27205}),
     ("movie_watching_friends", {"p_movie_id": 27205}),
     ("friends_watching", {}),

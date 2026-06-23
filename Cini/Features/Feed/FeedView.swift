@@ -876,32 +876,65 @@ struct FeedView: View {
         // even on a manual refresh — no new picks until the window passes.
         if tonightCleared { tonightCards = []; tonightLoaded = true; return }
         // Lazy on the .task path; a manual pull-to-refresh forces a rebuild.
-        guard force || tonightCards.isEmpty,
-              let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty
-        else { tonightLoaded = true; return }
+        guard force || tonightCards.isEmpty else { tonightLoaded = true; return }
         let skip = dismissedTonightToday()
-        let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
-        var byID: [Int: Movie] = [:]
-        for row in rows { byID[row.tmdbId] = row.asMovie }
         var cards: [TonightCardItem] = []
-        for pick in picks {
-            if cards.count >= 3 { break }
-            if skip.contains(pick.movieId) { continue }
-            // Already rated it? It's not a "watch tonight" pick anymore.
-            if store.isWatched(pick.movieId) { continue }
-            guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
-                  movie.posterPath != nil else { continue }
-            // Must be streamable — keep only picks on a streaming service, and
-            // grab that service's logo for the badge.
-            guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
-                  let provider = providers.flatrate?.first else { continue }
-            store.cache(movie)
-            cards.append(TonightCardItem(movie: movie,
-                                         reason: Self.tonightReason(for: pick),
-                                         service: provider.providerName,
-                                         serviceLogo: provider.logoURL,
-                                         providers: providers))
+
+        // 1) Continue watching — shows you're mid-binge on lead the deck, since
+        // "pick up where you left off" is the strongest watch-tonight signal.
+        let inProgress = (try? await SupabaseService.shared.continueWatchingPicks()) ?? []
+        if !inProgress.isEmpty {
+            let rows = (try? await SupabaseService.shared.movies(ids: inProgress.map(\.showId))) ?? []
+            var byID: [Int: Movie] = [:]
+            for row in rows { byID[row.tmdbId] = row.asMovie }
+            for show in inProgress {
+                if cards.count >= 3 { break }
+                if skip.contains(show.showId) { continue }
+                if store.isWatched(show.showId) { continue }
+                guard let movie = byID[show.showId] ?? store.movie(show.showId),
+                      movie.posterPath != nil else { continue }
+                guard let providers = try? await TMDBService.shared.watchProviders(for: show.showId),
+                      let provider = providers.flatrate?.first else { continue }
+                store.cache(movie)
+                let ep = episodeLabel(season: show.season, episode: show.episode)
+                cards.append(TonightCardItem(movie: movie,
+                                             reason: ep.map { "Pick up where you left off · \($0)" }
+                                                       ?? "Pick up where you left off",
+                                             service: provider.providerName,
+                                             serviceLogo: provider.logoURL,
+                                             providers: providers,
+                                             continueWatching: true))
+            }
         }
+
+        // 2) Want to Watch fills the rest of the (max 3) stack.
+        if cards.count < 3,
+           let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty {
+            let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
+            var byID: [Int: Movie] = [:]
+            for row in rows { byID[row.tmdbId] = row.asMovie }
+            for pick in picks {
+                if cards.count >= 3 { break }
+                if skip.contains(pick.movieId) { continue }
+                // Already a continue-watching card above? Don't double it.
+                if cards.contains(where: { $0.id == pick.movieId }) { continue }
+                // Already rated it? It's not a "watch tonight" pick anymore.
+                if store.isWatched(pick.movieId) { continue }
+                guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
+                      movie.posterPath != nil else { continue }
+                // Must be streamable — keep only picks on a streaming service, and
+                // grab that service's logo for the badge.
+                guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
+                      let provider = providers.flatrate?.first else { continue }
+                store.cache(movie)
+                cards.append(TonightCardItem(movie: movie,
+                                             reason: Self.tonightReason(for: pick),
+                                             service: provider.providerName,
+                                             serviceLogo: provider.logoURL,
+                                             providers: providers))
+            }
+        }
+
         tonightCards = cards
         tonightLoaded = true
     }
