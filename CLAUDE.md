@@ -100,13 +100,19 @@ scripts/contract_check.py  Live contract harness — runs every app query/RPC
                            demo user. Run before pushing backend/query changes.
 
 prototype/index.html     Self-contained web mockup of the app (mirror rule #4).
+admin/index.html         Founder admin dashboard (KPIs / trends / activity),
+                         served at trycini.com/admin/. Public anon key only;
+                         all data comes from `is_admin()`-gated SECURITY DEFINER
+                         RPCs — never put a service-role key in it. (The literal
+                         admin.trycini.com subdomain needs DNS + a 2nd Pages
+                         config; not set up — it lives at /admin/.)
 index.html, *.html, site.css   Marketing site + legal pages (GitHub Pages).
 
 .github/workflows/
   ci.yml          Validates every push: engine tests + app build/tests on a
                   simulator + the live contract check. THIS is the gate.
   testflight.yml  Builds + uploads to TestFlight. Manual / on-request only.
-  pages.yml       Publishes the marketing site + prototype on push.
+  pages.yml       Publishes the marketing site + prototype + /admin on push.
 
 docs/             Architecture, design, handoff, edge cases, store docs.
 ```
@@ -156,6 +162,14 @@ final message, not the tool log.
 - **pg_cron** runs nightly jobs (taste-match refresh, predicted-score cache,
   availability alerts). Some were scheduled via direct SQL — check
   `cron.job` in prod, not just the migrations, before claiming one is missing.
+- **Recs ranking** is `recs_for_user` (taste model v3, migration `0099`): a
+  content+collab hybrid using ranked scores, bookmarks (+), passes (−), genre &
+  director affinity, friends, and community — weight shifts to personal taste as
+  the user ranks more. See ARCHITECTURE.md §"Recs — taste model".
+- **Admin dashboard** (`/admin/`) reads aggregate KPIs via `admin_overview` /
+  `admin_trends` / `admin_top_titles` / `admin_recent_activity`, all
+  `SECURITY DEFINER` and gated on `is_admin()` (founder-uid allowlist, migration
+  `0100`). Safe to call with the public anon key; a non-admin gets `forbidden`.
 
 ---
 

@@ -51,9 +51,10 @@ Tag key: `[A]` activation · `[R]` retention · `[Ref]` referral.
 13. **`[Ref]` One-tap share artifacts — Already there.** Rank ticket image,
     "Share my Top 5" card, Taste-Match card, profile/list text share. (Skipped a
     Top-10/taste-image variant — coverage is already strong.)
-14. **`[Ref]` Referral unlock — Already there / Skipped extending.** `referral_count`
-    + `unlock_feature` + an unlock banner exist; did **not** add a paywall-style
-    gate (overwhelm risk).
+14. **`[Ref]` Referral unlock — REMOVED.** The old invite-to-unlock mechanic
+    (`feature_unlocks` / `unlock_feature` / referral credits / the unlock banner)
+    was retired (migration `0091`) — every feature is free for everyone; invites
+    now just produce a mutual follow. Do not reintroduce a feature gate.
 15. **`[Ref]` Ask friends what to watch — Already there.** `RequestRecsSheet`.
 16. **`[Ref]` Auto-prompt share at peaks — Already there.** Rank result screen
     prompts "Share your new #1".

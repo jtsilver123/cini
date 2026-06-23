@@ -41,9 +41,11 @@ Cini/                 iOS app
   Models/             Domain models
   Services/           TMDB, Supabase, RankingStore, Showtimes
   Features/           Feed · Lists · Search · Leaderboard · Profile ·
-                      LogFlow · MovieDetail · Onboarding
+                      LogFlow · MovieDetail · Onboarding · Chat (Ask Cini)
 supabase/migrations/  Schema, RLS policies, transactional RPCs
-docs/                 Architecture notes
+prototype/index.html  Self-contained web mockup of the app
+admin/index.html      Founder KPI dashboard (trycini.com/admin/)
+docs/                 Architecture, design, handoff, edge cases, store docs
 ```
 
 ## Getting started
@@ -77,6 +79,8 @@ docs/                 Architecture notes
 
 ## v1 non-goals
 
-No DMs, no group guides authoring, no ticket purchasing, no TV
-episode-level tracking (shows rank as whole seasons), no Android. The
-schema's `media_kind` and the feed's event model leave room for all of these.
+No DMs, no group guides authoring, no in-app ticket purchasing, no Android.
+Shows are *ranked* as a whole (not per episode), but Cini does track
+**where you are** in a show you're mid-binge on ("Currently watching", season +
+episode) to power the feed and Tonight's Picks. The schema's `media_kind` and
+the feed's event model leave room for the rest.

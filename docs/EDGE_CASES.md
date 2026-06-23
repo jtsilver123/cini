@@ -75,3 +75,28 @@ Verified clean: SendRecSheet double-send guarded, empty state, note cap;
 DirectRecRow embeds decode (FKs repointed at profiles); myMovieDetails
 absent-row handling; release calendar row buttons vs row taps; contacts
 fetch runs off-main; recs v2 SQL semantics.
+
+
+# Audit pass 4 — Tonight's Picks / recs v3 / admin (2026-06-23)
+
+Two rounds of 5 parallel review agents over the whole app (run against the
+correct tree — an earlier round hit a drifted checkout and was discarded).
+
+| Area | Issue | Fix |
+|---|---|---|
+| Ask Cini | FollowMemberTool said "Following @x" even for a private account (only a request was sent) | Honors the `requestFollow` result; says "request sent" |
+| Ask Cini | Consent gates matched the bare substring "list" and any "ok/yes", and read the app-augmented prompt | Read the user's LITERAL text; drop bare "list"; short-affirmation-only |
+| Recs (SQL) | `recs_for_user` could divide by zero if every loving friend had a 0% taste match | Floor the friend weight at a small epsilon (migration 0101) |
+| Tonight's Picks | Wrong zero-state copy after relaunch in the 24h window; ranking the last pick suppressed tomorrow's picks | Use the persisted dismissed set as "had cards"; rank path doesn't suppress |
+| Lists (Ask Cini) | CreateListTool refused a new name that fuzzy-matched an existing list | Exact-name dedupe only |
+| Profile | "Requested" follow state reverted to "Follow" on a tab flip | FollowListScreen reloads pending requests |
+| Share | Top-5 share-sheet preview count didn't match the 5-row card | `min(count, 5)` |
+| Feed | "Tickets" shown on TV calendar rows; two sub-44pt tap targets; hand-rolled empty states; bare `.red` | Gate tickets to films; 44pt; `EmptyStateView`; `Theme.scoreRed` |
+| Currently Watching | "I'm caught up" hidden once you manually stepped to the latest episode | Still offered at the ceiling so the caught-up signal fires |
+
+Verified clean: ranking/insertion math + cache coherence (RankingStore funnels
+all mutations); date-as-String handling; ImageRenderer pre-fetch on all share
+cards; recs v3 weight blend stays non-negative; admin `admin_*` RPCs all
+`is_admin()`-gated with correct grants. NOTE: today's Swift changes are not yet
+compile-verified — `ci.yml` (the only compiler in the pipeline) must be confirmed
+green once the GitHub connector is back.

@@ -117,6 +117,31 @@ first-party only — `featured_events` (impression/open/add) via
 This is the seam for paid promoted placements later (which would need a
 "Sponsored" label + the standard ad disclosures).
 
+## Currently Watching & Tonight's Picks
+
+`show_progress` (per-user, per-show season/episode + `caught_up`) tracks a show
+you're mid-binge on; starting a show supersedes its Want-to-Watch row, and
+ranking it clears the progress (a trigger). It powers the feed's "Friends are
+watching" shelf, the profile shelf, and **Tonight's Picks**.
+
+**Tonight's Picks** (`tonight_picks` / `tonight_pick_for`, watchlist-only since
+migration 0097) is the feed's daily hook. The app leads the deck with shows
+you're mid-binge on (`continue_watching_picks`, migration 0098, caught-up shows
+excluded), then fills with your highest-predicted unranked Want-to-Watch titles
+that are on a streaming service. Card gestures: swipe LEFT = "not tonight"
+(dismiss for the day, no taste signal); swipe RIGHT = open the detail page and
+auto-present Where to Watch. The evening push (`tonight-pick` edge function)
+uses the same watchlist-only source.
+
+## Admin dashboard
+
+`/admin/index.html` (Cini-branded, public anon key only) reads aggregate KPIs
+and trends via `admin_overview` / `admin_trends` / `admin_top_titles` /
+`admin_recent_activity` (migration 0100). Each is `SECURITY DEFINER` so it can
+aggregate across all users despite RLS, but hard-gates on `is_admin()` (a
+founder-uid allowlist) and is revoked from anon — a non-admin call returns
+`forbidden`. Login is Supabase email/password or phone OTP.
+
 ## iOS 26/27 design adoption
 
 Liquid Glass is mandatory in iOS 27, so glass is centralized in the design
