@@ -418,7 +418,7 @@ struct AuthView: View {
             return "No connection — check your internet and try again."
         }
         if text.contains("at least") || text.contains("password") {
-            return "Password needs at least 8 characters."
+            return "Password: \(PasswordPolicy.summary.lowercased())"
         }
         return "Something went wrong — try again."
     }

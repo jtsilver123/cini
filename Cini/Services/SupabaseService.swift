@@ -312,26 +312,34 @@ final class SupabaseService {
     }
 
     /// Optional "watch by" goal date (ISO yyyy-MM-dd, or nil to clear).
-    func setWatchBy(movieID: Int, date: String?) async {
+    /// Returns true on success so the caller can revert its optimistic edit.
+    @discardableResult
+    func setWatchBy(movieID: Int, date: String?) async -> Bool {
         struct Params: Encodable { let p_movie_id: Int; let p_watch_by: String? }
         do {
             _ = try await client.rpc("set_watch_by",
                                      params: Params(p_movie_id: movieID, p_watch_by: date)).execute()
+            return true
         } catch {
             Self.logSwallowed("set_watch_by", error)
             await MainActor.run { ToastCenter.shared.saveFailed() }
+            return false
         }
     }
 
     /// The "why I saved this" note on a Want to Watch entry.
-    func setWatchlistNote(movieID: Int, note: String) async {
+    /// Returns true on success so the caller can revert its optimistic edit.
+    @discardableResult
+    func setWatchlistNote(movieID: Int, note: String) async -> Bool {
         struct Params: Encodable { let p_movie_id: Int; let p_note: String? }
         do {
             _ = try await client.rpc("set_watchlist_note",
                                      params: Params(p_movie_id: movieID, p_note: note)).execute()
+            return true
         } catch {
             Self.logSwallowed("set_watchlist_note", error)
             await MainActor.run { ToastCenter.shared.saveFailed() }
+            return false
         }
     }
 
@@ -505,12 +513,15 @@ final class SupabaseService {
     /// titles — powers the Want to Watch list badges.
     func predictedScores(movieIDs: [Int]) async -> [Int: Double] {
         guard !movieIDs.isEmpty else { return [:] }
-        struct Row: Decodable { let movie_id: Int; let predicted: Double }
+        // predicted is decoded as optional so one unexpected NULL row can't throw
+        // and wipe every badge via the surrounding try?.
+        struct Row: Decodable { let movie_id: Int; let predicted: Double? }
         struct Params: Encodable { let p_movie_ids: [Int] }
         let rows: [Row] = (try? await client.rpc("predicted_scores",
                                                  params: Params(p_movie_ids: movieIDs))
             .execute().value) ?? []
-        return Dictionary(rows.map { ($0.movie_id, $0.predicted) }, uniquingKeysWith: { _, new in new })
+        return Dictionary(rows.compactMap { row in row.predicted.map { (row.movie_id, $0) } },
+                          uniquingKeysWith: { _, new in new })
     }
 
     // MARK: - My details on a movie (notes, performances, labels, watch)

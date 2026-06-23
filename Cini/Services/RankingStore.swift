@@ -465,22 +465,32 @@ final class RankingStore {
         movies[movie.tmdbID] = movie
     }
 
-    /// "Why I saved this" — local state plus the server row.
+    /// "Why I saved this" — local state plus the server row. Reverts the
+    /// optimistic edit if the write fails so the UI never shows a phantom note.
     func setWatchlistNote(movieID: Int, note: String) async {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let index = watchlist.firstIndex(where: { $0.movieID == movieID }) {
-            watchlist[index].note = trimmed.isEmpty ? nil : trimmed
+        guard let index = watchlist.firstIndex(where: { $0.movieID == movieID }) else {
+            await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
+            return
         }
-        await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
+        let previous = watchlist[index].note
+        watchlist[index].note = trimmed.isEmpty ? nil : trimmed
+        let saved = await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
+        if !saved { watchlist[index].note = previous }
     }
 
     /// "Watch by" goal — local state plus the server row (nil clears it).
+    /// Reverts the optimistic edit if the write fails.
     func setWatchBy(movieID: Int, date: Date?) async {
         let iso = date.map { RankingStore.watchByFormatter.string(from: $0) }
-        if let index = watchlist.firstIndex(where: { $0.movieID == movieID }) {
-            watchlist[index].watchBy = iso
+        guard let index = watchlist.firstIndex(where: { $0.movieID == movieID }) else {
+            await supabase.setWatchBy(movieID: movieID, date: iso)
+            return
         }
-        await supabase.setWatchBy(movieID: movieID, date: iso)
+        let previous = watchlist[index].watchBy
+        watchlist[index].watchBy = iso
+        let saved = await supabase.setWatchBy(movieID: movieID, date: iso)
+        if !saved { watchlist[index].watchBy = previous }
     }
 
     static let watchByFormatter: DateFormatter = {

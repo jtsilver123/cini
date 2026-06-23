@@ -266,7 +266,7 @@ Commit and push code freely; CI validates every push. Builds are batched
 and shipped on request only — Apple caps uploads per app per day
 (ITMS-90382) and we burned a full day's quota on auto-triggers.
 
-### How to re-trigger a build (Claude can do this via MCP)
+### How to re-trigger a build (via the GitHub Actions MCP)
 
 `actions_run_trigger` → workflow `testflight.yml`, ref
 `claude/ecstatic-cori-k7s2n0`, inputs:
