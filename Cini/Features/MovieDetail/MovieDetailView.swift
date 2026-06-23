@@ -368,15 +368,15 @@ struct MovieDetailView: View {
     /// (The trailer link lives with the summary text above.)
     private var actionPills: some View {
         HStack(spacing: 10) {
-            PillButton(title: "Where to Watch", systemImage: "play.rectangle", style: .outlined, fill: true) {
+            PillButton(title: "Watch", systemImage: "play.rectangle", style: .outlined, fill: true) {
                 showWhereToWatch = true
             }
             if movie.mediaKind != "tv" {
-                PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined, fill: true) {
+                PillButton(title: "Theater", systemImage: "ticket", style: .outlined, fill: true) {
                     showShowtimes = true
                 }
             }
-            PillButton(title: "Recommend", systemImage: "paperplane", style: .outlined, fill: true) {
+            PillButton(title: "Rec", systemImage: "paperplane", style: .outlined, fill: true) {
                 showSendRec = true
             }
         }

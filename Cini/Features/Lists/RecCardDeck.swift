@@ -240,7 +240,7 @@ struct RecCardDeck: View {
                 .disabled(history.isEmpty)
                 .accessibilityLabel("Undo")
 
-            controlButton(action: { act(save: false) },
+            controlButton(action: { tapAct(save: false) },
                           icon: "xmark", size: 62, fg: .white,
                           bg: Theme.scoreRed, caption: "Pass")
                 .scaleEffect(1 + 0.12 * pass)
@@ -248,7 +248,7 @@ struct RecCardDeck: View {
                 .disabled(index >= items.count)
                 .accessibilityLabel("Pass")
 
-            controlButton(action: { act(save: true) },
+            controlButton(action: { tapAct(save: true) },
                           icon: "bookmark.fill", size: 62, fg: Theme.background,
                           bg: Theme.marquee, caption: "Bookmark")
                 .scaleEffect(1 + 0.12 * save)
@@ -319,12 +319,28 @@ struct RecCardDeck: View {
         onRank(c.movie)
     }
 
-    private func act(save: Bool) {
+    /// A tapped Pass/Bookmark button. Unlike a swipe (where the finger drags the
+    /// stamp in), a tap has no travel — so first roll the on-card stamp up to the
+    /// action threshold (and swell the matching button in lockstep), hold a beat,
+    /// then let the card fly off. Makes the button feel like the swipe it mirrors.
+    private func tapAct(save: Bool) {
+        guard !advancing, index < items.count else { return }
+        advancing = true                 // block a second tap during the pre-roll
+        Haptics.tap()
+        withAnimation(.snappy) { drag.width = save ? 120 : -120 }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            advancing = false            // act() re-claims the lock
+            act(save: save, haptic: false)
+        }
+    }
+
+    private func act(save: Bool, haptic: Bool = true) {
         // Ignore a second swipe while the current card is still flying off —
         // otherwise a quick double-swipe acts on the same card twice and flickers.
         guard !advancing, index < items.count else { return }
         advancing = true
-        Haptics.tap()
+        if haptic { Haptics.tap() }
         let item = items[index]
         if case .rec(let c) = item {
             if save {

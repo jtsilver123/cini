@@ -553,10 +553,11 @@ function saveToWatchlist(k){
 }
 /* "Not tonight" on the daily pick: just hide the card for now — it stays on
    Want to Watch and never informs your taste score (it's a scheduling choice). */
-function dismissTonight(){
+function dismissTonight(k){
   buzz();
-  const el=document.getElementById("tonightCard");
-  if(el) el.style.display="none";
+  S.tonightDismissed = S.tonightDismissed || [];
+  if(k && !S.tonightDismissed.includes(k)) S.tonightDismissed.push(k);
+  save(); render();   // advance to the next pick, or fall to the zero-state
   toast("Not tonight — still on your list");
 }
 /* Bookmark with multiple homes: Want to Watch leads, your lists follow. */
@@ -677,13 +678,25 @@ function renderFeed(){
   // right in the app) opens it — "watch this tonight"; the ✕ is "not tonight,"
   // which leaves it in place and never touches your taste score. When there's
   // nothing to surface, a zero-state points to Recs instead.
-  const tCont = (S.watching||[]).find(w=>!w.caughtUp && MOVIES[w.k] && !S.watched.some(x=>x.k===w.k));
-  const tWatchlist = S.watchlist.filter(k=>MOVIES[k] && !S.watched.some(w=>w.k===k));
-  const tk = tCont ? tCont.k : (tWatchlist.find(k=>MOVIES[k].bd) || tWatchlist[0]);
+  S.tonightDismissed = S.tonightDismissed || [];
+  const tCont = (S.watching||[]).find(w=>!w.caughtUp && MOVIES[w.k] && !S.watched.some(x=>x.k===w.k) && !S.tonightDismissed.includes(w.k));
+  const tAvail = S.watchlist.filter(k=>MOVIES[k] && !S.watched.some(w=>w.k===k));
+  const tPick = tAvail.filter(k=>!S.tonightDismissed.includes(k));
+  const tk = tCont ? tCont.k : (tPick.find(k=>MOVIES[k].bd) || tPick[0]);
   const tContLabel = tCont ? `Pick up where you left off · S${tCont.s} · E${tCont.e}` : null;
   let tonight;
   if(!tk){
-    tonight = `
+    // Had picks but cleared them vs never had any → different nudge, both to Recs.
+    const hadSome = tAvail.length>0 || (S.watching||[]).some(w=>!w.caughtUp);
+    tonight = hadSome ? `
+    <div class="pad" style="margin-top:16px;">
+      <div class="card" style="text-align:center; padding:18px 16px;">
+        <div style="color:var(--marquee); font-size:26px;">✨</div>
+        <b style="display:block; margin-top:6px;">That's a wrap on tonight's picks 🎬</b>
+        <span class="sub" style="display:block; margin:4px 0 12px;">Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting.</span>
+        <button class="pill" onclick="go('swipe')">${I("stack",15)} Find more in Recs</button>
+      </div>
+    </div>` : `
     <div class="pad" style="margin-top:16px;">
       <div class="card" style="text-align:center; padding:18px 16px;">
         <div style="color:var(--marquee); font-size:30px;">🍿</div>
@@ -702,7 +715,7 @@ function renderFeed(){
         background:linear-gradient(180deg, rgba(0,0,0,.1) 25%, rgba(0,0,0,.88)), url('${IMG(tm.bd||tm.p)}') center/cover no-repeat;"
         onclick="if(!event.target.closest('button'))watchTonight('${tk}')">
       <span style="position:absolute; top:12px; left:12px; background:var(--marquee); color:var(--bg); font-size:10px; font-weight:700; letter-spacing:1.5px; padding:5px 9px; border-radius:999px;">${tCont ? "▶ CONTINUE WATCHING" : "🌙 TONIGHT'S PICK"}</span>
-      <button class="iconbtn" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" aria-label="Not tonight" onclick="dismissTonight()">${I("x",16)}</button>
+      <button class="iconbtn" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.45); border-radius:50%; padding:7px; color:#fff;" aria-label="Not tonight" onclick="dismissTonight('${tk}')">${I("x",16)}</button>
       <div style="position:absolute; left:14px; bottom:14px; max-width:220px;">
         ${(()=>{const ons=tm.on||[];const first=ons[0]||"Netflix";const [bg,init,fg]=PROVIDER_BRANDS[first]||["#7E251C",first[0]];const more=ons.length>1?`<span style="color:#fff;font-size:11px;font-weight:800;">+${ons.length-1}</span>`:"";return `<button onclick="openWatchSheet('${tk}')" style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,.55);border:none;cursor:pointer;padding:4px 7px;border-radius:999px;" aria-label="Where to watch"><span style="width:16px;height:16px;border-radius:4px;background:${bg};color:${fg||'#fff'};font-size:9px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;">${init}</span>${more}</button>`;})()}
         <div class="serif" style="color:#fff; font-size:24px; line-height:1.12; margin-top:4px;">${tm.t}</div>
@@ -1779,9 +1792,9 @@ function renderDetail(){
       ${interestRow([["M","av1"]], "1 friend wants to watch", "'want'")}
     </div>
     <div class="row-scroll" style="margin-top:12px;">
-      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Where to Watch</button>
-      <button class="pill out" onclick="openShowtimes('${k}')">🎟️ Showtimes</button>
-      <button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Recommend</button>
+      <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Watch</button>
+      <button class="pill out" onclick="openShowtimes('${k}')">🎟️ Theater</button>
+      <button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Rec</button>
     </div>
     <div class="pad" style="margin-top:20px;"><b style="font-size:18px;">Scores</b></div>
     <div class="pad" style="display:flex; gap:10px; margin-top:14px; text-align:center;">

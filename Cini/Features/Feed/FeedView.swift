@@ -44,6 +44,9 @@ struct FeedView: View {
     /// the zero-state only appears after a real attempt — not as a flash before
     /// the first load resolves.
     @State private var tonightLoaded = false
+    /// Set once a "Show more" pull turns up nothing — there's no more to surface
+    /// from Want to Watch right now, so the zero-state points to Recs instead.
+    @State private var tonightExhausted = false
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
@@ -618,14 +621,20 @@ struct FeedView: View {
                 .zIndex(1)
             } else if tonightUnlocked, tonightLoaded {
                 // Unlocked, finished loading, but no card to show — always land on
-                // a zero-state (the deck should never just silently vanish). Which
-                // one depends on WHY it's empty: nothing saved to Want to Watch,
-                // or saved titles but the deck's done for today. Both point to Recs.
+                // a zero-state (the deck should never just silently vanish):
+                //  • nothing saved at all → point to Recs;
+                //  • saved titles still to surface → a "Show more" button;
+                //  • been through everything for now → point to Recs.
                 if store.watchlistCount == 0 {
                     TonightEmptyState(.emptyWatchlist) { tabRouter.selection = .swipe }
                         .padding(.top, 2)
-                } else {
+                } else if tonightExhausted {
                     TonightEmptyState(.cleared) { tabRouter.selection = .swipe }
+                        .padding(.top, 2)
+                } else {
+                    TonightEmptyState(.showMore,
+                                      onSwipe: { tabRouter.selection = .swipe },
+                                      onShowMore: { Task { await showMoreTonight() } })
                         .padding(.top, 2)
                 }
             }
@@ -937,6 +946,18 @@ struct FeedView: View {
 
         tonightCards = cards
         tonightLoaded = true
+        // Got cards → we're not exhausted (e.g. a new day, or a pull-to-refresh).
+        if !cards.isEmpty { tonightExhausted = false }
+    }
+
+    /// "Show more" on the cleared deck: lift today's 24h hold and rebuild from the
+    /// next un-dismissed Want-to-Watch titles. If nothing's left, mark exhausted
+    /// so the slot points to Recs instead of offering "Show more" again.
+    private func showMoreTonight() async {
+        Haptics.tap()
+        tonightSuppressedUntil = 0
+        await loadTonightStack(force: true)
+        if tonightCards.isEmpty { tonightExhausted = true }
     }
 
     private func todayKey() -> String { DateFormatter.posixDay.string(from: Date()) }

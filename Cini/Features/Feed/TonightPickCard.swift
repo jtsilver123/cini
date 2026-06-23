@@ -350,30 +350,36 @@ struct TonightStack: View {
     }
 }
 
-/// Shown in the Tonight's Pick slot when there's no card to swipe — either the
-/// deck was cleared for today, or there's nothing on Want to Watch to draw from.
-/// Both variants deep-link to Recs (where there's a whole deck waiting).
+/// Shown in the Tonight's Pick slot when there's no card to swipe. Three cases:
+/// you have more on your Want to Watch to pull up (`showMore`), you've been
+/// through everything for now (`cleared`), or there's nothing saved at all
+/// (`emptyWatchlist`). The last two deep-link to Recs.
 struct TonightEmptyState: View {
-    /// Why the slot is empty — drives the copy, not the destination (both → Recs).
     enum Kind {
-        /// Had picks, but dismissed/ranked through them today. Fresh ones tomorrow.
+        /// More unshown Want-to-Watch titles exist → offer to pull up more now.
+        case showMore
+        /// Been through everything available for now → point to Recs.
         case cleared
-        /// Nothing saved to Want to Watch yet, so there's nothing to surface.
+        /// Nothing saved to Want to Watch yet → point to Recs to find something.
         case emptyWatchlist
     }
 
     var kind: Kind = .cleared
     var onSwipe: () -> Void = {}
+    var onShowMore: () -> Void = {}
 
-    init(_ kind: Kind = .cleared, onSwipe: @escaping () -> Void = {}) {
+    init(_ kind: Kind = .cleared,
+         onSwipe: @escaping () -> Void = {},
+         onShowMore: @escaping () -> Void = {}) {
         self.kind = kind
         self.onSwipe = onSwipe
+        self.onShowMore = onShowMore
     }
 
     var body: some View {
         HairlineCard {
             VStack(spacing: 10) {
-                Image(systemName: kind == .cleared ? "sparkles" : "popcorn.fill")
+                Image(systemName: icon)
                     .font(.title2)
                     .foregroundStyle(Theme.marquee)
                 Text(title)
@@ -383,16 +389,33 @@ struct TonightEmptyState: View {
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
-                PillButton(title: buttonTitle, systemImage: "rectangle.stack") { onSwipe() }
-                    .padding(.top, 2)
+                if kind == .showMore {
+                    PillButton(title: "Show more", systemImage: "rectangle.stack.badge.plus") { onShowMore() }
+                        .padding(.top, 2)
+                    Button("Or browse Recs") { onSwipe() }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.gray)
+                } else {
+                    PillButton(title: buttonTitle, systemImage: "rectangle.stack") { onSwipe() }
+                        .padding(.top, 2)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         }
     }
 
+    private var icon: String {
+        switch kind {
+        case .showMore:       return "rectangle.stack.badge.plus"
+        case .cleared:        return "sparkles"
+        case .emptyWatchlist: return "popcorn.fill"
+        }
+    }
+
     private var title: String {
         switch kind {
+        case .showMore:       return "More on your list"
         case .cleared:        return "That's a wrap on tonight's picks 🎬"
         case .emptyWatchlist: return "Nothing on your Want to Watch yet 🍿"
         }
@@ -400,6 +423,8 @@ struct TonightEmptyState: View {
 
     private var message: String {
         switch kind {
+        case .showMore:
+            return "You've been through tonight's top picks. Pull up more from your Want to Watch."
         case .cleared:
             return "Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting."
         case .emptyWatchlist:
@@ -409,6 +434,7 @@ struct TonightEmptyState: View {
 
     private var buttonTitle: String {
         switch kind {
+        case .showMore:       return "Show more"   // unused (showMore renders its own buttons)
         case .cleared:        return "Find more in Recs"
         case .emptyWatchlist: return "Find something in Recs"
         }
