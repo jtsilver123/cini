@@ -635,8 +635,10 @@ struct FeedView: View {
                 // a zero-state (the deck should never just silently vanish). Pick
                 // the HONEST one based on why it's empty:
                 if store.watchlistCount == 0 {
-                    // Nothing saved at all.
-                    TonightEmptyState(.emptyWatchlist) { tabRouter.selection = .swipe }
+                    // Nothing saved at all. (Label the closure: a bare trailing
+                    // closure would bind to onShowMore — the LAST param — leaving
+                    // the "Find something in Recs" button calling an empty onSwipe.)
+                    TonightEmptyState(.emptyWatchlist, onSwipe: { tabRouter.selection = .swipe })
                         .padding(.top, 2)
                 } else if !tonightEverHadCards && dismissedTonightToday().isEmpty {
                     // Has saved titles but none surfaced AND none were dismissed
@@ -644,11 +646,11 @@ struct FeedView: View {
                     // swiped through picks they never saw. (dismissedTonightToday is
                     // persisted, so it still proves "had cards" after a relaunch,
                     // when the in-session tonightEverHadCards flag has reset.)
-                    TonightEmptyState(.nothingTonight) { tabRouter.selection = .swipe }
+                    TonightEmptyState(.nothingTonight, onSwipe: { tabRouter.selection = .swipe })
                         .padding(.top, 2)
                 } else if tonightExhausted {
                     // Genuinely went through everything available for now.
-                    TonightEmptyState(.cleared) { tabRouter.selection = .swipe }
+                    TonightEmptyState(.cleared, onSwipe: { tabRouter.selection = .swipe })
                         .padding(.top, 2)
                 } else {
                     // Swiped through the shown deck; more may be waiting.
