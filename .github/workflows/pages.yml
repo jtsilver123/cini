@@ -50,10 +50,16 @@ jobs:
           mkdir -p _site/i
           cp i/index.html _site/i/index.html
           cp favicon.png _site/i/favicon.png
-          # Shared-list landing page served from /l/.
+          # Shared-list page served from /l/ (renders the list via the public
+          # read RPCs; falls back to an open-in-app landing if private).
           mkdir -p _site/l
           cp l/index.html _site/l/index.html
           cp favicon.png _site/l/favicon.png
+          # Public profile page served from /u/?u=<username> (read-only, renders
+          # a public member's rankings via the anon public_* RPCs).
+          mkdir -p _site/u
+          cp u/index.html _site/u/index.html
+          cp favicon.png _site/u/favicon.png
           # Apple App Site Association — lets iOS open invite/list links
           # (/i/*, /l/*) straight in the app via Universal Links. Served from
           # /.well-known/ with no file extension over https.

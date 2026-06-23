@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>A profile on Cini</title>
+<meta property="og:title" content="A movie ranker on Cini">
+<meta property="og:description" content="Everything they watch, ranked — no star ratings, just taste, perfectly ordered. See their rankings on Cini.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<!-- Phase 1 is client-rendered, so crawlers see a shell; keep member pages out
+     of the index until the edge-SSR phase adds real per-profile meta + an
+     opt-in. The page still works for any human who opens a shared link. -->
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);--green:#3FB55A;}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;background:radial-gradient(70% 40% at 50% 0%, rgba(232,182,76,.12), transparent 70%), var(--bg);
+    color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:24px 16px 60px;}
+  a{color:inherit;}
+  .wrap{max-width:720px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);line-height:1;text-decoration:none;}
+  .getcini{text-decoration:none;font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;white-space:nowrap;}
+  .head{display:flex;gap:18px;align-items:center;margin-bottom:8px;}
+  .avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;background:var(--surface2);flex:none;
+    display:flex;align-items:center;justify-content:center;font-family:"DM Serif Display",serif;font-size:34px;color:var(--marquee);}
+  .name{font-family:"DM Serif Display",Georgia,serif;font-weight:400;font-size:28px;line-height:1.15;}
+  .handle{color:var(--gray);font-size:15px;margin-top:2px;}
+  .bio{font-size:15px;line-height:1.5;margin:14px 0 6px;}
+  .stats{display:flex;gap:22px;margin:16px 0 4px;flex-wrap:wrap;}
+  .stat b{font-size:18px;} .stat span{color:var(--gray);font-size:13px;margin-left:5px;}
+  .socials{display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;}
+  .socials a{color:var(--marquee);font-size:13px;font-weight:600;text-decoration:none;}
+  .divider{height:1px;background:var(--hair);margin:26px 0 18px;}
+  .seg{font-size:11px;letter-spacing:.22em;color:var(--gray);font-weight:800;margin-bottom:14px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:16px 12px;}
+  .card{text-decoration:none;color:inherit;}
+  .poster{width:100%;aspect-ratio:2/3;border-radius:10px;background:var(--surface2) center/cover no-repeat;position:relative;
+    box-shadow:0 6px 16px rgba(0,0,0,.35);}
+  .badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.66);backdrop-filter:blur(4px);border-radius:8px;
+    font-size:12px;font-weight:800;padding:3px 7px;}
+  .ptitle{font-size:12px;font-weight:600;margin-top:6px;line-height:1.25;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .pyear{font-size:11px;color:var(--gray);}
+  .msg{text-align:center;color:var(--gray);padding:64px 16px;font-size:16px;line-height:1.6;}
+  .foot{text-align:center;margin-top:40px;}
+  .foot a{text-decoration:none;font-weight:700;font-size:15px;padding:14px 26px;border-radius:999px;background:var(--velvet);color:#fff;
+    box-shadow:0 10px 26px rgba(168,53,42,.32);display:inline-block;}
+  .foot p{color:var(--gray);font-size:12.5px;margin-top:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a class="wordmark" href="/">cini</a>
+    <a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a>
+  </div>
+  <div id="content"><div class="msg">Loading…</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const APP_STORE = "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898";
+
+const $ = (id) => document.getElementById(id);
+// Username charset matches the server constraint; never trust the raw query.
+const username = (new URLSearchParams(location.search).get('u') || '')
+  .toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 30);
+
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function poster(path){ return path ? `url("https://image.tmdb.org/t/p/w342${String(path).replace(/[^A-Za-z0-9/_.\-]/g,'')}")` : "none"; }
+function safeUrl(u){ return (typeof u==="string" && /^https:\/\//i.test(u)) ? u : null; }
+function scoreColor(s){ s=Number(s); return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A"; }
+function notFound(){
+  $("content").innerHTML = "";
+  const m = el("div","msg");
+  m.appendChild(el("div",null,"This profile isn’t available."));
+  m.appendChild(el("div",null,"It may be private, or the link may be off.")).style.marginTop="6px";
+  $("content").appendChild(m);
+}
+
+function initials(name, handle){
+  const base=(name&&name.trim())||handle||"";
+  return base.trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("") || "•";
+}
+
+async function load(){
+  if(username.length < 3){ notFound(); return; }
+  const [{ data: prof }, { data: ranks }] = await Promise.all([
+    sb.rpc("public_profile",  { p_username: username }),
+    sb.rpc("public_rankings", { p_username: username, p_limit: 250 })
+  ]);
+  if(!prof){ notFound(); return; }
+
+  document.title = `${prof.display_name || "@"+prof.username} on Cini`;
+  const c = $("content"); c.innerHTML = "";
+
+  // Header
+  const head = el("div","head");
+  const av = el("div","avatar");
+  const avurl = safeUrl(prof.avatar_url);
+  if(avurl){ const img=el("img"); img.className="avatar"; img.src=avurl; img.alt=""; head.appendChild(img); }
+  else { av.textContent = initials(prof.display_name, prof.username); head.appendChild(av); }
+  const idbox = el("div");
+  idbox.appendChild(el("div","name", prof.display_name || ("@"+prof.username)));
+  idbox.appendChild(el("div","handle", "@"+prof.username));
+  head.appendChild(idbox);
+  c.appendChild(head);
+
+  if(prof.bio) c.appendChild(el("div","bio", prof.bio));
+
+  const stats = el("div","stats");
+  const s1=el("div","stat"); s1.appendChild(el("b",null,String(prof.ranked_count??0))); s1.appendChild(el("span",null,"ranked")); stats.appendChild(s1);
+  const s2=el("div","stat"); s2.appendChild(el("b",null,String(prof.list_count??0))); s2.appendChild(el("span",null,"lists")); stats.appendChild(s2);
+  if(prof.streak_weeks){ const s3=el("div","stat"); s3.appendChild(el("b",null,"🔥 "+prof.streak_weeks)); s3.appendChild(el("span",null,"wk streak")); stats.appendChild(s3); }
+  c.appendChild(stats);
+
+  // Socials (handles are plain text; build safe hrefs)
+  const socials = el("div","socials");
+  const add=(label,url)=>{ if(url){ const a=el("a",null,label); a.href=url; a.target="_blank"; a.rel="noopener nofollow"; socials.appendChild(a);} };
+  const h=(v)=>String(v||"").replace(/[^A-Za-z0-9_.]/g,"");
+  if(prof.instagram) add("Instagram","https://instagram.com/"+h(prof.instagram));
+  if(prof.tiktok)    add("TikTok","https://tiktok.com/@"+h(prof.tiktok));
+  if(prof.x)         add("X","https://x.com/"+h(prof.x));
+  if(prof.letterboxd)add("Letterboxd","https://letterboxd.com/"+h(prof.letterboxd));
+  if(socials.children.length) c.appendChild(socials);
+
+  c.appendChild(el("div","divider"));
+
+  // Rankings
+  const list = Array.isArray(ranks) ? ranks : [];
+  c.appendChild(el("div","seg", list.length ? "RANKED · HIGHEST FIRST" : "RANKINGS"));
+  if(!list.length){
+    c.appendChild(el("div","msg","No public rankings yet."));
+  } else {
+    const grid = el("div","grid");
+    for(const m of list){
+      const card = el("a","card");
+      card.href = APP_STORE;
+      const p = el("div","poster"); p.style.backgroundImage = poster(m.poster_path);
+      if(m.score != null){ const b=el("div","badge", Number(m.score).toFixed(1)); b.style.color=scoreColor(m.score); p.appendChild(b); }
+      card.appendChild(p);
+      card.appendChild(el("div","ptitle", m.title || ""));
+      if(m.release_year) card.appendChild(el("div","pyear", String(m.release_year)));
+      grid.appendChild(card);
+    }
+    c.appendChild(grid);
+  }
+
+  // Footer CTA
+  const foot = el("div","foot");
+  const a = el("a",null,"See "+(prof.display_name? prof.display_name.split(" ")[0] : "@"+prof.username)+"’s taste in Cini");
+  a.href = APP_STORE; foot.appendChild(a);
+  foot.appendChild(el("p",null,"Cini — everything you watch, ranked. No star ratings, just taste."));
+  c.appendChild(foot);
+}
+load().catch(notFound);
+</script>
+</body>
+</html>

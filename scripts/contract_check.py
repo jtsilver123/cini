@@ -209,6 +209,11 @@ RPCS = [
     ("contact_network_counts", {"p_phones": ["5555550100"]}),
     # No follower rates movie 2 highly → no-op insert.
     ("notify_friends_of_rating", {"p_movie_id": 2}),
+    # Public web layer (anon-callable; the demo user is public so these resolve).
+    ("public_profile", {"p_username": "appreviewer"}),
+    ("public_rankings", {"p_username": "appreviewer", "p_limit": 50}),
+    # A nil UUID resolves to no list → null (200): exercises the signature/grant.
+    ("public_list", {"p_list_id": "00000000-0000-0000-0000-000000000000"}),
     # delete_account deliberately excluded.
 ]
 
