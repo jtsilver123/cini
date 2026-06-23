@@ -4,22 +4,39 @@ import SwiftUI
 /// poster-forward app. Disk-cached so lists scroll warm offline.
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     let url: URL?
+    /// Show the loading pulse while a URL is fetching. On for posters/backdrops;
+    /// off for avatars, where the initials placeholder is the better "loading"
+    /// cue (it shows who it is) than a gray pulse.
+    var showsLoadingPulse: Bool = true
     @ViewBuilder var content: (Image) -> Content
     @ViewBuilder var placeholder: () -> Placeholder
 
     @State private var loaded: UIImage?
+    /// The fetch finished with no image (or there's no URL). Lets us show the
+    /// app's loading pulse WHILE a poster is in flight, but fall back to the
+    /// caller's static placeholder (film icon, etc.) when there's nothing to load.
+    @State private var failed = false
 
     var body: some View {
         Group {
             if let loaded {
                 content(Image(uiImage: loaded))
+            } else if url != nil && !failed && showsLoadingPulse {
+                // Loading: the app-wide skeleton pulse, so a poster mid-fetch
+                // reads as "loading" anywhere it appears — never a dead blank box.
+                Rectangle().fill(Theme.fill).modifier(SkeletonPulse())
             } else {
                 placeholder()
             }
         }
         .task(id: url) {
+            // Reset for the new URL so a recycled cell shows the loading state
+            // (not the previous poster) until its own image arrives.
+            loaded = nil
+            failed = false
             guard let url else { return }
-            loaded = await ImageLoader.shared.image(for: url)
+            if let image = await ImageLoader.shared.image(for: url) { loaded = image }
+            else { failed = true }
         }
     }
 }

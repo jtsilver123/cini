@@ -889,7 +889,9 @@ struct AvatarView: View {
     }
 
     var body: some View {
-        CachedAsyncImage(url: url) { image in
+        // Avatars keep their initials while the photo loads (better than a gray
+        // pulse — it shows who it is), so opt out of the loading pulse.
+        CachedAsyncImage(url: url, showsLoadingPulse: false) { image in
             image.resizable().scaledToFill()
         } placeholder: {
             if initials.isEmpty {
