@@ -10,7 +10,7 @@ interface Profile {
   streak_weeks: number; ranked_count: number; list_count: number;
   instagram: string | null; tiktok: string | null; x: string | null; letterboxd: string | null;
 }
-interface Rank { movie_id: number; title: string; poster_path: string | null; release_year: number | null; score: number; }
+interface Rank { movie_id: number; slug: string | null; title: string; poster_path: string | null; release_year: number | null; score: number; }
 interface List { id: string; name: string; media_kind: string; count: number; }
 
 export const onRequestGet: PagesFunction = async (context) => {
@@ -43,7 +43,7 @@ export const onRequestGet: PagesFunction = async (context) => {
   const grid = rankList.map((m) => {
     const p = tmdb(m.poster_path, "w342");
     const badge = m.score != null ? `<div class="badge" style="color:${scoreColor(Number(m.score))}">${Number(m.score).toFixed(1)}</div>` : "";
-    return `<a class="card" href="/m/?id=${m.movie_id}">
+    return `<a class="card" href="${m.slug ? `/title/${esc(m.slug)}` : `/m/?id=${m.movie_id}`}">
       <div class="poster" style="background-image:${p ? `url('${esc(p)}')` : "none"}">${badge}</div>
       <div class="ptitle">${esc(m.title || "")}</div>${m.release_year ? `<div class="pyear">${esc(m.release_year)}</div>` : ""}
     </a>`;

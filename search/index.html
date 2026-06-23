@@ -76,7 +76,7 @@ async function run(q){
     c.appendChild(el("div","seg","MOVIES & TV"));
     const grid = el("div","grid");
     T.forEach(m=>{
-      const a=el("a","card"); a.href="/m/?id="+m.movie_id;
+      const a=el("a","card"); a.href = m.slug ? "/title/"+m.slug : "/m/?id="+m.movie_id;
       const p=el("div","poster"); p.style.backgroundImage=poster(m.poster_path);
       if(m.avg!=null){ const b=el("div","badge", Number(m.avg).toFixed(1)); b.style.color=scoreColor(m.avg); p.appendChild(b); }
       a.appendChild(p);

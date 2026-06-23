@@ -6,7 +6,7 @@ import { rpc, esc, tmdb, safeHttps, shell, notFoundPage, OG_FALLBACK } from "../
 interface ListData {
   id: string; name: string; media_kind: string;
   owner: { username: string; display_name: string; avatar_url: string | null };
-  items: { movie_id: number; title: string; poster_path: string | null; release_year: number | null }[];
+  items: { movie_id: number; slug: string | null; title: string; poster_path: string | null; release_year: number | null }[];
 }
 
 export const onRequestGet: PagesFunction = async (context) => {
@@ -25,7 +25,7 @@ export const onRequestGet: PagesFunction = async (context) => {
 
   const grid = items.map((m) => {
     const p = tmdb(m.poster_path, "w342");
-    return `<a class="card" href="/m/?id=${m.movie_id}">
+    return `<a class="card" href="${m.slug ? `/title/${esc(m.slug)}` : `/m/?id=${m.movie_id}`}">
       <div class="poster" style="background-image:${p ? `url('${esc(p)}')` : "none"}"></div>
       <div class="ptitle">${esc(m.title || "")}</div>${m.release_year ? `<div class="pyear">${esc(m.release_year)}</div>` : ""}
     </a>`;

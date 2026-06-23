@@ -97,7 +97,7 @@ async function load(){
   const c=$("list"); c.innerHTML="";
   if(!rows.length){ c.appendChild(el("div","msg","Nothing ranked here yet — be the first in the app.")); return; }
   rows.forEach((m,i)=>{
-    const a=el("a","rowitem"); a.href="/m/?id="+m.movie_id;
+    const a=el("a","rowitem"); a.href = m.slug ? "/title/"+m.slug : "/m/?id="+m.movie_id;
     a.appendChild(el("div","rank", String(i+1)));
     const p=el("div","poster"); p.style.backgroundImage=poster(m.poster_path); a.appendChild(p);
     const info=el("div","info");
