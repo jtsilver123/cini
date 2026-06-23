@@ -44,6 +44,10 @@ struct RecCardDeck: View {
     /// Save / un-save (undo) to the Want to Watch list.
     var onSave: (Movie) -> Void = { _ in }
     var onUnsave: (Movie) -> Void = { _ in }
+    /// Passed (swiped left). The host can record it so it doesn't reappear.
+    var onPass: (Movie) -> Void = { _ in }
+    /// A passed/saved card was brought back via Undo — reverse any record.
+    var onUndo: (Movie) -> Void = { _ in }
     /// Reload the deck once it's exhausted.
     var onRefresh: () -> Void = {}
     /// Show a center "+" to rank the top card (for "I've seen this"). Used by
@@ -327,6 +331,8 @@ struct RecCardDeck: View {
                 // The card flying off to the right is the confirmation —
                 // no toast, so a fast swipe streak isn't interrupted.
                 onSave(c.movie)
+            } else {
+                onPass(c.movie)
             }
             history.append((index, c.movie, save))
         } else {
@@ -364,8 +370,11 @@ struct RecCardDeck: View {
 
     private func undo() {
         guard !advancing, let last = history.popLast() else { return }
-        // Un-save if the undone action was a save.
-        if last.saved, let movie = last.movie { onUnsave(movie) }
+        // Bringing a card back undoes whatever was recorded for it (pass or save).
+        if let movie = last.movie {
+            onUndo(movie)
+            if last.saved { onUnsave(movie) }
+        }
         // Bring the card back: drop it in off-screen on the side it flew to
         // (no animation), then slide it home — so undo reads as "fly back in".
         var t = Transaction(); t.disablesAnimations = true

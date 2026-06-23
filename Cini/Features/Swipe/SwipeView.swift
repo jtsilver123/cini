@@ -23,6 +23,11 @@ struct SwipeView: View {
     @AppStorage("swipe.layout") private var layout: Layout = .cards
     @State private var suggestTV = false
     @State private var dismissed: Set<Int> = []
+    /// Titles you've passed or saved from Recs — persisted so they don't come
+    /// back when you leave and return (or the deck rebuilds). Applied when the
+    /// pool is built, not in `visible`, so a live swipe doesn't shrink the deck
+    /// array mid-animation (which would skip the next card).
+    @AppStorage("swipe.dismissedIDs") private var dismissedRaw = ""
     @State private var filters = MovieFilters()
     @State private var showFilterSheet = false
     @State private var bookmarkCounts: [Int: Int] = [:]
@@ -294,6 +299,7 @@ struct SwipeView: View {
                             Task { await store.toggleWatchlist(movie: movie) }
                         },
                         onDismiss: { movie in
+                            recordDismiss(movie.tmdbID)
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         }
                     )
@@ -307,11 +313,14 @@ struct SwipeView: View {
                     onOpen: { store.cache($0); detailMovie = $0 },
                     onLog: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                     onSave: { m in
+                        recordDismiss(m.tmdbID)
                         if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
                     },
                     onUnsave: { m in
                         if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
                     },
+                    onPass: { recordDismiss($0.tmdbID) },
+                    onUndo: { unrecordDismiss($0.tmdbID) },
                     onRefresh: { Task { await reloadPool() } },
                     showRank: true,
                     onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
@@ -372,6 +381,21 @@ struct SwipeView: View {
 
     /// Reload the pool from scratch — used when the filters change (they drive
     /// a different pool on the Swipe page) or on a manual refresh.
+    /// Titles passed/saved in Recs before, excluded when (re)building the pool.
+    private var persistedDismissed: Set<Int> {
+        Set(dismissedRaw.split(separator: ",").compactMap { Int($0) })
+    }
+    private func recordDismiss(_ id: Int) {
+        var s = persistedDismissed
+        guard s.insert(id).inserted else { return }
+        dismissedRaw = s.map(String.init).joined(separator: ",")
+    }
+    private func unrecordDismiss(_ id: Int) {
+        var s = persistedDismissed
+        guard s.remove(id) != nil else { return }
+        dismissedRaw = s.map(String.init).joined(separator: ",")
+    }
+
     private func reloadPool() async {
         candidates = []
         loaded = false
@@ -403,7 +427,8 @@ struct SwipeView: View {
         var seen = Set<Int>()
         var built: [YourListsView.RecCandidate] = []
         for movie in pool where movie.posterPath != nil
-            && seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+            && seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID)
+            && !persistedDismissed.contains(movie.tmdbID) {
             store.cache(movie)
             built.append(YourListsView.RecCandidate(movie: movie, reason: filterReason()))
         }
@@ -473,7 +498,8 @@ struct SwipeView: View {
 
         guard token == loadSeq else { return }   // a newer reload superseded this one
         candidates = pending.compactMap { candidate in
-            store.movie(candidate.id).map {
+            guard !persistedDismissed.contains(candidate.id) else { return nil }
+            return store.movie(candidate.id).map {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
             }
         }
