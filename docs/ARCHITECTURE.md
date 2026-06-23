@@ -85,11 +85,28 @@ rank() — equivalent to Spearman's ρ since ranks have no heavy ties), mapped
 from [-1, 1] to a 0–100%. Cached in `taste_matches`, refreshed nightly via
 `refresh_taste_matches()`; pairs with < 3 common titles get no match.
 
-## Recs
+## Recs — taste model
 
-v1 recs = TMDB similar-titles seeded by the user's top-ranked movie, filtered
-to unwatched. The intended v2 blend (friends' high rankings weighted by match
-%) has its data model in place: `rankings` × `follows` × `taste_matches`.
+`recs_for_user(p_limit)` (migration `0099_recs_taste_v3`) orders the Recs deck
+and feeds Ask Cini. It's a content + collaborative hybrid that uses every taste
+signal and grows more personal as the user ranks more:
+
+- **Personal score** = your average rating (`mu`) nudged by per-genre and
+  per-director *deviations* from that baseline. Deviations pool three signals:
+  ratings (full weight), bookmarks (mild positive — "want to watch"), and passes
+  (negative — "not for me"). Each deviation is **shrunk toward neutral** by how
+  much evidence backs it, so one rating in a genre can't dominate.
+- **Friends** = titles followed users rated ≥ 6.7, weighted by `taste_matches`
+  %, with a small bonus for multiple friends agreeing.
+- **Community** = Bayesian average over all rankings (prior 6.5, weight 5).
+- **Adaptive blend**: personal weight = `n/(n+15)` (n = your ranking count), so a
+  cold-start user leans on community/friends and a heavy ranker leans on their
+  own taste. Friends hold a steady ~0.30 when present. Excludes ranked ∪
+  bookmarked ∪ passed titles.
+
+Per-title predicted ratings (Want-to-Watch badges) come from the sibling
+`predicted_scores`/`predicted_scores_for` (cached 36h, refreshed nightly); they
+still use the v2 genre-average blend — a candidate for the same v3 upgrade.
 
 **Featured release.** The feed's `PromotedReleaseCard` is a first-party
 discovery/ad surface: a new release picked from the user's most-ranked genre,
