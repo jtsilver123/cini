@@ -22,7 +22,26 @@ export const onRequestGet: PagesFunction = async (context) => {
   if (!slug) return notFoundPage("This title isn’t on Cini yet.");
 
   const t = await rpc<Title>("public_title_by_slug", { p_slug: slug });
-  if (!t) return notFoundPage("This title isn’t on Cini yet.");
+  if (!t) {
+    // Not in Cini's catalog yet (e.g. a review-set title nobody's ranked here).
+    // Serve the static /reviews page (TMDB data) so the canonical URL still
+    // renders. Fetch the .html path directly — it can't match the
+    // /reviews/:slug/ → /title redirect, so there's no loop.
+    const env = context.env as { ASSETS?: { fetch: (r: Request) => Promise<Response> } };
+    if (env.ASSETS) {
+      try {
+        const asset = await env.ASSETS.fetch(
+          new Request(new URL(`/reviews/${slug}/index.html`, context.request.url).toString()));
+        if (asset.status === 200) {
+          return new Response(asset.body, {
+            status: 200,
+            headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" },
+          });
+        }
+      } catch { /* fall through */ }
+    }
+    return notFoundPage("This title isn’t on Cini yet.");
+  }
   const extra = await rpc<Extras>("public_title_extras", { p_movie_id: t.tmdb_id });
 
   const yr = t.release_year ? ` (${t.release_year})` : "";
