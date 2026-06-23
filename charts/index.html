@@ -39,6 +39,20 @@
   .msg{text-align:center;color:var(--gray);padding:52px 16px;font-size:15px;}
   .foot{text-align:center;margin-top:34px;}
   .foot a{font-weight:700;font-size:15px;padding:14px 26px;border-radius:999px;background:var(--velvet);color:#fff;display:inline-block;box-shadow:0 10px 26px rgba(168,53,42,.3);}
+  /* Premium polish: sticky header, load fade, poster hover, a11y. */
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .wrap{animation:fade .5s ease both;}
+  ::selection{background:rgba(232,182,76,.28);color:var(--ink);}
+  :focus-visible{outline:2px solid var(--marquee);outline-offset:3px;border-radius:8px;}
+  .topbar{position:sticky;top:0;z-index:50;margin:0 -16px;padding:13px 16px;background:rgba(19,16,17,.72);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);border-bottom:1px solid var(--hair);}
+  .poster{transition:transform .25s cubic-bezier(.22,.61,.36,1),box-shadow .25s cubic-bezier(.22,.61,.36,1);}
+  .card:hover .poster,.rowitem:hover .poster{transform:translateY(-4px) scale(1.03);box-shadow:0 16px 34px rgba(0,0,0,.5);}
+  .card:active,.rowitem:active{transform:scale(.985);}
+  .rowitem{border-radius:10px;transition:background .15s ease;}
+  .rowitem:hover{background:rgba(255,255,255,.035);}
+  .getcini{transition:transform .15s ease,filter .15s ease;}
+  .getcini:hover{transform:translateY(-1px);filter:brightness(1.05);}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
 </style>
 </head>
 <body>
