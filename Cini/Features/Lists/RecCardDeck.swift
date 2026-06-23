@@ -183,6 +183,10 @@ struct RecCardDeck: View {
                 // (+)/bookmark corner in the swipe deck.
                 showQuickActions: false,
                 dragX: dragX,
+                // Stamps match THIS deck's actions (Bookmark / Pass), not the
+                // Tonight's-Pick defaults.
+                rightStampText: "Bookmark", rightStampIcon: "bookmark.fill",
+                leftStampText: "Pass", leftStampIcon: "xmark",
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)
@@ -345,10 +349,12 @@ struct RecCardDeck: View {
             if index + 1 >= demos.count { demoSeen = true }
         }
         Task { @MainActor in
-            // Tap: build the stamp + swell the matching button, then hold a beat.
+            // Tap has no travel of its own, so roll the stamp in to the action
+            // threshold with a clean ease (the matching button swells in step),
+            // hold a beat so it registers, then fly off below — one smooth motion.
             if preRoll {
-                withAnimation(.snappy) { drag.width = save ? 120 : -120 }
-                try? await Task.sleep(for: .milliseconds(220))
+                withAnimation(.easeOut(duration: 0.18)) { drag.width = save ? 120 : -120 }
+                try? await Task.sleep(for: .milliseconds(200))
             }
             // Fly the card off from where it sits, easing drag.width back to zero
             // in the same animation. The card's x-offset is drag.width + flyOff,

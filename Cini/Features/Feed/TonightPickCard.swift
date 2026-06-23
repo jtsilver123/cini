@@ -24,6 +24,12 @@ struct TonightPickCard: View {
     var showQuickActions: Bool = true
     /// Live horizontal drag of the top card, so the swipe stamps fade in.
     var dragX: CGFloat = 0
+    /// Swipe-stamp labels + icons. Default to Tonight's-Pick semantics; the Recs
+    /// deck overrides them to "Bookmark" / "Pass" so the stamp matches its buttons.
+    var rightStampText: String = "Watch tonight"
+    var rightStampIcon: String = "play.fill"
+    var leftStampText: String = "Not tonight"
+    var leftStampIcon: String = "moon.zzz.fill"
     /// Total streaming services this is on — drives the badge's "+N".
     var providerCount: Int = 1
     /// Show the "Continue watching" badge (a show mid-binge) instead of the
@@ -208,9 +214,9 @@ struct TonightPickCard: View {
                 .strokeBorder(Theme.marquee, lineWidth: 4).opacity(watch)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
-            stamp("Watch tonight", "play.fill", Theme.marquee, fg: Theme.background)
+            stamp(rightStampText, rightStampIcon, Theme.marquee, fg: Theme.background)
                 .rotationEffect(.degrees(-10)).opacity(watch)
-            stamp("Not tonight", "moon.zzz.fill", Theme.scoreRed, fg: .white)
+            stamp(leftStampText, leftStampIcon, Theme.scoreRed, fg: .white)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
