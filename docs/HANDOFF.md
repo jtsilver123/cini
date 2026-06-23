@@ -4,6 +4,66 @@
 > manual (golden rules, repo map, workflow, build policy). `docs/DESIGN.md`
 > is the design system. This file is the running status log + build history.
 
+**STATUS (2026-06-23): UX polish + recs/admin work; TWO prod steps PENDING a
+connector reconnect.** Branch `claude/ecstatic-cori-k7s2n0`, head `54a41cc`.
+Migrations through **0099 are applied to prod**; **`0100` and `0101` are written
+and committed but NOT yet applied** (the Supabase + GitHub-Actions MCP connectors
+dropped mid-session and couldn't be restored from inside the session).
+
+**▶ DO THIS FIRST in a new session (the resume checklist):**
+1. `git fetch origin claude/ecstatic-cori-k7s2n0 && git reset --hard origin/…`
+   then verify head is `54a41cc` or later (see drift note below).
+2. **Apply `supabase/migrations/0100_admin_dashboard.sql`** (admin dashboard
+   backend: `is_admin`, `admin_overview`, `admin_trends`, `admin_top_titles`,
+   `admin_recent_activity` — all gated to founder uid
+   `c8a4e18e-7b5b-405d-bb74-6e1e79702f60`) via Supabase MCP `apply_migration`.
+3. **Apply `supabase/migrations/0101_recs_div0_guard.sql`** (floors the friend
+   taste-match weight so a 0% match can't divide-by-zero in `recs_for_user`).
+4. `python3 scripts/contract_check.py` → must print "All contracts hold."
+5. Confirm `ci.yml` is green on the head commit — this is also the **first real
+   compile check of the 2026-06-23 Swift changes** (no Xcode in the env).
+6. **Trigger the TestFlight build** (user already requested it): `testflight.yml`,
+   ref = branch, input `{"issuer_id":"a3b57c9b-0d83-45e8-a14e-8428b6efd788"}`.
+   Build = `1.0.<run_number>`. Report the number; watch to green.
+
+**⚠ Container drift (recurring this session):** the working tree silently reset
+to a ~180-commit-old ancestor (`ce9a894`) several times. The REMOTE branch is
+always authoritative and complete. Recovery: `git fetch origin <branch> &&
+git reset --hard origin/<branch>`. Untracked files survive a reset but were
+wiped by the drift itself once — if a just-written migration/file is missing,
+recreate it. ALWAYS commit+push immediately so nothing depends on local state.
+
+**Work shipped this session (committed/pushed, awaiting the build):**
+- **Tonight's Picks redesign:** source is now Want-to-Watch only, **led by
+  shows you're mid-binge on** ("Continue watching", `continue_watching_picks`
+  RPC / migration 0098); swipe LEFT = "not tonight" (no taste signal), swipe
+  RIGHT = open detail + auto-show Where to Watch; reliable zero-states
+  (`showMore` / `cleared` / `nothingTonight` / `emptyWatchlist`); `tonight_picks`
+  + `tonight_pick_for` made watchlist-only (migration 0097).
+- **Recs taste model v3** (`recs_for_user`, migration 0099): content+collab
+  hybrid — genre AND director affinity, mean-centered vs the user's baseline and
+  confidence-shrunk; **bookmarks count as positive taste, passes as negative**;
+  blend adapts to data volume (personal weight = n/(n+15)). 0101 patches a
+  divide-by-zero. (Per-title `predicted_scores` still on v2 — candidate for the
+  same upgrade.)
+- **Notifications:** tapping a user's name opens their profile (tinted
+  `cinimember://` link + openURL handler).
+- **Shareable taste profile:** `TasteProfileShareCard`/`Sheet` (ShareCards.swift)
+  + a "Share taste profile" button on the Taste tab.
+- **Admin dashboard:** `/admin/index.html` (Cini-branded), live at
+  **trycini.com/admin/** after Pages deploy. KPIs + 7/30/90-day trends + ratings
+  breakdown + top titles + recent activity. Uses ONLY the public anon key; every
+  aggregate is a `SECURITY DEFINER` RPC gated on `is_admin()`. Login = email/
+  password or phone OTP. NOTE: the literal subdomain `admin.trycini.com` needs a
+  DNS CNAME + a second Pages config (GitHub Pages serves one custom domain — the
+  apex); not done — shipped at `/admin/` instead.
+- **Two audit rounds** (5 agents each, run against the recovered tree): fixed
+  Ask-Cini follow-state misreport + hardened the consent gates (literal text,
+  no bare "list" substring, short-affirmation-only), CreateListTool exact-name
+  dedupe, FollowListScreen pending-request state, Tonight's-Picks zero-state &
+  suppression bugs, Top-5 share count, several copy/token/44pt/EmptyStateView
+  polish items (commits `560f176`, `54a41cc`).
+
 **STATUS (2026-06-15): live on the App Store, iterating on UX polish.**
 Migrations through **0061** applied to prod and mirrored in
 `supabase/migrations/` (latest: `0061_featured_engagement.sql`). Edge functions
