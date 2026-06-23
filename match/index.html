@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>Taste match — Cini</title>
+<meta property="og:title" content="What's our taste match? — Cini">
+<meta property="og:description" content="See how aligned two people's movie & TV taste is on Cini — and where you agree and clash.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<meta name="robots" content="noindex">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);--green:#3FB55A;}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(70% 40% at 50% 0%, rgba(232,182,76,.14), transparent 70%), var(--bg);padding:0 16px 60px;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:680px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);}
+  .getcini{font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;}
+  .form{display:flex;gap:8px;align-items:center;justify-content:center;margin:8px 0 8px;flex-wrap:wrap;}
+  .inp{display:flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--hair);border-radius:12px;padding:11px 12px;}
+  .inp span{color:var(--gray);} .inp input{background:none;border:none;outline:none;color:var(--ink);font:inherit;width:120px;}
+  .go{font-weight:700;padding:12px 18px;border-radius:12px;background:var(--marquee);color:var(--bg);border:none;font-family:inherit;cursor:pointer;}
+  .pair{display:flex;align-items:center;justify-content:center;gap:22px;margin:24px 0 6px;}
+  .who{text-align:center;} .who .av{width:64px;height:64px;border-radius:50%;object-fit:cover;background:var(--surface2);margin:0 auto 6px;display:flex;align-items:center;justify-content:center;font-family:"DM Serif Display",serif;font-size:24px;color:var(--marquee);}
+  .who .nm{font-weight:700;font-size:14px;} .who .hd{color:var(--gray);font-size:12px;}
+  .pct{font-family:"DM Serif Display",serif;font-size:64px;line-height:1;text-align:center;margin:6px 0;}
+  .pctlabel{text-align:center;color:var(--gray);font-size:14px;margin-bottom:24px;}
+  .seg{font-size:11px;letter-spacing:.2em;color:var(--gray);font-weight:800;margin:22px 0 12px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:14px 10px;}
+  .card .poster{width:100%;aspect-ratio:2/3;border-radius:9px;background:var(--surface2) center/cover no-repeat;box-shadow:0 5px 14px rgba(0,0,0,.35);}
+  .card .scores{display:flex;justify-content:center;gap:6px;font-size:12px;font-weight:800;margin-top:5px;}
+  .card .ptitle{font-size:11px;color:var(--gray);margin-top:3px;text-align:center;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;}
+  .msg{text-align:center;color:var(--gray);padding:48px 16px;font-size:15px;line-height:1.6;}
+  .foot{text-align:center;margin-top:34px;}
+  .foot a{font-weight:700;font-size:15px;padding:14px 26px;border-radius:999px;background:var(--velvet);color:#fff;display:inline-block;box-shadow:0 10px 26px rgba(168,53,42,.3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="wordmark" href="/">cini</a><a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a></div>
+  <div class="form">
+    <div class="inp"><span>@</span><input id="a" placeholder="username" autocapitalize="off" autocorrect="off"></div>
+    <div class="inp"><span>@</span><input id="b" placeholder="username" autocapitalize="off" autocorrect="off"></div>
+    <button class="go" id="go">Match</button>
+  </div>
+  <div id="content"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const APP_STORE = "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898";
+const $ = (id)=>document.getElementById(id);
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function poster(p){return p?`url("https://image.tmdb.org/t/p/w185${String(p).replace(/[^A-Za-z0-9/_.\-]/g,'')}")`:"none";}
+function safeUrl(u){return (typeof u==="string"&&/^https:\/\//i.test(u))?u:null;}
+function scoreColor(s){s=Number(s);return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A";}
+function clean(v){return (v||"").toLowerCase().replace(/[^a-z0-9_.]/g,"").slice(0,30);}
+function initials(n,h){const base=(n&&n.trim())||h||"";return base.trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("")||"•";}
+
+function whoBlock(u){
+  const w=el("div","who"); const av=safeUrl(u.avatar_url);
+  if(av){const i=el("img","av");i.src=av;i.alt="";w.appendChild(i);} else {const d=el("div","av",initials(u.display_name,u.username));w.appendChild(d);}
+  w.appendChild(el("div","nm", u.display_name || ("@"+u.username)));
+  w.appendChild(el("div","hd","@"+u.username));
+  return w;
+}
+function posterGrid(items){
+  const g=el("div","grid");
+  items.forEach(m=>{
+    const a=el("a","card"); a.href="/m/?id="+m.movie_id;
+    const p=el("div","poster"); p.style.backgroundImage=poster(m.poster_path); a.appendChild(p);
+    const sc=el("div","scores");
+    const sa=el("span",null,Number(m.score_a).toFixed(1)); sa.style.color=scoreColor(m.score_a);
+    const sb2=el("span",null,Number(m.score_b).toFixed(1)); sb2.style.color=scoreColor(m.score_b);
+    sc.appendChild(sa); sc.appendChild(el("span",null,"·")); sc.appendChild(sb2); a.appendChild(sc);
+    a.appendChild(el("div","ptitle", m.title||"")); g.appendChild(a);
+  });
+  return g;
+}
+
+async function run(){
+  const a=clean($("a").value), b=clean($("b").value);
+  if(a.length<3||b.length<3){ $("content").innerHTML='<div class="msg">Enter two Cini usernames to see their taste match.</div>'; return; }
+  history.replaceState(null,"","/match/?a="+a+"&b="+b);
+  $("content").innerHTML='<div class="msg">Calculating…</div>';
+  const { data } = await sb.rpc("public_taste_match", { p_a:a, p_b:b });
+  const c=$("content"); c.innerHTML="";
+  if(!data){ c.appendChild(el("div","msg","Couldn’t match those two — both need a public Cini profile.")); return; }
+
+  const pair=el("div","pair"); pair.appendChild(whoBlock(data.a));
+  pair.appendChild(el("div","pct","✕")); pair.appendChild(whoBlock(data.b)); c.appendChild(pair);
+
+  if(data.match_pct!=null){
+    const pct=el("div","pct", data.match_pct+"%"); pct.style.color=scoreColor(data.match_pct/10); c.appendChild(pct);
+    c.appendChild(el("div","pctlabel","taste match · "+data.shared_count+" titles in common"));
+  } else {
+    c.appendChild(el("div","pctlabel", "Not enough overlap yet — they share "+data.shared_count+" title"+(data.shared_count===1?"":"s")+" (need 3+ to score)."));
+  }
+
+  const shared = Array.isArray(data.shared)?data.shared:[];
+  const agree = shared.filter(m=>m.score_a>=7 && m.score_b>=7).slice(0,12);
+  const clash = shared.filter(m=>Math.abs(m.score_a-m.score_b)>=3)
+                      .sort((x,y)=>Math.abs(y.score_a-y.score_b)-Math.abs(x.score_a-x.score_b)).slice(0,8);
+  if(agree.length){ c.appendChild(el("div","seg","YOU BOTH LOVE")); c.appendChild(posterGrid(agree)); }
+  if(clash.length){ c.appendChild(el("div","seg","WHERE YOU CLASH")); c.appendChild(posterGrid(clash)); }
+
+  const foot=el("div","foot"); const link=el("a",null,"Find your match on Cini"); link.href=APP_STORE; foot.appendChild(link); c.appendChild(foot);
+}
+
+// Prefill from ?a=&b= and auto-run.
+const q=new URLSearchParams(location.search);
+if(q.get("a")) $("a").value=clean(q.get("a"));
+if(q.get("b")) $("b").value=clean(q.get("b"));
+$("go").onclick=run;
+$("a").addEventListener("keydown",e=>{if(e.key==="Enter")run();});
+$("b").addEventListener("keydown",e=>{if(e.key==="Enter")run();});
+if(q.get("a")&&q.get("b")) run();
+</script>
+</body>
+</html>

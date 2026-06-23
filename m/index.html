@@ -8,7 +8,6 @@
 <meta property="og:title" content="Ranked on Cini">
 <meta property="og:description" content="See how Cini members rank this — no star ratings, just taste, perfectly ordered.">
 <meta property="og:image" content="https://trycini.com/og.png">
-<meta name="robots" content="noindex">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>
@@ -43,6 +42,18 @@
   .primary{background:var(--velvet);color:#fff;box-shadow:0 10px 26px rgba(168,53,42,.32);}
   .ghost{background:none;border:1px solid var(--hair);color:var(--ink);}
   .pitch{text-align:center;color:var(--gray);font-size:13px;margin-top:14px;}
+  .seg{font-size:11px;letter-spacing:.2em;color:var(--gray);font-weight:800;margin:26px 0 12px;}
+  .rankers{display:flex;gap:14px;overflow-x:auto;padding-bottom:6px;}
+  .ranker{flex:none;width:56px;text-align:center;}
+  .rav{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--surface2);margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--marquee);}
+  .rsc{font-weight:800;font-size:13px;}
+  .rname{font-size:10.5px;color:var(--gray);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .note{border:1px solid var(--hair);border-radius:14px;padding:13px 15px;margin-bottom:10px;}
+  .notehead{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+  .nav{width:26px;height:26px;border-radius:50%;object-fit:cover;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--marquee);}
+  .nname{font-weight:700;font-size:13px;}
+  .nbody{font-size:14px;line-height:1.5;color:var(--ink);opacity:.92;}
+  .nbody.spoiler{filter:blur(6px);cursor:pointer;}
 </style>
 </head>
 <body>
@@ -67,6 +78,7 @@ const movieId = parseInt((new URLSearchParams(location.search).get('id') || '').
 function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
 function img(path, size){ return path ? `https://image.tmdb.org/t/p/${size}${String(path).replace(/[^A-Za-z0-9/_.\-]/g,'')}` : null; }
 function scoreColor(s){ s=Number(s); return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A"; }
+function safeUrl(u){ return (typeof u==="string" && /^https:\/\//i.test(u)) ? u : null; }
 function notFound(){ $("content").innerHTML=""; $("content").appendChild(el("div","msg","This title isn’t on Cini yet.")); }
 
 async function load(){
@@ -121,6 +133,43 @@ async function load(){
     c.appendChild(g);
   }
   if(t.overview) c.appendChild(el("div","overview", t.overview));
+
+  // Who (publicly) ranked it + public notes.
+  const { data: extra } = await sb.rpc("public_title_extras", { p_movie_id: movieId });
+  if(extra){
+    const rankers = Array.isArray(extra.rankers) ? extra.rankers : [];
+    if(rankers.length){
+      c.appendChild(el("div","seg","WHO RANKED IT"));
+      const rrow = el("div","rankers");
+      rankers.slice(0,20).forEach(p => {
+        const a = el("a","ranker"); a.href = "/u/?u=" + encodeURIComponent(p.username);
+        const av = safeUrl(p.avatar_url);
+        if(av){ const i=el("img","rav"); i.src=av; i.alt=""; a.appendChild(i); }
+        else { a.appendChild(el("div","rav",(p.display_name||p.username||"•").trim()[0].toUpperCase())); }
+        const sc = el("div","rsc", Number(p.score).toFixed(1)); sc.style.color = scoreColor(p.score); a.appendChild(sc);
+        a.appendChild(el("div","rname", (p.display_name ? p.display_name.split(" ")[0] : p.username) || ""));
+        rrow.appendChild(a);
+      });
+      c.appendChild(rrow);
+    }
+    const notes = Array.isArray(extra.notes) ? extra.notes : [];
+    if(notes.length){
+      c.appendChild(el("div","seg","NOTES"));
+      notes.slice(0,12).forEach(n => {
+        const card = el("div","note");
+        const head = el("a","notehead"); head.href = "/u/?u=" + encodeURIComponent(n.username);
+        const av = safeUrl(n.avatar_url);
+        if(av){ const i=el("img","nav"); i.src=av; i.alt=""; head.appendChild(i); }
+        else { head.appendChild(el("div","nav",(n.display_name||n.username||"•").trim()[0].toUpperCase())); }
+        head.appendChild(el("span","nname", n.display_name || ("@"+n.username)));
+        card.appendChild(head);
+        const body = el("div","nbody", n.body || "");
+        if(n.spoilers){ body.classList.add("spoiler"); body.title="Tap to reveal spoiler"; body.onclick=()=>body.classList.remove("spoiler"); }
+        card.appendChild(body);
+        c.appendChild(card);
+      });
+    }
+  }
 
   c.appendChild(el("div","divider"));
   const open = el("a","cta primary","Rank it in Cini"); open.href = "cini://movie?id="+movieId; c.appendChild(open);

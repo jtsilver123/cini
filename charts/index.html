@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>The best movies & TV, ranked — Cini</title>
+<meta name="description" content="The best movies and TV shows, ranked by real taste — no star ratings. Filter by genre and decade. Powered by Cini members' head-to-head rankings.">
+<link rel="canonical" href="https://trycini.com/charts/">
+<meta property="og:title" content="The best movies & TV, ranked — Cini">
+<meta property="og:description" content="Ranked by real taste, not star averages. Filter by genre and decade.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);--green:#3FB55A;}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(70% 38% at 50% 0%, rgba(232,182,76,.12), transparent 70%), var(--bg);padding:0 16px 60px;}
+  a{color:inherit;text-decoration:none;}
+  .wrap{max-width:760px;margin:0 auto;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 0 8px;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);line-height:1;}
+  .getcini{font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;}
+  h1{font-family:"DM Serif Display",Georgia,serif;font-weight:400;font-size:34px;line-height:1.1;margin:18px 0 4px;}
+  .lede{color:var(--gray);font-size:15px;line-height:1.5;margin-bottom:18px;}
+  .filters{display:flex;flex-direction:column;gap:10px;margin-bottom:8px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;}
+  .chip{font-size:13px;color:var(--gray);border:1px solid var(--hair);border-radius:999px;padding:7px 13px;cursor:pointer;background:none;font-family:inherit;}
+  .chip.on{color:var(--bg);background:var(--marquee);border-color:var(--marquee);font-weight:700;}
+  .divider{height:1px;background:var(--hair);margin:18px 0;}
+  .rowitem{display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--hair);}
+  .rank{font-family:"DM Serif Display",serif;font-size:22px;color:var(--gray);width:30px;text-align:right;flex:none;}
+  .poster{width:46px;flex:none;aspect-ratio:2/3;border-radius:7px;background:var(--surface2) center/cover no-repeat;}
+  .info{flex:1;min-width:0;}
+  .t{font-weight:700;font-size:15px;line-height:1.2;}
+  .sub{color:var(--gray);font-size:12.5px;margin-top:3px;}
+  .sc{font-family:"DM Serif Display",serif;font-size:22px;flex:none;}
+  .scn{font-size:11px;color:var(--gray);text-align:right;}
+  .msg{text-align:center;color:var(--gray);padding:52px 16px;font-size:15px;}
+  .foot{text-align:center;margin-top:34px;}
+  .foot a{font-weight:700;font-size:15px;padding:14px 26px;border-radius:999px;background:var(--velvet);color:#fff;display:inline-block;box-shadow:0 10px 26px rgba(168,53,42,.3);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar"><a class="wordmark" href="/">cini</a><a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a></div>
+  <h1 id="heading">The best, ranked</h1>
+  <div class="lede">Ranked by real taste — head-to-head, no star ratings. The community score is shrunk toward the mean so a single rave can't top a long-loved favorite.</div>
+  <div class="filters">
+    <div class="row" id="kindRow"></div>
+    <div class="row" id="genreRow"></div>
+    <div class="row" id="decadeRow"></div>
+  </div>
+  <div class="divider"></div>
+  <div id="list"><div class="msg">Loading…</div></div>
+  <div class="foot"><a href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Rank your own on Cini</a></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const $ = (id) => document.getElementById(id);
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+function poster(p){return p?`url("https://image.tmdb.org/t/p/w185${String(p).replace(/[^A-Za-z0-9/_.\-]/g,'')}")`:"none";}
+function scoreColor(s){s=Number(s);return s>=8.5?"#3FB55A":s>=7?"#E8B64C":s>=5?"#C9A24B":"#A8352A";}
+
+let kind=null, genre=null, decade=null;
+const KINDS=[["All",null],["Movies","movie"],["TV","tv"]];
+const GENRES=[["All genres",null],["Action",null],["Comedy",null],["Drama",null],["Thriller",null],["Science Fiction",null],["Horror",null],["Romance",null],["Animation",null],["Documentary",null]];
+const DECADES=[["All time",null],["2020s",2020],["2010s",2010],["2000s",2000],["1990s",1990],["1980s",1980]];
+
+function buildChips(rowId, opts, get, set){
+  const row=$(rowId); row.innerHTML="";
+  opts.forEach(([label,val])=>{
+    const b=el("button","chip",label);
+    if(get()===val || (val===null && get()===null && label.startsWith("All"))) {}
+    if(get()===val) b.classList.add("on");
+    b.onclick=()=>{ set(val); render(); load(); };
+    row.appendChild(b);
+  });
+}
+function render(){
+  buildChips("kindRow", KINDS, ()=>kind, v=>kind=v);
+  buildChips("genreRow", GENRES.map(([l])=>[l, l==="All genres"?null:l]), ()=>genre, v=>genre=v);
+  buildChips("decadeRow", DECADES, ()=>decade, v=>decade=v);
+  const parts=[]; if(decade) parts.push(decade+"s"); if(genre) parts.push(genre);
+  const noun = kind==="movie"?"movies":kind==="tv"?"shows":"movies & TV";
+  $("heading").textContent = "The best " + (parts.length?parts.join(" "):"") + " " + noun;
+  document.title = $("heading").textContent + " — Cini";
+}
+async function load(){
+  $("list").innerHTML='<div class="msg">Loading…</div>';
+  const { data } = await sb.rpc("public_charts", { p_media_kind: kind, p_genre: genre, p_decade: decade, p_limit: 50 });
+  const rows = Array.isArray(data)?data:[];
+  const c=$("list"); c.innerHTML="";
+  if(!rows.length){ c.appendChild(el("div","msg","Nothing ranked here yet — be the first in the app.")); return; }
+  rows.forEach((m,i)=>{
+    const a=el("a","rowitem"); a.href="/m/?id="+m.movie_id;
+    a.appendChild(el("div","rank", String(i+1)));
+    const p=el("div","poster"); p.style.backgroundImage=poster(m.poster_path); a.appendChild(p);
+    const info=el("div","info");
+    info.appendChild(el("div","t", m.title||""));
+    info.appendChild(el("div","sub", [m.release_year, m.media_kind==="tv"?"TV":"Film"].filter(Boolean).join(" · ")));
+    a.appendChild(info);
+    const sw=el("div");
+    const sc=el("div","sc", Number(m.avg).toFixed(1)); sc.style.color=scoreColor(m.avg); sw.appendChild(sc);
+    sw.appendChild(el("div","scn", m.count + (m.count===1?" rank":" ranks")));
+    a.appendChild(sw);
+    c.appendChild(a);
+  });
+}
+render(); load();
+</script>
+</body>
+</html>

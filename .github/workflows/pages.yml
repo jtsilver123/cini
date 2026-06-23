@@ -61,10 +61,18 @@ jobs:
           cp u/index.html _site/u/index.html
           cp favicon.png _site/u/favicon.png
           # Public title page served from /m/?id=<tmdb_id> (TMDB metadata + Cini
-          # community score via the anon public_title RPC).
+          # community score + who-ranked-it + notes via the anon public_* RPCs).
           mkdir -p _site/m
           cp m/index.html _site/m/index.html
           cp favicon.png _site/m/favicon.png
+          # Charts / best-of (ranked by community score; filterable) — indexable.
+          mkdir -p _site/charts
+          cp charts/index.html _site/charts/index.html
+          cp favicon.png _site/charts/favicon.png
+          # Public taste-match page served from /match/?a=&b=.
+          mkdir -p _site/match
+          cp match/index.html _site/match/index.html
+          cp favicon.png _site/match/favicon.png
           # Apple App Site Association — lets iOS open invite/list links
           # (/i/*, /l/*) straight in the app via Universal Links. Served from
           # /.well-known/ with no file extension over https.
