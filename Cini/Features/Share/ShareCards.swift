@@ -194,6 +194,144 @@ struct TasteMatchShareCard: View {
     }
 }
 
+// MARK: - Taste profile card
+
+/// A shareable snapshot of someone's taste: their one-line headline, the
+/// liked/fine/disliked split, top genres, and a couple of flourishes (favorite
+/// decade, titles ranked). Same cinema-ticket chrome as the other cards.
+struct TasteProfileShareCard: View {
+    let name: String
+    let handle: String
+    let avatar: UIImage?
+    let headline: String?
+    let genres: [(name: String, share: Double)]
+    let loved: Int
+    let fine: Int
+    let disliked: Int
+    let favoriteDecade: Int?
+    let totalRanked: Int
+    var width: CGFloat = 360
+
+    var body: some View {
+        VStack(spacing: 14) {
+            header
+            Text("TASTE PROFILE")
+                .font(Theme.display(22))
+                .foregroundStyle(Theme.marquee)
+                .tracking(1)
+
+            if let headline {
+                Text(headline)
+                    .font(Theme.serif(18))
+                    .foregroundStyle(Theme.ink)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 0) {
+                sentiment(loved, Theme.sentimentLoved, "Liked")
+                sentiment(fine, Theme.sentimentFine, "Fine")
+                sentiment(disliked, Theme.sentimentDisliked, "Disliked")
+            }
+
+            if !genres.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(genres, id: \.name) { genreBar($0) }
+                }
+            }
+
+            if favoriteDecade != nil || totalRanked > 0 {
+                HStack(spacing: 10) {
+                    if let favoriteDecade { chip("film", "Lives in the \(favoriteDecade)s") }
+                    if totalRanked > 0 { chip("star.fill", "\(totalRanked) ranked") }
+                }
+            }
+
+            footer
+        }
+        .padding(24)
+        .frame(width: width)
+        .background(Theme.surface)
+    }
+
+    private var header: some View {
+        HStack(spacing: 9) {
+            Group {
+                if let avatar {
+                    Image(uiImage: avatar).resizable().scaledToFill()
+                } else {
+                    Circle().fill(Theme.marqueeSoft)
+                        .overlay(Text(initials(name)).font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(Theme.marquee))
+                }
+            }
+            .frame(width: 38, height: 38)
+            .clipShape(Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name).font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink).lineLimit(1)
+                Text("@\(handle)").font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Text("CINI").font(.system(size: 12, weight: .heavy)).tracking(3).foregroundStyle(Theme.marquee)
+        }
+    }
+
+    private func sentiment(_ count: Int, _ color: Color, _ label: String) -> some View {
+        VStack(spacing: 5) {
+            ZStack {
+                Circle().fill(color.opacity(0.9)).frame(width: 40, height: 40)
+                Text("\(count)").font(.system(size: 16, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(Theme.gray)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func genreBar(_ g: (name: String, share: Double)) -> some View {
+        HStack(spacing: 10) {
+            Text(g.name)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+                .frame(width: 92, alignment: .leading)
+                .lineLimit(1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Theme.fill).frame(width: 140, height: 8)
+                Capsule().fill(Theme.gold).frame(width: max(8, 140 * g.share), height: 8)
+            }
+            Text("\(Int(g.share * 100))%")
+                .font(.caption).foregroundStyle(Theme.gray)
+                .frame(width: 34, alignment: .trailing)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func chip(_ icon: String, _ text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.caption2)
+            Text(text).font(.caption.weight(.semibold))
+        }
+        .foregroundStyle(Theme.marquee)
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .background(Capsule().fill(Theme.marqueeSoft))
+    }
+
+    private var footer: some View {
+        VStack(spacing: 8) {
+            Line()
+                .stroke(style: StrokeStyle(lineWidth: 1.5, dash: [5, 5]))
+                .foregroundStyle(Theme.hairline)
+                .frame(height: 1)
+            HStack {
+                Text("ADMIT ONE · CINI")
+                    .font(.system(size: 10, weight: .bold)).tracking(3).foregroundStyle(Theme.gray)
+                Spacer()
+                Text(ciniSiteLine).font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.gray)
+            }
+        }
+    }
+}
+
 private func initials(_ name: String) -> String {
     name.split(separator: " ").prefix(2).compactMap { $0.first.map(String.init) }.joined().uppercased()
 }
@@ -340,6 +478,64 @@ struct TasteMatchShareSheet: View {
             viewerName: viewerName, viewerAvatar: viewerAvatar,
             memberName: memberName, memberHandle: memberHandle, memberAvatar: memberAvatar,
             matchPct: matchPct)
+        shareImage = renderCard(card)
+    }
+}
+
+/// "Share taste profile" — renders the taste snapshot card and offers it up.
+struct TasteProfileShareSheet: View {
+    let name: String
+    let handle: String
+    let avatarURL: URL?
+    let headline: String?
+    let genres: [(name: String, share: Double)]
+    let loved: Int
+    let fine: Int
+    let disliked: Int
+    let favoriteDecade: Int?
+    let totalRanked: Int
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var shareImage: Image?
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                if let shareImage {
+                    shareImage
+                        .resizable().scaledToFit()
+                        .frame(maxHeight: 460)
+                        .shadow(color: Theme.cardShadow, radius: 12, y: 6)
+                    ShareLink(item: shareImage,
+                              preview: SharePreview("My taste profile on Cini", image: shareImage)) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(.headline).foregroundStyle(.white)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(Capsule().fill(Theme.velvet))
+                    }
+                    .padding(.horizontal)
+                } else {
+                    Spacer(); ProgressView(); Spacer()
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 16)
+            .background(Theme.background)
+            .navigationTitle("Share your taste")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .task { await render() }
+        }
+    }
+
+    @MainActor
+    private func render() async {
+        let avatar = await fetchImage(avatarURL)
+        let card = TasteProfileShareCard(
+            name: name.isEmpty ? "—" : name, handle: handle, avatar: avatar,
+            headline: headline, genres: genres,
+            loved: loved, fine: fine, disliked: disliked,
+            favoriteDecade: favoriteDecade, totalRanked: totalRanked)
         shareImage = renderCard(card)
     }
 }

@@ -82,6 +82,7 @@ struct ProfileScreen: View {
     @State private var showLogoutConfirm = false
     @State private var showTop5Share = false
     @State private var showMatchShare = false
+    @State private var showTasteShare = false
 
     private var isSelf: Bool { userID == nil || userID == session.profile?.id }
     private var resolvedID: UUID? { userID ?? session.profile?.id }
@@ -208,6 +209,17 @@ struct ProfileScreen: View {
                     memberAvatarURL: profile?.avatarURL,
                     matchPct: Int(pct))
             }
+        }
+        .sheet(isPresented: $showTasteShare) {
+            TasteProfileShareSheet(
+                name: firstName(profile?.displayName, profile?.username) ?? "",
+                handle: profile?.username ?? "",
+                avatarURL: profile?.avatarURL,
+                headline: taste.headline,
+                genres: taste.topGenres,
+                loved: taste.lovedCount, fine: taste.fineCount, disliked: taste.dislikedCount,
+                favoriteDecade: taste.favoriteDecade,
+                totalRanked: rankings.count)
         }
         .onAppear {
             // Show last-known counts instantly (no flash of 0), then refresh.
@@ -1208,6 +1220,22 @@ struct ProfileScreen: View {
                     }
                     .foregroundStyle(Theme.marquee)
                 }
+
+                // Turn the taste profile into a cute, shareable card.
+                Button {
+                    Haptics.tap()
+                    showTasteShare = true
+                } label: {
+                    Label(isSelf ? "Share my taste profile" : "Share this taste profile",
+                          systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.velvet)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .background(Capsule().fill(Theme.velvet.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
             .padding(.vertical, 16)
         }
