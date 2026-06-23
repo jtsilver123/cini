@@ -110,6 +110,12 @@ struct FeedView: View {
             // based, so crossing the threshold (e.g. ranking during onboarding)
             // should reveal Tonight's Pick without waiting for a relaunch.
             .task(id: store.watchedCount) { await loadTonightStack() }
+            // A new bookmark feeds Tonight's Picks. loadTonightStack is lazy
+            // (rebuilds only when the deck is empty unless forced) and bails on a
+            // cleared/suppressed deck — so saving a title while a zero-state shows
+            // surfaces a fresh pick, without churning an already-built deck or
+            // overriding an "I'm done tonight" clear.
+            .task(id: store.watchlistCount) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
             // The notifications re-ask needs the profile (memberSince), which
             // loads slightly after the store — re-run once it's known. (The
