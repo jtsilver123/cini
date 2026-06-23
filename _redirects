@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects. Consolidate the old static review URLs onto the
+# canonical, server-rendered /title/<slug> page (one URL per title for SEO).
+/reviews/:slug/  /title/:slug  301
+/reviews/:slug   /title/:slug  301

@@ -215,6 +215,7 @@ RPCS = [
     # A nil UUID resolves to no list → null (200): exercises the signature/grant.
     ("public_list", {"p_list_id": "00000000-0000-0000-0000-000000000000"}),
     ("public_title", {"p_movie_id": 13}),
+    ("public_title_by_slug", {"p_slug": "the-godfather-1972"}),
     ("public_charts", {"p_media_kind": None, "p_genre": None, "p_decade": None, "p_limit": 10}),
     ("public_taste_match", {"p_a": "appreviewer", "p_b": "jtsilver123"}),
     ("public_title_extras", {"p_movie_id": 13}),

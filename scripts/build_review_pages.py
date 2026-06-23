@@ -383,9 +383,12 @@ def index_html(movies):
 
 def sitemap(movies):
     urls = [(SITE + "/", "1.0"), (SITE + "/reviews/", "0.8"),
+            (SITE + "/charts/", "0.9"), (SITE + "/search/", "0.6"),
             (SITE + "/import/", "0.5"), (SITE + "/privacy.html", "0.3"),
             (SITE + "/terms.html", "0.3")]
-    urls += [(f"{SITE}/reviews/{m['slug']}/", "0.7") for m in movies]
+    # Canonical title URL is the server-rendered /title/<slug> (migration 0106 +
+    # functions/title); the old /reviews/<slug>/ 301-redirect there.
+    urls += [(f"{SITE}/title/{m['slug']}", "0.7") for m in movies]
     rows = "\n".join(
         f"  <url><loc>{u}</loc><lastmod>{TODAY}</lastmod>"
         f"<priority>{p}</priority></url>" for u, p in urls)

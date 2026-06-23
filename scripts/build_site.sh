@@ -29,5 +29,8 @@ mkdir -p _site/search   && cp search/index.html _site/search/index.html && cp fa
 
 mkdir -p _site/.well-known && cp .well-known/apple-app-site-association _site/.well-known/apple-app-site-association
 cp -R reviews _site/reviews
+# Cloudflare redirects (old /reviews/<slug>/ → canonical /title/<slug>). The
+# /title pages themselves are served by functions/title/[slug].ts.
+cp _redirects _site/_redirects
 
 echo "Built _site/ ($(find _site -type f | wc -l | tr -d ' ') files)"
