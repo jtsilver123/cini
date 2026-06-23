@@ -1,4 +1,28 @@
-# Cloudflare Pages redirects. Consolidate the old static review URLs onto the
-# canonical, server-rendered /title/<slug> page (one URL per title for SEO).
-/reviews/:slug/  /title/:slug  301
-/reviews/:slug   /title/:slug  301
+# Cloudflare Pages redirects. Only review titles that exist in Cini's
+# catalog (have a live /title page) redirect there; review-only titles
+# keep their static /reviews page. Regenerate via scripts (see below).
+/reviews/12-angry-men-1957/  /title/12-angry-men-1957  301
+/reviews/attack-on-titan-2013/  /title/attack-on-titan-2013  301
+/reviews/avatar-the-last-airbender-2005/  /title/avatar-the-last-airbender-2005  301
+/reviews/chainsaw-man-the-movie-reze-arc-2025/  /title/chainsaw-man-the-movie-reze-arc-2025  301
+/reviews/fight-club-1999/  /title/fight-club-1999  301
+/reviews/forrest-gump-1994/  /title/forrest-gump-1994  301
+/reviews/interstellar-2014/  /title/interstellar-2014  301
+/reviews/michael-2026/  /title/michael-2026  301
+/reviews/off-campus-2026/  /title/off-campus-2026  301
+/reviews/parasite-2019/  /title/parasite-2019  301
+/reviews/project-hail-mary-2026/  /title/project-hail-mary-2026  301
+/reviews/pulp-fiction-1994/  /title/pulp-fiction-1994  301
+/reviews/remarkably-bright-creatures-2026/  /title/remarkably-bright-creatures-2026  301
+/reviews/schindler-s-list-1993/  /title/schindler-s-list-1993  301
+/reviews/spider-man-into-the-spider-verse-2018/  /title/spider-man-into-the-spider-verse-2018  301
+/reviews/spirited-away-2001/  /title/spirited-away-2001  301
+/reviews/swapped-2026/  /title/swapped-2026  301
+/reviews/teach-you-a-lesson-2026/  /title/teach-you-a-lesson-2026  301
+/reviews/the-dark-knight-2008/  /title/the-dark-knight-2008  301
+/reviews/the-godfather-1972/  /title/the-godfather-1972  301
+/reviews/the-godfather-part-ii-1974/  /title/the-godfather-part-ii-1974  301
+/reviews/the-lord-of-the-rings-the-fellowship-of-the-ring-2001/  /title/the-lord-of-the-rings-the-fellowship-of-the-ring-2001  301
+/reviews/the-lord-of-the-rings-the-return-of-the-king-2003/  /title/the-lord-of-the-rings-the-return-of-the-king-2003  301
+/reviews/the-lord-of-the-rings-the-two-towers-2002/  /title/the-lord-of-the-rings-the-two-towers-2002  301
+/reviews/the-shawshank-redemption-1994/  /title/the-shawshank-redemption-1994  301

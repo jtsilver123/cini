@@ -386,9 +386,10 @@ def sitemap(movies):
             (SITE + "/charts/", "0.9"), (SITE + "/search/", "0.6"),
             (SITE + "/import/", "0.5"), (SITE + "/privacy.html", "0.3"),
             (SITE + "/terms.html", "0.3")]
-    # Canonical title URL is the server-rendered /title/<slug> (migration 0106 +
-    # functions/title); the old /reviews/<slug>/ 301-redirect there.
-    urls += [(f"{SITE}/title/{m['slug']}", "0.7") for m in movies]
+    # Titles list their static /reviews page; the ones also in Cini's catalog
+    # 301 to the canonical /title/<slug> (see _redirects). A regen lists /reviews
+    # for all — the in-catalog ones still redirect, which Google follows.
+    urls += [(f"{SITE}/reviews/{m['slug']}/", "0.7") for m in movies]
     rows = "\n".join(
         f"  <url><loc>{u}</loc><lastmod>{TODAY}</lastmod>"
         f"<priority>{p}</priority></url>" for u, p in urls)
