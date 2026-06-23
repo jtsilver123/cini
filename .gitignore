@@ -16,3 +16,7 @@ Package.resolved
 # macOS
 .DS_Store
 Cini.xcodeproj/
+
+# Assembled web root (Cloudflare/GitHub Pages build output) + Functions deps
+_site/
+node_modules/
