@@ -1528,13 +1528,6 @@ final class SupabaseService {
         catch { Self.logSwallowed("unpass_rec", error) }
     }
 
-    /// The day's single "watch this tonight" pick for the signed-in user, or
-    /// nil if there's nothing to recommend yet (brand-new account).
-    func tonightPick() async throws -> TonightPickRow? {
-        let rows: [TonightPickRow] = try await client.rpc("tonight_pick").execute().value
-        return rows.first
-    }
-
     /// Several Tonight's Pick candidates, so the app can keep the streamable
     /// ones for the 3-card stack.
     func tonightPicks(limit: Int = 8) async throws -> [TonightPickRow] {

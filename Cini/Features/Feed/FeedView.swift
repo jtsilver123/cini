@@ -47,6 +47,11 @@ struct FeedView: View {
     /// Set once a "Show more" pull turns up nothing — there's no more to surface
     /// from Want to Watch right now, so the zero-state points to Recs instead.
     @State private var tonightExhausted = false
+    /// Whether the deck has shown at least one card this session — distinguishes
+    /// "you swiped through them" from "nothing was ever surfaceable tonight."
+    @State private var tonightEverHadCards = false
+    /// Guards against overlapping loads (several `.task`/refresh triggers fire it).
+    @State private var tonightLoading = false
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
     @AppStorage("tonight.dismissed.date") private var tonightDismissedDate = ""
     @AppStorage("tonight.dismissed.ids") private var tonightDismissedIDs = ""
@@ -150,6 +155,12 @@ struct FeedView: View {
             }
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie, autoShowWhereToWatch: detailAutoWatch)
+            }
+            // The auto-open-Where-to-Watch intent belongs to one swipe-right open
+            // only. Clear it when the detail closes so a later tap (a feed row,
+            // a poster) doesn't inherit it and pop the sheet unexpectedly.
+            .onChange(of: detailMovie) { _, new in
+                if new == nil { detailAutoWatch = false }
             }
             .navigationDestination(item: $memberTarget) { member in
                 MemberProfileView(userID: member.id, username: member.username)
@@ -621,17 +632,24 @@ struct FeedView: View {
                 .zIndex(1)
             } else if tonightUnlocked, tonightLoaded {
                 // Unlocked, finished loading, but no card to show — always land on
-                // a zero-state (the deck should never just silently vanish):
-                //  • nothing saved at all → point to Recs;
-                //  • saved titles still to surface → a "Show more" button;
-                //  • been through everything for now → point to Recs.
+                // a zero-state (the deck should never just silently vanish). Pick
+                // the HONEST one based on why it's empty:
                 if store.watchlistCount == 0 {
+                    // Nothing saved at all.
                     TonightEmptyState(.emptyWatchlist) { tabRouter.selection = .swipe }
                         .padding(.top, 2)
+                } else if !tonightEverHadCards {
+                    // Has saved titles but none surfaced this session (all ranked,
+                    // or none on a streaming service) — don't claim they swiped
+                    // through picks they never saw.
+                    TonightEmptyState(.nothingTonight) { tabRouter.selection = .swipe }
+                        .padding(.top, 2)
                 } else if tonightExhausted {
+                    // Genuinely went through everything available for now.
                     TonightEmptyState(.cleared) { tabRouter.selection = .swipe }
                         .padding(.top, 2)
                 } else {
+                    // Swiped through the shown deck; more may be waiting.
                     TonightEmptyState(.showMore,
                                       onSwipe: { tabRouter.selection = .swipe },
                                       onShowMore: { Task { await showMoreTonight() } })
@@ -878,6 +896,12 @@ struct FeedView: View {
     }
 
     private func loadTonightStack(force: Bool = false) async {
+        // One load at a time — several triggers (store load, watched-count change,
+        // pull-to-refresh, Show more) can fire this; overlapping runs race at the
+        // awaits and flash. A second caller just bails.
+        guard !tonightLoading else { return }
+        tonightLoading = true
+        defer { tonightLoading = false }
         // Held back until there's enough taste signal (see tonightUnlocked) —
         // no Tonight's Pick section until a few titles are ranked.
         guard tonightUnlocked else { tonightCards = []; tonightLoaded = true; return }
@@ -946,8 +970,9 @@ struct FeedView: View {
 
         tonightCards = cards
         tonightLoaded = true
-        // Got cards → we're not exhausted (e.g. a new day, or a pull-to-refresh).
-        if !cards.isEmpty { tonightExhausted = false }
+        // Got cards → we're not exhausted (e.g. a new day, or a pull-to-refresh),
+        // and we've now shown at least one card this session.
+        if !cards.isEmpty { tonightExhausted = false; tonightEverHadCards = true }
     }
 
     /// "Show more" on the cleared deck: lift today's 24h hold and rebuild from the

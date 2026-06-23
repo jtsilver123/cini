@@ -362,6 +362,10 @@ struct TonightEmptyState: View {
         case cleared
         /// Nothing saved to Want to Watch yet → point to Recs to find something.
         case emptyWatchlist
+        /// Saved titles exist, but none are streamable / surfaceable tonight (so
+        /// no card ever showed) → an honest nudge to Recs, not a "you've been
+        /// through them" message.
+        case nothingTonight
     }
 
     var kind: Kind = .cleared
@@ -410,6 +414,7 @@ struct TonightEmptyState: View {
         case .showMore:       return "rectangle.stack.badge.plus"
         case .cleared:        return "sparkles"
         case .emptyWatchlist: return "popcorn.fill"
+        case .nothingTonight: return "popcorn.fill"
         }
     }
 
@@ -418,6 +423,7 @@ struct TonightEmptyState: View {
         case .showMore:       return "More on your list"
         case .cleared:        return "That's a wrap on tonight's picks 🎬"
         case .emptyWatchlist: return "Nothing on your Want to Watch yet 🍿"
+        case .nothingTonight: return "Nothing to stream tonight 🍿"
         }
     }
 
@@ -429,6 +435,8 @@ struct TonightEmptyState: View {
             return "Fresh picks land tomorrow. Want more right now? Recs has a whole deck waiting."
         case .emptyWatchlist:
             return "Tonight's picks come from your Want to Watch list. Find something you're excited about in Recs."
+        case .nothingTonight:
+            return "We couldn't find your saved titles on a streaming service right now. Browse Recs for something to watch tonight."
         }
     }
 
@@ -437,6 +445,7 @@ struct TonightEmptyState: View {
         case .showMore:       return "Show more"   // unused (showMore renders its own buttons)
         case .cleared:        return "Find more in Recs"
         case .emptyWatchlist: return "Find something in Recs"
+        case .nothingTonight: return "Find something in Recs"
         }
     }
 }

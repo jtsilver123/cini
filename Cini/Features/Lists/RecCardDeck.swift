@@ -319,61 +319,49 @@ struct RecCardDeck: View {
         onRank(c.movie)
     }
 
-    /// A tapped Pass/Bookmark button. Unlike a swipe (where the finger drags the
-    /// stamp in), a tap has no travel — so first roll the on-card stamp up to the
-    /// action threshold (and swell the matching button in lockstep), hold a beat,
-    /// then let the card fly off. Makes the button feel like the swipe it mirrors.
-    private func tapAct(save: Bool) {
-        guard !advancing, index < items.count else { return }
-        advancing = true                 // block a second tap during the pre-roll
-        Haptics.tap()
-        withAnimation(.snappy) { drag.width = save ? 120 : -120 }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(220))
-            advancing = false            // act() re-claims the lock
-            act(save: save, haptic: false)
-        }
-    }
+    /// A tapped Pass/Bookmark button — same outcome as a swipe, but a tap has no
+    /// travel, so `act` pre-rolls the on-card stamp up to the threshold first.
+    private func tapAct(save: Bool) { act(save: save, preRoll: true) }
 
-    private func act(save: Bool, haptic: Bool = true) {
-        // Ignore a second swipe while the current card is still flying off —
-        // otherwise a quick double-swipe acts on the same card twice and flickers.
+    /// Commit the top card. `preRoll` rolls the stamp in first (for taps); a
+    /// swipe already dragged it there. The whole sequence runs in ONE Task that
+    /// releases `advancing` exactly once at the end, so a cancelled sleep can't
+    /// strand the lock and freeze the deck.
+    private func act(save: Bool, preRoll: Bool = false) {
+        // Ignore a second action while the current card is still resolving —
+        // otherwise a quick double-tap/swipe acts on the same card twice.
         guard !advancing, index < items.count else { return }
         advancing = true
-        if haptic { Haptics.tap() }
+        Haptics.tap()
         let item = items[index]
         if case .rec(let c) = item {
-            if save {
-                // The card flying off to the right is the confirmation —
-                // no toast, so a fast swipe streak isn't interrupted.
-                onSave(c.movie)
-            } else {
-                onPass(c.movie)
-            }
+            // The card flying off is the confirmation — no toast, so a fast
+            // streak isn't interrupted.
+            if save { onSave(c.movie) } else { onPass(c.movie) }
             history.append((index, c.movie, save))
         } else {
             history.append((index, nil, save))
             // Past the last demo → don't show them again next time.
             if index + 1 >= demos.count { demoSeen = true }
         }
-        // Fly the card off from where the finger left it, and ease drag.width
-        // back to zero in the same animation. Because the card's x-offset is
-        // drag.width + flyOff, moving the offset into flyOff while easing
-        // drag.width to zero leaves the fly-off path (and rotation) mathematically
-        // identical — only the control buttons, which read drag.width, change:
-        // they now relax to size with the departing card instead of snapping when
-        // the next card jump-cuts in. drag.height is left untouched so the card's
-        // vertical behavior is exactly as before.
-        withAnimation(.easeIn(duration: 0.28)) {
-            flyOff = drag.width + (save ? 700 : -700)
-            drag.width = 0
-        }
-        // Advance once the card has flown off. Reset position WITHOUT animation
-        // (and in the same transaction as the index bump) so the next card just
-        // appears at center instead of sliding back in from off-screen. `drag` is
-        // already zero by now, so the buttons don't move here.
         Task { @MainActor in
+            // Tap: build the stamp + swell the matching button, then hold a beat.
+            if preRoll {
+                withAnimation(.snappy) { drag.width = save ? 120 : -120 }
+                try? await Task.sleep(for: .milliseconds(220))
+            }
+            // Fly the card off from where it sits, easing drag.width back to zero
+            // in the same animation. The card's x-offset is drag.width + flyOff,
+            // so moving the offset into flyOff while drag.width eases to zero
+            // leaves the fly path identical — only the control buttons (which read
+            // drag.width) relax to size with the departing card.
+            withAnimation(.easeIn(duration: 0.28)) {
+                flyOff = drag.width + (save ? 700 : -700)
+                drag.width = 0
+            }
             try? await Task.sleep(for: .milliseconds(300))
+            // Advance + reset position WITHOUT animation (same transaction as the
+            // index bump) so the next card appears at center, not sliding in.
             var t = Transaction(); t.disablesAnimations = true
             withTransaction(t) {
                 index += 1
