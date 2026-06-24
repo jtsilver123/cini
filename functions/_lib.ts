@@ -117,7 +117,7 @@ a{color:inherit;text-decoration:none;}
 .scorenum{font-family:"DM Serif Display",serif;font-size:48px;line-height:1;text-shadow:0 2px 18px rgba(232,182,76,.18);}
 .msg{text-align:center;color:var(--gray);padding:64px 16px;font-size:16px;line-height:1.6;}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
-@media (max-width:560px){.head{gap:14px;}.avatar{width:72px;height:72px;font-size:28px;}.grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));}}
+@media (max-width:560px){.head{gap:14px;}.avatar{width:72px;height:72px;font-size:28px;}.grid{grid-template-columns:repeat(auto-fill,minmax(88px,1fr));}.score .scorenum{font-size:42px;}.foot a{display:block;max-width:340px;margin:0 auto;}.stats{gap:8px;}.stat{padding:9px 13px;}}
 `;
 
 /** Render the shared HTML shell with full per-page <head> meta. */

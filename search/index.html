@@ -50,6 +50,11 @@
   .getcini{transition:transform .15s ease,filter .15s ease;}
   .getcini:hover{transform:translateY(-1px);filter:brightness(1.05);}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
+  @media (max-width:560px){
+    .searchbar input{font-size:16px;}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));}
+    .person{padding:12px 0;}
+  }
 </style>
 </head>
 <body>

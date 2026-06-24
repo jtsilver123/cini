@@ -51,6 +51,14 @@
   .getcini{transition:transform .15s ease,filter .15s ease;}
   .getcini:hover{transform:translateY(-1px);filter:brightness(1.05);}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;}}
+  @media (max-width:560px){
+    .form{gap:8px;}
+    .inp{flex:1;min-width:0;}
+    .inp input{width:100%;font-size:16px;}
+    .go{padding:13px 18px;}
+    .pct{font-size:54px;}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(78px,1fr));}
+  }
 </style>
 </head>
 <body>
