@@ -471,6 +471,15 @@ struct YourListsView: View {
     }
 
     /// Direct recommendations friends sent you — all of them live here, as a
+    /// Friend recs scoped to the active category — a TV rec must not show under
+    /// Movies (and vice versa), matching every other sub-tab.
+    private var filteredDirectRecs: [DirectRecRow] {
+        directRecs.filter { rec in
+            guard let movie = rec.movies?.asMovie else { return false }
+            return category.matches(movie)
+        }
+    }
+
     /// list (the swipe-card view lives on the Swipe tab now).
     private var friendRecsList: some View {
         friendRecsAsList
@@ -497,7 +506,7 @@ struct YourListsView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Theme.background)
             }
-            if directRecs.isEmpty && directRecsLoaded {
+            if filteredDirectRecs.isEmpty && directRecsLoaded {
                 VStack(spacing: 10) {
                     Image(systemName: "paperplane").font(.title).foregroundStyle(Theme.gray)
                     Text("No picks from friends yet")
@@ -524,7 +533,7 @@ struct YourListsView: View {
                 .padding(.vertical, 40)
                 .listRowBackground(Theme.background)
             }
-            ForEach(directRecs) { rec in
+            ForEach(filteredDirectRecs) { rec in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
                         AvatarView(url: rec.profiles?.avatarUrl.flatMap(URL.init), size: 28,
