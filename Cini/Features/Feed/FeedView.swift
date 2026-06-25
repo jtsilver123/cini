@@ -625,6 +625,13 @@ struct FeedView: View {
             // The daily hook — up to three streamable "watch tonight" picks,
             // stacked like a deck you can swipe through.
             if !tonightCards.isEmpty {
+                // Swipe-hint line, mirroring the Recs deck's instruction note so
+                // the gestures are discoverable (left = not tonight, right = watch).
+                Label("Swipe right to watch tonight · left for not tonight", systemImage: "hand.tap")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 2)
                 TonightStack(
                     items: tonightCards,
                     onOpen: { detailAutoWatch = false; detailMovie = $0 },
@@ -1951,11 +1958,15 @@ struct CommentsSheet: View {
 
     // MARK: @mention helpers
 
+    /// Compiled once and reused — building it per comment row per render was
+    /// needless work on long threads.
+    private static let mentionPattern = try! NSRegularExpression(pattern: "@([A-Za-z0-9_]+)")
+
     /// Parse @handles in a comment body and make each one a tappable link
     /// using a `cini-mention://open?u=<handle>` URL that we intercept inline.
     static func attributedBody(_ body: String) -> AttributedString {
         var result = AttributedString()
-        let pattern = try! NSRegularExpression(pattern: "@([A-Za-z0-9_]+)")
+        let pattern = Self.mentionPattern
         let nsBody = body as NSString
         var lastEnd = 0
         for match in pattern.matches(in: body, range: NSRange(body.startIndex..<body.endIndex, in: body)) {

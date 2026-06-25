@@ -61,6 +61,10 @@ enum Theme {
     static let scoreRed = adaptive(dark: rgb(0xD96B6B), light: rgb(0xC24444))
     /// Deep premiere gold — decorative moments: result ticket, streak flame.
     static let gold = adaptive(dark: rgb(0xD9A93C), light: rgb(0xA87B14))
+    /// Neutral slate for "skip / not now" swipe affordances. A FIXED blue-gray
+    /// (white text reads on it in both modes) deliberately OUTSIDE the
+    /// green/amber/red score trio, so swiping a card away never reads as a rating.
+    static let slate = Color(rgb(0x4F5A66))
     /// Hairline borders on cards and badges.
     static let hairline = adaptive(dark: UIColor.white.withAlphaComponent(0.10),
                                    light: UIColor.black.withAlphaComponent(0.12))

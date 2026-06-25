@@ -207,16 +207,18 @@ struct TonightPickCard: View {
         let watch = max(0, min(dragX / 100, 1))
         let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
-            // Right = "watch tonight" → the gold marquee accent (NOT green):
-            // green is the "loved" rating color, and these aren't rated yet. The
-            // stamp spells out the outcome — it opens the title, it doesn't rate it.
+            // The swipe stamps deliberately avoid the green/amber/red score trio —
+            // a swipe is a scheduling choice, not a rating. Right ("watch tonight"
+            // / "bookmark") uses the gold marquee accent (the brand's primary
+            // action color); left ("not tonight" / "pass") uses neutral slate so it
+            // reads as "skip for now," never "I disliked this" (which red implies).
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(Theme.marquee, lineWidth: 4).opacity(watch)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(dismiss)
+                .strokeBorder(Theme.slate, lineWidth: 4).opacity(dismiss)
             stamp(rightStampText, rightStampIcon, Theme.marquee, fg: Theme.background)
                 .rotationEffect(.degrees(-10)).opacity(watch)
-            stamp(leftStampText, leftStampIcon, Theme.scoreRed, fg: .white)
+            stamp(leftStampText, leftStampIcon, Theme.slate, fg: .white)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
