@@ -188,8 +188,8 @@ struct RecCardDeck: View {
                 // color — so a Recs right-swipe reads as "save," distinct from the
                 // Tonight deck's twilight "watch tonight."
                 rightStampText: "Bookmark", rightStampIcon: "bookmark.fill",
-                rightStampColor: Theme.marquee, rightStampFg: Theme.background,
                 leftStampText: "Pass", leftStampIcon: "xmark",
+                rightStampColor: Theme.marquee, rightStampFg: Theme.background,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)

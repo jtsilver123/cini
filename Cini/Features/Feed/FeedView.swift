@@ -987,6 +987,9 @@ struct FeedView: View {
             }
             for pick in (primary + deferred) {
                 if cards.count >= 3 { break }
+                // Defensive de-dupe: never add the same title twice (e.g. a
+                // continue-watching card above, or a repeated id from the RPC).
+                if cards.contains(where: { $0.id == pick.movieId }) { continue }
                 guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                       movie.posterPath != nil else { continue }
                 guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
