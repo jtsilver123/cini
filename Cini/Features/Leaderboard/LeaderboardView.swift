@@ -167,8 +167,9 @@ struct InviteSheet: View {
     /// Contacts dismissed from the "Unclaimed invites" list (tapped ✕) — hidden
     /// so the user isn't nagged about people they've decided not to pester.
     @AppStorage("cini.dismissedContacts") private var dismissedContactsRaw = ""
-    /// "Unclaimed invites" section is collapsible (Beli-style).
-    @State private var showUnclaimed = true
+    /// "Unclaimed invites" section is collapsible (Beli-style). Starts collapsed —
+    /// it sits above "Already on Cini" as a closed dropdown the user can expand.
+    @State private var showUnclaimed = false
     /// Per-contact "N on Cini know them" — how many members have this number in
     /// their contacts. Keyed by 10-digit phone key. Drives the social-proof line
     /// and the invite-list sort order.
@@ -262,6 +263,16 @@ struct InviteSheet: View {
                         .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface))
                     }
 
+                    // Unclaimed invites sit ABOVE "Already on Cini" as a closed
+                    // dropdown (people you've texted who haven't joined) — a
+                    // collapsed reference list the user can expand on demand.
+                    if contactsChecked, !unclaimedContacts.isEmpty {
+                        unclaimedHeader
+                        if showUnclaimed {
+                            ForEach(unclaimedContacts) { contact in unclaimedRow(contact) }
+                        }
+                    }
+
                     if !filteredMembers.isEmpty {
                         sectionHeader("ALREADY ON CINI")
                         ForEach(filteredMembers) { member in memberRow(member) }
@@ -270,12 +281,6 @@ struct InviteSheet: View {
                     if contactsDenied {
                         enableContactsButton
                     } else if contactsChecked {
-                        if !unclaimedContacts.isEmpty {
-                            unclaimedHeader
-                            if showUnclaimed {
-                                ForEach(unclaimedContacts) { contact in unclaimedRow(contact) }
-                            }
-                        }
                         if !freshContacts.isEmpty {
                             sectionHeader("YOUR CONTACTS")
                             ForEach(freshContacts) { contact in contactRow(contact) }
