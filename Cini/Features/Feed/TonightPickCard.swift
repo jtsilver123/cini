@@ -30,10 +30,12 @@ struct TonightPickCard: View {
     var rightStampIcon: String = "play.fill"
     var leftStampText: String = "Not tonight"
     var leftStampIcon: String = "moon.zzz.fill"
-    /// Swipe-stamp colors. Defaults are the Tonight's-Pick palette: a twilight
-    /// "watch tonight" and a neutral-slate "not tonight." The Recs deck overrides
-    /// the right stamp to gold ("Bookmark" = the app's save color) so the two
-    /// decks' right-swipes read as different actions, not the same one.
+    /// Swipe-stamp colors, passed per deck so the two decks read as DIFFERENT
+    /// actions. Defaults are the Tonight's-Pick palette: a twilight "watch
+    /// tonight" and a neutral-slate "not tonight" — slate because skipping a
+    /// title tonight is a scheduling deferral, not a thumbs-down. The Recs deck
+    /// overrides both to gold "Bookmark" (the app's save color) + red "Pass"
+    /// (a triage rejection — you're not interested in the rec).
     var rightStampColor: Color = Theme.twilight
     var rightStampFg: Color = .white
     var leftStampColor: Color = Theme.slate
@@ -215,12 +217,10 @@ struct TonightPickCard: View {
         let watch = max(0, min(dragX / 100, 1))
         let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
-            // The swipe stamps deliberately avoid the green/amber/red score trio —
-            // a swipe is a scheduling/triage choice, not a rating. The colors are
-            // passed in per deck so the two decks read as DIFFERENT actions:
-            // Tonight's Pick = twilight "watch tonight" + slate "not tonight";
-            // Recs = gold "bookmark" (the app's save color) + slate "pass." Both
-            // dismissive lefts stay neutral slate (never red, which means disliked).
+            // Colors are passed in per deck so the two decks read as DIFFERENT
+            // actions: Tonight's Pick = twilight "watch tonight" + slate "not
+            // tonight" (a scheduling deferral, not a thumbs-down); Recs = gold
+            // "bookmark" (the app's save color) + red "pass" (a triage rejection).
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                 .strokeBorder(rightStampColor, lineWidth: 4).opacity(watch)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)

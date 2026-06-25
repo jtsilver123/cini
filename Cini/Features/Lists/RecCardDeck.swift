@@ -183,13 +183,14 @@ struct RecCardDeck: View {
                 // (+)/bookmark corner in the swipe deck.
                 showQuickActions: false,
                 dragX: dragX,
-                // Stamps match THIS deck's actions (Bookmark / Pass), not the
-                // Tonight's-Pick defaults. Right is gold — the app's save/bookmark
-                // color — so a Recs right-swipe reads as "save," distinct from the
-                // Tonight deck's twilight "watch tonight."
+                // Stamps match THIS deck's actions, not the Tonight's-Pick
+                // defaults: gold "Bookmark" (the app's save color) and red "Pass"
+                // (a triage rejection — distinct from Tonight's slate "not tonight,"
+                // which is only a scheduling deferral).
                 rightStampText: "Bookmark", rightStampIcon: "bookmark.fill",
                 leftStampText: "Pass", leftStampIcon: "xmark",
                 rightStampColor: Theme.marquee, rightStampFg: Theme.background,
+                leftStampColor: Theme.scoreRed, leftStampFg: .white,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
             demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)
@@ -201,7 +202,7 @@ struct RecCardDeck: View {
         VStack(spacing: 10) {
             Image(systemName: save ? "hand.point.right.fill" : "hand.point.left.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(save ? Theme.marquee : Theme.slate)
+                .foregroundStyle(save ? Theme.marquee : Theme.scoreRed)
             Text(title).font(Theme.serif(24)).foregroundStyle(Theme.ink)
             Text(subtitle).font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -223,7 +224,7 @@ struct RecCardDeck: View {
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                     .strokeBorder(Theme.marquee, lineWidth: 4).opacity(s)
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                    .strokeBorder(Theme.slate, lineWidth: 4).opacity(d)
+                    .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(d)
             }
             .allowsHitTesting(false)
         }
@@ -249,7 +250,7 @@ struct RecCardDeck: View {
 
             controlButton(action: { tapAct(save: false) },
                           icon: "xmark", size: 62, fg: .white,
-                          bg: Theme.slate, caption: "Pass")
+                          bg: Theme.scoreRed, caption: "Pass")
                 .scaleEffect(1 + 0.12 * pass)
                 .opacity(1 - 0.4 * save)
                 .disabled(index >= items.count)

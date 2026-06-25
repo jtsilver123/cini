@@ -1229,10 +1229,12 @@ struct ProfileScreen: View {
                     Label(isSelf ? "Share my taste profile" : "Share this taste profile",
                           systemImage: "square.and.arrow.up")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.velvet)
+                        // Brand gold, not velvet — sharing is a friendly action; the
+                        // crimson read as destructive (a "delete"-style button).
+                        .foregroundStyle(Theme.marquee)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .background(Capsule().fill(Theme.velvet.opacity(0.12)))
+                        .background(Capsule().fill(Theme.marquee.opacity(0.12)))
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 4)
