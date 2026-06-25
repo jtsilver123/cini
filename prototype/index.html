@@ -2432,7 +2432,8 @@ function openComments(id){
 let _replyTo = null;
 function startReply(u, id){ _replyTo=u; openComments(id); const el=$("commentInput"); if(el){ el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
 function cancelReply(id){ _replyTo=null; openComments(id); }
-function linkifyMentions(t){ return t.replace(/@([A-Za-z0-9_]+)/g, '<b style="color:var(--marquee);">@$1</b>'); }
+function linkifyMentions(t){ return t.replace(/@([A-Za-z0-9_]+)/g, (full,u)=>`<span style="color:var(--marquee);font-weight:700;cursor:pointer;" onclick="openMentionFromComment('${u}')">@${u}</span>`); }
+function openMentionFromComment(u){ if(MEMBERS.some(m=>m.u===u)){ openMember(u); } else { toast('@'+u+' isn\'t on Cini yet'); } }
 let _commentCtx = null;
 function onCommentInput(id){
   const el=$("commentInput"); const sug=$("mentionSug"); if(!el||!sug) return;
@@ -2806,7 +2807,7 @@ function obPhoneFmt(v){ const d=v.replace(/\D/g,"").slice(0,10); if(!d)return"";
 function obPwLen(){ return obPw.length>=8; }
 function obPwValid(){ return obPwLen(); }
 function renderOnboarding(){
-  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9].map(i=>
+  const bar=`<div style="display:flex; gap:6px; padding:18px 28px 0;">${[0,1,2,3,4,5,6,7,8,9,10].map(i=>
     `<div style="flex:1; height:4px; border-radius:99px; background:${i<=obStep?"var(--gold)":"rgba(255,255,255,.1)"}; transition:background .3s;"></div>`).join("")}</div>`;
   let body="";
   if(obStep===0) body=`
@@ -2948,7 +2949,7 @@ function renderOnboarding(){
     </div>`;
   $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
 }
-function obNext(){ buzz(); obStep++; if(obStep>9){ finishOnboarding(); return; } renderOnboarding(); }
+function obNext(){ buzz(); obStep++; if(obStep>10){ finishOnboarding(); return; } renderOnboarding(); }
 function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
 
 /* =================== BOOT =================== */

@@ -62,6 +62,9 @@ struct FeedView: View {
     @AppStorage("cini.notifReaskedUserIDs") private var notifReaskedRaw = ""
     @State private var showNotifReask = false
     @State private var showStreakInfo = false
+    // 14-day rolling log: "movieID:dayNum,…" — prevents the same title showing
+    // twice in a day; stale entries are pruned on each load.
+    @AppStorage("tonight.shownLog") private var tonightShownLog = ""
     @State private var watchPlanContext: WatchPlanContext?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
@@ -816,6 +819,10 @@ struct FeedView: View {
     }
 
     private func consumePush() {
+        if let eventID = tabRouter.pendingPushCommentEvent {
+            tabRouter.pendingPushCommentEvent = nil
+            commentsLink = CommentsLink(id: eventID)
+        }
         if let movieID = tabRouter.pendingPushMovieID {
             tabRouter.pendingPushMovieID = nil
             Task {
@@ -828,10 +835,6 @@ struct FeedView: View {
         if let member = tabRouter.pendingPushMember {
             tabRouter.pendingPushMember = nil
             memberTarget = member
-        }
-        if let eventID = tabRouter.pendingPushCommentEvent {
-            tabRouter.pendingPushCommentEvent = nil
-            commentsLink = CommentsLink(id: eventID)
         }
         if let plan = tabRouter.pendingWatchPlan {
             tabRouter.pendingWatchPlan = nil
@@ -920,7 +923,9 @@ struct FeedView: View {
         if tonightCleared { tonightCards = []; tonightLoaded = true; return }
         // Lazy on the .task path; a manual pull-to-refresh forces a rebuild.
         guard force || tonightCards.isEmpty else { tonightLoaded = true; return }
-        let skip = dismissedTonightToday()
+        let dismissed = dismissedTonightToday()
+        let shownMap = tonightShownMap()
+        let today = todayDayNum()
         var cards: [TonightCardItem] = []
 
         // 1) Continue watching — shows you're mid-binge on lead the deck, since
@@ -932,7 +937,7 @@ struct FeedView: View {
             for row in rows { byID[row.tmdbId] = row.asMovie }
             for show in inProgress {
                 if cards.count >= 3 { break }
-                if skip.contains(show.showId) { continue }
+                if dismissed.contains(show.showId) { continue }
                 if store.isWatched(show.showId) { continue }
                 guard let movie = byID[show.showId] ?? store.movie(show.showId),
                       movie.posterPath != nil else { continue }
@@ -950,23 +955,33 @@ struct FeedView: View {
             }
         }
 
-        // 2) Want to Watch fills the rest of the (max 3) stack.
+        // 2) Want to Watch fills the rest of the (max 3) stack, with recency
+        // filtering: same-day picks are hard-skipped (prefer nothing over repeats),
+        // picks shown 1–3 days ago are used only as fallback.
         if cards.count < 3,
-           let picks = try? await SupabaseService.shared.tonightPicks(limit: 10), !picks.isEmpty {
+           let picks = try? await SupabaseService.shared.tonightPicks(limit: 15), !picks.isEmpty {
             let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
             var byID: [Int: Movie] = [:]
             for row in rows { byID[row.tmdbId] = row.asMovie }
+
+            var primary: [TonightPickRow] = []
+            var deferred: [TonightPickRow] = []
             for pick in picks {
-                if cards.count >= 3 { break }
-                if skip.contains(pick.movieId) { continue }
-                // Already a continue-watching card above? Don't double it.
+                if dismissed.contains(pick.movieId) { continue }
                 if cards.contains(where: { $0.id == pick.movieId }) { continue }
-                // Already rated it? It's not a "watch tonight" pick anymore.
                 if store.isWatched(pick.movieId) { continue }
+                let lastDay = shownMap[pick.movieId]
+                if lastDay == today { continue }  // shown today → hard skip
+                if let d = lastDay, today - d <= 3 {
+                    deferred.append(pick)
+                } else {
+                    primary.append(pick)
+                }
+            }
+            for pick in (primary + deferred) {
+                if cards.count >= 3 { break }
                 guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                       movie.posterPath != nil else { continue }
-                // Must be streamable — keep only picks on a streaming service, and
-                // grab that service's logo for the badge.
                 guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
                       let provider = providers.flatrate?.first else { continue }
                 store.cache(movie)
@@ -978,6 +993,8 @@ struct FeedView: View {
             }
         }
 
+        // Record which movies were shown so they're skipped on later reloads today.
+        recordTonightShown(cards.map { $0.movie.tmdbID })
         tonightCards = cards
         tonightLoaded = true
         // Got cards → we're not exhausted (e.g. a new day, or a pull-to-refresh),
@@ -996,6 +1013,31 @@ struct FeedView: View {
     }
 
     private func todayKey() -> String { DateFormatter.posixDay.string(from: Date()) }
+
+    /// Days since 2001-01-01 — stable within a calendar day, used for the
+    /// Tonight's Pick 14-day recency log.
+    private func todayDayNum() -> Int { Int(Date().timeIntervalSinceReferenceDate / 86400) }
+
+    /// Map of movieID → day number it was last shown in Tonight's Picks.
+    private func tonightShownMap() -> [Int: Int] {
+        var map: [Int: Int] = [:]
+        for entry in tonightShownLog.split(separator: ",") {
+            let parts = entry.split(separator: ":")
+            if parts.count == 2, let id = Int(parts[0]), let day = Int(parts[1]) {
+                map[id] = day
+            }
+        }
+        return map
+    }
+
+    /// Record that these movie IDs were shown today; prune entries older than 14 days.
+    private func recordTonightShown(_ ids: [Int]) {
+        var map = tonightShownMap()
+        let today = todayDayNum()
+        for id in ids { map[id] = today }
+        map = map.filter { $0.value > today - 14 }
+        tonightShownLog = map.map { "\($0.key):\($0.value)" }.joined(separator: ",")
+    }
 
     /// Picks the user dismissed today (reset automatically on a new day).
     private func dismissedTonightToday() -> Set<Int> {
@@ -1572,6 +1614,7 @@ struct CommentContext {
 
 /// A pushable comment thread: the event id to load plus its post header context.
 /// Hashable on the id alone so it can drive `navigationDestination(item:)`.
+/// `context` may be nil when opening cold from a push — the sheet self-fetches.
 struct CommentsLink: Identifiable, Hashable {
     let id: UUID
     /// The post header pinned atop the thread. Nil (e.g. opened from a
@@ -1579,6 +1622,26 @@ struct CommentsLink: Identifiable, Hashable {
     var context: CommentContext? = nil
     static func == (lhs: CommentsLink, rhs: CommentsLink) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+extension CommentContext {
+    /// Build a context from a fetched feed event (used when opening a comment
+    /// thread cold from a push notification or the notifications screen).
+    init(event: FeedEventRow, likedByMe: Bool) {
+        actorId = event.userId
+        username = event.profiles?.username ?? ""
+        displayName = event.profiles?.displayName
+        avatarUrl = event.profiles?.avatarUrl
+        movie = event.movies?.asMovie
+        actionText = event.eventType == "watchlisted" ? "saved" : "ranked"
+        score = event.payload?.score
+        note = event.note
+        containsSpoilers = event.noteContainsSpoilers ?? false
+        createdAt = event.createdAt
+        likeCount = event.likeCount
+        commentCount = event.commentCount
+        self.likedByMe = likedByMe
+    }
 }
 
 struct CommentsSheet: View {
@@ -1614,6 +1677,11 @@ struct CommentsSheet: View {
     // Feed events don't carry the note inline; fetch it for the header when the
     // context didn't supply one (the movie page already passes its note).
     @State private var fetchedNote: String?
+    // When opened cold (no context passed — e.g. from push), the event is
+    // fetched and its context built here for the Beli-style header.
+    @State private var fetchedContext: CommentContext?
+
+    private var activeContext: CommentContext? { context ?? fetchedContext }
 
     // Pushed onto the presenter's navigation stack, so it gets a native back
     // button and edge-swipe-back for free (like opening a profile).
@@ -1621,8 +1689,8 @@ struct CommentsSheet: View {
         List {
                 // The post being discussed, pinned on top so the screen reads
                 // as a full thread (Beli-style) instead of a bare comment list.
-                if let context {
-                    postHeader(context)
+                if let ctx = activeContext {
+                    postHeader(ctx)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Theme.background)
                         .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 8, trailing: 16))
@@ -1744,19 +1812,33 @@ struct CommentsSheet: View {
         }
         .task {
             FriendsCache.shared.refreshIfStale()   // power the @-mention picker
+            // Cold open from a push or the notifications screen: no context was
+            // passed, so fetch the event and build the Beli-style header here.
+            if context == nil, fetchedContext == nil {
+                if let event = await SupabaseService.shared.feedEvent(id: eventID) {
+                    let liked = await SupabaseService.shared.didLike(eventID: eventID)
+                    let ctx = CommentContext(event: event, likedByMe: liked)
+                    fetchedContext = ctx
+                    if !headerSeeded {
+                        headerLiked = liked
+                        headerLikeCount = event.likeCount
+                        headerSeeded = true
+                    }
+                }
+            }
             await reload()
             // Backfill the note for the header when the caller couldn't supply
             // one (feed posts), so the thread shows the review like Beli.
-            if let c = context, c.note == nil, fetchedNote == nil, let m = c.movie {
+            if let c = activeContext, c.note == nil, fetchedNote == nil, let m = c.movie {
                 fetchedNote = await SupabaseService.shared.note(userID: c.actorId, movieID: m.tmdbID)
             }
         }
         // Seed the header's like state from the context once; the heart owns it
         // optimistically after that.
         .onAppear {
-            if let context, !headerSeeded {
-                headerLiked = context.likedByMe
-                headerLikeCount = context.likeCount
+            if let ctx = activeContext, !headerSeeded {
+                headerLiked = ctx.likedByMe
+                headerLikeCount = ctx.likeCount
                 headerSeeded = true
             }
         }
@@ -1867,6 +1949,54 @@ struct CommentsSheet: View {
         }
     }
 
+    // MARK: @mention helpers
+
+    /// Parse @handles in a comment body and make each one a tappable link
+    /// using a `cini-mention://open?u=<handle>` URL that we intercept inline.
+    static func attributedBody(_ body: String) -> AttributedString {
+        var result = AttributedString()
+        let pattern = try! NSRegularExpression(pattern: "@([A-Za-z0-9_]+)")
+        let nsBody = body as NSString
+        var lastEnd = 0
+        for match in pattern.matches(in: body, range: NSRange(body.startIndex..<body.endIndex, in: body)) {
+            let prefixRange = NSRange(location: lastEnd, length: match.range.location - lastEnd)
+            if prefixRange.length > 0 {
+                result += AttributedString(nsBody.substring(with: prefixRange))
+            }
+            let handle = nsBody.substring(with: match.range(at: 1))
+            var mention = AttributedString("@\(handle)")
+            mention.font = .system(size: 15, weight: .semibold)
+            if let url = URL(string: "cini-mention://open?u=\(handle)") {
+                mention.link = url
+            }
+            result += mention
+            lastEnd = match.range.location + match.range.length
+        }
+        if lastEnd < nsBody.length {
+            result += AttributedString(nsBody.substring(from: lastEnd))
+        }
+        return result
+    }
+
+    /// Tap on a @mention → look up the user and open their profile.
+    private func openMention(_ handle: String) {
+        // Fast path: they're in the following cache.
+        if let cached = FriendsCache.shared.following.first(where: {
+            $0.username.caseInsensitiveCompare(handle) == .orderedSame
+        }) {
+            onOpenMember(MemberRef(id: cached.id, username: cached.username))
+            return
+        }
+        // Slow path: look up the profile by username.
+        Task {
+            if let id = await SupabaseService.shared.profileID(username: handle) {
+                await MainActor.run {
+                    onOpenMember(MemberRef(id: id, username: handle))
+                }
+            }
+        }
+    }
+
     // MARK: One comment
 
     @ViewBuilder private func commentRow(_ comment: CommentRow) -> some View {
@@ -1893,7 +2023,17 @@ struct CommentsSheet: View {
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
-                Text(comment.body).font(.subheadline)
+                Text(Self.attributedBody(comment.body))
+                    .font(.subheadline)
+                    .tint(Theme.marquee)
+                    .environment(\.openURL, OpenURLAction { url in
+                        guard url.scheme == "cini-mention",
+                              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                              let handle = comps.queryItems?.first(where: { $0.name == "u" })?.value
+                        else { return .systemAction }
+                        openMention(handle)
+                        return .handled
+                    })
                 Button { startReply(to: comment) } label: {
                     Text("Reply").font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
                 }
@@ -2340,8 +2480,11 @@ struct NotificationsView: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                if let path = row.movies?.posterPath {
-                    PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
+                if let path = row.movies?.posterPath, let movie = movieStub(row) {
+                    Button { detailMovie = movie } label: {
+                        PosterView(url: TMDBService.imageURL(path: path, size: .poster), width: 32)
+                    }
+                    .buttonStyle(.plain)
                 }
                 if row.readAt == nil {
                     Circle().fill(Theme.marquee).frame(width: 8, height: 8)
@@ -2392,9 +2535,24 @@ struct NotificationsView: View {
             dismiss()
             tabRouter.selection = .swipe
         } else if ["comment", "mention", "like"].contains(row.kind), let eventId = row.eventId {
-            // Land on the actual activity/thread the comment, mention, or like is
-            // on — not the bare movie page (and never a dead tap).
+            // Land on the actual activity/thread — not the bare movie page.
             commentsLink = CommentsLink(id: eventId)
+        } else if let actorId = row.actorId, let movieId = row.movieId,
+                  let eventType = activityEventType(for: row.kind) {
+            // Rank/save notification → look up the actor's event so the comment
+            // thread opens with the Beli-style header. Falls back to movie page.
+            Task {
+                if let event = await SupabaseService.shared.activityEvent(
+                    actorID: actorId, movieID: movieId, eventType: eventType) {
+                    let liked = await SupabaseService.shared.didLike(eventID: event.id)
+                    let ctx = CommentContext(event: event, likedByMe: liked)
+                    await MainActor.run {
+                        commentsLink = CommentsLink(id: event.id, context: ctx)
+                    }
+                } else {
+                    await MainActor.run { detailMovie = movieStub(row) }
+                }
+            }
         } else if let movieId = row.movieId, let stub = row.movies {
             detailMovie = Movie(tmdbID: movieId,
                                 mediaKind: movieId < 0 ? "tv" : "movie",
@@ -2405,6 +2563,27 @@ struct NotificationsView: View {
         } else if let actorId = row.actorId, let actor = row.actor {
             memberTarget = MemberRef(id: actorId, username: actor.username)
         }
+    }
+
+    /// Map notification kinds that link to a ranked/saved event → feed_events event_type.
+    private func activityEventType(for kind: String) -> String? {
+        switch kind {
+        case "friend_ranked_watchlist_movie", "friend_loved": return "ranked"
+        case "saved_your_rank": return "watchlisted"
+        default: return nil
+        }
+    }
+
+    /// Build a minimal Movie from a notification's embedded stub (for navigating
+    /// to the movie page without a full TMDB round-trip).
+    private func movieStub(_ row: NotificationRow) -> Movie? {
+        guard let movieId = row.movieId, let stub = row.movies else { return nil }
+        return Movie(tmdbID: movieId,
+                     mediaKind: movieId < 0 ? "tv" : "movie",
+                     title: stub.title,
+                     releaseYear: nil, posterPath: stub.posterPath,
+                     backdropPath: nil, genres: [], certification: nil,
+                     runtimeMinutes: nil, director: nil, overview: nil)
     }
 
     private func headline(_ row: NotificationRow) -> AttributedString {

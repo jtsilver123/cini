@@ -1790,6 +1790,44 @@ final class SupabaseService {
         return Dictionary(rows.map { ($0.movie_id, $0.n) }, uniquingKeysWith: { _, new in new })
     }
 
+    /// Fetch a single feed event with full embeds (used when opening a comment
+    /// thread cold from a push notification that only carries an event_id).
+    func feedEvent(id: UUID) async -> FeedEventRow? {
+        let rows: [FeedEventRow]? = try? await client.from("feed_events")
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .eq("id", value: id)
+            .limit(1)
+            .execute().value
+        return rows?.first
+    }
+
+    /// Fetch the actor's most recent feed event of a given type for a title.
+    /// Used when routing a rank/save notification to the right comment thread.
+    func activityEvent(actorID: UUID, movieID: Int, eventType: String) async -> FeedEventRow? {
+        let rows: [FeedEventRow]? = try? await client.from("feed_events")
+            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .eq("user_id", value: actorID)
+            .eq("movie_id", value: movieID)
+            .eq("event_type", value: eventType)
+            .order("created_at", ascending: false)
+            .limit(1)
+            .execute().value
+        return rows?.first
+    }
+
+    /// True if the current user has liked a given feed event.
+    func didLike(eventID: UUID) async -> Bool {
+        guard let me = currentUserID else { return false }
+        struct Row: Decodable { let event_id: UUID }
+        let rows: [Row]? = try? await client.from("likes")
+            .select("event_id")
+            .eq("user_id", value: me)
+            .eq("event_id", value: eventID)
+            .limit(1)
+            .execute().value
+        return !(rows?.isEmpty ?? true)
+    }
+
     // MARK: - Detail page aggregates
 
     func communityScore(movieID: Int) async throws -> CommunityScore? {
