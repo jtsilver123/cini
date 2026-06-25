@@ -1829,7 +1829,7 @@ function renderDetail(){
     <div class="row-scroll" style="margin-top:12px;">
       <button class="pill out" onclick="openWatchSheet('${k}')">${I("tv",15)} Watch</button>
       <button class="pill out" onclick="openShowtimes('${k}')">🎟️ Theater</button>
-      <button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Rec</button>
+      ${S.watched.some(w=>w.k===k) ? `<button class="pill out" onclick="openSendRec('${k}')">${I("send",15)} Rec</button>` : ``}
     </div>
     <div class="pad" style="margin-top:20px;"><b style="font-size:18px;">Scores</b></div>
     <div class="pad" style="display:flex; gap:10px; margin-top:14px; text-align:center;">

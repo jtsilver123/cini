@@ -376,8 +376,12 @@ struct MovieDetailView: View {
                     showShowtimes = true
                 }
             }
-            PillButton(title: "Rec", systemImage: "paperplane", style: .outlined, fill: true) {
-                showSendRec = true
+            // You can only recommend a title you've actually seen (ranked it).
+            // Until then there's nothing to vouch for — rank it first.
+            if store.isWatched(movie.tmdbID) {
+                PillButton(title: "Rec", systemImage: "paperplane", style: .outlined, fill: true) {
+                    showSendRec = true
+                }
             }
         }
         .padding(.horizontal, 16)
