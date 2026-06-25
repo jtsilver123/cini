@@ -19,6 +19,10 @@
     --ink:#F5EEDF; --bg:#1A1618; --surface:#262023; --surface-2:#322829;
     --gray:#A69C91; --green:#2FBF71; --amber:#E0A93E; --red:#D96B6B;
     --gold:#D9A93C; --gold-soft:rgba(217,169,60,.16);
+    /* Neutral slate for "skip / pass" swipe affordances — outside the
+       green/amber/red score trio so a swipe-away never reads as a rating.
+       Fixed (same in both rooms), mirroring Theme.slate in the app. */
+    --slate:#4F5A66;
     --hair:rgba(255,255,255,.10);
     --s-loved:#53B17C; --s-fine:#F4C95C; --s-disliked:#EE9E9E;
     --shadow:0 10px 30px rgba(0,0,0,.45);
@@ -1390,11 +1394,11 @@ function renderSwipe(){
           <span class="sub" style="font-size:11px; font-weight:600;">Undo</span>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
-          <button onclick="swipePass()" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
+          <button onclick="swipePass()" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--slate);color:#fff;font-size:24px;cursor:pointer;">&times;</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Pass</span>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
-          <button onclick="swipeSave('${k}')" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--green);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("bookmark",24,2.2)}</button>
+          <button onclick="swipeSave('${k}')" style="width:60px;height:60px;border-radius:50%;border:none;background:var(--marquee);color:var(--bg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;">${I("bookmark",24,2.2)}</button>
           <span class="sub" style="font-size:11px; font-weight:600;">Bookmark</span>
         </div>
         <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
@@ -2942,8 +2946,8 @@ function renderOnboarding(){
         </div>
       </div>`;})()}
       <div style="display:flex; gap:30px; margin-top:4px;">
-        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--s-disliked);color:#fff;font-size:24px;cursor:pointer;" onclick="toast('Passed')">&times;</button>
-        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--green);color:#fff;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" onclick="toast('Bookmarked')">${I("bookmark",24,2.2)}</button>
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--slate);color:#fff;font-size:24px;cursor:pointer;" onclick="toast('Passed')">&times;</button>
+        <button style="width:56px;height:56px;border-radius:50%;border:none;background:var(--marquee);color:var(--bg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;" onclick="toast('Bookmarked')">${I("bookmark",24,2.2)}</button>
       </div>
       <button class="pill" style="justify-content:center; padding:13px; margin:10px 0 24px; width:100%; max-width:320px;" onclick="finishOnboarding()">Done</button>
     </div>`;

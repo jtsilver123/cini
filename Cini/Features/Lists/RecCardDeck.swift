@@ -184,8 +184,11 @@ struct RecCardDeck: View {
                 showQuickActions: false,
                 dragX: dragX,
                 // Stamps match THIS deck's actions (Bookmark / Pass), not the
-                // Tonight's-Pick defaults.
+                // Tonight's-Pick defaults. Right is gold — the app's save/bookmark
+                // color — so a Recs right-swipe reads as "save," distinct from the
+                // Tonight deck's twilight "watch tonight."
                 rightStampText: "Bookmark", rightStampIcon: "bookmark.fill",
+                rightStampColor: Theme.marquee, rightStampFg: Theme.background,
                 leftStampText: "Pass", leftStampIcon: "xmark",
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
         case .demo(_, let title, let subtitle, let save):
@@ -198,7 +201,7 @@ struct RecCardDeck: View {
         VStack(spacing: 10) {
             Image(systemName: save ? "hand.point.right.fill" : "hand.point.left.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(save ? Theme.marquee : Theme.scoreRed)
+                .foregroundStyle(save ? Theme.marquee : Theme.slate)
             Text(title).font(Theme.serif(24)).foregroundStyle(Theme.ink)
             Text(subtitle).font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -220,7 +223,7 @@ struct RecCardDeck: View {
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
                     .strokeBorder(Theme.marquee, lineWidth: 4).opacity(s)
                 RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                    .strokeBorder(Theme.scoreRed, lineWidth: 4).opacity(d)
+                    .strokeBorder(Theme.slate, lineWidth: 4).opacity(d)
             }
             .allowsHitTesting(false)
         }
@@ -246,7 +249,7 @@ struct RecCardDeck: View {
 
             controlButton(action: { tapAct(save: false) },
                           icon: "xmark", size: 62, fg: .white,
-                          bg: Theme.scoreRed, caption: "Pass")
+                          bg: Theme.slate, caption: "Pass")
                 .scaleEffect(1 + 0.12 * pass)
                 .opacity(1 - 0.4 * save)
                 .disabled(index >= items.count)

@@ -65,6 +65,11 @@ enum Theme {
     /// (white text reads on it in both modes) deliberately OUTSIDE the
     /// green/amber/red score trio, so swiping a card away never reads as a rating.
     static let slate = Color(rgb(0x4F5A66))
+    /// Twilight indigo for the Tonight's Pick "watch tonight" swipe — a dusk/
+    /// evening accent that reads as "play now." Deliberately NOT gold (gold means
+    /// saved/bookmarked, which a Recs right-swipe does) so the two decks' swipes
+    /// don't get conflated, and outside the score trio. FIXED for white text.
+    static let twilight = Color(rgb(0x515CAD))
     /// Hairline borders on cards and badges.
     static let hairline = adaptive(dark: UIColor.white.withAlphaComponent(0.10),
                                    light: UIColor.black.withAlphaComponent(0.12))

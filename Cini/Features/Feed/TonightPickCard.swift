@@ -30,6 +30,14 @@ struct TonightPickCard: View {
     var rightStampIcon: String = "play.fill"
     var leftStampText: String = "Not tonight"
     var leftStampIcon: String = "moon.zzz.fill"
+    /// Swipe-stamp colors. Defaults are the Tonight's-Pick palette: a twilight
+    /// "watch tonight" and a neutral-slate "not tonight." The Recs deck overrides
+    /// the right stamp to gold ("Bookmark" = the app's save color) so the two
+    /// decks' right-swipes read as different actions, not the same one.
+    var rightStampColor: Color = Theme.twilight
+    var rightStampFg: Color = .white
+    var leftStampColor: Color = Theme.slate
+    var leftStampFg: Color = .white
     /// Total streaming services this is on — drives the badge's "+N".
     var providerCount: Int = 1
     /// Show the "Continue watching" badge (a show mid-binge) instead of the
@@ -208,17 +216,18 @@ struct TonightPickCard: View {
         let dismiss = max(0, min(-dragX / 100, 1))
         ZStack {
             // The swipe stamps deliberately avoid the green/amber/red score trio —
-            // a swipe is a scheduling choice, not a rating. Right ("watch tonight"
-            // / "bookmark") uses the gold marquee accent (the brand's primary
-            // action color); left ("not tonight" / "pass") uses neutral slate so it
-            // reads as "skip for now," never "I disliked this" (which red implies).
+            // a swipe is a scheduling/triage choice, not a rating. The colors are
+            // passed in per deck so the two decks read as DIFFERENT actions:
+            // Tonight's Pick = twilight "watch tonight" + slate "not tonight";
+            // Recs = gold "bookmark" (the app's save color) + slate "pass." Both
+            // dismissive lefts stay neutral slate (never red, which means disliked).
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                .strokeBorder(Theme.marquee, lineWidth: 4).opacity(watch)
+                .strokeBorder(rightStampColor, lineWidth: 4).opacity(watch)
             RoundedRectangle(cornerRadius: Theme.rHero, style: .continuous)
-                .strokeBorder(Theme.slate, lineWidth: 4).opacity(dismiss)
-            stamp(rightStampText, rightStampIcon, Theme.marquee, fg: Theme.background)
+                .strokeBorder(leftStampColor, lineWidth: 4).opacity(dismiss)
+            stamp(rightStampText, rightStampIcon, rightStampColor, fg: rightStampFg)
                 .rotationEffect(.degrees(-10)).opacity(watch)
-            stamp(leftStampText, leftStampIcon, Theme.slate, fg: .white)
+            stamp(leftStampText, leftStampIcon, leftStampColor, fg: leftStampFg)
                 .rotationEffect(.degrees(10)).opacity(dismiss)
         }
         .allowsHitTesting(false)
