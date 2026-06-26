@@ -50,6 +50,11 @@ struct FeedView: View {
     /// Whether the deck has shown at least one card this session — distinguishes
     /// "you swiped through them" from "nothing was ever surfaceable tonight."
     @State private var tonightEverHadCards = false
+    /// Whether the last build left eligible picks unshown beyond the 3-card deck.
+    /// Only when this is true is "Show more" offered — otherwise tapping it would
+    /// just rebuild to an empty deck (everything shown today is hard-skipped),
+    /// which read as a glitch. False = go straight to the cleared zero-state.
+    @State private var tonightHasMore = false
     /// Guards against overlapping loads (several `.task`/refresh triggers fire it).
     @State private var tonightLoading = false
     // Picks dismissed today, persisted so a swiped/✕'d pick stays gone.
@@ -664,12 +669,15 @@ struct FeedView: View {
                     // when the in-session tonightEverHadCards flag has reset.)
                     TonightEmptyState(.nothingTonight, onSwipe: { tabRouter.selection = .swipe })
                         .padding(.top, 2)
-                } else if tonightExhausted {
-                    // Genuinely went through everything available for now.
+                } else if tonightExhausted || !tonightHasMore {
+                    // Either explicitly exhausted, or the deck already showed every
+                    // eligible pick (nothing waiting). Go straight to the cleared
+                    // zero-state — don't offer a "Show more" that just rebuilds to
+                    // empty and flashes back to this same state.
                     TonightEmptyState(.cleared, onSwipe: { tabRouter.selection = .swipe })
                         .padding(.top, 2)
                 } else {
-                    // Swiped through the shown deck; more may be waiting.
+                    // Swiped through the shown deck, but more eligible picks remain.
                     TonightEmptyState(.showMore,
                                       onSwipe: { tabRouter.selection = .swipe },
                                       onShowMore: { Task { await showMoreTonight() } })
@@ -934,6 +942,8 @@ struct FeedView: View {
         let shownMap = tonightShownMap()
         let today = todayDayNum()
         var cards: [TonightCardItem] = []
+        // Recomputed below: true only if eligible picks remain past the 3-deck cap.
+        tonightHasMore = false
 
         // 1) Continue watching — shows you're mid-binge on lead the deck, since
         // "pick up where you left off" is the strongest watch-tonight signal.
@@ -964,13 +974,11 @@ struct FeedView: View {
 
         // 2) Want to Watch fills the rest of the (max 3) stack, with recency
         // filtering: same-day picks are hard-skipped (prefer nothing over repeats),
-        // picks shown 1–3 days ago are used only as fallback.
-        if cards.count < 3,
-           let picks = try? await SupabaseService.shared.tonightPicks(limit: 15), !picks.isEmpty {
-            let rows = (try? await SupabaseService.shared.movies(ids: picks.map(\.movieId))) ?? []
-            var byID: [Int: Movie] = [:]
-            for row in rows { byID[row.tmdbId] = row.asMovie }
-
+        // picks shown 1–3 days ago are used only as fallback. We always evaluate
+        // eligibility (even if continue-watching already filled the deck) so the
+        // "more waiting?" signal is correct.
+        if let picks = try? await SupabaseService.shared.tonightPicks(limit: 15), !picks.isEmpty {
+            // Partition the eligible pool first — cheap, no movie rows needed yet.
             var primary: [TonightPickRow] = []
             var deferred: [TonightPickRow] = []
             for pick in picks {
@@ -985,21 +993,37 @@ struct FeedView: View {
                     primary.append(pick)
                 }
             }
-            for pick in (primary + deferred) {
-                if cards.count >= 3 { break }
-                // Defensive de-dupe: never add the same title twice (e.g. a
-                // continue-watching card above, or a repeated id from the RPC).
-                if cards.contains(where: { $0.id == pick.movieId }) { continue }
-                guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
-                      movie.posterPath != nil else { continue }
-                guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
-                      let provider = providers.flatrate?.first else { continue }
-                store.cache(movie)
-                cards.append(TonightCardItem(movie: movie,
-                                             reason: Self.tonightReason(for: pick),
-                                             service: provider.providerName,
-                                             serviceLogo: provider.logoURL,
-                                             providers: providers))
+            let pool = primary + deferred
+            if cards.count >= 3 {
+                // Deck already full (continue-watching) — note whether Want-to-Watch
+                // picks are still waiting, so "Show more" can surface them next.
+                tonightHasMore = !pool.isEmpty
+            } else if !pool.isEmpty {
+                let rows = (try? await SupabaseService.shared.movies(ids: pool.map(\.movieId))) ?? []
+                var byID: [Int: Movie] = [:]
+                for row in rows { byID[row.tmdbId] = row.asMovie }
+                for pick in pool {
+                    if cards.count >= 3 {
+                        // Deck filled but eligible picks remain → offer "Show more."
+                        // (Without this it'd be offered even when nothing's left,
+                        // then flash to "cleared" — the reported glitch.)
+                        tonightHasMore = true
+                        break
+                    }
+                    // Defensive de-dupe: never add the same title twice (e.g. a
+                    // continue-watching card above, or a repeated id from the RPC).
+                    if cards.contains(where: { $0.id == pick.movieId }) { continue }
+                    guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
+                          movie.posterPath != nil else { continue }
+                    guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
+                          let provider = providers.flatrate?.first else { continue }
+                    store.cache(movie)
+                    cards.append(TonightCardItem(movie: movie,
+                                                 reason: Self.tonightReason(for: pick),
+                                                 service: provider.providerName,
+                                                 serviceLogo: provider.logoURL,
+                                                 providers: providers))
+                }
             }
         }
 
