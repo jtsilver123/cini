@@ -41,8 +41,8 @@ struct FounderShareCard: View {
                 .overlay(Circle().strokeBorder(Theme.marquee, lineWidth: 2).padding(-4))
                 .padding(.top, 8)
 
-            // The note, in his hand. Kept short so the handwriting stays legible.
-            Text("Cini is my passion project. Just me, no big company. It only grows when each person gets one friend to actually download it. Could you bring one? Thank you.")
+            // The note, in his hand. Short, simple sentences so it's easy to read.
+            Text("Hi, I'm Jake. I made Cini by myself. There's no big company, just me. Cini can only grow if you help. Will you ask one friend to download it? Just one. Thank you!")
                 .font(.custom(Self.handwriting, size: 21, relativeTo: .body))
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)

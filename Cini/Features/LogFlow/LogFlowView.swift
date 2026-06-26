@@ -47,6 +47,10 @@ struct LogFlowView: View {
     @State private var enrichRow: EnrichmentCard.Row?
     @State private var movieCast: [CastMember] = []
     @State private var shareImage: Image?
+    /// Set when this rank crossed a ranked-count milestone (10th, 25th, …) — the
+    /// result screen then offers a celebratory "share your top 5" prompt.
+    @State private var milestoneJustHit: Int?
+    @State private var showTop5Share = false
     // Two-step reveal: the result lands as a "…" ticket (rating screen),
     // then the score springs in (score screen) — Beli's flow, our brand.
     @State private var scoreRevealed = false
@@ -785,6 +789,26 @@ struct LogFlowView: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Hit a round-number milestone? Offer the bigger brag — a
+                    // shareable top-5 card — as a distinct, softer celebratory CTA.
+                    if let milestone = milestoneJustHit {
+                        Button { showTop5Share = true } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "rosette")
+                                Text("\(milestone) ranked! Share your top 5")
+                            }
+                            .font(.headline)
+                            .foregroundStyle(Theme.marquee)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 11)
+                            .background(
+                                Capsule().fill(Theme.marqueeSoft)
+                                    .overlay(Capsule().strokeBorder(Theme.marquee.opacity(0.5), lineWidth: 1))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button { dismiss() } label: {
                         Text("Done")
                             .font(.headline)
@@ -822,6 +846,15 @@ struct LogFlowView: View {
             }
         }
         .animation(.snappy, value: saveSlow)
+        .sheet(isPresented: $showTop5Share) {
+            let profile = appSession.profile
+            TopFiveShareSheet(
+                name: firstName(profile?.displayName, profile?.username) ?? "",
+                handle: profile?.username ?? "",
+                avatarURL: profile?.avatarURL,
+                movieEntries: topEntries("movie"),
+                showEntries: topEntries("tv"))
+        }
         .onAppear { scheduleReveal() }
         .task { await prepareShareCard(scored) }
         .task {
@@ -829,6 +862,18 @@ struct LogFlowView: View {
             // surface the "Saving…" note (cleared implicitly once revealed/dismissed).
             try? await Task.sleep(for: .milliseconds(2500))
             if !scoreRevealed { saveSlow = true }
+        }
+    }
+
+    /// The viewer's top-ranked entries for one kind ("movie"/"tv"), best first,
+    /// for the milestone top-5 share card — pulled from the shared ranking store.
+    private func topEntries(_ kind: String) -> [TopFiveShareSheet.Entry] {
+        let top = (store.lists[kind]?.scoredItems ?? [])
+            .sorted { $0.rank < $1.rank }
+            .prefix(5)
+        return top.compactMap { item in
+            guard let m = store.movie(item.id) else { return nil }
+            return TopFiveShareSheet.Entry(movie: m, rank: item.rank, score: item.score)
         }
     }
 
@@ -888,6 +933,8 @@ struct LogFlowView: View {
             celebration = .firstRank
         } else if CelebrationCenter.rankMilestones.contains(count) {
             celebration = .rankMilestone(count)
+            // A round-number milestone is the moment to nudge a top-5 share.
+            milestoneJustHit = count
         } else if newStreak >= 2 && newStreak > priorStreak {
             celebration = .streak(newStreak)
         } else {
