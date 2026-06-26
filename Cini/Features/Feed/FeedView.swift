@@ -74,6 +74,16 @@ struct FeedView: View {
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
+    /// The founder's one-time "invite one friend" note — surfaced on the user's
+    /// second app open (not their first, so it isn't the very first thing they
+    /// see), and never again once dismissed or acted on.
+    @AppStorage("founder.shareAsked") private var founderShareAsked = false
+    /// Cold-launch counter (bumped once per app load) that gates the note to the
+    /// second open onward.
+    @AppStorage("app.launchCount") private var appLaunchCount = 0
+    /// Per-launch guard so the counter increments once, not on every feed appear.
+    @State private var countedThisLaunch = false
+    @State private var showFounderShare = false
     /// Trending titles, shown as a "Popular on Cini" shelf so a feed with few
     /// friends still has something fresh to rank/bookmark (new-user retention).
     @State private var popularMovies: [Movie] = []
@@ -234,7 +244,45 @@ struct FeedView: View {
             }) {
                 RespondRecSheet()
             }
+            // The founder's one-time "invite one friend" note — a dismissible
+            // popup over the feed whose CTA opens the contacts invite sheet.
+            .overlay {
+                if showFounderShare {
+                    FounderShareCard(
+                        onShare: {
+                            founderShareAsked = true
+                            withAnimation(.snappy) { showFounderShare = false }
+                            // Let the overlay clear before presenting the sheet —
+                            // two presentations in one runloop can swallow the second.
+                            Task {
+                                try? await Task.sleep(for: .milliseconds(280))
+                                showInviteSheet = true
+                            }
+                        },
+                        onDismiss: {
+                            founderShareAsked = true
+                            withAnimation(.snappy) { showFounderShare = false }
+                        }
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                    .zIndex(60)
+                }
+            }
+            .animation(.snappy, value: showFounderShare)
+            .onAppear { countLaunchAndMaybeAskFounder() }
         }
+    }
+
+    /// Count this app load once, then surface the founder's "invite one friend"
+    /// note on the second open onward — never on the first launch, and never again
+    /// once dismissed or acted on.
+    private func countLaunchAndMaybeAskFounder() {
+        if !countedThisLaunch {
+            countedThisLaunch = true
+            appLaunchCount += 1
+        }
+        guard !founderShareAsked, !showFounderShare, appLaunchCount >= 2 else { return }
+        withAnimation(.snappy) { showFounderShare = true }
     }
 
     // MARK: Header: serif wordmark + calendar / bell / hamburger
