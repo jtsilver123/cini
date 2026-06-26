@@ -352,8 +352,11 @@ struct EditListsSheet: View {
 }
 
 
-/// "Best heist movies — my list on Cini 🎬" + the first titles.
-func listShareText(name: String, movies: [Movie]) -> String {
+/// "Best heist movies — my list on Cini 🎬" + the first titles. A public list
+/// ends with a link that opens it (and renders it on the web with a rich preview
+/// card); a private list can't be opened by others, so it falls back to the App
+/// Store link.
+func listShareText(name: String, movies: [Movie], listID: UUID? = nil, isPrivate: Bool = false) -> String {
     var lines = ["\(name) — my list on Cini 🎬"]
     for (index, movie) in movies.prefix(10).enumerated() {
         let year = movie.releaseYear.map { " (\($0))" } ?? ""
@@ -362,7 +365,11 @@ func listShareText(name: String, movies: [Movie]) -> String {
     if movies.count > 10 {
         lines.append("…and \(movies.count - 10) more")
     }
-    lines.append(AppLinks.appStore)
+    if let listID, !isPrivate {
+        lines.append("See the full list in Cini: " + AppLinks.listLink(listID))
+    } else {
+        lines.append(AppLinks.appStore)
+    }
     return lines.joined(separator: "\n")
 }
 

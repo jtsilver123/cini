@@ -6,6 +6,7 @@ import RankingEngine
 struct YourListsView: View {
     @Environment(RankingStore.self) private var store
     @Environment(TabRouter.self) private var tabRouter
+    @Environment(AppSession.self) private var session
     @State private var importQueue = ImportQueue.shared
 
     @State private var category: MediaCategory = .movies
@@ -297,7 +298,13 @@ struct YourListsView: View {
     private var headerShareText: String {
         if let selectedListID,
            let list = store.customLists.first(where: { $0.id == selectedListID }) {
-            return listShareText(name: list.name, movies: customListMovies)
+            return listShareText(name: list.name, movies: customListMovies,
+                                 listID: list.id, isPrivate: list.isPrivate)
+        }
+        // Your rankings render on your public web profile — share that (rich
+        // preview card + referral) rather than a bare App Store link.
+        if let username = session.profile?.username, !username.isEmpty {
+            return "My movie & TV rankings live on Cini 🎬\n\(AppLinks.profileLink(username))"
         }
         return "My movie & TV rankings live on Cini 🎬\n\(AppLinks.appStore)"
     }
