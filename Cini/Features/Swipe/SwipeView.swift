@@ -461,11 +461,13 @@ struct SwipeView: View {
     private func loadAutomatic() async {
         loadSeq += 1
         let token = loadSeq
-        let topID = store.watchedItems.first?.id
+        // The user's top few favorites (highest-scored across movies + TV), so
+        // "Because you liked X" can reason across their taste, not just their #1.
+        let favorites = Array(store.watchedItems.sorted { $0.score > $1.score }.prefix(3))
         async let friendRecsTask = SupabaseService.shared.recsForUser()
         async let trendingTask = TMDBService.shared.trending()
         async let popularTask = TMDBService.shared.popular()
-        let similar = await similarToTop(topID)
+        let similarByFavorite = await similarToFavorites(favorites)
 
         var pending: [(id: Int, reason: String)] = []
         var seen = Set<Int>()
@@ -480,12 +482,13 @@ struct SwipeView: View {
                     : "Loved by \(who)"))
             }
         }
-        if let similar {
-            let topTitle = topID.flatMap { store.movie($0)?.title } ?? "your favorite"
-            for movie in similar.prefix(12)
+        // "Because you liked X" — attributed to each favorite the rec is similar
+        // to, so the deck cites several of your favorites instead of only your #1.
+        for fav in similarByFavorite {
+            for movie in fav.movies.prefix(5)
             where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
                 store.cache(movie)
-                pending.append((movie.tmdbID, "Because you liked \(topTitle)"))
+                pending.append((movie.tmdbID, "Because you liked \(fav.title)"))
             }
         }
         if let trending = try? await trendingTask {
@@ -541,8 +544,30 @@ struct SwipeView: View {
         }
     }
 
-    private func similarToTop(_ id: Int?) async -> [Movie]? {
-        guard let id else { return nil }
-        return try? await TMDBService.shared.similar(to: id)
+    /// For each favorite (by ranked order), the TMDB "more like this" titles,
+    /// paired with the favorite's title for the rec card's reason line. Fetched
+    /// in parallel so adding favorites doesn't slow the deck.
+    private func similarToFavorites(_ favs: [ScoredItem<Int>]) async -> [(title: String, movies: [Movie])] {
+        // Resolve titles on the main actor first; the network calls capture only ids.
+        let titled: [(id: Int, title: String)] = favs.compactMap { fav in
+            store.movie(fav.id).map { (fav.id, $0.title) }
+        }
+        let byID = await withTaskGroup(of: (Int, [Movie])?.self) { group in
+            for fav in titled {
+                let id = fav.id
+                group.addTask {
+                    guard let sim = try? await TMDBService.shared.similar(to: id), !sim.isEmpty
+                    else { return nil }
+                    return (id, sim)
+                }
+            }
+            var acc: [Int: [Movie]] = [:]
+            for await result in group { if let result { acc[result.0] = result.1 } }
+            return acc
+        }
+        // Preserve the favorites' ranked order (top favorite leads the deck).
+        return titled.compactMap { fav in
+            byID[fav.id].map { (title: fav.title, movies: $0) }
+        }
     }
 }
