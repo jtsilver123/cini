@@ -2658,7 +2658,7 @@ struct NotificationsView: View {
     /// Map notification kinds that link to a ranked/saved event → feed_events event_type.
     private func activityEventType(for kind: String) -> String? {
         switch kind {
-        case "friend_ranked_watchlist_movie", "friend_loved": return "ranked"
+        case "friend_ranked_watchlist_movie", "friend_loved", "rec_watched": return "ranked"
         case "saved_your_rank": return "watchlisted"
         default: return nil
         }
@@ -2705,6 +2705,7 @@ struct NotificationsView: View {
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
         case "rec_passed": text = "**\(who)** passed on **\(movie)** you recommended"
+        case "rec_watched": text = "**\(who)** watched **\(movie)** you recommended 🎬"
         case "mention": text = "**\(who)** mentioned you in a comment on **\(movie)**"
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
         case "friend_watching": text = "**\(who)** started watching **\(movie)** — you're watching it too 📺"

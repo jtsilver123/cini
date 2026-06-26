@@ -483,6 +483,9 @@ struct YourListsView: View {
     private var filteredDirectRecs: [DirectRecRow] {
         directRecs.filter { rec in
             guard let movie = rec.movies?.asMovie else { return false }
+            // Once you've ranked it, it's no longer a pending rec — drop it the
+            // instant you watch it (the server also clears it and tells the friend).
+            if store.isWatched(movie.tmdbID) { return false }
             return category.matches(movie)
         }
     }

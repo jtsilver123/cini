@@ -121,6 +121,8 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `@${actor} mentioned you in a comment on ${movie ?? "a movie"} 💬`;
     case "rec_passed":
       return `@${actor} passed on ${movie ?? "a rec"} you recommended`;
+    case "rec_watched":
+      return `@${actor} watched ${movie ?? "a movie"} you recommended 🎬`;
     default: return `@${actor} did something new on Cini`;
   }
 }

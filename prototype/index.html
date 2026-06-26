@@ -974,14 +974,17 @@ function renderLists(){
           </div>
         </div>`;}).join(""));
   } else {
-    content = S.friendRecs.length===0
+    // Never show a friend rec for something you've already ranked — watching it
+    // clears it (and tells the friend) in commitLog.
+    const visibleRecs = S.friendRecs.filter(r=>!S.watched.some(w=>w.k===r.k));
+    content = visibleRecs.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("send",34,1.4)}</span><b>No recs from friends yet</b>
         <span class="sub">When a friend taps Recommend on a movie and picks you, it lands here with their note.</span>
         <div style="display:flex; gap:10px; margin-top:10px; justify-content:center;">
           <button class="pill" onclick="searchTab='members'; go('search')">${I("users",15)} Find friends</button>
           <button class="pill out" onclick="S.subTab='watched'; save(); go('lists'); toast('Pick a title, then tap Recommend on its page')">${I("send",15)} Recommend</button>
         </div></div>`
-      : S.friendRecs.map(r=>{
+      : visibleRecs.map(r=>{
         const m=MOVIES[r.k]; if(!m) return "";
         return `<div style="padding:12px 18px; border-bottom:1px solid var(--hair);">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -2291,6 +2294,9 @@ function commitLog(pos){
   S.watched=rebuilt;
   if(S.queue.includes(log.k)){ S.queue=S.queue.filter(x=>x!==log.k); S.rankedFromImport++; }
   S.watchlist=S.watchlist.filter(x=>x!==log.k);
+  // Watching a friend's rec clears it from Friend Recs and tells them you saw it.
+  const _rec=(S.friendRecs||[]).find(r=>r.k===log.k);
+  if(_rec){ S.friendRecs=S.friendRecs.filter(r=>r.k!==log.k); toast(`We let @${_rec.from} know you watched it 🎬`); }
   if(!S.rankedThisWeek){ S.streak++; S.rankedThisWeek=true; }
   S.activity.unshift({kind:"ranked", k:log.k, when:"just now"}); S.activity=S.activity.slice(0,8);
   log.stage="result"; log.revealed=false; save(); refreshLog();
