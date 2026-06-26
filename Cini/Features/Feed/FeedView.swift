@@ -281,7 +281,11 @@ struct FeedView: View {
             countedThisLaunch = true
             appLaunchCount += 1
         }
-        guard !founderShareAsked, !showFounderShare, appLaunchCount >= 2 else { return }
+        // Yield to higher-priority launch prompts (the notifications re-ask, the
+        // one-time product tour) so two asks never compete. If blocked this
+        // launch, the note simply waits for the next clean one (it's persisted).
+        guard !founderShareAsked, !showFounderShare, appLaunchCount >= 2,
+              !showNotifReask, !tabRouter.tourActive else { return }
         withAnimation(.snappy) { showFounderShare = true }
     }
 

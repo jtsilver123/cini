@@ -1,4 +1,5 @@
 import SwiftUI
+import RankingEngine
 
 /// The Swipe tab — a Tinder-style way to triage what to watch next. Two
 /// presentations of the same personalized pool: a card deck (default) and a

@@ -363,6 +363,18 @@ struct TopFiveShareSheet: View {
     let movieEntries: [Entry]
     let showEntries: [Entry]
 
+    init(name: String, handle: String, avatarURL: URL?,
+         movieEntries: [Entry], showEntries: [Entry]) {
+        self.name = name
+        self.handle = handle
+        self.avatarURL = avatarURL
+        self.movieEntries = movieEntries
+        self.showEntries = showEntries
+        // Open on whichever kind actually has entries, so a TV-only (or movie-
+        // only) library never opens to an empty card with the wrong tab selected.
+        _kind = State(initialValue: movieEntries.isEmpty && !showEntries.isEmpty ? "tv" : "movie")
+    }
+
     @Environment(\.dismiss) private var dismiss
     @State private var kind = "movie"
     @State private var shareImage: Image?
