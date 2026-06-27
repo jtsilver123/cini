@@ -29,6 +29,16 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
     /// Bucket-local IDs ordered best → worst, snapshotted at session start.
     let bucketIDs: [ID]
 
+    /// Optional predicted-score seed: the insertion index the new item is
+    /// predicted to land at. Biases the FIRST comparison so the opponent is a
+    /// title the user would likely score similarly — and it varies per title, so
+    /// you stop seeing the same median movie every time.
+    let seedPosition: Int?
+    /// Optional per-bucket-item similarity to the new item (0…1, aligned to
+    /// `bucketIDs`). Opponents skew toward the most-similar candidate near the
+    /// search pivot, so head-to-heads compare like with like.
+    let similarity: [Double]?
+
     private(set) var low: Int
     private(set) var high: Int
     private(set) var skipOffset: Int = 0
@@ -46,10 +56,14 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         let resolvedBucketPosition: Int?
     }
 
-    init(newItemID: ID, sentiment: Sentiment, bucketIDs: [ID]) {
+    init(newItemID: ID, sentiment: Sentiment, bucketIDs: [ID],
+         seedPosition: Int? = nil, similarity: [Double]? = nil) {
         self.newItemID = newItemID
         self.sentiment = sentiment
         self.bucketIDs = bucketIDs
+        self.seedPosition = seedPosition
+        // Only trust a similarity array that lines up with the bucket.
+        self.similarity = (similarity?.count == bucketIDs.count) ? similarity : nil
         self.low = 0
         self.high = bucketIDs.count
         if bucketIDs.isEmpty {
@@ -72,7 +86,30 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         // Never modulo by zero: a zero-width span means there's nothing left to
         // compare (the position is resolved), so there's no opponent to show.
         guard span > 0 else { return nil }
-        return low + ((span / 2) + skipOffset) % span
+        // Base pivot: on the very first comparison, start from the predicted-score
+        // seed (so the opponent is a title you'd score similarly); otherwise the
+        // binary-search midpoint. Skips rotate the pivot either way.
+        let base: Int
+        if comparisonsMade == 0, skipOffset == 0, let seed = seedPosition {
+            base = min(max(seed, low), high - 1)
+        } else {
+            base = low + ((span / 2) + skipOffset) % span
+        }
+        // Bias toward the most genre-similar opponent within a window around the
+        // base, so head-to-heads compare like with like while the search still
+        // roughly halves the range each step. No similarity → the plain midpoint.
+        guard let similarity else { return base }
+        let window = max(1, span / 4)
+        let lo = Swift.max(low, base - window)
+        let hi = Swift.min(high - 1, base + window)
+        guard lo <= hi else { return base }
+        var best = base
+        var bestSim = -1.0
+        for i in lo...hi where similarity[i] > bestSim {
+            bestSim = similarity[i]
+            best = i
+        }
+        return best
     }
 
     /// The existing movie to show head-to-head against the new one,

@@ -177,4 +177,60 @@ final class InsertionSessionTests: XCTestCase {
         }
         XCTAssertEqual(session.progress, 1.0)
     }
+
+    // MARK: - Predicted-score seed + similarity hints
+
+    func testNoSeedUsesMidpointOpponent() {
+        let list = makeList(loved: [10, 20, 30, 40, 50])
+        let session = list.beginInsertion(of: 99, sentiment: .loved)
+        // span 5, midpoint index 2.
+        XCTAssertEqual(session.currentOpponent, 30)
+    }
+
+    func testSeedPositionPicksFirstOpponent() {
+        let list = makeList(loved: [10, 20, 30, 40, 50])
+        // Predicted to slot at index 1 → first opponent is that title, not the median.
+        let session = list.beginInsertion(of: 99, sentiment: .loved, seedPosition: 1)
+        XCTAssertEqual(session.currentOpponent, 20)
+    }
+
+    func testSeedIsClampedIntoRange() {
+        let list = makeList(loved: [10, 20, 30])
+        // Out-of-range seed clamps to the last valid index (2).
+        let session = list.beginInsertion(of: 99, sentiment: .loved, seedPosition: 99)
+        XCTAssertEqual(session.currentOpponent, 30)
+    }
+
+    func testSimilarityBiasesOpponentTowardSimilarTitle() {
+        let list = makeList(loved: [10, 20, 30, 40, 50])
+        // Midpoint is index 2; window is index 1...3. The most-similar there is index 3.
+        let sim = [0.0, 0.0, 0.1, 0.9, 0.0]
+        let session = list.beginInsertion(of: 99, sentiment: .loved, similarity: sim)
+        XCTAssertEqual(session.currentOpponent, 40)
+    }
+
+    func testMismatchedSimilarityIsIgnored() {
+        let list = makeList(loved: [10, 20, 30, 40, 50])
+        let session = list.beginInsertion(of: 99, sentiment: .loved, similarity: [0.9, 0.9])
+        // Wrong-length array is dropped; falls back to the midpoint.
+        XCTAssertEqual(session.currentOpponent, 30)
+    }
+
+    func testSeedAndSimilarityStillConvergeToTopWhenAlwaysPreferNew() {
+        var list = makeList(loved: [10, 20, 30, 40, 50])
+        let sim = [0.5, 0.5, 0.5, 0.5, 0.5]
+        var session = list.beginInsertion(of: 99, sentiment: .loved,
+                                          seedPosition: 3, similarity: sim)
+        while !session.isComplete { session.choose(.preferNew) }
+        list.commit(session)
+        XCTAssertEqual(list.bucket(.loved).first, 99)
+    }
+
+    func testSeedStillConvergesToBottomWhenAlwaysPreferExisting() {
+        var list = makeList(loved: [10, 20, 30, 40, 50])
+        var session = list.beginInsertion(of: 99, sentiment: .loved, seedPosition: 1)
+        while !session.isComplete { session.choose(.preferExisting) }
+        list.commit(session)
+        XCTAssertEqual(list.bucket(.loved).last, 99)
+    }
 }

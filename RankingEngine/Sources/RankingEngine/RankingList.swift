@@ -68,17 +68,27 @@ public struct RankingList<ID: Hashable & Codable & Sendable>: Codable, Sendable 
 
     /// Begin ranking a new movie (or re-ranking an existing one — see
     /// `beginReranking`). Traps if the item is already in the list.
-    public func beginInsertion(of id: ID, sentiment: Sentiment) -> InsertionSession<ID> {
+    /// `seedPosition` (predicted insertion index) and `similarity` (per-bucket-
+    /// item genre overlap, aligned to `bucket(sentiment)`) are optional hints
+    /// that make the head-to-head opponents relevant; nil falls back to a plain
+    /// binary search.
+    public func beginInsertion(of id: ID, sentiment: Sentiment,
+                               seedPosition: Int? = nil,
+                               similarity: [Double]? = nil) -> InsertionSession<ID> {
         precondition(sentiments[id] == nil, "Item already ranked; use beginReranking")
-        return InsertionSession(newItemID: id, sentiment: sentiment, bucketIDs: bucket(sentiment))
+        return InsertionSession(newItemID: id, sentiment: sentiment, bucketIDs: bucket(sentiment),
+                                seedPosition: seedPosition, similarity: similarity)
     }
 
     /// "Rank again": removes the existing entry and starts a fresh session
     /// (possibly into a different bucket). The entry is not present in the
     /// list while the session runs, so it can't be its own opponent.
-    public mutating func beginReranking(of id: ID, sentiment: Sentiment) -> InsertionSession<ID> {
+    public mutating func beginReranking(of id: ID, sentiment: Sentiment,
+                                        seedPosition: Int? = nil,
+                                        similarity: [Double]? = nil) -> InsertionSession<ID> {
         remove(id)
-        return beginInsertion(of: id, sentiment: sentiment)
+        return beginInsertion(of: id, sentiment: sentiment,
+                              seedPosition: seedPosition, similarity: similarity)
     }
 
     /// Commit a finished session. Returns the new item's scored entry.

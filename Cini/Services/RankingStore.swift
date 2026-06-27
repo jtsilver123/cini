@@ -259,12 +259,44 @@ final class RankingStore {
         // first movie (or first show) has an empty bucket → no comparisons.
         let key = kindKey(movie.mediaKind)
         var kindList = lists[key] ?? RankingList()
+        // Smart head-to-heads: seed the search where the PREDICTED score would
+        // slot (so the first opponent is a title you'd score similarly, and it
+        // varies per title instead of always the median), and bias opponents
+        // toward GENRE-similar titles. The opponent set is the bucket minus the
+        // title itself, so a rerank's hints line up with the post-remove bucket.
+        let opponents = kindList.bucket(sentiment).filter { $0 != movie.tmdbID }
+        let seed = seedPosition(for: movie, bucketSize: opponents.count, sentiment: sentiment)
+        let sim = genreSimilarities(for: movie, against: opponents)
         let session = kindList.contains(movie.tmdbID)
-            ? kindList.beginReranking(of: movie.tmdbID, sentiment: sentiment)
-            : kindList.beginInsertion(of: movie.tmdbID, sentiment: sentiment)
+            ? kindList.beginReranking(of: movie.tmdbID, sentiment: sentiment,
+                                      seedPosition: seed, similarity: sim)
+            : kindList.beginInsertion(of: movie.tmdbID, sentiment: sentiment,
+                                      seedPosition: seed, similarity: sim)
         lists[key] = kindList
         listChanged()
         return session
+    }
+
+    /// Where the predicted score would slot in a bucket of `bucketSize` (the
+    /// count of titles the bucket's scores beat it). Nil when we have no
+    /// prediction or no opponents.
+    private func seedPosition(for movie: Movie, bucketSize: Int, sentiment: Sentiment) -> Int? {
+        guard bucketSize > 0, let predicted = predictedScores[movie.tmdbID] else { return nil }
+        let scores = ScoreCalculator.scores(forBucketOf: bucketSize, sentiment: sentiment)
+        return scores.filter { $0 > predicted }.count
+    }
+
+    /// Genre overlap (Jaccard, 0…1) between the new title and each opponent,
+    /// aligned to `bucketIDs`. Nil when the new title has no genres / no opponents.
+    private func genreSimilarities(for movie: Movie, against bucketIDs: [Int]) -> [Double]? {
+        let newGenres = Set(movie.genres)
+        guard !newGenres.isEmpty, !bucketIDs.isEmpty else { return nil }
+        return bucketIDs.map { id in
+            guard let genres = self.movie(id)?.genres, !genres.isEmpty else { return 0 }
+            let other = Set(genres)
+            let union = newGenres.union(other).count
+            return union == 0 ? 0 : Double(newGenres.intersection(other).count) / Double(union)
+        }
     }
 
     /// Commit locally and mirror to the rank_insert RPC. `onLocalScored` fires
