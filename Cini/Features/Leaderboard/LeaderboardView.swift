@@ -54,6 +54,13 @@ struct LeaderboardView: View {
             .nativeContentWidth()
             .background(Theme.background)
             .task { await load() }
+            // React to the school being set/cleared from the profile: drop the
+            // now-invalid campus scope and reload so the board never shows stale
+            // school-scoped rows with no pill to turn off.
+            .onChange(of: session.profile?.school) { _, newValue in
+                if newValue == nil { schoolOnly = false }
+                Task { await load() }
+            }
             .sheet(isPresented: $showInvite) {
                 InviteSheet()
                     .presentationDetents([.large])
