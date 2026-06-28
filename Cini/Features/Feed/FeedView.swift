@@ -87,6 +87,9 @@ struct FeedView: View {
     /// Trending titles, shown as a "Popular on Cini" shelf so a feed with few
     /// friends still has something fresh to rank/bookmark (new-user retention).
     @State private var popularMovies: [Movie] = []
+    /// "Watching at <school>" shelf: classmates' recent ranks + how many ranked each.
+    @State private var schoolMovies: [Movie] = []
+    @State private var schoolRankers: [Int: Int] = [:]
 
     var body: some View {
         NavigationStack {
@@ -135,6 +138,7 @@ struct FeedView: View {
             // overriding an "I'm done tonight" clear.
             .task(id: store.watchlistCount) { await loadTonightStack() }
             .task(id: store.isLoaded) { await loadPopular() }
+            .task(id: session.profile?.school) { await loadSchoolTrending() }
             // The notifications re-ask needs the profile (memberSince), which
             // loads slightly after the store — re-run once it's known. (The
             // Tonight's-Pick gate is taste-based now and rides store.isLoaded.)
@@ -754,6 +758,12 @@ struct FeedView: View {
                     .padding(.top, mode == .compact ? 4 : 0)
             }
 
+            // What your campus is watching — classmates' recent ranks.
+            if !schoolMovies.isEmpty {
+                schoolShelf
+                    .padding(.top, 4)
+            }
+
             // Popular on Cini — keeps a thin/new feed alive with fresh titles
             // to rank or bookmark. Shown while friend activity is sparse (the
             // lone-user case); fades out naturally once the feed fills in.
@@ -883,6 +893,62 @@ struct FeedView: View {
         guard popularMovies.isEmpty else { return }
         guard let trending = try? await TMDBService.shared.trending() else { return }
         popularMovies = trending.filter { $0.posterPath != nil && !store.isWatched($0.tmdbID) }
+    }
+
+    /// Load what classmates (same school) are ranking, for the campus shelf.
+    private func loadSchoolTrending() async {
+        guard session.profile?.school != nil else { schoolMovies = []; return }
+        let rows = await SupabaseService.shared.schoolTrending()
+        guard !rows.isEmpty else { schoolMovies = []; return }
+        let fetched = (try? await SupabaseService.shared.movies(ids: rows.map(\.movieId))) ?? []
+        var byID: [Int: Movie] = [:]
+        for row in fetched { byID[row.tmdbId] = row.asMovie }
+        schoolRankers = Dictionary(rows.map { ($0.movieId, $0.rankers) }, uniquingKeysWith: { a, _ in a })
+        // Keep the RPC's order (most classmates first) and only titles with art.
+        schoolMovies = rows.compactMap { byID[$0.movieId] ?? store.movie($0.movieId) }
+            .filter { $0.posterPath != nil }
+    }
+
+    /// "Watching at <school>" — a campus poster shelf with classmate social proof.
+    private var schoolShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "graduationcap.fill").foregroundStyle(Theme.marquee)
+                Text("Watching at \(session.profile?.school ?? "your school")")
+                    .font(.headline).foregroundStyle(Theme.ink).lineLimit(1)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(schoolMovies.prefix(12)) { movie in
+                        VStack(alignment: .leading, spacing: 6) {
+                            PosterView(url: movie.posterURL, width: 116)
+                                .overlay(alignment: .bottomTrailing) {
+                                    ArtworkQuickActions(movie: movie, onLog: { logMovie = $0 })
+                                        .font(.body)
+                                        .padding(6)
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    store.cache(movie)
+                                    detailMovie = movie
+                                }
+                            Text(movie.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .lineLimit(1)
+                                .frame(width: 116, alignment: .leading)
+                            if let n = schoolRankers[movie.tmdbID], n > 0 {
+                                Text(n == 1 ? "1 classmate ranked it" : "\(n) classmates ranked it")
+                                    .font(.caption2).foregroundStyle(Theme.gray)
+                                    .frame(width: 116, alignment: .leading)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, Theme.screenH)
+            }
+            .padding(.horizontal, -Theme.screenH)
+        }
     }
 
     private func consumePush() {

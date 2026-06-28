@@ -144,6 +144,7 @@ RPCS = [
     ("movie_friend_scores", {"p_movie_id": 27205}),
     ("movie_score_histogram", {"p_movie_id": 27205}),
     ("leaderboard", {"p_metric": "watched", "p_school": None, "p_genre": None}),
+    ("school_trending", {"p_limit": 12}),
     ("redeem_invite_from", {"p_username": "no_such_user_zz"}),
     # Empty recipients / random id: exercises signatures without writing.
     # Full 7-param signature (migration 0082) — keep in lockstep with

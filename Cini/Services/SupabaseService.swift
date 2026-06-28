@@ -1862,6 +1862,15 @@ final class SupabaseService {
         ).execute().value
     }
 
+    /// "What your school is watching": titles classmates ranked most recently,
+    /// with how many of them ranked it (campus social proof). Empty without a
+    /// school set or with no recent campus activity.
+    func schoolTrending(limit: Int = 12) async -> [SchoolTrendingRow] {
+        struct Params: Encodable { let p_limit: Int }
+        return (try? await client.rpc("school_trending", params: Params(p_limit: limit))
+            .execute().value) ?? []
+    }
+
     /// Titles Cini members are ranking/bookmarking most over the last 2 weeks —
     /// the "Trending" search filter (CIN-34). Returns tmdb ids, most active first.
     func trendingTitles() async -> [Int] {
@@ -2370,6 +2379,18 @@ struct HistogramBin: Codable, Hashable {
     enum CodingKeys: String, CodingKey {
         case bucketFloor = "bucket_floor"
         case n
+    }
+}
+
+/// One title on the "what your school is watching" shelf: a tmdb id and how many
+/// classmates ranked it recently.
+struct SchoolTrendingRow: Decodable, Identifiable, Hashable {
+    let movieId: Int
+    let rankers: Int
+    var id: Int { movieId }
+    enum CodingKeys: String, CodingKey {
+        case movieId = "movie_id"
+        case rankers
     }
 }
 
