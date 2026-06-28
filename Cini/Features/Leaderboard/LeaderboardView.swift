@@ -12,6 +12,8 @@ struct LeaderboardView: View {
     @State private var rows: [LeaderboardRow] = []
     @State private var showInvite = false
     @State private var loaded = false
+    /// When on, the board is scoped to the user's campus (their `school`).
+    @State private var schoolOnly = false
 
     // One row per metric so the label, query key, and caption can never drift
     // out of sync (a mismatched parallel array would crash on index).
@@ -79,6 +81,18 @@ struct LeaderboardView: View {
             } label: {
                 FilterPill(title: genre ?? "All Genres", active: genre != nil)
             }
+            // Campus scope — only when the user has set a school. Tap to see just
+            // their college's ranks ("the leaderboard at UCLA").
+            if let school = session.profile?.school {
+                Button {
+                    Haptics.tap()
+                    schoolOnly.toggle()
+                    Task { await load() }
+                } label: {
+                    FilterPill(title: schoolOnly ? school : "My School", active: schoolOnly)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -136,8 +150,9 @@ struct LeaderboardView: View {
     }
 
     private func load() async {
+        let school = schoolOnly ? session.profile?.school : nil
         rows = (try? await SupabaseService.shared.leaderboard(
-            metric: currentMetric.key, genre: genre)) ?? []
+            metric: currentMetric.key, genre: genre, school: school)) ?? []
         loaded = true
     }
 }

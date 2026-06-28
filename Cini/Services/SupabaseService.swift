@@ -1850,15 +1850,15 @@ final class SupabaseService {
 
     // MARK: - Leaderboard & rank
 
-    func leaderboard(metric: String, genre: String?) async throws -> [LeaderboardRow] {
+    func leaderboard(metric: String, genre: String?, school: String? = nil) async throws -> [LeaderboardRow] {
         struct Params: Encodable {
             let p_metric: String
-            let p_school: String?   // RPC signature requires it; always nil
+            let p_school: String?   // non-nil scopes the board to one campus
             let p_genre: String?
         }
         return try await client.rpc(
             "leaderboard",
-            params: Params(p_metric: metric, p_school: nil, p_genre: genre)
+            params: Params(p_metric: metric, p_school: school, p_genre: genre)
         ).execute().value
     }
 
