@@ -95,19 +95,26 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         } else {
             base = low + ((span / 2) + skipOffset) % span
         }
-        // Bias toward the most genre-similar opponent within a window around the
-        // base, so head-to-heads compare like with like while the search still
-        // roughly halves the range each step. No similarity → the plain midpoint.
+        // Bias toward the most-similar opponent within a small window around the
+        // base, so head-to-heads compare like with like. The window is CAPPED at a
+        // few positions so the pivot stays near the median — that keeps the search
+        // ~log(n) (fewest taps) instead of letting an off-center pick balloon the
+        // comparison count. No similarity → the plain midpoint.
         guard let similarity else { return base }
-        let window = max(1, span / 4)
+        let window = Swift.min(Swift.max(1, span / 4), 3)
         let lo = Swift.max(low, base - window)
         let hi = Swift.min(high - 1, base + window)
         guard lo <= hi else { return base }
         var best = base
         var bestSim = -1.0
-        for i in lo...hi where similarity[i] > bestSim {
-            bestSim = similarity[i]
-            best = i
+        for i in lo...hi {
+            let sim = similarity[i]
+            // Highest similarity wins; on a tie pick the candidate closest to the
+            // midpoint so the search stays balanced (and opponents don't skew).
+            if sim > bestSim || (sim == bestSim && abs(i - base) < abs(best - base)) {
+                bestSim = sim
+                best = i
+            }
         }
         return best
     }

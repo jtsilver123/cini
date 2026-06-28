@@ -233,4 +233,22 @@ final class InsertionSessionTests: XCTestCase {
         list.commit(session)
         XCTAssertEqual(list.bucket(.loved).last, 99)
     }
+
+    func testSimilarityTieKeepsPivotAtMidpoint() {
+        let list = makeList(loved: [10, 20, 30, 40, 50])
+        // Flat similarity across the window → don't skew; keep the midpoint (30).
+        let sim = [0.5, 0.5, 0.5, 0.5, 0.5]
+        let session = list.beginInsertion(of: 99, sentiment: .loved, similarity: sim)
+        XCTAssertEqual(session.currentOpponent, 30)
+    }
+
+    func testSimilarityWindowIsCappedNearMidpoint() {
+        let list = makeList(loved: Array(1...20))
+        // A very-similar title 4 past the midpoint is OUTSIDE the capped ±3 window,
+        // so the pivot stays near the median rather than jumping there (keeps taps low).
+        var sim = Array(repeating: 0.0, count: 20)
+        sim[14] = 1.0
+        let session = list.beginInsertion(of: 99, sentiment: .loved, similarity: sim)
+        XCTAssertEqual(session.currentOpponent, 11)   // midpoint title (bucket index 10)
+    }
 }
