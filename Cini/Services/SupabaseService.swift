@@ -1915,9 +1915,10 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let tiktokHandle: String?
     let xHandle: String?
     let letterboxdHandle: String?
+    let school: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, username, bio
+        case id, username, bio, school
         case displayName = "display_name"
         case avatarUrl = "avatar_url"
         case memberSince = "member_since"
@@ -1940,7 +1941,8 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 annualGoal: annualGoal,
                 bio: bio,
                 instagramHandle: instagramHandle, tiktokHandle: tiktokHandle,
-                xHandle: xHandle, letterboxdHandle: letterboxdHandle)
+                xHandle: xHandle, letterboxdHandle: letterboxdHandle,
+                school: (school?.isEmpty == true) ? nil : school)
     }
 }
 
@@ -2058,6 +2060,7 @@ struct ProfileUpdate: Encodable {
     var tiktok_handle: String?
     var x_handle: String?
     var letterboxd_handle: String?
+    var school: String?
 }
 
 struct MovieRow: Codable, Hashable {

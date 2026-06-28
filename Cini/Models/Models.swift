@@ -159,6 +159,10 @@ struct Profile: Identifiable, Codable, Hashable {
     var tiktokHandle: String?
     var xHandle: String?
     var letterboxdHandle: String?
+    /// The user's college, picked from a canonical list so classmates share the
+    /// exact same string — powers campus leaderboards and "what your school is
+    /// watching." Optional; set whenever from the profile.
+    var school: String?
 
     /// (label, handle, profile URL) for every linked social, in display order.
     var socialLinks: [(platform: String, handle: String, url: URL)] {

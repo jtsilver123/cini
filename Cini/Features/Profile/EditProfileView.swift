@@ -18,6 +18,8 @@ struct EditProfileView: View {
     @State private var tiktok: String
     @State private var x: String
     @State private var letterboxd: String
+    @State private var school: String?
+    @State private var showSchoolPicker = false
     @State private var isPrivate: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -34,6 +36,7 @@ struct EditProfileView: View {
         _tiktok = State(initialValue: profile.tiktokHandle ?? "")
         _x = State(initialValue: profile.xHandle ?? "")
         _letterboxd = State(initialValue: profile.letterboxdHandle ?? "")
+        _school = State(initialValue: profile.school)
         _isPrivate = State(initialValue: profile.isPrivate)
     }
 
@@ -111,6 +114,30 @@ struct EditProfileView: View {
                     TextField("Bio", text: $bio, axis: .vertical)
                         .lineLimit(2...4)
                         .onChange(of: bio) { _, new in bio = String(new.prefix(160)) }
+                }
+
+                Section {
+                    Button {
+                        Haptics.tap()
+                        showSchoolPicker = true
+                    } label: {
+                        HStack {
+                            Text("School").foregroundStyle(Theme.ink)
+                            Spacer()
+                            Text(school ?? "Add your school")
+                                .foregroundStyle(school == nil ? Theme.gray : Theme.marquee)
+                                .lineLimit(1)
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.gray)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Text("School")
+                } footer: {
+                    Text("Pick your college to unlock campus leaderboards and see what your school is watching.")
+                }
+                .sheet(isPresented: $showSchoolPicker) {
+                    SchoolPickerView(current: school) { school = $0 }
                 }
 
                 Section {
@@ -218,7 +245,8 @@ struct EditProfileView: View {
                 instagram_handle: clean(instagram) ?? "",
                 tiktok_handle: clean(tiktok) ?? "",
                 x_handle: clean(x) ?? "",
-                letterboxd_handle: clean(letterboxd) ?? ""
+                letterboxd_handle: clean(letterboxd) ?? "",
+                school: school ?? ""
             ))
             onSaved()
             dismiss()
