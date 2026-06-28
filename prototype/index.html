@@ -424,7 +424,7 @@ const DEFAULT_STATE = {
   watching:[{k:"anat", s:2, e:3, caughtUp:false}],
   queue:["anat"],
   liked:{}, followed:{}, comments:{f1:[{u:"jtsilver123", t:"so good in IMAX"}]},
-  me:{name:"Jake Silver", bio:"", ig:"", tt:"", x:"", lb:""},
+  me:{name:"Jake Silver", bio:"", ig:"", tt:"", x:"", lb:"", school:"UCLA"},
   friendRecs:[{id:"fr1", from:"maddyc", k:"anat", note:"courtroom scenes that actually slap — trust me"}],
   ui:{showFilters:false, showSearch:false, listQ:"", reorder:false},
   category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93, onboarded:false,
@@ -808,6 +808,16 @@ function renderFeed(){
     </div>
     ${watchingShelf}
     ${tonight}
+    ${S.me.school ? `
+    <h2 class="section" style="display:flex; align-items:center; gap:6px;"><span style="color:var(--marquee);">🎓</span>WATCHING AT ${esc(S.me.school).toUpperCase()}</h2>
+    <div style="display:flex; gap:12px; overflow-x:auto; padding:0 14px 2px; -webkit-overflow-scrolling:touch;">
+      ${["dune2","opp","past","anat"].map((k,i)=>{const m=MOVIES[k]; if(!m)return ""; return `
+        <div style="flex:0 0 auto; width:116px; cursor:pointer;" onclick="openDetail('${k}')">
+          <div class="poster" style="width:116px; height:174px; background-image:url('${IMG(m.p)}');"></div>
+          <div style="font-size:13px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.t}</div>
+          <div class="sub" style="font-size:11px;">${[7,5,4,3][i]} classmates ranked it</div>
+        </div>`;}).join("")}
+    </div>`:""}
     ${cardArr.length<3 ? `
     <h2 class="section" style="display:flex; align-items:center; gap:6px;"><span style="color:var(--marquee);">${I("flame",16)}</span>POPULAR ON CINI</h2>
     <div style="display:flex; gap:12px; overflow-x:auto; padding:0 14px 2px; -webkit-overflow-scrolling:touch;">
@@ -1550,6 +1560,7 @@ function renderProfile(){
       <div class="avatar ${av}" style="width:100px;height:100px; margin:0 auto; font-size:34px;">${name[0]}</div>
       <div style="font-weight:700; font-size:17px; margin-top:10px;">@${handle}</div>
       <div class="sub" style="margin-top:2px;">Member since December 2022</div>
+      ${isSelf && S.me.school ? `<div class="sub" style="margin-top:4px;">🎓 ${esc(S.me.school)}</div>`:""}
       ${isSelf && S.me.bio ? `<div style="font-size:13.5px; margin-top:8px; padding:0 36px;">${esc(S.me.bio)}</div>`:""}
       ${socialChips(isSelf ? S.me : (member.socials||{}))}
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
