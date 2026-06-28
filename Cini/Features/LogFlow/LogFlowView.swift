@@ -195,6 +195,9 @@ struct LogFlowView: View {
             // records the right spot in Currently Watching.
             if movie.mediaKind == "tv" {
                 showInfo = try? await TMDBService.shared.extendedDetails(for: movie.tmdbID)
+                // Now that we know the real season/episode counts, pull any
+                // out-of-range stepper values (set against the fallback caps) in.
+                clampProgressToShow()
             }
         }
     }
@@ -370,6 +373,20 @@ struct LogFlowView: View {
         return status == "Ended" || status == "Canceled"
     }
 
+    // Bound the steppers to the show's real structure so you can't pick a season
+    // or episode that doesn't exist. Generous caps until the show's details load.
+    private var seasonMax: Int { max(1, showInfo?.numberOfSeasons ?? 50) }
+    private func episodesInSeason(_ season: Int) -> Int {
+        max(1, showInfo?.seasonEpisodeCounts[season] ?? 200)
+    }
+    /// Pull the stepper values back in range when the show's details load or the
+    /// season changes (a later season may have fewer episodes).
+    private func clampProgressToShow() {
+        if swSeason > seasonMax { swSeason = seasonMax }
+        let maxEp = episodesInSeason(swSeason)
+        if swEpisode > maxEp { swEpisode = maxEp }
+    }
+
     private var stillWatchingCard: some View {
         VStack(spacing: 12) {
             Button {
@@ -391,8 +408,8 @@ struct LogFlowView: View {
                     Text("Where are you?")
                         .font(.caption.weight(.semibold)).foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    progressStepper("Season", value: $swSeason, min: 1, max: 50)
-                    progressStepper("Episode", value: $swEpisode, min: 1, max: 200)
+                    progressStepper("Season", value: $swSeason, min: 1, max: seasonMax)
+                    progressStepper("Episode", value: $swEpisode, min: 1, max: episodesInSeason(swSeason))
                     Button {
                         saveStillWatching(caughtUp: false)
                     } label: {
@@ -424,6 +441,8 @@ struct LogFlowView: View {
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .floatingCard()
+        // A later season may have fewer episodes — pull Episode back in range.
+        .onChange(of: swSeason) { _, _ in clampProgressToShow() }
     }
 
     /// A compact +/- stepper (mirrors the Currently-Watching control).
