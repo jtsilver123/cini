@@ -81,15 +81,16 @@ struct LeaderboardView: View {
             } label: {
                 FilterPill(title: genre ?? "All Genres", active: genre != nil)
             }
-            // Campus scope — only when the user has set a school. Tap to see just
-            // their college's ranks ("the leaderboard at UCLA").
-            if let school = session.profile?.school {
+            // Campus scope — only when the user has set a school. A toggle (not a
+            // menu), and a fixed label so a long canonical name can't blow out the
+            // row; the filled state shows it's scoped to their college.
+            if session.profile?.school != nil {
                 Button {
                     Haptics.tap()
                     schoolOnly.toggle()
                     Task { await load() }
                 } label: {
-                    FilterPill(title: schoolOnly ? school : "My School", active: schoolOnly)
+                    FilterPill(title: "My School", hasChevron: false, active: schoolOnly)
                 }
                 .buttonStyle(.plain)
             }
