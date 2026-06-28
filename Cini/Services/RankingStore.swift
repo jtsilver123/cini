@@ -262,11 +262,12 @@ final class RankingStore {
         // Smart head-to-heads: seed the search where the PREDICTED score would
         // slot (so the first opponent is a title you'd score similarly, and it
         // varies per title instead of always the median), and bias opponents
-        // toward GENRE-similar titles. The opponent set is the bucket minus the
-        // title itself, so a rerank's hints line up with the post-remove bucket.
+        // toward SIMILAR titles (genre, shared director, and era). The opponent
+        // set is the bucket minus the title itself, so a rerank's hints line up
+        // with the post-remove bucket.
         let opponents = kindList.bucket(sentiment).filter { $0 != movie.tmdbID }
         let seed = seedPosition(for: movie, bucketSize: opponents.count, sentiment: sentiment)
-        let sim = genreSimilarities(for: movie, against: opponents)
+        let sim = titleSimilarities(for: movie, against: opponents)
         let session = kindList.contains(movie.tmdbID)
             ? kindList.beginReranking(of: movie.tmdbID, sentiment: sentiment,
                                       seedPosition: seed, similarity: sim)
@@ -286,16 +287,36 @@ final class RankingStore {
         return scores.filter { $0 > predicted }.count
     }
 
-    /// Genre overlap (Jaccard, 0…1) between the new title and each opponent,
-    /// aligned to `bucketIDs`. Nil when the new title has no genres / no opponents.
-    private func genreSimilarities(for movie: Movie, against bucketIDs: [Int]) -> [Double]? {
+    /// How comparable each opponent is to the new title (0…1), aligned to
+    /// `bucketIDs`. Blends genre overlap (most weight), a shared director, and
+    /// release-year proximity, so the head-to-heads pit like against like. Nil
+    /// when the new title carries no usable signal, or there are no opponents.
+    private func titleSimilarities(for movie: Movie, against bucketIDs: [Int]) -> [Double]? {
+        guard !bucketIDs.isEmpty else { return nil }
         let newGenres = Set(movie.genres)
-        guard !newGenres.isEmpty, !bucketIDs.isEmpty else { return nil }
+        let newDirector = (movie.director?.isEmpty == false) ? movie.director : nil
+        let newYear = movie.releaseYear
+        // No signal at all → let it fall back to a plain binary search.
+        guard !newGenres.isEmpty || newDirector != nil || newYear != nil else { return nil }
         return bucketIDs.map { id in
-            guard let genres = self.movie(id)?.genres, !genres.isEmpty else { return 0 }
-            let other = Set(genres)
-            let union = newGenres.union(other).count
-            return union == 0 ? 0 : Double(newGenres.intersection(other).count) / Double(union)
+            guard let other = self.movie(id) else { return 0 }
+            var score = 0.0
+            // Genre overlap (Jaccard) — the strongest "same kind of movie" signal.
+            let otherGenres = Set(other.genres)
+            if !newGenres.isEmpty, !otherGenres.isEmpty {
+                let union = newGenres.union(otherGenres).count
+                score += 0.6 * (union == 0 ? 0
+                    : Double(newGenres.intersection(otherGenres).count) / Double(union))
+            }
+            // Same director — two films by one director are highly comparable.
+            if let nd = newDirector, let od = other.director, !od.isEmpty, nd == od {
+                score += 0.25
+            }
+            // Same era — closer release years compare better (fades out by ~20y).
+            if let ny = newYear, let oy = other.releaseYear {
+                score += 0.15 * max(0, 1 - Double(abs(ny - oy)) / 20)
+            }
+            return score
         }
     }
 
