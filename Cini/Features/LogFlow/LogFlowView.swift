@@ -503,6 +503,24 @@ struct LogFlowView: View {
 
     // MARK: Card 5 — comparison
 
+    /// A short "why these two" hint for the head-to-head, mirroring the signal the
+    /// ranker used to pick the opponent: shared director, then a shared genre,
+    /// then the same era. Nil when there's no meaningful overlap.
+    private func matchupReason(_ opponentID: Int) -> String? {
+        guard let other = store.movie(opponentID) else { return nil }
+        if let d = movie.director, !d.isEmpty, d == other.director {
+            return "Both directed by \(d)"
+        }
+        let shared = Set(other.genres)
+        if let g = movie.genres.first(where: { shared.contains($0) }) {
+            return "Two \(g) picks"
+        }
+        if let y1 = movie.releaseYear, let y2 = other.releaseYear, abs(y1 - y2) <= 3 {
+            return "Both from the \((min(y1, y2) / 10) * 10)s"
+        }
+        return nil
+    }
+
     private func comparisonCard(_ current: InsertionSession<Int>) -> some View {
         VStack(spacing: 18) {
             Text("Which do you prefer?")
@@ -514,6 +532,16 @@ struct LogFlowView: View {
                 .tint(Theme.marquee)
                 .frame(maxWidth: 180)
                 .animation(.snappy, value: current.progress)
+
+            // Why these two are matched — makes the smart opponent pick read as
+            // intentional, not random ("Both directed by Nolan").
+            if let opp = current.currentOpponent, let reason = matchupReason(opp) {
+                Text(reason)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.gray)
+                    .transition(.opacity)
+                    .id(pairID)
+            }
 
             if let opponentID = current.currentOpponent {
                 HStack(spacing: 0) {
