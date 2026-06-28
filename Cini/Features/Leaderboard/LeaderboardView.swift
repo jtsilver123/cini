@@ -92,14 +92,13 @@ struct LeaderboardView: View {
             // menu), and a fixed label so a long canonical name can't blow out the
             // row; the filled state shows it's scoped to their college.
             if session.profile?.school != nil {
-                Button {
+                // Pass the action TO FilterPill (it has its own Button) — wrapping
+                // it in another Button nests two buttons and the tap never lands.
+                FilterPill(title: "My School", hasChevron: false, active: schoolOnly) {
                     Haptics.tap()
                     schoolOnly.toggle()
                     Task { await load() }
-                } label: {
-                    FilterPill(title: "My School", hasChevron: false, active: schoolOnly)
                 }
-                .buttonStyle(.plain)
             }
         }
     }

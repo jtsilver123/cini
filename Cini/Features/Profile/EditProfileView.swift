@@ -134,9 +134,6 @@ struct EditProfileView: View {
                 } footer: {
                     Text("Pick your school to unlock campus leaderboards and see what your school is watching.")
                 }
-                .sheet(isPresented: $showSchoolPicker) {
-                    SchoolPickerView(current: school) { school = $0 }
-                }
 
                 Section {
                     socialField("Instagram", text: $instagram)
@@ -176,6 +173,11 @@ struct EditProfileView: View {
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
+            // Attached at the Form level (not on a row) so the search picker can't
+            // be torn down and dismissed when the Form re-lays-out on first open.
+            .sheet(isPresented: $showSchoolPicker) {
+                SchoolPickerView(current: school) { school = $0 }
+            }
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

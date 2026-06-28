@@ -480,6 +480,15 @@ struct ProfileScreen: View {
             Text("@\(profile?.username ?? username ?? "—")").font(.headline)
                 .lineLimit(1).truncationMode(.tail)
             Text(profile?.memberSinceText ?? "").font(.subheadline).foregroundStyle(Theme.gray)
+            if let school = profile?.school, !school.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "graduationcap.fill").font(.caption)
+                    Text(school).font(.subheadline)
+                }
+                .foregroundStyle(Theme.gray)
+                .lineLimit(1)
+                .padding(.horizontal, 24)
+            }
             if let bio = profile?.bio, !bio.isEmpty {
                 Text(bio)
                     .font(.subheadline)
