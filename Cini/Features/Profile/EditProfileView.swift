@@ -131,10 +131,8 @@ struct EditProfileView: View {
                         }
                     }
                     .buttonStyle(.plain)
-                } header: {
-                    Text("School")
                 } footer: {
-                    Text("Pick your college to unlock campus leaderboards and see what your school is watching.")
+                    Text("Pick your school to unlock campus leaderboards and see what your school is watching.")
                 }
                 .sheet(isPresented: $showSchoolPicker) {
                     SchoolPickerView(current: school) { school = $0 }
