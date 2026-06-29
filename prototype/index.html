@@ -2478,9 +2478,11 @@ function postComment(id){
 function notifLine(n){
   const member=MEMBERS.find(m=>m.u===n.who);
   const who=`<b>@${member?member.u:n.who}</b>`;
+  // For follow/join events, show the person's real name (falls back to handle).
+  const name=`<b>${member&&member.n?member.n:(member?member.u:n.who)}</b>`;
   const movie=n.movie?`<b>${MOVIES[n.movie].t}</b>`:"";
   switch(n.kind){
-    case "new_follower": return `${who} started following you`;
+    case "new_follower": return `${name} started following you`;
     case "like": return `${who} liked your activity on ${movie}`;
     case "comment": return `${who} commented on ${movie}`;
     case "mention": return `${who} mentioned you in a comment on ${movie}`;

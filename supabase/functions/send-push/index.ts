@@ -76,7 +76,7 @@ async function apnsJWT(): Promise<string> {
 // if they have none) — used where a real name reads better.
 function headline(kind: string, actor: string, name: string, movie: string | null): string {
   switch (kind) {
-    case "new_follower": return `@${actor} started following you`;
+    case "new_follower": return `${name} started following you`;
     case "like": return `@${actor} liked your activity on ${movie ?? "a movie"}`;
     case "comment": return `@${actor} commented on ${movie ?? "a movie"}`;
     case "friend_ranked_watchlist_movie":
@@ -86,7 +86,7 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "direct_rec":
       return `@${actor} recommended ${movie ?? "a movie"} to you 🎬`;
     case "invite_joined":
-      return `@${actor} joined Cini from your invite 🎉 You now follow each other.`;
+      return `${name} joined Cini from your invite 🎉 You now follow each other.`;
     case "rec_request":
       return `@${actor} wants a rec from you — send one 🎬`;
     case "follow_request":

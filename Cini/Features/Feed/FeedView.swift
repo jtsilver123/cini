@@ -2744,19 +2744,19 @@ struct NotificationsView: View {
 
     private func headline(_ row: NotificationRow) -> AttributedString {
         let who = "@\(row.actor?.username ?? "someone")"
-        // Prefer the joiner's real profile name for "a contact joined" — it
-        // reads like a person you know, not a handle. (We don't store the name
-        // you saved them under, only a hash of their number.)
+        // For "joined"/follow events, prefer the person's real profile name — a
+        // brand-new user reads like someone you know by name, not an
+        // auto-generated handle. Falls back to the @handle if they have no name.
         let name = (row.actor?.displayName).flatMap { $0.isEmpty ? nil : $0 } ?? who
         let movie = row.movies?.title ?? "a movie"
         let text: String
         switch row.kind {
-        case "new_follower": text = "**\(who)** started following you"
+        case "new_follower": text = "**\(name)** started following you"
         case "like": text = "**\(who)** liked your activity on **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
         case "watchlist_showing": text = "**\(movie)** from your Want to Watch list is playing near you 🎬"
-        case "invite_joined": text = "**\(who)** joined Cini from your invite — you now follow each other 🎉"
+        case "invite_joined": text = "**\(name)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
         case "follow_request": text = "**\(who)** asked to follow you"
