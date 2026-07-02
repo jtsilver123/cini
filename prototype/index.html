@@ -396,11 +396,11 @@ const MOVIES = {
 };
 
 const MEMBERS = [
-  {u:"maddyc", n:"maddy", av:"av1", match:38, watched:642, top:["dune2","past","poor"], socials:{ig:"maddy.c", lb:"maddyc"}},
+  {u:"maddyc", n:"maddy", av:"av1", match:38, watched:642, top:["dune2","past","poor"], socials:{ig:"maddy.c", lb:"maddyc"}, school:"UCLA"},
   {u:"emilyq", n:"Emily", av:"av2", match:21, watched:289, top:["past","hold","zone"]},
-  {u:"allynevias", n:"Ally Nevias", av:"av1", match:24, watched:1810, top:["opp","anat","zone"]},
-  {u:"jzjackjz", n:"Jack Z", av:"av3", match:34, watched:1802, top:["dune2","opp","poor"]},
-  {u:"tthom1088", n:"Tess Thom", av:"av2", match:33, watched:1380, top:["past","hold","anat"]},
+  {u:"allynevias", n:"Ally Nevias", av:"av1", match:24, watched:1810, top:["opp","anat","zone"], school:"UCLA"},
+  {u:"jzjackjz", n:"Jack Z", av:"av3", match:34, watched:1802, top:["dune2","opp","poor"], school:"NYU"},
+  {u:"tthom1088", n:"Tess Thom", av:"av2", match:33, watched:1380, top:["past","hold","anat"], school:"UCLA"},
   {u:"oliviafang", n:"Olivia Fang", av:"av4", match:44, watched:1188, top:["poor","past","dune2"]},
 ];
 
@@ -840,6 +840,19 @@ function renderFeed(){
         <div class="sub" style="margin-top:1px;">Rank one movie this week to keep it alive.</div>
       </div>
       <button class="pill" onclick="openSearchForRank()">Rank</button>
+    </div>`:""}
+    ${!S.founderNoteDismissed ? `
+    <div class="fcard" style="margin:16px 14px 0; position:relative;">
+      <button class="iconbtn" style="position:absolute; top:8px; right:10px; color:var(--gray);" onclick="S.founderNoteDismissed=true; save(); render();">${I("x",15)}</button>
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <div class="avatar" style="width:44px;height:44px; background:var(--marquee-soft); color:var(--marquee); font-size:16px;">J</div>
+        <div style="flex:1; min-width:0;">
+          <b style="font-size:14px;">A note from Jake, Cini's founder</b>
+          <div style="font-family:'Bradley Hand',cursive; font-size:16px; line-height:1.45; margin-top:6px;">
+            Hi! I made Cini so friends can share movies. It grows one friend at a time. Please invite one friend who loves movies. It means a lot. — Jake</div>
+          <button class="pill" style="margin-top:10px;" onclick="S.founderNoteDismissed=true; save(); share('Come rank movies with me on Cini 🎬')">${I("send",15)} Invite one friend</button>
+        </div>
+      </div>
     </div>`:""}
     <h2 class="section">YOUR FEED</h2>
     <div class="pad" style="display:flex; gap:12px; align-items:center;">
@@ -1395,6 +1408,7 @@ function renderSwipe(){
         <div style="padding:12px 14px;">
           <div style="font-weight:700; font-size:16px;">${m.t}</div>
           <div class="sub" style="font-size:11.5px; margin-top:2px;">${m.y}${m.rt?` · ${m.rt}`:''}${m.on&&m.on[0]?` · ${m.on[0]}`:''}</div>
+          ${(()=>{const fav=S.watched[swipeIdx%Math.max(S.watched.length,1)]; return fav?`<div class="gtxt" style="font-size:11.5px; font-weight:700; margin-top:4px;">Because you liked ${MOVIES[fav.k].t}</div>`:"";})()}
         </div>
       </div>
       <div style="display:flex; gap:18px; align-items:flex-start;">
@@ -1428,9 +1442,12 @@ function renderSwipe(){
 }
 function renderLeaderboard(){
   const [label,copy,fn]=LB_META[S.lbMetric];
+  // "My School" scopes the board to classmates (mirrors the campus filter).
+  const pool = (S.lbSchool && S.me.school)
+    ? MEMBERS.filter(p=>p.school===S.me.school) : MEMBERS;
   const rows = fn(MEMBERS[0])===null
     ? `<div class="empty"><span style="color:var(--marquee);">${I("star",34,1.4)}</span><b>Photos are coming soon</b><span class="sub">Post stills and ticket stubs after launch.</span></div>`
-    : MEMBERS.map(p=>({...p, v:fn(p)})).sort((a,b)=>b.v-a.v).map((p,i)=>`
+    : pool.map(p=>({...p, v:fn(p)})).sort((a,b)=>b.v-a.v).map((p,i)=>`
       <div class="listrow" style="align-items:center; cursor:pointer;" onclick="openMember('${p.u}')">
         <span style="color:var(--gray); width:22px; font-size:15px;">${i+1}</span>
         <div class="avatar ${p.av}" style="width:46px;height:46px;">${p.n[0]}</div>
@@ -1451,6 +1468,7 @@ function renderLeaderboard(){
     <div class="pad sub" style="margin-top:13px; font-size:13.5px;">${copy}</div>
     <div class="row-scroll" style="margin-top:6px;">
       <button class="pill ghost" onclick="toast('Genre filter — wired in the app')">All Genres ${I("chevD",12)}</button>
+      ${S.me.school ? `<button class="pill ghost ${S.lbSchool?"on":""}" onclick="S.lbSchool=!S.lbSchool; save(); render();">🎓 My School</button>` : ""}
     </div>
     <div style="margin-top:10px;">${rows}</div>`;
 }
@@ -1560,7 +1578,7 @@ function renderProfile(){
       <div class="avatar ${av}" style="width:100px;height:100px; margin:0 auto; font-size:34px;">${name[0]}</div>
       <div style="font-weight:700; font-size:17px; margin-top:10px;">@${handle}</div>
       <div class="sub" style="margin-top:2px;">Member since December 2022</div>
-      ${isSelf && S.me.school ? `<div class="sub" style="margin-top:4px;">🎓 ${esc(S.me.school)}</div>`:""}
+      ${(isSelf ? S.me.school : member?.school) ? `<div class="sub" style="margin-top:4px;">🎓 ${esc(isSelf ? S.me.school : member.school)}</div>`:""}
       ${isSelf && S.me.bio ? `<div style="font-size:13.5px; margin-top:8px; padding:0 36px;">${esc(S.me.bio)}</div>`:""}
       ${socialChips(isSelf ? S.me : (member.socials||{}))}
       ${member?`<div class="gtxt" style="font-weight:700; font-size:12.5px; margin-top:4px;">+${member.match}% Match</div>`:""}
@@ -1667,6 +1685,7 @@ function openEditProfile(){
     <div class="sheet-body" style="display:flex; flex-direction:column; gap:12px; padding-bottom:24px;">
       ${field("ep-name","Display name",S.me.name)}
       ${field("ep-bio","Bio",S.me.bio,"A line about your taste")}
+      ${field("ep-school","School",S.me.school,"Add your school — unlocks the campus leaderboard")}
       <div class="sub" style="font-weight:800; letter-spacing:.06em; margin-top:4px;">SOCIALS</div>
       ${field("ep-ig","Instagram",S.me.ig,"handle")}
       ${field("ep-tt","TikTok",S.me.tt,"handle")}
@@ -1680,6 +1699,7 @@ function saveProfileEdits(){
   S.me.name=$("ep-name").value.trim()||S.me.name;
   S.me.bio=$("ep-bio").value.trim().slice(0,160);
   S.me.ig=v("ep-ig"); S.me.tt=v("ep-tt"); S.me.x=v("ep-x"); S.me.lb=v("ep-lb");
+  S.me.school=$("ep-school").value.trim();
   save(); closeOverlay(); toast("Profile updated"); render();
 }
 
@@ -2243,6 +2263,10 @@ function logCards(){
         <div class="sub" style="font-size:12px;">among your ${mkOf(log.k)==="tv"?"shows":"movies"}</div>
         ${S.streak>0?`<div style="display:inline-flex; gap:5px; align-items:center; color:var(--gold); font-size:11px; font-weight:800; margin-top:8px; padding:5px 11px; border-radius:999px; background:var(--marquee-soft);">${I("flame",12)} ${S.streak}-week streak</div>`:""}
         <div class="perf"></div>
+        ${log.revealed && [10,25,50,100,250].includes(S.watched.length)?`
+          <div style="margin:2px 0 10px; padding:10px 12px; border-radius:12px; background:var(--marquee-soft); color:var(--marquee); font-weight:700; font-size:13px; cursor:pointer;"
+               onclick="share('My top 5 on Cini 🎬 — ${S.watched.length} ranked and counting')">
+            🎉 ${S.watched.length} ranked! Share your top 5</div>`:""}
         ${log.revealed?`<div style="display:flex; gap:10px;">
           <button class="pill out" style="flex:1; justify-content:center; padding:12px;" onclick="share('${esc(m.t)} — ranked #${e.rank} on Cini')">${I("send",16)} Share</button>
           <button class="pill" style="flex:1; justify-content:center; padding:12px;" onclick="finishLog()">Done</button>
@@ -2969,7 +2993,35 @@ function renderOnboarding(){
   $("overlayRoot").innerHTML=`<div style="position:absolute; inset:0; z-index:70; background:var(--bg); display:flex; flex-direction:column;" id="obWrap">${bar}${body}</div>`;
 }
 function obNext(){ buzz(); obStep++; if(obStep>10){ finishOnboarding(); return; } renderOnboarding(); }
-function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); }
+function finishOnboarding(){ S.onboarded=true; save(); $("overlayRoot").innerHTML=""; render(); startTour(); }
+
+/* One-time product tour: a coachmark per tab, dimmed background (mirrors
+   ProductTourView). Tap anywhere to advance. */
+const TOUR_STEPS=[
+  ["feed","Your feed","Friends' rankings, Tonight's Pick, and what's trending."],
+  ["swipe","Recs","Swipe personal picks — pass, bookmark, or rank."],
+  ["search","Search","Find any movie, show, or member. The + ranks it."],
+  ["lists","Your Lists","Everything you've ranked and want to watch."],
+  ["profile","Profile","Your taste profile, diary, and stats."],
+];
+let tourIdx=-1;
+function startTour(){ if(S.toured) return; tourIdx=0; showTourStep(); }
+function showTourStep(){
+  if(tourIdx>=TOUR_STEPS.length){ S.toured=true; save(); $("tourRoot")?.remove(); return; }
+  const [screen,title,line]=TOUR_STEPS[tourIdx];
+  if(screen==="search"){ /* center tab isn't a data-go — just show the card */ }
+  else go(screen);
+  let root=$("tourRoot");
+  if(!root){ root=document.createElement("div"); root.id="tourRoot"; document.body.appendChild(root); }
+  root.innerHTML=`
+    <div onclick="tourIdx++; showTourStep();" style="position:fixed; inset:0; z-index:400; background:rgba(0,0,0,.55); display:flex; align-items:flex-end; justify-content:center; cursor:pointer;">
+      <div style="margin-bottom:110px; max-width:290px; background:var(--surface); border:1px solid var(--hair); border-radius:16px; padding:16px 18px; text-align:center; box-shadow:0 14px 34px rgba(0,0,0,.5);">
+        <b style="font-size:15px;">${title}</b>
+        <div class="sub" style="margin-top:5px; line-height:1.4;">${line}</div>
+        <div class="gtxt" style="font-weight:700; font-size:12px; margin-top:10px;">${tourIdx+1} of ${TOUR_STEPS.length} — tap to continue</div>
+      </div>
+    </div>`;
+}
 
 /* =================== BOOT =================== */
 go("feed");
