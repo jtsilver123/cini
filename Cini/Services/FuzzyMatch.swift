@@ -1,17 +1,28 @@
 import Foundation
 
 extension DateFormatter {
-    /// Locale-safe "yyyy-MM-dd" (POSIX): API dates parse identically on
-    /// every device setting.
+    /// Locale-safe "yyyy-MM-dd" pinned to UTC. Use ONLY when a fixed zone is
+    /// what you want (stable sort keys); for anything a user sees or picks,
+    /// use `localDay` below.
     static let posixDay: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
-        // Pin to UTC so a date-only column round-trips the same calendar day on
-        // every device — matching SupabaseService's UTC `dateOnly`. Without
-        // this it used the device zone, so late-night logs in a non-UTC zone
-        // could land a day off from the server's stored date.
         f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    /// "yyyy-MM-dd" in the DEVICE's timezone — the app's convention for
+    /// date-only values (watch_date / watched_on / release days): store the
+    /// calendar day the user actually lived, and parse a stored day into a
+    /// Date that local-calendar UI (DatePicker, `.formatted()`) renders as
+    /// that same literal day. A UTC formatter here shifted evening logs and
+    /// imported Letterboxd diaries a day off for every US user.
+    static let localDay: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = .current
         return f
     }()
 }

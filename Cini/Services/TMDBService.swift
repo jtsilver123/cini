@@ -118,7 +118,7 @@ final class TMDBService {
     /// Titles that are out NOW — recently released (on or before today),
     /// newest first, with enough votes to be real (CIN-34 "Release").
     func nowOut() async throws -> [Movie] {
-        let today = ISO8601DateFormatter.dateOnly.string(from: Date())
+        let today = DateFormatter.localDay.string(from: Date())
         let movieQ = [
             URLQueryItem(name: "sort_by", value: "primary_release_date.desc"),
             URLQueryItem(name: "primary_release_date.lte", value: today),

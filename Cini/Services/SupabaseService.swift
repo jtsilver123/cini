@@ -6,6 +6,13 @@ import RankingEngine
 /// Thin async wrapper over supabase-swift: auth, table reads, and the
 /// transactional RPCs from supabase/migrations/0003_functions.sql.
 final class SupabaseService {
+
+    /// The one feed_events select string (used by the feed, member activity,
+    /// and single-event lookups). The named FKs are LOAD-BEARING — PostgREST
+    /// returns PGRST201 on ambiguous embeds — so keep it in exactly one place.
+    static let feedEventSelect =
+        "*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)"
+
     static let shared = SupabaseService()
 
     /// Swallowed errors still get logged — silent contract drift is how
@@ -214,8 +221,9 @@ final class SupabaseService {
 
     /// Home ZIP for showtime alerts. Stored in a private, owner-only table
     /// (not on the world-readable profiles row) via a SECURITY DEFINER RPC.
-    /// Pass nil to turn theater alerts off.
-    func setHomeZip(_ zip: String?) async {
+    /// Pass nil to turn theater alerts off. Throws — the settings screen
+    /// shows the ZIP as saved, so a missed write must not pass silently.
+    func setHomeZip(_ zip: String?) async throws {
         struct Params: Encodable {
             let p_zip: String?
             // Encode null explicitly (not omitted) so clearing actually clears.
@@ -225,7 +233,7 @@ final class SupabaseService {
             }
             enum CodingKeys: String, CodingKey { case p_zip }
         }
-        _ = try? await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
+        _ = try await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
     }
 
     /// Store the device's IANA timezone so the nightly job can send Tonight's
@@ -283,7 +291,7 @@ final class SupabaseService {
             let p_stealth: Bool
             let p_tz: String
         }
-        let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
+        let dateString = watchDate.map { DateFormatter.localDay.string(from: $0) }
         return try await client.rpc(
             "rank_insert",
             params: Params(p_movie_id: movieID, p_bucket: bucket.rawValue,
@@ -784,16 +792,6 @@ final class SupabaseService {
             .execute()
     }
 
-    /// The community's most-used labels for a movie (anonymous aggregate).
-    func movieTopLabels(movieID: Int) async throws -> [String] {
-        struct Row: Decodable { let name: String }
-        struct Params: Encodable { let p_movie_id: Int }
-        let rows: [Row] = try await client.rpc("movie_top_labels",
-                                               params: Params(p_movie_id: movieID))
-            .execute().value
-        return rows.map(\.name)
-    }
-
     func upsertNote(movieID: Int, body: String, isPrivate: Bool,
                     containsSpoilers: Bool = false) async throws {
         guard let userID = currentUserID else { return }
@@ -984,7 +982,7 @@ final class SupabaseService {
         }
         try await client.from("watches")
             .insert(Row(user_id: me, movie_id: movieID,
-                        watched_on: DateFormatter.posixDay.string(from: date),
+                        watched_on: DateFormatter.localDay.string(from: date),
                         watched_where: location))
             .execute()
     }
@@ -1051,14 +1049,6 @@ final class SupabaseService {
             .execute()
     }
 
-    func topPerformances(movieID: Int) async throws -> [PerformanceCount] {
-        let rows: [PerformanceCount] = try await client.from("favorite_performances")
-            .select("tmdb_person_id, person_name, profile_path")
-            .eq("movie_id", value: movieID)
-            .execute().value
-        return Self.tallyPerformances(rows)
-    }
-
     /// Tally recommendations per person, most recommended first.
     static func tallyPerformances(_ rows: [PerformanceCount]) -> [PerformanceCount] {
         var counts: [Int: PerformanceCount] = [:]
@@ -1103,7 +1093,7 @@ final class SupabaseService {
             let watch_date: String?
             let watched_where: String?
         }
-        let dateString = watchDate.map { ISO8601DateFormatter.dateOnly.string(from: $0) }
+        let dateString = watchDate.map { DateFormatter.localDay.string(from: $0) }
         try await client.from("rankings")
             .update(Update(watched_with: watchedWith, watch_date: dateString,
                            watched_where: watchedWhere))
@@ -1227,7 +1217,7 @@ final class SupabaseService {
             // embed as ambiguous (PGRST201), silently emptying the feed.
             // likes/comments counts ride along so the profile Activity tab can
             // show interactive feed cards (like/comment), same as the feed.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .select(Self.feedEventSelect)
             .eq("user_id", value: userID)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -1370,7 +1360,7 @@ final class SupabaseService {
             // likes(count)/comments(count) ride along as embedded aggregates —
             // both have a single FK to feed_events, so they're unambiguous, and
             // their RLS counts every like/comment on a visible event.
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .select(Self.feedEventSelect)
             .in("user_id", values: ids)
             .order("created_at", ascending: false)
             .limit(limit)
@@ -1800,7 +1790,7 @@ final class SupabaseService {
     /// thread cold from a push notification that only carries an event_id).
     func feedEvent(id: UUID) async -> FeedEventRow? {
         let rows: [FeedEventRow]? = try? await client.from("feed_events")
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .select(Self.feedEventSelect)
             .eq("id", value: id)
             .limit(1)
             .execute().value
@@ -1811,7 +1801,7 @@ final class SupabaseService {
     /// Used when routing a rank/save notification to the right comment thread.
     func activityEvent(actorID: UUID, movieID: Int, eventType: String) async -> FeedEventRow? {
         let rows: [FeedEventRow]? = try? await client.from("feed_events")
-            .select("*, profiles!feed_events_user_id_fkey(username, display_name, avatar_url), movies!feed_events_movie_id_fkey(*), likes(count), comments(count)")
+            .select(Self.feedEventSelect)
             .eq("user_id", value: actorID)
             .eq("movie_id", value: movieID)
             .eq("event_type", value: eventType)
@@ -1836,21 +1826,9 @@ final class SupabaseService {
 
     // MARK: - Detail page aggregates
 
-    func communityScore(movieID: Int) async throws -> CommunityScore? {
-        let rows: [CommunityScore] = try await client.from("movie_community_scores")
-            .select().eq("movie_id", value: movieID).execute().value
-        return rows.first
-    }
-
     func friendScores(movieID: Int) async throws -> [FriendScoreRow] {
         struct Params: Encodable { let p_movie_id: Int }
         return try await client.rpc("movie_friend_scores", params: Params(p_movie_id: movieID))
-            .execute().value
-    }
-
-    func scoreHistogram(movieID: Int) async throws -> [HistogramBin] {
-        struct Params: Encodable { let p_movie_id: Int }
-        return try await client.rpc("movie_score_histogram", params: Params(p_movie_id: movieID))
             .execute().value
     }
 
@@ -1890,14 +1868,6 @@ final class SupabaseService {
         struct Params: Encodable { let p_user: UUID }
         return try await client.rpc("global_rank", params: Params(p_user: userID)).execute().value
     }
-}
-
-extension ISO8601DateFormatter {
-    static let dateOnly: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
-        return formatter
-    }()
 }
 
 // MARK: - Row types (snake_case mirrors of the schema)

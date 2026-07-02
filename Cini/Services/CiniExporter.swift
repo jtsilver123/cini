@@ -40,7 +40,7 @@ enum CiniExporter {
                 ? String(Int(rating))
                 : String(format: "%.1f", rating)
             let date = row.watchDate
-                ?? ISO8601DateFormatter.dateOnly.string(from: row.createdAt)
+                ?? DateFormatter.localDay.string(from: row.createdAt)
             watched += line([movie.title,
                              movie.releaseYear.map(String.init) ?? "",
                              typeLabel(movie),

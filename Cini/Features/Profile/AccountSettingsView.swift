@@ -719,8 +719,12 @@ private struct TheaterAlertsScreen: View {
                         .alert("Turn off theater alerts?", isPresented: $confirmOff) {
                             Button("Turn off alerts", role: .destructive) {
                                 Task {
-                                    await SupabaseService.shared.setHomeZip(nil)
-                                    homeZip = nil; zipMessage = nil
+                                    do {
+                                        try await SupabaseService.shared.setHomeZip(nil)
+                                        homeZip = nil; zipMessage = nil
+                                    } catch {
+                                        zipMessage = "Couldn't turn alerts off — try again."
+                                    }
                                 }
                             }
                             Button("Cancel", role: .cancel) {}
@@ -759,7 +763,7 @@ private struct TheaterAlertsScreen: View {
         defer { detecting = false }
         do {
             let zip = try await LocationZip.shared.currentZip()
-            await SupabaseService.shared.setHomeZip(zip)
+            try await SupabaseService.shared.setHomeZip(zip)
             homeZip = zip
         } catch LocationZip.LocationError.denied {
             zipMessage = "Location is off for Cini — enable it in Settings to use theater alerts."

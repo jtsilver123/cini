@@ -1192,7 +1192,7 @@ struct FeedView: View {
         if tonightCards.isEmpty { tonightExhausted = true }
     }
 
-    private func todayKey() -> String { DateFormatter.posixDay.string(from: Date()) }
+    private func todayKey() -> String { DateFormatter.localDay.string(from: Date()) }
 
     /// Days since 2001-01-01 — stable within a calendar day, used for the
     /// Tonight's Pick 14-day recency log.
@@ -2444,7 +2444,7 @@ struct ReleaseCalendarView: View {
     @State private var activeSheet: ActiveSheet?
 
     private func releaseDate(_ movie: Movie) -> Date? {
-        movie.releaseDateFull.flatMap { DateFormatter.posixDay.date(from: $0) }
+        movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
     }
 
     var body: some View {

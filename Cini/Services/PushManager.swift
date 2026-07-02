@@ -40,9 +40,6 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return granted
     }
 
-    /// Fire-and-forget prompt (legacy callers).
-    static func enable() { Task { await request() } }
-
     /// Register for remote notifications ONLY if permission is already
     /// granted — never prompts. Used at sign-in so returning users refresh
     /// their token without a surprise dialog (the prompt lives in onboarding).
@@ -64,7 +61,18 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
                      didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let token = deviceToken.map { String(format: "%02x", $0) }.joined()
         Self.currentToken = token
-        Task { try? await SupabaseService.shared.registerDeviceToken(token) }
+        Task {
+            // A silently dropped registration = zero pushes with no trace.
+            // Log the failure and retry once — APNs registration happens at
+            // sign-in, exactly when a flaky connection is most likely.
+            do { try await SupabaseService.shared.registerDeviceToken(token) }
+            catch {
+                SupabaseService.logSwallowed("registerDeviceToken", error)
+                try? await Task.sleep(for: .seconds(5))
+                do { try await SupabaseService.shared.registerDeviceToken(token) }
+                catch { SupabaseService.logSwallowed("registerDeviceToken.retry", error) }
+            }
+        }
     }
 
     func application(_ application: UIApplication,

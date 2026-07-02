@@ -49,7 +49,9 @@ final class ShowtimesService: ShowtimesProviding {
         // match against whatever's playing would invent some.
         guard movie.tmdbID > 0 else { return [] }
 
-        let day = DateFormatter.posixDay.string(from: date)
+        // The user's LOCAL calendar day — a UTC day here would query tomorrow's
+        // showtimes for any US user browsing in the evening.
+        let day = DateFormatter.localDay.string(from: date)
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
         components.queryItems = [
             URLQueryItem(name: "startDate", value: day),

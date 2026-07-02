@@ -238,8 +238,10 @@ struct ShowtimesSheet: View {
                 for: movie, zipcode: zipcode, date: date)
             state = .loaded
             // Remember the zip — it powers "your watchlist movie is
-            // playing near you" push alerts.
-            await SupabaseService.shared.setHomeZip(zipcode)
+            // playing near you" push alerts. Best-effort here (the user came
+            // for showtimes, which loaded), but leave a trace on failure.
+            do { try await SupabaseService.shared.setHomeZip(zipcode) }
+            catch { SupabaseService.logSwallowed("setHomeZip", error) }
         } catch ShowtimesError.notConfigured {
             state = .notConfigured
         } catch ShowtimesError.zipcodeNotFound {

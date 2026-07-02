@@ -641,7 +641,7 @@ struct MovieDetailView: View {
     }
 
     private func formattedRelease(_ raw: String?) -> String? {
-        guard let raw, let date = DateFormatter.posixDay.date(from: raw) else { return raw }
+        guard let raw, let date = DateFormatter.localDay.date(from: raw) else { return raw }
         return date.formatted(date: .abbreviated, time: .omitted)
     }
 
@@ -1026,7 +1026,7 @@ struct MovieDetailView: View {
         if movie.mediaKind == "tv",
            let ext = extended,
            let raw = ext.nextEpisodeAirDate,
-           let date = DateFormatter.posixDay.date(from: raw),
+           let date = DateFormatter.localDay.date(from: raw),
            date >= Calendar.current.startOfDay(for: Date()) {
             HStack(spacing: 8) {
                 Image(systemName: "calendar.badge.clock").foregroundStyle(Theme.marquee)
@@ -1442,7 +1442,7 @@ struct EditDetailsSheet: View {
         draft.notesContainSpoilers = details.noteContainsSpoilers
         draft.watchedWith = Set(details.watchedWithIDs)
         draft.watchedWhere = details.watchedWhere
-        draft.watchDate = details.watchDate.flatMap { DateFormatter.posixDay.date(from: $0) }
+        draft.watchDate = details.watchDate.flatMap { DateFormatter.localDay.date(from: $0) }
         seededDate = draft.watchDate
         draft.cast = Set(details.performances.map { performance in
             // Prefer the live cast entry (carries the character name).

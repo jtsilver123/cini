@@ -1052,7 +1052,7 @@ struct ProfileScreen: View {
     }
 
     private var activityItems: [ActivityItem] {
-        let day = DateFormatter.posixDay
+        let day = DateFormatter.localDay
         var covered = Set<String>()
         for e in events { if let m = e.movieId { covered.insert("\(m)@\(day.string(from: e.createdAt))") } }
         var dated: [(Date, ActivityItem)] = events.map { ($0.createdAt, .event($0)) }
@@ -1151,7 +1151,7 @@ struct ProfileScreen: View {
 
     /// "Jun 11, 2026" from a date-only string; falls back to the raw string.
     private func diaryDayLabel(_ day: String) -> String {
-        guard let date = DateFormatter.posixDay.date(from: day) else { return day }
+        guard let date = DateFormatter.localDay.date(from: day) else { return day }
         return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 
