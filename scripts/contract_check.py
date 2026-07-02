@@ -288,6 +288,7 @@ def main():
                              "p_tz": "America/New_York"}),
             ("set_ranking_labels", {"p_movie_id": 27205, "p_labels": ["Mind-bending"]}),
             ("watchlist_toggle", {"p_movie_id": 27205}),
+            ("hide_watchlist_save", {"p_movie_id": 27205}),
             ("watchlist_toggle", {"p_movie_id": 27205}),
             ("register_device_token", {"p_token": "contract-check-dummy",
                                        "p_platform": "ios"}),

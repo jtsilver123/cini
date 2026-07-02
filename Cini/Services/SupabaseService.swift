@@ -390,18 +390,15 @@ final class SupabaseService {
         }
     }
 
-    /// Stealth save: pull the 'watchlisted' event for this movie off the
-    /// feed (mirror of hideRankEvent). Throws — the sheet's "Hidden from
-    /// feed" checkmark is a privacy claim, and it must revert if the delete
-    /// didn't land (friends would still see the save).
+    /// Stealth save: pull the 'watchlisted' event off the feed AND recall the
+    /// saved_your_rank bell rows it created (one RPC — already-delivered
+    /// pushes can't be unsent, but the in-app trail disappears). Throws — the
+    /// sheet's "Hidden from feed" checkmark is a privacy claim, and it must
+    /// revert if the delete didn't land (friends would still see the save).
     func hideWatchlistEvent(movieID: Int) async throws {
-        guard let me = currentUserID else { return }
-        _ = try await client.from("feed_events")
-            .delete()
-            .eq("user_id", value: me)
-            .eq("movie_id", value: movieID)
-            .eq("event_type", value: "watchlisted")
-            .execute()
+        struct Params: Encodable { let p_movie_id: Int }
+        _ = try await client.rpc("hide_watchlist_save",
+                                 params: Params(p_movie_id: movieID)).execute()
     }
 
     // MARK: - Growth: suggestions, contacts, invites
