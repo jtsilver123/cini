@@ -383,10 +383,12 @@ final class SupabaseService {
     }
 
     /// Stealth save: pull the 'watchlisted' event for this movie off the
-    /// feed (mirror of hideRankEvent).
-    func hideWatchlistEvent(movieID: Int) async {
+    /// feed (mirror of hideRankEvent). Throws — the sheet's "Hidden from
+    /// feed" checkmark is a privacy claim, and it must revert if the delete
+    /// didn't land (friends would still see the save).
+    func hideWatchlistEvent(movieID: Int) async throws {
         guard let me = currentUserID else { return }
-        _ = try? await client.from("feed_events")
+        _ = try await client.from("feed_events")
             .delete()
             .eq("user_id", value: me)
             .eq("movie_id", value: movieID)

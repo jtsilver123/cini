@@ -255,6 +255,23 @@ final class TMDBService {
         return nil
     }
 
+    /// TMDB's TV endpoints use DIFFERENT genre ids for several genres — the
+    /// movie ids return ZERO shows (verified live: Action 28, Adventure 12,
+    /// Fantasy 14, Sci-Fi 878, Thriller 53, War 10752, Horror 27, Music 10402
+    /// all come back empty on /discover/tv). Map to the TV counterpart so
+    /// Movies and TV filter identically; ids without a distinct TV genre pass
+    /// through unchanged (Comedy, Drama, Crime… share ids; Romance/History
+    /// still resolve via TMDB's legacy tagging).
+    static func tvGenreID(_ movieGenreID: Int) -> Int {
+        switch movieGenreID {
+        case 28, 12: return 10759      // Action, Adventure → Action & Adventure
+        case 14, 878: return 10765     // Fantasy, Science Fiction → Sci-Fi & Fantasy
+        case 27, 53: return 9648       // Horror, Thriller → Mystery (TMDB's TV proxy)
+        case 10752: return 10768       // War → War & Politics
+        default: return movieGenreID
+        }
+    }
+
     /// TMDB watch-provider ids (US) for the major services the filter offers.
     static func providerID(_ name: String) -> Int? {
         switch name {
@@ -281,7 +298,8 @@ final class TMDBService {
             URLQueryItem(name: "vote_count.gte", value: "25"),
         ]
         if let genre, let gid = Self.genreID(matching: genre) {
-            q.append(URLQueryItem(name: "with_genres", value: String(gid)))
+            q.append(URLQueryItem(name: "with_genres",
+                                  value: String(wantTV ? Self.tvGenreID(gid) : gid)))
         }
         if let decade {
             let lo = "\(decade)-01-01", hi = "\(decade + 9)-12-31"
@@ -306,12 +324,23 @@ final class TMDBService {
     }
 
     /// Most popular titles in a genre — what a genre query should return.
+    /// Movies and TV both, interleaved by popularity (golden rule: the two
+    /// content types get identical treatment on every surface).
     func popular(genreID: Int) async throws -> [Movie] {
-        let page: SearchPage = try await get("/discover/movie", query: [
+        async let moviePage: SearchPage = get("/discover/movie", query: [
             URLQueryItem(name: "with_genres", value: String(genreID)),
             URLQueryItem(name: "sort_by", value: "popularity.desc"),
         ])
-        return page.results.map(\.asMovie)
+        async let tvPage: TVListPage = get("/discover/tv", query: [
+            URLQueryItem(name: "with_genres", value: String(Self.tvGenreID(genreID))),
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+        ])
+        // TV lists can be sparse for proxy genres — never let that sink the
+        // movie half (and vice versa).
+        let movies = (try? await moviePage)?.results.map(\.asMovie) ?? []
+        let shows = (try? await tvPage)?.results.map(\.asMovie) ?? []
+        if movies.isEmpty && shows.isEmpty { _ = try await moviePage }  // surface the real error
+        return (movies + shows).sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
     }
 
     /// Movies AND shows directed by the person best matching the query,

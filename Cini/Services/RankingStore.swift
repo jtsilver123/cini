@@ -495,8 +495,9 @@ final class RankingStore {
             lists[key] = kindList
             listChanged()
             // The 'ranked' feed event points at a rating that no longer
-            // exists — pull it too.
-            try? await supabase.hideRankEvent(movieID: movieID)
+            // exists — pull it too (best-effort, but leave a trace).
+            do { try await supabase.hideRankEvent(movieID: movieID) }
+            catch { SupabaseService.logSwallowed("hideRankEvent", error) }
             return true
         } catch {
             ToastCenter.shared.saveFailed()

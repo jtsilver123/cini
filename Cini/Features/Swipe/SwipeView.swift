@@ -294,8 +294,8 @@ struct SwipeView: View {
                         movies: visible.map(\.movie),
                         onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                         onSave: { movie in
-                            guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                            // The bookmark filling in is the confirmation —
+                            // One bookmark rule everywhere: tap saves, tap again
+                            // removes. The fill state is the confirmation —
                             // no toast, so rapid swiping stays uninterrupted.
                             Task { await store.toggleWatchlist(movie: movie) }
                         },

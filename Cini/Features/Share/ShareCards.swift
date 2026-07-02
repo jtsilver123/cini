@@ -348,9 +348,11 @@ private func renderCard<V: View>(_ view: V) -> Image? {
     return renderer.uiImage.map(Image.init(uiImage:))
 }
 
+/// Goes through the app-wide ImageLoader so share cards reuse posters and
+/// avatars already cached (512 MB disk) instead of re-downloading them.
 private func fetchImage(_ url: URL?) async -> UIImage? {
-    guard let url, let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-    return UIImage(data: data)
+    guard let url else { return nil }
+    return await ImageLoader.shared.image(for: url)
 }
 
 /// "Share my Top 5" — switch between Movies and Shows, share the rendered card.
@@ -379,7 +381,6 @@ struct TopFiveShareSheet: View {
     @State private var kind = "movie"
     @State private var shareImage: Image?
     @State private var avatar: UIImage?
-    @State private var rendering = true
 
     private var entries: [Entry] { kind == "tv" ? showEntries : movieEntries }
 
@@ -424,7 +425,6 @@ struct TopFiveShareSheet: View {
 
     @MainActor
     private func render() async {
-        rendering = true
         shareImage = nil
         if avatar == nil { avatar = await fetchImage(avatarURL) }
         var rows: [TopFiveShareCard.Row] = []
@@ -436,7 +436,6 @@ struct TopFiveShareSheet: View {
             name: name.isEmpty ? "—" : name, handle: handle, avatar: avatar,
             kindLabel: kind == "tv" ? "SHOWS" : "MOVIES", rows: rows)
         shareImage = renderCard(card)
-        rendering = false
     }
 }
 

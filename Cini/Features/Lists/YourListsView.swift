@@ -845,10 +845,14 @@ struct YourListsView: View {
     }
 
     private var filteredWatched: [ScoredItem<Int>] {
-        // Reorder mode always shows canonical order — drag offsets feed
-        // straight into the engine and a reversed list would corrupt them.
-        let items = (sortDescending || reorderMode)
-            ? store.watchedItems : store.watchedItems.reversed()
+        // Reorder mode shows the EXACT kind-scoped list moveRanked indexes —
+        // unfiltered and in canonical order. Any extra/missing row (a search
+        // filter, or an other-kind title whose movie row hasn't cached) would
+        // shift every drag offset below it and move the WRONG title.
+        if reorderMode {
+            return store.lists[category.mediaKind]?.scoredItems ?? []
+        }
+        let items = sortDescending ? store.watchedItems : store.watchedItems.reversed()
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
             guard let movie = store.movie(item.id) else { return true }
@@ -1308,9 +1312,13 @@ struct WatchlistRowView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 14) {
+                HStack(spacing: 6) {
+                    // Same 40pt hit targets as MovieSuggestionRow — the glyphs
+                    // are small, the taps shouldn't be.
                     Button(action: onQuickRank) {
                         Image(systemName: "plus.circle")
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Rank \(movie.title)")
                     Button {
@@ -1318,6 +1326,8 @@ struct WatchlistRowView: View {
                     } label: {
                         Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                             .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
                         ? "Remove \(movie.title) from Want to Watch"

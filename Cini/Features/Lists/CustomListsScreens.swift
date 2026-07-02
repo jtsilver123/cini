@@ -132,7 +132,9 @@ struct CustomListScreen: View {
         .sheet(item: $sharePayload) { payload in
             ActivityShareSheet(items: [payload.text])
         }
-        .task {
+        // Keyed on listsRevision (like the inline Lists tab) so an add from
+        // another screen — a movie page, Chat — shows up while this is open.
+        .task(id: store.listsRevision) {
             movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? []
             let rows = (try? await SupabaseService.shared.movies(ids: movieIDs)) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }

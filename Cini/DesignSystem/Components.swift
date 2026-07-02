@@ -160,7 +160,13 @@ struct ScoreBadge: View {
 
     private var countLabel: String? {
         guard let count else { return nil }
-        if count >= 1000 { return "\(count / 1000)k" }
+        // Same abbreviation rule as the detail page's ratingCountLabel: one
+        // decimal in the low thousands so 1,900 reads "1.9k", not "1k".
+        if count >= 10_000 { return "\(count / 1000)k" }
+        if count >= 1_000 {
+            let k = (Double(count) / 1000).formatted(.number.precision(.fractionLength(1)))
+            return "\(k)k"
+        }
         return "\(count)"
     }
 
@@ -746,7 +752,16 @@ struct SaveToListSheet: View {
                     interacted = true
                     guard !hiddenFromFeed else { return }
                     hiddenFromFeed = true
-                    Task { await SupabaseService.shared.hideWatchlistEvent(movieID: movie.tmdbID) }
+                    Task {
+                        do {
+                            try await SupabaseService.shared.hideWatchlistEvent(movieID: movie.tmdbID)
+                        } catch {
+                            // Revert — friends can still see the save, so the
+                            // checkmark must not claim otherwise.
+                            hiddenFromFeed = false
+                            ToastCenter.shared.saveFailed()
+                        }
+                    }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: hiddenFromFeed ? "eye.slash.fill" : "eye.slash")
@@ -911,11 +926,21 @@ struct AvatarView: View {
     }
 }
 
-// MARK: - Progress dots (comparison flow)
-
-
-
 // MARK: - Movie filters (shared by My Lists and every member list)
+
+/// TMDB keys provider logos by raw name ("HBO Max"); the filter options are
+/// canonical ("Max"). Fold raw → canonical once so the logo lookup hits —
+/// shared by the filter bar and the filter sheet.
+func canonicalProviderLogos() async -> [String: URL] {
+    let raw = await TMDBService.shared.providerLogos()
+    var canonical: [String: URL] = [:]
+    for (name, url) in raw {
+        if let key = MovieFilters.canonicalProvider(name), canonical[key] == nil {
+            canonical[key] = url
+        }
+    }
+    return canonical
+}
 
 /// The five standard filters. One struct + one bar everywhere, so
 /// filtering looks and behaves identically on your lists and anyone
@@ -1105,18 +1130,7 @@ struct MovieFilterBar: View {
             streamingPicker
         }
         .task {
-            if providerLogos.isEmpty {
-                // Fold raw TMDB names ("HBO Max") to canonical ("Max") so the
-                // logo lookup matches the canonical provider options.
-                let raw = await TMDBService.shared.providerLogos()
-                var canonical: [String: URL] = [:]
-                for (name, url) in raw {
-                    if let key = MovieFilters.canonicalProvider(name), canonical[key] == nil {
-                        canonical[key] = url
-                    }
-                }
-                providerLogos = canonical
-            }
+            if providerLogos.isEmpty { providerLogos = await canonicalProviderLogos() }
         }
     }
 
@@ -1273,18 +1287,7 @@ struct MovieFilterSheet: View {
             }
             .safeAreaInset(edge: .bottom) { footer }
             .task {
-                if providerLogos.isEmpty {
-                    // TMDB keys logos by raw name ("HBO Max"); our options are
-                    // canonical ("Max"). Fold so the lookup actually hits.
-                    let raw = await TMDBService.shared.providerLogos()
-                    var canonical: [String: URL] = [:]
-                    for (name, url) in raw {
-                        if let key = MovieFilters.canonicalProvider(name), canonical[key] == nil {
-                            canonical[key] = url
-                        }
-                    }
-                    providerLogos = canonical
-                }
+                if providerLogos.isEmpty { providerLogos = await canonicalProviderLogos() }
             }
         }
     }

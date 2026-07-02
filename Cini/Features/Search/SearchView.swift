@@ -739,8 +739,8 @@ struct SearchView: View {
                 movies: list,
                 onRank: { watchedCountAtRank = store.watchedCount; logMovie = $0 },
                 onSave: { movie in
-                    guard !store.isOnWatchlist(movie.tmdbID) else { return }
-                    // The bookmark filling in is the confirmation — no toast.
+                    // One bookmark rule everywhere: tap saves, tap again
+                    // removes (the fill state is the confirmation — no toast).
                     Task { await store.toggleWatchlist(movie: movie) }
                 },
                 onDismiss: { movie in

@@ -291,7 +291,7 @@ struct MovieDetailView: View {
                 HStack(spacing: 10) {
                     if let community {
                         ScoreChip(score: community.avgScore)
-                        Text("(\(community.ratingCount.formatted()) ratings)")
+                        Text("(\(community.ratingCount.formatted()) rating\(community.ratingCount == 1 ? "" : "s"))")
                             .font(.subheadline)
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)

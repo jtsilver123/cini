@@ -91,6 +91,8 @@ struct Movie: Identifiable, Codable, Hashable {
 
     var runtimeText: String? {
         guard let runtimeMinutes else { return nil }
+        // Sub-hour runtimes (TV episodes, shorts) read "45m", not "0h 45m".
+        if runtimeMinutes < 60 { return "\(runtimeMinutes)m" }
         return "\(runtimeMinutes / 60)h \(runtimeMinutes % 60)m"
     }
 
