@@ -302,7 +302,7 @@ struct LetterboxdImportView: View {
         !pastedToWatchlist && !(result?.watched.isEmpty ?? true)
     }
 
-    private func summaryRow(icon: String, count: Int, label: String, detail: String?) -> some View {
+    private func summaryRow(icon: String, count: Int, label: String, detail: String? = nil) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon).foregroundStyle(Theme.marquee).frame(width: 30)
             VStack(alignment: .leading, spacing: 2) {
@@ -638,16 +638,14 @@ struct LetterboxdImportView: View {
             // Letterboxd watchlist → Cini watchlist. Keep the bar moving and
             // honor Stop — these are one network call per title, so a big
             // watchlist would otherwise look frozen at 100%.
-            if importWatchlist {
-                let pending = outcome.watchlist.filter {
-                    !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
-                }
-                for (i, match) in pending.enumerated() {
-                    if Task.isCancelled { break }
-                    progressText = "Saving your watchlist… \(i + 1) of \(pending.count)"
-                    progressFraction = Double(i + 1) / Double(max(pending.count, 1))
-                    await store.toggleWatchlist(movie: match.movie)
-                }
+            let pendingSaves = outcome.watchlist.filter {
+                !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
+            }
+            for (i, match) in pendingSaves.enumerated() {
+                if Task.isCancelled { break }
+                progressText = "Saving your watchlist… \(i + 1) of \(pendingSaves.count)"
+                progressFraction = Double(i + 1) / Double(max(pendingSaves.count, 1))
+                await store.toggleWatchlist(movie: match.movie)
             }
 
             // Letterboxd custom lists → Cini lists (same name reused). A failed

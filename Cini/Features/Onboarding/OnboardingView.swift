@@ -359,7 +359,9 @@ struct OnboardingView: View {
     // MARK: 0 — You're in! (meet Jake, the friend everyone starts with)
 
     private var founderFirstName: String {
-        firstName(founder?.displayName, nil) ?? "Jake"
+        // Cini.-qualified: this view's own `firstName` field shadows the
+        // shared helper.
+        Cini.firstName(founder?.displayName, nil) ?? "Jake"
     }
 
     private var youreInStep: some View {
