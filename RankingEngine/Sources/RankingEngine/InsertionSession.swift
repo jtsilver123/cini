@@ -42,6 +42,11 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
     private(set) var low: Int
     private(set) var high: Int
     private(set) var skipOffset: Int = 0
+    /// Bucket indices already shown in the current `[low, high)` range.
+    /// "Skip" must never re-show one of these — a dominant similarity score
+    /// (or a seed/rotation collision) would otherwise repeat the same
+    /// opponent. Cleared when the range narrows, together with `skipOffset`.
+    private(set) var shownIndices: [Int] = []
     public private(set) var comparisonsMade: Int = 0
     public private(set) var resolvedBucketPosition: Int?
 
@@ -52,6 +57,7 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         let low: Int
         let high: Int
         let skipOffset: Int
+        let shownIndices: [Int]
         let comparisonsMade: Int
         let resolvedBucketPosition: Int?
     }
@@ -100,23 +106,40 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         // few positions so the pivot stays near the median — that keeps the search
         // ~log(n) (fewest taps) instead of letting an off-center pick balloon the
         // comparison count. No similarity → the plain midpoint.
-        guard let similarity else { return base }
-        let window = Swift.min(Swift.max(1, span / 4), 3)
-        let lo = Swift.max(low, base - window)
-        let hi = Swift.min(high - 1, base + window)
-        guard lo <= hi else { return base }
-        var best = base
-        var bestSim = -1.0
-        for i in lo...hi {
-            let sim = similarity[i]
-            // Highest similarity wins; on a tie pick the candidate closest to the
-            // midpoint so the search stays balanced (and opponents don't skew).
-            if sim > bestSim || (sim == bestSim && abs(i - base) < abs(best - base)) {
-                bestSim = sim
-                best = i
+        // Indices already shown in this range are excluded so "Skip" always
+        // produces a fresh opponent (a dominant similarity score — or a seed
+        // that collides with the rotation — would otherwise repeat one).
+        let shown = Set(shownIndices)
+        var pick = base
+        if let similarity {
+            let window = Swift.min(Swift.max(1, span / 4), 3)
+            let lo = Swift.max(low, base - window)
+            let hi = Swift.min(high - 1, base + window)
+            var best = -1
+            var bestSim = -1.0
+            for i in lo...hi where !shown.contains(i) {
+                let sim = similarity[i]
+                // Highest similarity wins; on a tie pick the candidate closest to
+                // the base so the search stays balanced (and opponents don't skew).
+                if sim > bestSim || (sim == bestSim && best >= 0 && abs(i - base) < abs(best - base)) {
+                    bestSim = sim
+                    best = i
+                }
+            }
+            if best >= 0 { pick = best }
+        }
+        // Rotation/seed can still land on an already-shown index — walk outward
+        // to the nearest fresh one. (Skips are capped below span, so a fresh
+        // index always exists in the range.)
+        if shown.contains(pick) {
+            var delta = 1
+            while delta <= span {
+                if pick - delta >= low, !shown.contains(pick - delta) { return pick - delta }
+                if pick + delta < high, !shown.contains(pick + delta) { return pick + delta }
+                delta += 1
             }
         }
-        return best
+        return pick
     }
 
     /// The existing movie to show head-to-head against the new one,
@@ -141,6 +164,7 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
     public mutating func choose(_ choice: ComparisonChoice) {
         guard let mid = comparisonIndex else { return }
         history.append(Snapshot(low: low, high: high, skipOffset: skipOffset,
+                                shownIndices: shownIndices,
                                 comparisonsMade: comparisonsMade,
                                 resolvedBucketPosition: resolvedBucketPosition))
         switch choice {
@@ -160,11 +184,13 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
                 // Nothing different left to show — place adjacent.
                 resolvedBucketPosition = mid + 1
             } else {
+                shownIndices.append(mid)
                 skipOffset += 1
             }
             return
         }
         skipOffset = 0
+        shownIndices = []
         if low >= high {
             resolvedBucketPosition = low
         }
@@ -177,6 +203,7 @@ public struct InsertionSession<ID: Hashable & Codable & Sendable>: Sendable {
         low = snapshot.low
         high = snapshot.high
         skipOffset = snapshot.skipOffset
+        shownIndices = snapshot.shownIndices
         comparisonsMade = snapshot.comparisonsMade
         resolvedBucketPosition = snapshot.resolvedBucketPosition
     }

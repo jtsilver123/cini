@@ -265,6 +265,10 @@ struct LogFlowView: View {
             } label: {
                 chipLabel(icon: category.icon, title: category.title)
             }
+            // The override is applied once when comparisons start — changing it
+            // later would only relabel the chip while the rank files under the
+            // original kind, so lock it like the sentiment circles.
+            .disabled(phase == .comparing || phase == .result)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)

@@ -32,6 +32,11 @@ final class RankingStore {
     private(set) var listsRevision = 0
     private(set) var isLoaded = false
 
+    /// The kind list as it stood when the current log-flow session began —
+    /// restored if the commit's server write fails, since a re-rank has
+    /// already removed the entry by then (see `beginSession`/`commit`).
+    private var preSessionList: (key: String, list: RankingList<Int>)?
+
     private let supabase: SupabaseService
     private let tmdb: TMDBService
 
@@ -54,6 +59,7 @@ final class RankingStore {
         watchlist = []
         predictedScores = [:]
         customLists = []
+        preSessionList = nil
         isLoaded = false
     }
 
@@ -142,7 +148,8 @@ final class RankingStore {
     }
 
     func refreshCustomLists() async {
-        customLists = (try? await supabase.myLists()) ?? customLists
+        do { customLists = try await supabase.myLists() }
+        catch { SupabaseService.logSwallowed("RankingStore.refreshCustomLists", error) }
     }
 
     /// Create a list through the shared cache so EVERY surface (Lists
@@ -169,6 +176,9 @@ final class RankingStore {
     func deleteList(_ id: UUID) async -> Bool {
         do {
             try await supabase.deleteList(id)
+            // Drop it locally FIRST — the refresh below is best-effort, and if
+            // it fails the deleted list must not linger in the shared cache.
+            customLists.removeAll { $0.id == id }
             await refreshCustomLists()
             return true
         } catch {
@@ -258,6 +268,10 @@ final class RankingStore {
         // from that kind's bucket, so a movie never faces a TV show, and the
         // first movie (or first show) has an empty bucket → no comparisons.
         let key = kindKey(movie.mediaKind)
+        // Keep the pre-session list so a failed commit can restore it exactly
+        // (a re-rank removes the entry below; without this, a dead connection
+        // at commit time would leave the title missing or mis-ranked locally).
+        preSessionList = (key, lists[key] ?? RankingList())
         var kindList = lists[key] ?? RankingList()
         // Smart head-to-heads: seed the search where the PREDICTED score would
         // slot (so the first opponent is a title you'd score similarly, and it
@@ -336,9 +350,23 @@ final class RankingStore {
             return nil
         }
         let key = kindKey(forMovie: session.newItemID)
+        // Snapshot everything this commit mutates, so a failed write can
+        // restore the pre-session state even when the connection is dead —
+        // the load() resync below can't help then (it fails on the same dead
+        // connection and keeps whatever is in memory). The kind list snapshot
+        // comes from beginSession, from BEFORE a re-rank removed the entry.
+        let previousKindList = (preSessionList?.key == key) ? preSessionList?.list : lists[key]
+        let otherKey = key == "movie" ? "tv" : "movie"
+        let previousOtherList = lists[otherKey]
+        let previousWatchlistItem = watchlist.first { $0.movieID == session.newItemID }
         var kindList = lists[key] ?? RankingList()
         let scored = kindList.commit(session)
         lists[key] = kindList
+        // Re-logging a title with its media kind flipped (movie ↔ TV) files it
+        // under the new kind; drop the old entry or it shows up in BOTH lists.
+        if var otherList = lists[otherKey], otherList.remove(session.newItemID) {
+            lists[otherKey] = otherList
+        }
         listChanged()
         watchlist.removeAll { $0.movieID == session.newItemID }
         // Score is known now (pure engine math) — hand it back so the UI can
@@ -376,14 +404,24 @@ final class RankingStore {
             saved = await attempt()
         }
         if !saved {
-            // Both attempts failed/timed out: resync from the server so we don't
-            // celebrate a rank that only exists on-device (a first-time rank
-            // vanishes; a failed RE-rank is restored to its prior position). nil
-            // tells the log flow to show an error instead of the result ticket.
+            // Both attempts failed/timed out: restore the exact pre-commit state
+            // (a first-time rank vanishes; a failed RE-rank returns to its prior
+            // position; the watchlist entry comes back), then best-effort resync
+            // from the server in case the connection recovered. nil tells the
+            // log flow to show an error instead of the result ticket.
+            lists[key] = previousKindList ?? RankingList()
+            lists[otherKey] = previousOtherList ?? RankingList()
+            if let item = previousWatchlistItem,
+               !watchlist.contains(where: { $0.movieID == item.movieID }) {
+                watchlist.append(item)
+            }
+            preSessionList = nil
+            listChanged()
             await load()
             ToastCenter.shared.saveFailed()
             return nil
         }
+        preSessionList = nil
         // Server confirmed — now it's safe to clear it from the import queue
         // (doing this before the write would drop it from "pending to rate"
         // even if the rank failed and we reverted).
