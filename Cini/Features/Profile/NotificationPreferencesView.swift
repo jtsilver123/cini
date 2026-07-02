@@ -25,10 +25,14 @@ struct NotificationPreferencesView: View {
             ("tonight_pick", "Tonight's Pick", "A daily pick to watch, sent each evening"),
             ("direct_rec", "Recs from friends", "A friend recommends a movie directly to you"),
             ("rec_request", "Rec requests", "A friend asks you to recommend them something"),
+            ("rec_watched", "Recs watched", "A friend ranks something you recommended"),
+            ("rec_passed", "Recs passed on", "A friend passes on something you recommended"),
         ]),
         ("Watch together", [
             ("watch_match", "Watch matches", "You and a friend both want to watch the same title"),
             ("watch_invite", "Watch invites", "A friend invites you to watch something together"),
+            ("friend_watching", "Friends watching", "A friend starts a show you're also watching"),
+            ("caught_up", "Caught up", "A friend catches up on a show you're watching"),
         ]),
         ("Reminders", [
             ("rate_nudge", "Rate reminders", "A nudge to rank a saved title once it's out to watch"),
@@ -44,6 +48,7 @@ struct NotificationPreferencesView: View {
 
     @State private var muted: Set<String> = []
     @State private var loaded = false
+    @State private var loadFailed = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -77,6 +82,16 @@ struct NotificationPreferencesView: View {
                     .foregroundStyle(Theme.scoreRed)
                     .listRowBackground(Color.clear)
             }
+
+            if loadFailed {
+                Section {
+                    Button("Couldn't load your settings — tap to retry") {
+                        Task { await loadMuted() }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.marquee)
+                }
+            }
         }
         .scrollContentBackground(.hidden)
         .nativeContentWidth()
@@ -84,8 +99,20 @@ struct NotificationPreferencesView: View {
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: SupabaseService.shared.currentUserID) {
-            muted = await SupabaseService.shared.mutedNotificationKinds()
+            await loadMuted()
+        }
+    }
+
+    /// Toggles stay disabled until the server state actually loads: a failed
+    /// read must not render everything "on" — the next toggle write replaces
+    /// the whole muted array and would wipe the user's other mutes.
+    private func loadMuted() async {
+        do {
+            muted = try await SupabaseService.shared.mutedNotificationKinds()
             loaded = true
+            loadFailed = false
+        } catch {
+            loadFailed = true
         }
     }
 

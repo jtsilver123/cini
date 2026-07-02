@@ -510,7 +510,8 @@ struct AddToListTool: Tool {
             return "“\(list.name)” is \(listType) and \(movie.title) is \(titleType) — lists hold one type. Offer to make a new list for it."
         }
         await ChatAgentBridge.shared.step("plus.circle", "Adding \(movie.title) to “\(list.name)”")
-        try? await SupabaseService.shared.cacheMovie(movie)
+        do { try await SupabaseService.shared.cacheMovie(movie) }
+        catch { SupabaseService.logSwallowed("chat_cache_movie", error) }
         do {
             try await SupabaseService.shared.addToList(list.id, movieID: movie.tmdbID)
         } catch {
@@ -689,7 +690,8 @@ struct SendRecTool: Tool {
         guard let movie = await ChatAgentBridge.resolveMovie(arguments.title) else {
             return "No title matched \"\(arguments.title)\"."
         }
-        try? await SupabaseService.shared.cacheMovie(movie)
+        do { try await SupabaseService.shared.cacheMovie(movie) }
+        catch { SupabaseService.logSwallowed("chat_cache_movie", error) }
         let sent = await SupabaseService.shared.sendDirectRec(
             to: member.id, movieID: movie.tmdbID, note: arguments.note)
         guard sent else {
@@ -998,7 +1000,8 @@ struct StreamingAlertTool: Tool {
         if !movie.streamingOn.isEmpty {
             return "\(movie.title) is already streaming on \(movie.streamingOn.prefix(2).joined(separator: ", "))."
         }
-        try? await SupabaseService.shared.cacheMovie(movie)
+        do { try await SupabaseService.shared.cacheMovie(movie) }
+        catch { SupabaseService.logSwallowed("chat_cache_movie", error) }
         let ok = await SupabaseService.shared.setStreamingAlert(movieID: movie.tmdbID, enabled: true)
         guard ok else { return "Couldn't set that alert — connection trouble." }
         await ChatAgentBridge.shared.note("bell.fill", "Alert on for \(movie.title)", destination: .movie(movie.tmdbID))
@@ -1031,7 +1034,8 @@ struct MarkWatchingTool: Tool {
         }
         guard let store = await ChatAgentBridge.shared.store else { return "The app isn't ready." }
         let s = max(1, arguments.season), e = max(1, arguments.episode)
-        try? await SupabaseService.shared.cacheMovie(movie)
+        do { try await SupabaseService.shared.cacheMovie(movie) }
+        catch { SupabaseService.logSwallowed("chat_cache_movie", error) }
         do {
             try await SupabaseService.shared.setShowProgress(showID: movie.tmdbID, season: s, episode: e)
             await store.watchlistSuperseded(movieID: movie.tmdbID)

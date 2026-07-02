@@ -172,14 +172,17 @@ final class SupabaseService {
 
     /// Notification kinds this user has muted (enforced by a DB trigger
     /// at notification creation, silencing both bell and push).
-    func mutedNotificationKinds() async -> Set<String> {
+    /// Throws on failure — the preferences screen must NOT treat a failed read
+    /// as "nothing muted": the next toggle write replaces the whole array, so
+    /// defaulting to empty would silently wipe every existing mute.
+    func mutedNotificationKinds() async throws -> Set<String> {
         guard let id = currentUserID else { return [] }
         struct Row: Decodable { let muted_notification_kinds: [String] }
-        let row: Row? = try? await client.from("profiles")
+        let row: Row = try await client.from("profiles")
             .select("muted_notification_kinds")
             .eq("id", value: id)
             .single().execute().value
-        return Set(row?.muted_notification_kinds ?? [])
+        return Set(row.muted_notification_kinds)
     }
 
     func setMutedNotificationKinds(_ kinds: Set<String>) async throws {

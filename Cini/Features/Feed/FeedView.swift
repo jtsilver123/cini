@@ -214,6 +214,13 @@ struct FeedView: View {
             .sheet(isPresented: $showMenuImport) {
                 LetterboxdImportView()
             }
+            // Presented from the first-run empty-state card. The sheet must
+            // live up here at stack level: the card leaves the hierarchy as
+            // soon as the first imported title lands in the store, and a
+            // sheet attached to it would be torn down mid-import.
+            .sheet(isPresented: $showImport) {
+                LetterboxdImportView()
+            }
             // The deferred notifications ask: shown once, a day+ after signup,
             // and only after they've actually ranked something (see
             // maybeAskNotifications) — never on the day they sign up.
@@ -790,7 +797,7 @@ struct FeedView: View {
             // Friends' activity. (Tonight's Pick at the top is now the single
             // first-party recommendation surface — the old interspersed
             // "Promoted release" card was redundant and removed.)
-            ForEach(Array(events.enumerated()), id: \.element.id) { _, event in
+            ForEach(events) { event in
                 FeedCard(
                     event: event,
                     initiallyLiked: likedEventIDs.contains(event.id),
@@ -870,9 +877,6 @@ struct FeedView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-        }
-        .sheet(isPresented: $showImport) {
-            LetterboxdImportView()
         }
     }
 
@@ -1032,6 +1036,7 @@ struct FeedView: View {
               let since = session.profile?.memberSince,
               Date().timeIntervalSince(since) >= 24 * 60 * 60,   // ≥1 day after signup
               store.watchedCount >= 1,                            // has rated something
+              !showFounderShare,   // founder note already up — one ask at a time
               !notifReaskedRaw.split(separator: ",").map(String.init).contains(uid)
         else { return }
         // Already on? Nothing to ask. (Covers .authorized / .provisional.)
@@ -1503,16 +1508,15 @@ struct FeedCard: View {
         var name = AttributedString(actorName)
         name.inlinePresentationIntent = .stronglyEmphasized
         name.link = Self.authorLink
+        // One verb source (actionText) — the card and the comments header
+        // must never disagree on how an event reads.
+        guard event.eventType == "ranked" || event.eventType == "watchlisted"
+                || event.eventType == "noted" else {
+            return name + AttributedString(" \(actionText)")
+        }
         var title = AttributedString(movie?.title ?? "a movie")
         title.inlinePresentationIntent = .stronglyEmphasized
-        let connector: String
-        switch event.eventType {
-        case "ranked":      connector = " ranked "
-        case "watchlisted": connector = " bookmarked "
-        case "noted":       connector = " wrote about "
-        default:            return name + AttributedString(" shared an update")
-        }
-        return name + AttributedString(connector) + title
+        return name + AttributedString(" \(actionText) ") + title
     }
 
     /// The note shown under a ranking. Spoilers blur behind a tap-to-reveal
@@ -1824,6 +1828,7 @@ struct CommentsSheet: View {
     // Header like state, seeded from the context and owned optimistically after.
     @State private var headerLiked = false
     @State private var headerLikeCount = 0
+    @State private var headerLikeInFlight = false
     @State private var headerSeeded = false
     @State private var noteRevealed = false
     // Feed events don't carry the note inline; fetch it for the header when the
@@ -2088,10 +2093,15 @@ struct CommentsSheet: View {
     }
 
     private func toggleHeaderLike() {
+        // Same in-flight guard as FeedCard: a double-tap would race two writes
+        // whose server order isn't guaranteed.
+        guard !headerLikeInFlight else { return }
+        headerLikeInFlight = true
         Haptics.tap()
         headerLiked.toggle()
         headerLikeCount += headerLiked ? 1 : -1
         Task {
+            defer { headerLikeInFlight = false }
             do { try await SupabaseService.shared.toggleLike(eventID: eventID, like: headerLiked) }
             catch {
                 headerLiked.toggle()
@@ -2320,8 +2330,14 @@ struct CommentsSheet: View {
                 let eid = eventID
                 ToastCenter.shared.showUndo("Comment deleted") {
                     Task {
-                        try? await SupabaseService.shared.comment(eventID: eid, body: body)
-                        await reload()
+                        do {
+                            try await SupabaseService.shared.comment(eventID: eid, body: body)
+                            await reload()
+                        } catch {
+                            // The toast implied restoration — don't let a failed
+                            // re-post leave the comment silently deleted.
+                            ToastCenter.shared.saveFailed()
+                        }
                     }
                 }
                 await reload()
@@ -2357,14 +2373,21 @@ struct CommentsSheet: View {
         draft = String(draft[..<at]) + "@\(friend.username) "
     }
 
-    /// Resolve @handles in the posted body to followed members and tag them.
+    /// Resolve @handles in the posted body and tag them. Handles match against
+    /// followed members AND this thread's commenters — a Reply to someone you
+    /// don't follow (a stranger commenting on your post) must still tag them.
     private func notifyMentions(in body: String) async {
         let names = Self.mentionedUsernames(in: body)
         guard !names.isEmpty else { return }
-        let ids = FriendsCache.shared.following
+        var ids = Set(FriendsCache.shared.following
             .filter { names.contains($0.username.lowercased()) }
-            .map(\.id)
-        await SupabaseService.shared.notifyMention(eventID: eventID, userIDs: ids)
+            .map(\.id))
+        for comment in comments {
+            if let handle = comment.profiles?.username.lowercased(), names.contains(handle) {
+                ids.insert(comment.userId)
+            }
+        }
+        await SupabaseService.shared.notifyMention(eventID: eventID, userIDs: Array(ids))
     }
 
     static func mentionedUsernames(in body: String) -> Set<String> {
@@ -2693,6 +2716,14 @@ struct NotificationsView: View {
         } else if ["comment", "mention", "like"].contains(row.kind), let eventId = row.eventId {
             // Land on the actual activity/thread — not the bare movie page.
             commentsLink = CommentsLink(id: eventId)
+        } else if ["watch_match", "watch_invite"].contains(row.kind),
+                  let movieId = row.movieId, let actorId = row.actorId, let actor = row.actor {
+            // Same as tapping the push: open the Plan-a-Watch sheet for that
+            // title + friend — the bare movie page has no accept/decline flow.
+            dismiss()
+            tabRouter.pendingWatchPlan = WatchPlanContext(
+                movieID: movieId,
+                friend: MemberRef(id: actorId, username: actor.username))
         } else if let actorId = row.actorId, let movieId = row.movieId,
                   let eventType = activityEventType(for: row.kind) {
             // Rank/save notification → look up the actor's event so the comment
@@ -2709,13 +2740,8 @@ struct NotificationsView: View {
                     await MainActor.run { detailMovie = movieStub(row) }
                 }
             }
-        } else if let movieId = row.movieId, let stub = row.movies {
-            detailMovie = Movie(tmdbID: movieId,
-                                mediaKind: movieId < 0 ? "tv" : "movie",
-                                title: stub.title,
-                                releaseYear: nil, posterPath: stub.posterPath,
-                                backdropPath: nil, genres: [], certification: nil,
-                                runtimeMinutes: nil, director: nil, overview: nil)
+        } else if let stub = movieStub(row) {
+            detailMovie = stub
         } else if let actorId = row.actorId, let actor = row.actor {
             memberTarget = MemberRef(id: actorId, username: actor.username)
         }
@@ -2783,7 +2809,9 @@ struct NotificationsView: View {
         // Attach a custom-scheme link to just the name run — the List's openURL
         // handler routes it — and tint it so it reads as tappable.
         if let actorId = row.actorId, let actor = row.actor {
-            let token = row.kind == "contact_joined" ? name : who
+            // Kinds whose headline renders the display name instead of @handle.
+            let token = ["contact_joined", "new_follower", "invite_joined"].contains(row.kind)
+                ? name : who
             if let r = attr.range(of: token) {
                 var comps = URLComponents()
                 comps.scheme = "cinimember"

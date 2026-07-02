@@ -3,8 +3,8 @@ import SwiftUI
 /// A one-time, dismissible note from the founder, shown on the feed: his photo,
 /// a short message in his own handwriting, and a single ask — share Cini with
 /// one person. The CTA opens the contacts invite flow. Genuine over salesy:
-/// it's surfaced once (persisted), only after the user has ranked a few titles,
-/// so the ask follows real value rather than greeting a stranger.
+/// it's surfaced once (persisted), on the user's second app launch, so the ask
+/// follows a return visit rather than greeting a stranger.
 struct FounderShareCard: View {
     /// Open the contacts invite flow.
     var onShare: () -> Void
