@@ -158,8 +158,14 @@ struct LeaderboardView: View {
 
     private func load() async {
         let school = schoolOnly ? session.profile?.school : nil
-        rows = (try? await SupabaseService.shared.leaderboard(
-            metric: currentMetric.key, genre: genre, school: school)) ?? []
+        do {
+            rows = try await SupabaseService.shared.leaderboard(
+                metric: currentMetric.key, genre: genre, school: school)
+        } catch {
+            // Keep whatever board is showing — a failed refresh must not wipe
+            // real rows into the "no rankings yet" empty state.
+            SupabaseService.logSwallowed("leaderboard", error)
+        }
         loaded = true
     }
 }

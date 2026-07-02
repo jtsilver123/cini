@@ -219,8 +219,14 @@ private struct PrivacyScreen: View {
             Section {
                 Button {
                     Task {
-                        await SupabaseService.shared.forgetContacts()
-                        forgotContacts = true
+                        do {
+                            try await SupabaseService.shared.forgetContacts()
+                            forgotContacts = true
+                        } catch {
+                            // A privacy claim must be true — never show
+                            // "removed" while the server still has the hashes.
+                            ToastCenter.shared.saveFailed()
+                        }
                     }
                 } label: {
                     Label(forgotContacts ? "Synced contacts removed" : "Remove synced contacts",

@@ -76,11 +76,16 @@ struct FeedView: View {
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
     /// The founder's one-time "invite one friend" note — surfaced on the user's
     /// second app open (not their first, so it isn't the very first thing they
-    /// see), and never again once dismissed or acted on.
+    /// see), and never again once dismissed or acted on. Both keys are
+    /// PER-ACCOUNT (like `onboardedUserIDs`): on a shared device, one user's
+    /// dismissal must not hide the note from the next, and a fresh signup must
+    /// not inherit the device's launch count and get asked on first open.
+    /// Legacy device-wide flag, still honored for users who dismissed pre-update.
     @AppStorage("founder.shareAsked") private var founderShareAsked = false
-    /// Cold-launch counter (bumped once per app load) that gates the note to the
-    /// second open onward.
-    @AppStorage("app.launchCount") private var appLaunchCount = 0
+    /// Comma-joined user ids who saw the note.
+    @AppStorage("founder.shareAskedUsers") private var founderShareAskedRaw = ""
+    /// Per-account app-open counts, encoded "uid:count,uid:count".
+    @AppStorage("app.launchCountsByUser") private var launchCountsRaw = ""
     /// Per-launch guard so the counter increments once, not on every feed appear.
     @State private var countedThisLaunch = false
     @State private var showFounderShare = false
@@ -261,7 +266,7 @@ struct FeedView: View {
                 if showFounderShare {
                     FounderShareCard(
                         onShare: {
-                            founderShareAsked = true
+                            markFounderAsked()
                             withAnimation(.snappy) { showFounderShare = false }
                             // Let the overlay clear before presenting the sheet —
                             // two presentations in one runloop can swallow the second.
@@ -271,7 +276,7 @@ struct FeedView: View {
                             }
                         },
                         onDismiss: {
-                            founderShareAsked = true
+                            markFounderAsked()
                             withAnimation(.snappy) { showFounderShare = false }
                         }
                     )
@@ -284,20 +289,38 @@ struct FeedView: View {
         }
     }
 
-    /// Count this app load once, then surface the founder's "invite one friend"
-    /// note on the second open onward — never on the first launch, and never again
-    /// once dismissed or acted on.
+    /// Count this app load once for the signed-in account, then surface the
+    /// founder's "invite one friend" note on that account's second open onward —
+    /// never on their first, and never again once dismissed or acted on.
     private func countLaunchAndMaybeAskFounder() {
+        guard let uid = SupabaseService.shared.currentUserID?.uuidString else { return }
+        var counts: [String: Int] = [:]
+        for pair in launchCountsRaw.split(separator: ",") {
+            let parts = pair.split(separator: ":")
+            if parts.count == 2, let n = Int(parts[1]) { counts[String(parts[0])] = n }
+        }
         if !countedThisLaunch {
             countedThisLaunch = true
-            appLaunchCount += 1
+            counts[uid, default: 0] += 1
+            launchCountsRaw = counts.map { "\($0.key):\($0.value)" }.joined(separator: ",")
         }
         // Yield to higher-priority launch prompts (the notifications re-ask, the
         // one-time product tour) so two asks never compete. If blocked this
         // launch, the note simply waits for the next clean one (it's persisted).
-        guard !founderShareAsked, !showFounderShare, appLaunchCount >= 2,
+        let asked = founderShareAskedRaw.split(separator: ",").map(String.init)
+        guard !founderShareAsked, !asked.contains(uid), !showFounderShare,
+              counts[uid, default: 0] >= 2,
               !showNotifReask, !tabRouter.tourActive else { return }
         withAnimation(.snappy) { showFounderShare = true }
+    }
+
+    /// The note was seen to completion (shared or dismissed) — never again
+    /// for this account.
+    private func markFounderAsked() {
+        guard let uid = SupabaseService.shared.currentUserID?.uuidString else { return }
+        if !founderShareAskedRaw.split(separator: ",").map(String.init).contains(uid) {
+            founderShareAskedRaw += founderShareAskedRaw.isEmpty ? uid : ",\(uid)"
+        }
     }
 
     // MARK: Header: serif wordmark + calendar / bell / hamburger

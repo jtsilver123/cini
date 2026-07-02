@@ -69,12 +69,6 @@ struct EditProfileView: View {
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
                 }
-                .sheet(isPresented: $showCropPicker) {
-                    CropImagePicker { image in
-                        Task { await uploadPhoto(image) }
-                    }
-                    .ignoresSafeArea()
-                }
 
                 Section("Identity") {
                     TextField("Display name", text: $displayName)
@@ -173,10 +167,16 @@ struct EditProfileView: View {
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.immediately)
             .background(Theme.background)
-            // Attached at the Form level (not on a row) so the search picker can't
-            // be torn down and dismissed when the Form re-lays-out on first open.
+            // Attached at the Form level (not on a row/section) so neither
+            // picker can be torn down and dismissed when the Form re-lays-out.
             .sheet(isPresented: $showSchoolPicker) {
                 SchoolPickerView(current: school) { school = $0 }
+            }
+            .sheet(isPresented: $showCropPicker) {
+                CropImagePicker { image in
+                    Task { await uploadPhoto(image) }
+                }
+                .ignoresSafeArea()
             }
             .navigationTitle("Edit Profile")
             .navigationBarTitleDisplayMode(.inline)

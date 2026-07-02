@@ -464,9 +464,10 @@ final class SupabaseService {
         _ = try? await client.rpc("store_contacts", params: Params(p_phones: phones)).execute()
     }
 
-    /// Wipe the caller's stored contact hashes.
-    func forgetContacts() async {
-        _ = try? await client.rpc("forget_contacts").execute()
+    /// Wipe the caller's stored contact hashes. Throws so the settings row can
+    /// tell the truth — "removed" must never show when the delete didn't land.
+    func forgetContacts() async throws {
+        _ = try await client.rpc("forget_contacts").execute()
     }
 
     /// "N on Cini know them" per contact: how many Cini users have each number

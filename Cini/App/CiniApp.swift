@@ -371,6 +371,9 @@ final class AppSession {
     private let supabase = SupabaseService.shared
 
     func bootstrap() async {
+        // Expose the live store to out-of-scene entry points (Siri intents)
+        // so their server writes can keep the shared cache coherent.
+        RankingStore.current = rankingStore
         // Restore an existing Supabase session and observe changes.
         for await (event, session) in supabase.client.auth.authStateChanges {
             switch event {
@@ -398,6 +401,7 @@ final class AppSession {
                 FeedDiskCache.clear()
                 RankingDiskCache.clear()
                 ImportQueue.shared.clear()
+                FriendsCache.shared.clear()
             default:
                 break
             }

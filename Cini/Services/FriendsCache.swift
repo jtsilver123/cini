@@ -46,8 +46,20 @@ final class FriendsCache {
     func refresh() async {
         if let fresh = try? await SupabaseService.shared.following() {
             following = fresh
+            // Only a successful fetch counts as "refreshed" — stamping a
+            // failure would make refreshIfStale sit on bad data for 5 minutes.
+            lastRefreshed = Date()
         }
         watchedWithCounts = await SupabaseService.shared.watchedWithCounts()
-        lastRefreshed = Date()
+    }
+
+    /// Wipe on sign-out so the next account never sees the previous account's
+    /// friends in the log-flow chips, @-mention picker, or Recommend sheet.
+    func clear() {
+        warmTask?.cancel()
+        warmTask = nil
+        following = []
+        watchedWithCounts = [:]
+        lastRefreshed = nil
     }
 }

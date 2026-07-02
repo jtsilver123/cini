@@ -359,8 +359,7 @@ struct OnboardingView: View {
     // MARK: 0 — You're in! (meet Jake, the friend everyone starts with)
 
     private var founderFirstName: String {
-        (founder?.displayName)
-            .flatMap { $0.isEmpty ? nil : $0.split(separator: " ").first.map(String.init) } ?? "Jake"
+        firstName(founder?.displayName, nil) ?? "Jake"
     }
 
     private var youreInStep: some View {

@@ -23,6 +23,16 @@ enum SiriTitleResolver {
     static func spokenName(_ movie: Movie) -> String {
         movie.releaseYear.map { "\(movie.title) (\($0))" } ?? movie.title
     }
+
+    /// Intents write straight to the server (they must reflect server truth,
+    /// not a possibly-cold cache) — afterwards, pull the shared RankingStore
+    /// back in sync so the next in-app bookmark tap doesn't toggle the wrong
+    /// way off stale state.
+    @MainActor
+    static func resyncStore() async {
+        guard let store = RankingStore.current, store.isLoaded else { return }
+        await store.load()
+    }
 }
 
 struct AddToWatchlistIntent: AppIntent {
@@ -57,6 +67,7 @@ struct AddToWatchlistIntent: AppIntent {
         } catch {
             return .result(dialog: "Couldn't save \(name) — check your connection and try again.")
         }
+        await SiriTitleResolver.resyncStore()
         return .result(dialog: "Saved — \(name) is on your Want to Watch.")
     }
 }
@@ -99,6 +110,7 @@ struct RemoveFromWatchlistIntent: AppIntent {
         } catch {
             return .result(dialog: "Couldn't update that — check your connection and try again.")
         }
+        await SiriTitleResolver.resyncStore()
         return .result(dialog: "Done — \(SiriTitleResolver.spokenName(match)) is off your Want to Watch.")
     }
 }

@@ -118,8 +118,11 @@ enum CiniExporter {
     }
 
     /// RFC 4180: quote fields containing commas, quotes, or newlines.
+    /// In Swift "\r\n" is ONE Character, so `contains("\n")` misses CRLF-only
+    /// text (e.g. a note pasted from Windows) — check both line breaks.
     private static func escape(_ field: String) -> String {
-        if field.contains(",") || field.contains("\"") || field.contains("\n") {
+        if field.contains(",") || field.contains("\"")
+            || field.contains(where: \.isNewline) {
             return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }
         return field

@@ -15,6 +15,9 @@ final class ImportQueue {
         /// Original 0.5–5★ rating from the import — ordering only,
         /// never shown as a Cini score.
         let importedRating: Double?
+        /// Hearted on Letterboxd — front of the queue even without a star
+        /// rating. Optional so queues saved before this field decode fine.
+        var liked: Bool? = false
 
         var id: Int { movieID }
     }
@@ -44,11 +47,17 @@ final class ImportQueue {
                 movieID: match.movie.tmdbID,
                 title: match.movie.title,
                 year: match.movie.releaseYear,
-                importedRating: match.imported.rating
+                importedRating: match.imported.rating,
+                liked: match.imported.liked
             ))
         }
-        // Favorites first so ranking starts with the movies they loved.
-        entries.sort { ($0.importedRating ?? -1) > ($1.importedRating ?? -1) }
+        // Favorites first so ranking starts with the movies they loved:
+        // hearted films lead (even unrated ones), then by old rating.
+        entries.sort {
+            let aLiked = $0.liked ?? false, bLiked = $1.liked ?? false
+            if aLiked != bLiked { return aLiked }
+            return ($0.importedRating ?? -1) > ($1.importedRating ?? -1)
+        }
         save()
     }
 

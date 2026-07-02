@@ -17,9 +17,6 @@ struct LetterboxdImportView: View {
     @Environment(\.openURL) private var openURL
 
     @State private var phase: Phase = .pick
-    // Watchlist always comes along now (the toggle was removed) — Letterboxd
-    // watchlist → your Want to Watch list.
-    private let importWatchlist = true
     @State private var result: LetterboxdImporter.Result?
     @State private var transferCode: String?
     @State private var transferTask: Task<Void, Never>?
@@ -58,15 +55,19 @@ struct LetterboxdImportView: View {
             .background(Theme.background)
             .swipeDismissesKeyboard()
             .onAppear { if startWithPaste { showPaste = true } }
-            .onDisappear { transferTask?.cancel() }
+            .onDisappear { transferTask?.cancel(); importTask?.cancel() }
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if phase == .working {
-                    // A stuck import must never trap the user.
+                    // A stuck import must never trap the user. Cancel BOTH task
+                    // slots — file imports run in importTask, desktop transfers
+                    // in transferTask — or a "stopped" import keeps writing in
+                    // the background and later yanks the screen to the summary.
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Stop") {
                             importTask?.cancel()
+                            transferTask?.cancel()
                             withAnimation(.snappy) { phase = .pick }
                         }
                     }
@@ -118,7 +119,8 @@ struct LetterboxdImportView: View {
                     .safeAreaInset(edge: .bottom) {
                         PillButton(title: "Import list") {
                             showPaste = false
-                            Task { await runPastedImport() }
+                            // Stored so the Stop button can actually cancel it.
+                            importTask = Task { await runPastedImport() }
                         }
                         .frame(maxWidth: .infinity)
                         .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -244,9 +246,8 @@ struct LetterboxdImportView: View {
                                        label: "films queued to rank",
                                        detail: "Find them under My Lists → Watched → Pending — your favorites are first.")
                             Divider()
-                            summaryRow(icon: "bookmark.fill", count: importWatchlist ? result.watchlist.count : 0,
-                                       label: "saved to Want to Watch",
-                                       detail: importWatchlist ? nil : "Want to Watch import was off.")
+                            summaryRow(icon: "bookmark.fill", count: result.watchlist.count,
+                                       label: "saved to Want to Watch")
                         }
                         let reviewCount = result.watched.filter { $0.imported.review != nil }.count
                         if reviewCount > 0 {
@@ -336,15 +337,22 @@ struct LetterboxdImportView: View {
             if pastedToWatchlist {
                 for match in outcome.watched
                 where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
+                    if Task.isCancelled { break }
                     await store.toggleWatchlist(movie: match.movie)
                 }
-            } else {
+            } else if !Task.isCancelled {
                 ImportQueue.shared.seed(with: outcome.watched, store: store)
             }
+            // Stopped mid-flight: stay on the picker instead of yanking the
+            // screen to a summary the user just cancelled out of.
+            guard !Task.isCancelled else { return }
             result = outcome
             Haptics.success()
             ToastCenter.shared.show(successLine(for: outcome))
             withAnimation(.snappy) { phase = .summary }
+        } catch is CancellationError {
+            // User tapped Stop — the toolbar already returned them to the
+            // picker; no error banner for an intentional stop.
         } catch {
             Haptics.error()
             errorMessage = (error as? LocalizedError)?.errorDescription
@@ -446,9 +454,7 @@ struct LetterboxdImportView: View {
     /// WHOSE phone it's linked to ("Linked to Jake's Cini app").
     private func transferLink(code: String) -> String {
         var link = "\(importPageURL)?code=\(code)"
-        let name = session.profile.map {
-            $0.displayName.split(separator: " ").first.map(String.init) ?? $0.username
-        }
+        let name = session.profile.flatMap { firstName($0.displayName, $0.username) }
         if let name, !name.isEmpty {
             link += "&name=\(name.urlQueryValueEncoded)"
         }
@@ -746,7 +752,7 @@ struct LetterboxdImportView: View {
             parts.append("\(outcome.watched.count) saved to Want to Watch")
         } else {
             if !outcome.watched.isEmpty { parts.append("\(outcome.watched.count) to rank") }
-            if importWatchlist && !outcome.watchlist.isEmpty {
+            if !outcome.watchlist.isEmpty {
                 parts.append("\(outcome.watchlist.count) saved")
             }
         }

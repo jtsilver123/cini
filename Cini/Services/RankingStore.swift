@@ -40,6 +40,11 @@ final class RankingStore {
     private let supabase: SupabaseService
     private let tmdb: TMDBService
 
+    /// The app's live store, for entry points outside the SwiftUI environment
+    /// (Siri intents) whose server writes must keep the shared cache coherent.
+    /// Set by AppSession at bootstrap.
+    static weak var current: RankingStore?
+
     init(supabase: SupabaseService = .shared, tmdb: TMDBService = .shared) {
         self.supabase = supabase
         self.tmdb = tmdb
