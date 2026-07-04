@@ -2547,7 +2547,7 @@ struct TonightPickRow: Codable, Hashable {
     let predicted: Double
     let friendCount: Int
     let topFriend: String?
-    let source: String              // "watchlist" or "friends"
+    let source: String              // "watchlist" or "rec"
 
     enum CodingKeys: String, CodingKey {
         case movieId = "movie_id"
