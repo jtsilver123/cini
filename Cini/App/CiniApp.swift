@@ -226,7 +226,13 @@ struct CiniApp: App {
             return
         }
         pendingInviter = username
-        if session.isAuthenticated {
+        // Redeem right away ONLY for a fully onboarded user. Mid-signup the
+        // profile is still the placeholder handle — onboarding's profile-save
+        // step redeems from pendingInviter AFTER the real name is set, so the
+        // inviter's "joined Cini" notification carries the crafted identity
+        // (the server defers it regardless; this keeps the UX in step).
+        if session.isAuthenticated, !showOnboarding,
+           let uid = SupabaseService.shared.currentUserID?.uuidString, isOnboarded(uid) {
             Task {
                 if await SupabaseService.shared.redeemInvite(from: username) {
                     pendingInviter = ""
