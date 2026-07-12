@@ -136,16 +136,20 @@ struct FilterPill: View {
 
     @ViewBuilder
     var body: some View {
-        if active {
-            Button(action: action) {
-                label.background(Capsule().fill(Theme.marquee))
-            }
-            .buttonStyle(.plain)
-        } else {
-            Button(action: action) { label }
+        Group {
+            if active {
+                Button(action: action) {
+                    label.background(Capsule().fill(Theme.marquee))
+                }
                 .buttonStyle(.plain)
-                .glassCapsule()
+            } else {
+                Button(action: action) { label }
+                    .buttonStyle(.plain)
+                    .glassCapsule()
+            }
         }
+        // VoiceOver must hear which filter is active, not just its name.
+        .accessibilityAddTraits(active ? [.isSelected] : [])
     }
 }
 

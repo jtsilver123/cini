@@ -35,6 +35,16 @@ struct ShowtimesSheet: View {
         return order.filter(found.contains) + found.subtracting(order).sorted()
     }
 
+    /// The pill row: today's formats, PLUS the active filter when the new
+    /// date has none of it — the "No IMAX showings" state needs its pill to
+    /// stay visible (and deselectable).
+    private var pillFormats: [String] {
+        if let screenFormat, !availableFormats.contains(screenFormat) {
+            return availableFormats + [screenFormat]
+        }
+        return availableFormats
+    }
+
     /// Theaters trimmed to the selected screen type; theaters left with no
     /// matching showings drop out entirely.
     private var filteredTheaters: [TheaterShowtimes] {
@@ -102,8 +112,10 @@ struct ShowtimesSheet: View {
                 }
 
             // Screen type — only offered when a premium format is actually
-            // playing nearby (a standard-only town gets no dead pills).
-            if case .loaded = state, !availableFormats.isEmpty {
+            // playing nearby (a standard-only town gets no dead pills). An
+            // ACTIVE filter always keeps its pill, even on a date with no
+            // such showings — otherwise it couldn't be turned off.
+            if case .loaded = state, !pillFormats.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         FilterPill(title: "All screens", hasChevron: false,
@@ -112,7 +124,7 @@ struct ShowtimesSheet: View {
                             screenFormat = nil
                             noNextFound = false
                         }
-                        ForEach(availableFormats, id: \.self) { format in
+                        ForEach(pillFormats, id: \.self) { format in
                             FilterPill(title: format, hasChevron: false,
                                        active: screenFormat == format) {
                                 Haptics.tap()
@@ -323,12 +335,9 @@ struct ShowtimesSheet: View {
             theaters = try await ShowtimesService.shared.showtimes(
                 for: movie, zipcode: zipcode, date: date)
             state = .loaded
-            // A screen filter carries across dates while it still applies;
-            // if the new date has no such screenings, fall back to all
-            // screens rather than an instantly-empty list.
-            if let format = screenFormat, !availableFormats.contains(format) {
-                screenFormat = nil
-            }
+            // The screen filter deliberately carries across dates — a date
+            // with no such screenings shows the "No IMAX showings" state
+            // with "find the next IMAX date", not a silent reset.
             // Remember the zip — it powers "your watchlist movie is
             // playing near you" push alerts. Best-effort here (the user came
             // for showtimes, which loaded), but leave a trace on failure.

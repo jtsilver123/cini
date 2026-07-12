@@ -49,12 +49,14 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 // Anniversary)"). Strip the dressing so they match the watchlist title —
 // without this the alert never fires for exactly the screenings people
 // most want to hear about. Mirrors ShowtimesService.canonicalTitle.
+// \b before each format token: without it "Climax" ends in "imax" and
+// canonicalizes to "Cl" — a real film whose alert would never fire.
 const VARIANT_PATTERNS = [
-  /[:\-–—]?\s*((the|an?)\s+)?imax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$/i,
-  /[:\-–—]?\s*(an?\s+)?(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$/i,
-  /[:\-–—]?\s*(in\s+)?(3d|70\s?mm|35\s?mm)\s*$/i,
-  /[:\-–—]?\s*\(?\d+(th|st|nd|rd)\s+anniversary\)?\s*$/i,
-  /[:\-–—]?\s*\(?(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$/i,
+  /[:\-–—]?\s*((the|an?)\s+)?\bimax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$/i,
+  /[:\-–—]?\s*(an?\s+)?\b(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$/i,
+  /[:\-–—]?\s*(in\s+)?\b(3d|70\s?mm|35\s?mm)\s*$/i,
+  /[:\-–—]?\s*\(?\b\d+(th|st|nd|rd)\s+anniversary\)?\s*$/i,
+  /[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$/i,
   /\s*\(\d{4}\)\s*$/,
 ];
 function canonicalTitle(raw: string): string {
@@ -138,9 +140,12 @@ Deno.serve(async (_req: Request) => {
           // re-release year.
           const hit = playing.some((p) => {
             const candidate = canonicalTitle(p.title);
+            // Exact normalized match FIRST — punctuation-heavy titles
+            // ("WALL·E" vs "WALL-E") have low edit-distance similarity and
+            // must not be lost behind the fuzzy gate.
+            if (norm(movie.title) === norm(candidate)) return true;
             const sim = similarity(movie.title, candidate);
             if (sim <= 0.85) return false;
-            if (norm(movie.title) === norm(candidate)) return true;
             return !movie.release_year || !p.releaseYear ||
                    Math.abs(movie.release_year - p.releaseYear) <= 1;
           });

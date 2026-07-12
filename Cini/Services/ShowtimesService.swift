@@ -41,12 +41,14 @@ final class ShowtimesService: ShowtimesProviding {
     /// "Oppenheimer", "Casablanca (80th Anniversary)" → "Casablanca".
     static func canonicalTitle(_ raw: String) -> String {
         var title = raw
+        // \b before each format token: without it "Climax" ends in "imax"
+        // and canonicalizes to "Cl" — a real film that would never match.
         let patterns = [
-            #"[:\-–—]?\s*((the|an?)\s+)?imax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$"#,
-            #"[:\-–—]?\s*(an?\s+)?(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$"#,
-            #"[:\-–—]?\s*(in\s+)?(3d|70\s?mm|35\s?mm)\s*$"#,
-            #"[:\-–—]?\s*\(?\d+(th|st|nd|rd)\s+anniversary\)?\s*$"#,
-            #"[:\-–—]?\s*\(?(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$"#,
+            #"[:\-–—]?\s*((the|an?)\s+)?\bimax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$"#,
+            #"[:\-–—]?\s*(an?\s+)?\b(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$"#,
+            #"[:\-–—]?\s*(in\s+)?\b(3d|70\s?mm|35\s?mm)\s*$"#,
+            #"[:\-–—]?\s*\(?\b\d+(th|st|nd|rd)\s+anniversary\)?\s*$"#,
+            #"[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$"#,
             #"\s*\(\d{4}\)\s*$"#,
         ]
         var changed = true
@@ -118,11 +120,18 @@ final class ShowtimesService: ShowtimesProviding {
         guard let bestScore = scored.map(\.1).max(), bestScore > 0.6 else { return [] }
         // The winner plus its variants: same canonical title, or scored
         // within a hair of the best (year bonus can differ per listing).
+        // The canonical-equality path is YEAR-GATED: "Saw 3D" (2010)
+        // canonicalizes to "Saw" (2004) but is a different film — a mismatched
+        // year must not smuggle its showtimes into this sheet.
         let bestCanonical = scored.max { $0.1 < $1.1 }
             .map { Self.canonicalTitle($0.0.title).lowercased() } ?? ""
         let matches = scored.filter { listing, score in
-            score > 0.6 && (score >= bestScore - 0.05
-                || Self.canonicalTitle(listing.title).lowercased() == bestCanonical)
+            guard score > 0.6 else { return false }
+            if score >= bestScore - 0.05 { return true }
+            let yearCompatible = movie.releaseYear == nil || listing.releaseYear == nil
+                || abs(movie.releaseYear! - listing.releaseYear!) <= 1
+            return yearCompatible
+                && Self.canonicalTitle(listing.title).lowercased() == bestCanonical
         }.map(\.0)
 
         // Group all matched showtimes by theatre, collecting seat-comfort perks.
@@ -206,24 +215,27 @@ private struct GNMovie: Decodable {
         }
 
         /// Premium screen format in free text ("IMAX", "4DX", "Dolby", …) —
-        /// shared by the quals check and variant-title fallback.
+        /// shared by the quals check and variant-title fallback. Scans the
+        /// WHOLE text per premium so priority order wins ("3D|IMAX" reads
+        /// IMAX, not 3D), and matches on word boundaries so "Climax" never
+        /// reads as IMAX.
         static func premiumFormat(in text: String) -> String? {
             let premiums = ["IMAX", "4DX", "RPX", "ScreenX", "70mm",
                             "Dolby", "ATMOS", "3D", "Laser"]
             for premium in premiums
-            where text.localizedCaseInsensitiveContains(premium) {
+            where text.range(of: #"\b"# + premium + #"\b"#,
+                             options: [.regularExpression, .caseInsensitive]) != nil {
                 return premium == "ATMOS" ? "Dolby Atmos"
                      : premium == "Laser" ? "Laser" : premium
             }
             return nil
         }
 
-        /// Premium screen format, if any, from the showing's qualifiers.
+        /// Premium screen format, if any, from the showing's qualifiers —
+        /// checked across ALL of them at once so the priority order above
+        /// decides, not whichever qualifier happens to come first.
         var format: String? {
-            for qual in qualList {
-                if let format = Self.premiumFormat(in: qual) { return format }
-            }
-            return nil
+            Self.premiumFormat(in: quals ?? "")
         }
 
         /// Seat-comfort perks worth surfacing at the theatre level.

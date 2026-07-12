@@ -38,9 +38,21 @@ final class ShowtimesMatchingTests: XCTestCase {
         XCTAssertFalse(ShowtimesService.canonicalTitle("IMAX").isEmpty)
     }
 
+    func testTitlesEndingInFormatLikeTailsSurvive() {
+        // Word boundaries: "Climax" ends in "imax" but is a real film — it
+        // must never canonicalize to "Cl" (which would make it unmatchable).
+        for title in ["Climax", "Anthropocene: The Human Epoch"] {
+            XCTAssertEqual(ShowtimesService.canonicalTitle(title), title)
+        }
+    }
+
     func testTitleFallbackDetectsFormat() {
         XCTAssertEqual(GNShowingFormatProbe.format(in: "Dune: Part Two: The IMAX 2D Experience"), "IMAX")
         XCTAssertEqual(GNShowingFormatProbe.format(in: "Poor Things – Dolby Cinema"), "Dolby")
         XCTAssertNil(GNShowingFormatProbe.format(in: "Past Lives"))
+        // Word boundary: "Climax" must NOT read as IMAX.
+        XCTAssertNil(GNShowingFormatProbe.format(in: "Climax"))
+        // Priority: IMAX outranks 3D no matter the qualifier order.
+        XCTAssertEqual(GNShowingFormatProbe.format(in: "3D|IMAX"), "IMAX")
     }
 }
