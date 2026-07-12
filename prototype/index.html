@@ -1924,21 +1924,32 @@ function renderDetail(){
     ${detailPeopleTab==="friends" ? friendsBlock : everyoneBlock(k)}`;
 }
 /* Showtimes: theatres with seat perks, next showing highlighted,
-   $ = bargain pricing. Tickets open the Fandango app when installed. */
-function openShowtimes(k){
+   $ = bargain pricing, and a screen-type filter (IMAX / 4DX / …) built
+   from the formats actually playing. Tickets open the Fandango app. */
+let showtimeFmt=null;
+function openShowtimes(k, keepFmt){
   const m=MOVIES[k];
+  if(!keepFmt) showtimeFmt=null;
   const theatres=[
     {n:"AMC Loews 34th Street 14", perks:"Recliners · Reserved seating",
      times:[["4:15 PM","",1,0],["7:30 PM","IMAX",0,1],["9:45 PM","IMAX",0,0]]},
     {n:"Regal Union Square", perks:"Reserved seating",
      times:[["5:00 PM","",1,0],["8:15 PM","4DX",0,0],["10:30 PM","",0,0]]},
   ];
+  const formats=[...new Set(theatres.flatMap(t=>t.times.map(x=>x[1]).filter(Boolean)))];
+  const shown=theatres.map(t=>({...t, times:showtimeFmt?t.times.filter(x=>x[1]===showtimeFmt):t.times}))
+                      .filter(t=>t.times.length);
+  const pill=(label,val)=>`<button class="pill ${showtimeFmt===val?"":"ghost"}" style="font-size:12px; padding:7px 13px;"
+      onclick="showtimeFmt=${val?`'${val}'`:"null"}===showtimeFmt?null:${val?`'${val}'`:"null"}; openShowtimes('${k}', true)">${label}</button>`;
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Showtimes — ${m.t}</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <input type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:10px 13px; color:var(--ink); font:inherit; outline:none; margin-bottom:12px;">
-      ${theatres.map(t=>`
+      <input type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:10px 13px; color:var(--ink); font:inherit; outline:none; margin-bottom:10px;">
+      ${formats.length?`<div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;">
+        ${pill("All screens",null)}${formats.map(f=>pill(f,f)).join("")}
+      </div>`:""}
+      ${shown.length?shown.map(t=>`
         <div style="margin-bottom:14px;">
           <div style="font-weight:700; font-size:14.5px;">${t.n}</div>
           <div style="color:var(--marquee); font-size:12px; margin:2px 0 8px;">${t.perks}</div>
@@ -1947,7 +1958,8 @@ function openShowtimes(k){
               <button style="border:1.2px solid ${next?"var(--marquee)":"rgba(232,182,76,.55)"}; background:${next?"rgba(232,182,76,.16)":"none"}; color:var(--ink); border-radius:9px; padding:7px 11px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer;"
                 onclick="toast('Opens in the Fandango app 🎟️')">${time}${barg?" · $":""}${fmt?`<div style='font-weight:400; font-size:10.5px; color:var(--gray);'>${fmt}</div>`:""}</button>`).join("")}
           </div>
-        </div>`).join("")}
+        </div>`).join("")
+      :`<div class="empty" style="padding:26px 0;"><b>No ${showtimeFmt} showings</b><span class="sub">${m.t} isn't playing in ${showtimeFmt} nearby on this date.</span></div>`}
       <div class="sub" style="font-size:11px; text-align:center;">Showtimes by Gracenote · $ = bargain pricing · tickets open in Fandango</div>
     </div>`);
 }
