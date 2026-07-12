@@ -35,6 +35,40 @@ enum ShowtimesError: Error {
 final class ShowtimesService: ShowtimesProviding {
     static let shared = ShowtimesService()
 
+    /// Strip Gracenote's screening-variant dressing from a listing title so
+    /// it compares against the film's canonical name: "Dune: Part Two: The
+    /// IMAX 2D Experience" → "Dune: Part Two", "Oppenheimer 70mm" →
+    /// "Oppenheimer", "Casablanca (80th Anniversary)" → "Casablanca".
+    static func canonicalTitle(_ raw: String) -> String {
+        var title = raw
+        let patterns = [
+            #"[:\-–—]?\s*((the|an?)\s+)?imax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$"#,
+            #"[:\-–—]?\s*(an?\s+)?(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$"#,
+            #"[:\-–—]?\s*(in\s+)?(3d|70\s?mm|35\s?mm)\s*$"#,
+            #"[:\-–—]?\s*\(?\d+(th|st|nd|rd)\s+anniversary\)?\s*$"#,
+            #"[:\-–—]?\s*\(?(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$"#,
+            #"\s*\(\d{4}\)\s*$"#,
+        ]
+        var changed = true
+        while changed {
+            changed = false
+            for pattern in patterns {
+                let stripped = title.replacingOccurrences(
+                    of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
+                if stripped != title, !stripped.trimmingCharacters(in: .whitespaces).isEmpty {
+                    title = stripped
+                    changed = true
+                }
+            }
+        }
+        // A stripped variant can leave its joiner behind ("Aliens:") — drop it.
+        while let last = title.last, last == ":" || last == "-" || last == "–"
+                || last == "—" || last == " " {
+            title.removeLast()
+        }
+        return title.trimmingCharacters(in: .whitespaces)
+    }
+
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 20
@@ -68,37 +102,59 @@ final class ShowtimesService: ShowtimesProviding {
 
         let listings = try JSONDecoder().decode([GNMovie].self, from: data)
 
-        // Find our film among everything playing nearby: best fuzzy title
-        // match, with the release year as a strong signal.
-        let best = listings
-            .map { listing -> (GNMovie, Double) in
-                var score = Fuzzy.similarity(query: movie.title, candidate: listing.title)
-                if let want = movie.releaseYear, let got = listing.releaseYear {
-                    score += want == got ? 0.15 : (abs(want - got) > 1 ? -0.25 : 0)
-                }
-                return (listing, score)
+        // Find our film among everything playing nearby. Gracenote lists
+        // premium screenings as SEPARATE title variants ("…: The IMAX 2D
+        // Experience", "… 70mm", "… (25th Anniversary)"), so score against
+        // the CANONICAL title and merge every matching variant — otherwise
+        // the IMAX showings simply vanish from the sheet.
+        let scored = listings.map { listing -> (GNMovie, Double) in
+            var score = Fuzzy.similarity(query: movie.title,
+                                         candidate: Self.canonicalTitle(listing.title))
+            if let want = movie.releaseYear, let got = listing.releaseYear {
+                score += want == got ? 0.15 : (abs(want - got) > 1 ? -0.25 : 0)
             }
-            .max { $0.1 < $1.1 }
-        guard let (match, score) = best, score > 0.6 else { return [] }
+            return (listing, score)
+        }
+        guard let bestScore = scored.map(\.1).max(), bestScore > 0.6 else { return [] }
+        // The winner plus its variants: same canonical title, or scored
+        // within a hair of the best (year bonus can differ per listing).
+        let bestCanonical = scored.max { $0.1 < $1.1 }
+            .map { Self.canonicalTitle($0.0.title).lowercased() } ?? ""
+        let matches = scored.filter { listing, score in
+            score > 0.6 && (score >= bestScore - 0.05
+                || Self.canonicalTitle(listing.title).lowercased() == bestCanonical)
+        }.map(\.0)
 
-        // Group its showtimes by theatre, collecting seat-comfort perks.
+        // Group all matched showtimes by theatre, collecting seat-comfort perks.
         var byTheatre: [String: (name: String, perks: Set<String>, times: [Showtime])] = [:]
-        for showing in match.showtimes ?? [] {
-            guard let theatre = showing.theatre,
-                  let start = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
-            let key = theatre.id ?? theatre.name ?? "?"
-            let entry = Showtime(
-                id: "\(key)-\(showing.dateTime ?? "")",
-                startTime: start,
-                format: showing.format,
-                isBargain: showing.barg ?? false,
-                bookingURL: showing.secureTicketURL
-            )
-            var bucket = byTheatre[key] ?? (theatre.name ?? "Theater", [], [])
-            bucket.name = theatre.name ?? bucket.name
-            bucket.perks.formUnion(showing.perks)
-            bucket.times.append(entry)
-            byTheatre[key] = bucket
+        var seenIDs: Set<String> = []
+        for listing in matches {
+            // A variant listing often carries its format in the TITLE
+            // ("…: The IMAX 2D Experience") while its showings' quals stay
+            // silent — fall back to the title so the screen filter sees it.
+            let titleFormat = GNMovie.Showing.premiumFormat(in: listing.title)
+            for showing in listing.showtimes ?? [] {
+                guard let theatre = showing.theatre,
+                      let start = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
+                let key = theatre.id ?? theatre.name ?? "?"
+                let format = showing.format ?? titleFormat
+                // Same theatre + time can exist per FORMAT (IMAX room and a
+                // standard room both at 7:30) — distinct; true dupes are dropped.
+                let id = "\(key)-\(showing.dateTime ?? "")-\(format ?? "std")"
+                guard seenIDs.insert(id).inserted else { continue }
+                let entry = Showtime(
+                    id: id,
+                    startTime: start,
+                    format: format,
+                    isBargain: showing.barg ?? false,
+                    bookingURL: showing.secureTicketURL
+                )
+                var bucket = byTheatre[key] ?? (theatre.name ?? "Theater", [], [])
+                bucket.name = theatre.name ?? bucket.name
+                bucket.perks.formUnion(showing.perks)
+                bucket.times.append(entry)
+                byTheatre[key] = bucket
+            }
         }
 
         return byTheatre
@@ -124,6 +180,13 @@ private extension DateFormatter {
     }()
 }
 
+/// Test hook: the variant-title format fallback (GNMovie is file-private).
+enum GNShowingFormatProbe {
+    static func format(in text: String) -> String? {
+        GNMovie.Showing.premiumFormat(in: text)
+    }
+}
+
 // MARK: - Gracenote OnConnect DTOs
 
 private struct GNMovie: Decodable {
@@ -142,14 +205,23 @@ private struct GNMovie: Decodable {
             (quals ?? "").split(separator: "|").map(String.init)
         }
 
-        /// Premium screen format, if any ("IMAX", "4DX", "Dolby", …).
-        var format: String? {
+        /// Premium screen format in free text ("IMAX", "4DX", "Dolby", …) —
+        /// shared by the quals check and variant-title fallback.
+        static func premiumFormat(in text: String) -> String? {
             let premiums = ["IMAX", "4DX", "RPX", "ScreenX", "70mm",
                             "Dolby", "ATMOS", "3D", "Laser"]
             for premium in premiums
-            where qualList.contains(where: { $0.localizedCaseInsensitiveContains(premium) }) {
+            where text.localizedCaseInsensitiveContains(premium) {
                 return premium == "ATMOS" ? "Dolby Atmos"
                      : premium == "Laser" ? "Laser" : premium
+            }
+            return nil
+        }
+
+        /// Premium screen format, if any, from the showing's qualifiers.
+        var format: String? {
+            for qual in qualList {
+                if let format = Self.premiumFormat(in: qual) { return format }
             }
             return nil
         }
