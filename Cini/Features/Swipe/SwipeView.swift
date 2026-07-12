@@ -161,10 +161,11 @@ struct SwipeView: View {
             HStack(spacing: 10) {
                 Text("Recs").font(Theme.pageHeader)
                 Spacer()
-                // Card vs grid is a compact icon toggle up here; the big toggle
-                // below is the content split (Movies vs TV).
+                // Find (deck) vs Rank (grid), labeled so the two modes read at
+                // a glance; the big toggle below is the content split
+                // (Movies vs TV). Import lives in the dismissible banner and
+                // the Feed menu — a third header control crowded this row.
                 compactViewToggle
-                importButton
             }
             SegmentedPillControl(
                 segments: ["Movies", "TV Shows"],
@@ -173,30 +174,14 @@ struct SwipeView: View {
         }
     }
 
-    /// Import-your-history button: icon + "Import" label, so it reads as an
-    /// action rather than a bare glyph.
-    private var importButton: some View {
-        Button { showImport = true } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "square.and.arrow.down")
-                Text("Import")
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Theme.marquee)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Capsule().fill(Theme.fill))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Import your history")
-    }
-
-    /// Compact card-vs-grid VIEW toggle (icons), top-right of the header. Cards
-    /// = the swipe deck (default), grid = the poster grid. The note above each
-    /// view spells out what it's for.
+    /// Labeled mode toggle, top-right of the header: Find = the swipe deck
+    /// (discover something to watch), Rank = the poster grid (tap titles
+    /// you've seen to rank them). The user's pick persists across visits
+    /// (`swipe.layout` AppStorage).
     private var compactViewToggle: some View {
         HStack(spacing: 2) {
-            compactViewSegment(.cards, icon: "rectangle.stack", label: "Card view")
-            compactViewSegment(.grid, icon: "square.grid.2x2", label: "Grid view")
+            compactViewSegment(.cards, icon: "rectangle.stack", label: "Find")
+            compactViewSegment(.grid, icon: "square.grid.2x2", label: "Rank")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
@@ -209,15 +194,20 @@ struct SwipeView: View {
         return Button {
             withAnimation(.snappy) { layout = option }
         } label: {
-            Image(systemName: icon)
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(on ? Theme.background : Theme.gray)
-                .frame(width: 40, height: 30)
-                .background(Capsule().fill(on ? Theme.marquee : .clear))
-                .contentShape(Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption.weight(.bold))
+                Text(label)
+                    .font(.footnote.weight(.semibold))
+            }
+            .foregroundStyle(on ? Theme.background : Theme.gray)
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .background(Capsule().fill(on ? Theme.marquee : .clear))
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label)\(on ? ", selected" : "")")
+        .accessibilityLabel("\(label) view\(on ? ", selected" : "")")
     }
 
     /// The quick filter pills (with the leading filter icon). Lives OUTSIDE the
@@ -255,7 +245,7 @@ struct SwipeView: View {
             Button {
                 Haptics.tap()
                 withAnimation { importBannerHidden = true }
-                ToastCenter.shared.show("You can import anytime from the icon up top")
+                ToastCenter.shared.show("You can import anytime from the menu on your Feed")
             } label: {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))

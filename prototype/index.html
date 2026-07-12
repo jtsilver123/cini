@@ -1373,7 +1373,8 @@ const LB_META=[["Watched","How many titles you've ranked", p=>p.watched],
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
-let swipeIdx=0, swipeGrid=false, swipeTV=false, swipeImport=true;
+let swipeIdx=0, swipeGrid=(S.ui&&S.ui.swipeGrid)||false, swipeTV=false, swipeImport=true;
+function setSwipeGrid(v){ swipeGrid=v; S.ui=S.ui||{}; S.ui.swipeGrid=v; save(); renderSwipe(); }
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
 function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); swipeIdx++; renderSwipe(); }
 function swipePass(){ buzz(); swipeIdx++; renderSwipe(); }
@@ -1383,10 +1384,9 @@ function renderSwipe(){
   const head=`<div class="pad" style="display:flex; align-items:center; gap:8px; padding-top:14px; padding-bottom:2px;">
       <span class="serif" style="font-size:30px; font-weight:700;">Swipe</span><span class="spacer"></span>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">
-        <button onclick="swipeGrid=false; renderSwipe()" aria-label="Card view" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",15)}</button>
-        <button onclick="swipeGrid=true; renderSwipe()" aria-label="Grid view" style="border:none; cursor:pointer; border-radius:999px; width:40px; height:30px; display:inline-flex; align-items:center; justify-content:center; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",15)}</button>
-      </div>
-      <button class="iconbtn" onclick="openImport()" aria-label="Import" style="display:inline-flex; align-items:center; gap:5px; background:rgba(255,255,255,.07); border-radius:999px; padding:7px 12px; color:var(--marquee); font-weight:600; font-size:14px;">${I("download",18)} Import</button></div>
+        <button onclick="setSwipeGrid(false)" aria-label="Find view" style="border:none; cursor:pointer; border-radius:999px; height:30px; padding:0 12px; display:inline-flex; align-items:center; gap:5px; font-weight:700; font-size:12.5px; ${!swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("stack",13)} Find</button>
+        <button onclick="setSwipeGrid(true)" aria-label="Rank view" style="border:none; cursor:pointer; border-radius:999px; height:30px; padding:0 12px; display:inline-flex; align-items:center; gap:5px; font-weight:700; font-size:12.5px; ${swipeGrid?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("grid",13)} Rank</button>
+      </div></div>
     <div class="pad" style="margin-top:8px;"><div style="display:flex; gap:4px; background:var(--surface-2); border-radius:999px; padding:4px;">
       <button onclick="swipeTV=false; renderSwipe()" style="flex:1; border:none; cursor:pointer; border-radius:999px; padding:9px; font-size:13.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:5px; ${!swipeTV?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("film",14)} Movies</button>
       <button onclick="swipeTV=true; renderSwipe()" style="flex:1; border:none; cursor:pointer; border-radius:999px; padding:9px; font-size:13.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; gap:5px; ${swipeTV?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I("tv",14)} TV Shows</button>
@@ -1397,7 +1397,15 @@ function renderSwipe(){
   const noteHTML=`<div class="pad" style="margin-top:8px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--gray); font-size:12px; font-weight:600;">${I("stack",14)} ${swipeGrid?`Tap a poster to rank a ${swipeTV?"show":"movie"} you've seen`:`Swipe right to bookmark · left to pass · + to rank`}</div>`;
   let body;
   if(swipeGrid){
-    body=noteHTML+`<div class="pad" style="margin-top:8px;">${pool.map(k=>row(k,false)).join("")}</div>`;
+    // Rank mode: a poster grid — tap a title you've seen to rank it.
+    // (Previously borrowed search's local `row` helper, which threw.)
+    body=noteHTML+`<div class="pad" style="margin-top:10px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+      ${pool.map(k=>{const m=MOVIES[k]; return `
+        <div style="cursor:pointer;" onclick="openLog('${k}')">
+          <div class="poster" style="width:100%; aspect-ratio:2/3; background-image:url('${IMG(m.p)}');"></div>
+          <div style="font-size:11.5px; font-weight:600; margin-top:5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${m.t}</div>
+        </div>`;}).join("")}
+    </div>`;
   } else if(swipeIdx>=pool.length){
     body=`<div class="empty"><span style="color:var(--marquee);">${I("check",30)}</span><b>You're all caught up</b><span class="sub">Flip to a grid, or check back later for fresh picks.</span></div>`;
   } else {
