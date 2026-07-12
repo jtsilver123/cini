@@ -96,6 +96,7 @@ READS = [
     ("streaming_alerts", "streaming_alerts", "user_id, movie_id, notified_at"),
     ("pending_imports", "pending_imports", "status, path"),
     ("home_zip", "user_locations", "home_zip"),
+    ("viewing_prefs", "user_prefs", "streaming_services, screen_formats"),
     ("blocked_ids", "blocks", "blocked_id"),
     ("custom_lists", "custom_lists", "id, user_id, name, is_private, created_at, media_kind, custom_list_items(count)"),
     ("list_ids_containing", "custom_list_items", "list_id"),

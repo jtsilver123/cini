@@ -277,8 +277,13 @@ private struct AppPreferencesScreen: View {
             }
             Section {
                 NavigationLink {
+                    ViewingPrefsScreen()
+                } label: { Label("Viewing preferences", systemImage: "play.rectangle.on.rectangle") }
+                NavigationLink {
                     TheaterAlertsScreen()
                 } label: { Label("Theater alerts", systemImage: "popcorn") }
+            } footer: {
+                Text("Tell Cini what you stream with and which screens you love — picks and showtimes lead with them.")
             }
             Section("Your data") {
                 ExportRow()
@@ -289,6 +294,113 @@ private struct AppPreferencesScreen: View {
         .background(Theme.background)
         .navigationTitle("Your app")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Viewing preferences (streaming services + theater screens)
+
+/// What you stream with, and which theater screens you love. Tonight's Pick
+/// leads with a service you already have, Where to Watch sorts your services
+/// first, and the showtimes sheet opens on your preferred screen when it's
+/// actually playing.
+private struct ViewingPrefsScreen: View {
+    /// Same canonical names as the app-wide streaming filter.
+    private static let services = ["Netflix", "Prime Video", "Hulu", "Disney+",
+                                   "Apple TV+", "Peacock", "Max", "Paramount+"]
+    /// Same names ShowtimesService reports for showings.
+    private static let screens = ["IMAX", "Dolby Atmos", "Dolby", "4DX",
+                                  "ScreenX", "RPX", "70mm", "3D"]
+
+    @State private var prefs = SupabaseService.ViewingPrefs()
+    @State private var loaded = false
+    @State private var loadFailed = false
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(Self.services, id: \.self) { service in
+                    Toggle(isOn: binding(for: service, in: \.streamingServices)) {
+                        Text(service)
+                    }
+                    .tint(Theme.velvet)
+                    .disabled(!loaded)
+                }
+            } header: {
+                Text("I stream with")
+            } footer: {
+                Text("Tonight's Pick and Where to Watch lead with services you already have.")
+            }
+
+            Section {
+                ForEach(Self.screens, id: \.self) { screen in
+                    Toggle(isOn: binding(for: screen, in: \.screenFormats)) {
+                        Text(screen)
+                    }
+                    .tint(Theme.velvet)
+                    .disabled(!loaded)
+                }
+            } header: {
+                Text("Theater screens I love")
+            } footer: {
+                Text("Showtimes opens pre-filtered to your favorite screen when it's playing nearby.")
+            }
+
+            if loadFailed {
+                Section {
+                    Button("Couldn't load your preferences — tap to retry") {
+                        Task { await load() }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.marquee)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .nativeContentWidth()
+        .background(Theme.background)
+        .navigationTitle("Viewing preferences")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    /// Toggles stay disabled until the server row actually loads — a failed
+    /// read must not render everything off and then wipe the saved set on
+    /// the first toggle write (same guard as notification preferences).
+    private func load() async {
+        do {
+            prefs = try await SupabaseService.shared.viewingPrefs()
+            loaded = true
+            loadFailed = false
+        } catch {
+            loadFailed = true
+        }
+    }
+
+    private func binding(for item: String,
+                         in keyPath: WritableKeyPath<SupabaseService.ViewingPrefs, [String]>) -> Binding<Bool> {
+        Binding(
+            get: { prefs[keyPath: keyPath].contains(item) },
+            set: { on in
+                let previous = prefs
+                if on {
+                    if !prefs[keyPath: keyPath].contains(item) {
+                        prefs[keyPath: keyPath].append(item)
+                    }
+                } else {
+                    prefs[keyPath: keyPath].removeAll { $0 == item }
+                }
+                let snapshot = prefs
+                Task {
+                    do {
+                        try await SupabaseService.shared.setViewingPrefs(snapshot)
+                        PrefsCache.shared.apply(snapshot)
+                    } catch {
+                        prefs = previous   // roll the switch back on failure
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+            }
+        )
     }
 }
 

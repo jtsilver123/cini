@@ -1069,6 +1069,18 @@ struct FeedView: View {
         showNotifReask = true
     }
 
+    /// The service to show on a Tonight's Pick card: one the user actually
+    /// subscribes to when possible (Settings → Viewing preferences),
+    /// otherwise the first one TMDB lists.
+    private func tonightProvider(_ providers: WatchProviders) -> WatchProviders.Provider? {
+        guard let flatrate = providers.flatrate, !flatrate.isEmpty else { return nil }
+        let mine = PrefsCache.shared.services
+        if !mine.isEmpty, let match = flatrate.first(where: { provider in
+            MovieFilters.canonicalProvider(provider.providerName).map(mine.contains) ?? false
+        }) { return match }
+        return flatrate.first
+    }
+
     private func loadTonightStack(force: Bool = false) async {
         // One load at a time — several triggers (store load, watched-count change,
         // pull-to-refresh, Show more) can fire this; overlapping runs race at the
@@ -1105,7 +1117,7 @@ struct FeedView: View {
                 guard let movie = byID[show.showId] ?? store.movie(show.showId),
                       movie.posterPath != nil else { continue }
                 guard let providers = try? await TMDBService.shared.watchProviders(for: show.showId),
-                      let provider = providers.flatrate?.first else { continue }
+                      let provider = tonightProvider(providers) else { continue }
                 store.cache(movie)
                 let ep = episodeLabel(season: show.season, episode: show.episode)
                 cards.append(TonightCardItem(movie: movie,
@@ -1162,7 +1174,7 @@ struct FeedView: View {
                     guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                           movie.posterPath != nil else { continue }
                     guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
-                          let provider = providers.flatrate?.first else { continue }
+                          let provider = tonightProvider(providers) else { continue }
                     store.cache(movie)
                     cards.append(TonightCardItem(movie: movie,
                                                  reason: Self.tonightReason(for: pick),

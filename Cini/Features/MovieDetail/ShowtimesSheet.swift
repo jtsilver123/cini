@@ -18,6 +18,10 @@ struct ShowtimesSheet: View {
     /// Screen-type filter (nil = every screen). Options come from the loaded
     /// results, so the row only offers formats actually playing nearby.
     @State private var screenFormat: String?
+    /// The sheet opens pre-filtered to a PREFERRED screen (Settings → Viewing
+    /// preferences) when one is actually playing — once per open, so clearing
+    /// or changing it afterwards is never fought.
+    @State private var didAutoSelectFormat = false
     /// Set true to skip the re-search that a programmatic date change would
     /// otherwise trigger (we already have the showtimes for the new date).
     @State private var suppressSearch = false
@@ -335,6 +339,16 @@ struct ShowtimesSheet: View {
             theaters = try await ShowtimesService.shared.showtimes(
                 for: movie, zipcode: zipcode, date: date)
             state = .loaded
+            // First successful load: open on the user's preferred screen if
+            // it's actually playing (Settings → Viewing preferences).
+            if !didAutoSelectFormat {
+                didAutoSelectFormat = true
+                if screenFormat == nil,
+                   let favorite = PrefsCache.shared.screenFormats
+                       .first(where: { availableFormats.contains($0) }) {
+                    screenFormat = favorite
+                }
+            }
             // The screen filter deliberately carries across dates — a date
             // with no such screenings shows the "No IMAX showings" state
             // with "find the next IMAX date", not a silent reset.

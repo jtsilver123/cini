@@ -236,6 +236,46 @@ final class SupabaseService {
         _ = try await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
     }
 
+    // MARK: - Viewing preferences (streaming services + theater screens)
+
+    struct ViewingPrefs: Codable, Equatable {
+        var streamingServices: [String] = []
+        var screenFormats: [String] = []
+    }
+
+    private struct UserPrefsRow: Codable {
+        let streaming_services: [String]
+        let screen_formats: [String]
+    }
+
+    /// Throws on failure — a failed read must NOT come back as "no prefs":
+    /// the settings screen replaces the whole row on the next toggle, and an
+    /// empty default would silently wipe the user's saved services.
+    func viewingPrefs() async throws -> ViewingPrefs {
+        guard let me = currentUserID else { return ViewingPrefs() }
+        let rows: [UserPrefsRow] = try await client.from("user_prefs")
+            .select("streaming_services, screen_formats")
+            .eq("user_id", value: me)
+            .execute().value
+        guard let row = rows.first else { return ViewingPrefs() }
+        return ViewingPrefs(streamingServices: row.streaming_services,
+                            screenFormats: row.screen_formats)
+    }
+
+    func setViewingPrefs(_ prefs: ViewingPrefs) async throws {
+        guard let me = currentUserID else { return }
+        struct Upsert: Encodable {
+            let user_id: UUID
+            let streaming_services: [String]
+            let screen_formats: [String]
+        }
+        try await client.from("user_prefs")
+            .upsert(Upsert(user_id: me,
+                           streaming_services: prefs.streamingServices,
+                           screen_formats: prefs.screenFormats))
+            .execute()
+    }
+
     /// Store the device's IANA timezone so the nightly job can send Tonight's
     /// Pick at ~7pm in the user's local time. Best-effort; called on launch.
     func setTimezone(_ identifier: String) async {

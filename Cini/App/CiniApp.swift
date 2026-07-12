@@ -388,6 +388,8 @@ final class AppSession {
                     // Warm the social cache so the log flow's friend chips
                     // and Recommend sheet open instantly.
                     FriendsCache.shared.warm()
+                    // And the viewing prefs, for Tonight's Pick / showtimes.
+                    PrefsCache.shared.warm()
                 }
             case .signedOut:
                 isAuthenticated = false
@@ -402,6 +404,7 @@ final class AppSession {
                 RankingDiskCache.clear()
                 ImportQueue.shared.clear()
                 FriendsCache.shared.clear()
+                PrefsCache.shared.clear()
             default:
                 break
             }

@@ -13,7 +13,7 @@ struct WhereToWatchSheet: View {
         NavigationStack {
             List {
                 if let providers {
-                    section("Stream", label: "Subscription", providers.flatrate)
+                    section("Stream", label: "Subscription", mineFirst(providers.flatrate))
                     section("Rent", label: "Rent", providers.rent)
                     section("Buy", label: "Buy", providers.buy)
 
@@ -34,6 +34,19 @@ struct WhereToWatchSheet: View {
                 }
             }
         }
+    }
+
+    /// Streaming rows sorted with the user's own services first (Settings →
+    /// Viewing preferences) — "can I watch this right now" answers itself.
+    /// A stable partition: relative order within each group is untouched.
+    private func mineFirst(_ list: [WatchProviders.Provider]?) -> [WatchProviders.Provider]? {
+        guard let list else { return nil }
+        let mine = PrefsCache.shared.services
+        guard !mine.isEmpty else { return list }
+        let isMine: (WatchProviders.Provider) -> Bool = { provider in
+            MovieFilters.canonicalProvider(provider.providerName).map(mine.contains) ?? false
+        }
+        return list.filter(isMine) + list.filter { !isMine($0) }
     }
 
     @ViewBuilder

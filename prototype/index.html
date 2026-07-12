@@ -424,7 +424,7 @@ const DEFAULT_STATE = {
   watching:[{k:"anat", s:2, e:3, caughtUp:false}],
   queue:["anat"],
   liked:{}, followed:{}, comments:{f1:[{u:"jtsilver123", t:"so good in IMAX"}]},
-  me:{name:"Jake Silver", bio:"", ig:"", tt:"", x:"", lb:"", school:"UCLA"},
+  me:{name:"Jake Silver", bio:"", ig:"", tt:"", x:"", lb:"", school:"UCLA", svcs:["Netflix","Max"], screens:["IMAX"]},
   friendRecs:[{id:"fr1", from:"maddyc", k:"anat", note:"courtroom scenes that actually slap — trust me"}],
   ui:{showFilters:false, showSearch:false, listQ:"", reorder:false},
   category:"Movies", subTab:"watched", lbMetric:0, streak:16, rankedFromImport:52, totalImport:93, onboarded:false,
@@ -1694,6 +1694,20 @@ function openEditProfile(){
       ${field("ep-name","Display name",S.me.name)}
       ${field("ep-bio","Bio",S.me.bio,"A line about your taste")}
       ${field("ep-school","School",S.me.school,"Add your school — unlocks the campus leaderboard")}
+      <div class="sub" style="font-weight:800; letter-spacing:.06em; margin-top:4px;">I STREAM WITH</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        ${["Netflix","Prime Video","Hulu","Disney+","Apple TV+","Peacock","Max","Paramount+"].map(v=>`
+          <button class="pill ${(S.me.svcs||[]).includes(v)?"":"ghost"}" style="font-size:12px; padding:7px 12px;"
+            onclick="S.me.svcs=S.me.svcs||[]; S.me.svcs.includes('${v}')?S.me.svcs=S.me.svcs.filter(x=>x!=='${v}'):S.me.svcs.push('${v}'); save(); openEditProfile();">${v}</button>`).join("")}
+      </div>
+      <div class="sub" style="font-size:11px;">Tonight's Pick and Where to Watch lead with services you have.</div>
+      <div class="sub" style="font-weight:800; letter-spacing:.06em; margin-top:4px;">THEATER SCREENS I LOVE</div>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        ${["IMAX","Dolby","4DX","70mm","3D"].map(v=>`
+          <button class="pill ${(S.me.screens||[]).includes(v)?"":"ghost"}" style="font-size:12px; padding:7px 12px;"
+            onclick="S.me.screens=S.me.screens||[]; S.me.screens.includes('${v}')?S.me.screens=S.me.screens.filter(x=>x!=='${v}'):S.me.screens.push('${v}'); save(); openEditProfile();">${v}</button>`).join("")}
+      </div>
+      <div class="sub" style="font-size:11px;">Showtimes opens on your favorite screen when it's playing.</div>
       <div class="sub" style="font-weight:800; letter-spacing:.06em; margin-top:4px;">SOCIALS</div>
       ${field("ep-ig","Instagram",S.me.ig,"handle")}
       ${field("ep-tt","TikTok",S.me.tt,"handle")}
@@ -1945,6 +1959,8 @@ function openShowtimes(k, keepFmt){
      times:[["5:00 PM","",1,0],["8:15 PM","4DX",0,0],["10:30 PM","",0,0]]},
   ];
   const formats=[...new Set(theatres.flatMap(t=>t.times.map(x=>x[1]).filter(Boolean)))];
+  // First open: pre-filter to a preferred screen if it's actually playing.
+  if(!keepFmt){ showtimeFmt=(S.me.screens||[]).find(f=>formats.includes(f))||null; }
   const shown=theatres.map(t=>({...t, times:showtimeFmt?t.times.filter(x=>x[1]===showtimeFmt):t.times}))
                       .filter(t=>t.times.length);
   const pill=(label,val)=>`<button class="pill ${showtimeFmt===val?"":"ghost"}" style="font-size:12px; padding:7px 13px;"
