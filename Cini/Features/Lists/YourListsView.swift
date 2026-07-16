@@ -15,35 +15,9 @@ struct YourListsView: View {
     // the user left it.
     @AppStorage("lists.sortDescending") private var sortDescending = true
     /// The one metric every list sorts by — Score, Date added, or Runtime.
-    /// Exactly these three, everywhere.
-    @AppStorage("lists.sortMetric") private var sortMetricRaw = SortMetric.score.rawValue
-    private var sortMetric: SortMetric { SortMetric(rawValue: sortMetricRaw) ?? .score }
-
-    /// The three (and only three) sort options, shared by every list.
-    enum SortMetric: String, CaseIterable {
-        case score = "Score", dateAdded = "Date added", runtime = "Runtime"
-        var icon: String {
-            switch self {
-            case .score: return "star"
-            case .dateAdded: return "calendar"
-            case .runtime: return "clock"
-            }
-        }
-        var descLabel: String {
-            switch self {
-            case .score: return "Highest first"
-            case .dateAdded: return "Newest first"
-            case .runtime: return "Longest first"
-            }
-        }
-        var ascLabel: String {
-            switch self {
-            case .score: return "Lowest first"
-            case .dateAdded: return "Oldest first"
-            case .runtime: return "Shortest first"
-            }
-        }
-    }
+    /// Exactly these three, everywhere (shared with member lists).
+    @AppStorage("lists.sortMetric") private var sortMetricRaw = ListSortMetric.score.rawValue
+    private var sortMetric: ListSortMetric { ListSortMetric(rawValue: sortMetricRaw) ?? .score }
 
     /// The score a title sorts by: its ranked score if you've ranked it,
     /// otherwise its Rec Score. Unknown sinks.
@@ -167,9 +141,11 @@ struct YourListsView: View {
                     filters: filtersBinding,
                     movies: Array(store.movies.values),
                     sortDescending: $sortDescending,
-                    sortHighLabel: sortHighLabel,
-                    sortLowLabel: sortLowLabel,
-                    showSort: false)   // sort is its own row (Beli-style), not here
+                    // Sort is its own Beli-style row (ListSortMenu), never in the
+                    // filter sheet — these labels are unused (showSort: false).
+                    sortHighLabel: "",
+                    sortLowLabel: "",
+                    showSort: false)
                 .presentationDetents([.medium, .large])
             }
             .sheet(isPresented: $showRecPicker) {
@@ -324,7 +300,7 @@ struct YourListsView: View {
         listQuery = ""; showListSearch = false
         genreFilter = nil; decadeFilter = nil
         runtimeFilter = nil; streamingProviderFilter = nil
-        sortMetricRaw = SortMetric.score.rawValue   // drag = your ranked order
+        sortMetricRaw = ListSortMetric.score.rawValue   // drag = your ranked order
         sortDescending = true   // drag offsets need canonical order
     }
 
@@ -412,7 +388,7 @@ struct YourListsView: View {
                                     // Drag offsets map onto the canonical
                                     // ranked order — any other sort would move
                                     // the wrong rows.
-                                    sortMetricRaw = SortMetric.score.rawValue
+                                    sortMetricRaw = ListSortMetric.score.rawValue
                                     sortDescending = true
                                 }
                             }
@@ -724,29 +700,11 @@ struct YourListsView: View {
         .padding(.bottom, 6)
     }
 
-    /// Tappable sort control: the current metric + direction arrow. The menu
-    /// picks one of the three metrics and the direction.
+    /// The shared three-way sort control (Score / Date added / Runtime).
     private var sortMenu: some View {
-        Menu {
-            Picker("Sort by", selection: Binding(
-                get: { sortMetric },
-                set: { sortMetricRaw = $0.rawValue })) {
-                ForEach(SortMetric.allCases, id: \.self) { metric in
-                    Label(metric.rawValue, systemImage: metric.icon).tag(metric)
-                }
-            }
-            Divider()
-            Picker("Order", selection: $sortDescending) {
-                Label(sortMetric.descLabel, systemImage: "arrow.down").tag(true)
-                Label(sortMetric.ascLabel, systemImage: "arrow.up").tag(false)
-            }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: sortDescending ? "arrow.down" : "arrow.up").font(.caption.weight(.bold))
-                Text(sortMetric.rawValue).font(.subheadline.weight(.bold))
-            }
-            .foregroundStyle(Theme.marquee)
-        }
+        ListSortMenu(
+            metric: Binding(get: { sortMetric }, set: { sortMetricRaw = $0.rawValue }),
+            descending: $sortDescending)
     }
 
     // MARK: - Content

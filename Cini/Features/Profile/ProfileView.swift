@@ -1385,6 +1385,10 @@ struct RankedListScreen: View {
     @State private var searchText = ""
     @State private var showSearch = false
     @State private var filters = MovieFilters()
+    // The same three-way sort as My Lists (shared preference).
+    @AppStorage("lists.sortMetric") private var sortMetricRaw = ListSortMetric.score.rawValue
+    @AppStorage("lists.sortDescending") private var sortDescending = true
+    private var sortMetric: ListSortMetric { ListSortMetric(rawValue: sortMetricRaw) ?? .score }
     // Movies and TV are ranked apart, so the list is split too — #1 means
     // #1 among that kind, never a mixed number.
     @State private var categoryIndex = 0
@@ -1396,15 +1400,28 @@ struct RankedListScreen: View {
     }
 
     /// Rank numbers come from the full kind list (so "#14" stays #14 while
-    /// searching), within the selected media kind.
+    /// searching or re-sorting), within the selected media kind — the display
+    /// order changes, the rank badge stays true.
     private var visible: [(index: Int, row: RankingRow)] {
         let all = Array(rows(in: category).enumerated()).map { (index: $0.offset, row: $0.element) }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
-        return all.filter { entry in
+        let filtered = all.filter { entry in
             guard let movie = movies[entry.row.movieId] else { return true }
             guard filters.passes(movie) else { return false }
             return query.isEmpty || movie.title.lowercased().contains(query)
         }
+        let descending: [(index: Int, row: RankingRow)]
+        switch sortMetric {
+        case .score:
+            descending = filtered.sorted { $0.row.score > $1.row.score }
+        case .dateAdded:
+            descending = filtered.sorted { $0.row.createdAt > $1.row.createdAt }
+        case .runtime:
+            descending = filtered.sorted {
+                (movies[$0.row.movieId]?.runtimeMinutes ?? -1) > (movies[$1.row.movieId]?.runtimeMinutes ?? -1)
+            }
+        }
+        return sortDescending ? descending : descending.reversed()
     }
 
     var body: some View {
@@ -1434,11 +1451,9 @@ struct RankedListScreen: View {
                         .padding(.bottom, 12)
                 }
                 HStack {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
-                        Text("Score").font(.subheadline.weight(.bold))
-                    }
-                    .foregroundStyle(Theme.marquee)
+                    ListSortMenu(
+                        metric: Binding(get: { sortMetric }, set: { sortMetricRaw = $0.rawValue }),
+                        descending: $sortDescending)
                     Spacer()
                     Button {
                         withAnimation(.snappy) { showSearch.toggle() }
@@ -1541,15 +1556,34 @@ struct WatchlistScreen: View {
     @State private var logMovie: Movie?
     @State private var listLoaded = false
     @State private var filters = MovieFilters()
+    // Same three-way sort as My Lists (shared preference).
+    @AppStorage("lists.sortMetric") private var sortMetricRaw = ListSortMetric.score.rawValue
+    @AppStorage("lists.sortDescending") private var sortDescending = true
+    private var sortMetric: ListSortMetric { ListSortMetric(rawValue: sortMetricRaw) ?? .score }
+
+    private func runtime(_ id: Int) -> Int {
+        (movies[id] ?? store.movie(id))?.runtimeMinutes ?? -1
+    }
 
     /// (movieID, savedAt) — live store for self, fetched rows for others.
     private var entries: [(movieID: Int, savedAt: Date)] {
         let all = isSelf ? store.watchlist.map { ($0.movieID, $0.createdAt) }
                          : fetched.map { ($0.movieId, $0.createdAt) }
-        return all.filter { entry in
+        let filtered = all.filter { entry in
             guard let movie = movies[entry.0] ?? store.movie(entry.0) else { return true }
             return filters.passes(movie) && (categoryFilter?.matches(movie) ?? true)
         }
+        let descending: [(Int, Date)]
+        switch sortMetric {
+        case .score:
+            descending = filtered.sorted { (predicted[$0.0] ?? -1) > (predicted[$1.0] ?? -1) }
+        case .dateAdded:
+            descending = filtered.sorted { $0.1 > $1.1 }
+        case .runtime:
+            descending = filtered.sorted { runtime($0.0) > runtime($1.0) }
+        }
+        let ordered = sortDescending ? descending : descending.reversed().map { $0 }
+        return ordered.map { (movieID: $0.0, savedAt: $0.1) }
     }
 
     var body: some View {
@@ -1572,6 +1606,13 @@ struct WatchlistScreen: View {
     private var scrollBody: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    ListSortMenu(
+                        metric: Binding(get: { sortMetric }, set: { sortMetricRaw = $0.rawValue }),
+                        descending: $sortDescending)
+                    Spacer()
+                }
+                .padding(.bottom, 2)
                 // Same filter pills as My Lists — on anyone's list.
                 MovieFilterBar(filters: $filters,
                                movies: isSelf
