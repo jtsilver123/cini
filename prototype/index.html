@@ -1119,19 +1119,24 @@ function _calItems(){
   const today=new Date(); today.setHours(0,0,0,0);
   const at=off=>{const d=new Date(today); d.setDate(d.getDate()+off); return d;};
   const keys=Object.keys(MOVIES);
-  const mk=(off,key)=>({t:MOVIES[key].t, p:MOVIES[key].p, g:MOVIES[key].g[0], date:at(off), key});
-  if(_calScope==='mine'){
-    const now=(S.watchlist||[]).slice(0,6).map(k=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:null,key:k,now:true}));
-    return {now, coming:[mk(9,keys[0]), mk(26,keys[1]||keys[0])]};
-  }
-  return {now:[], coming:[5,12,19,34,48,63].map((off,i)=>mk(off,keys[i%keys.length]))};
+  const saved=k=>(S.watchlist||[]).includes(k);
+  const mk=(off,key)=>({t:MOVIES[key].t, p:MOVIES[key].p, g:MOVIES[key].g[0], date:at(off), key, mine:saved(key)});
+  // Your saved movies, shown as playing now (demo).
+  const mineNow=(S.watchlist||[]).slice(0,5).map(k=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:null,key:k,now:true,mine:true}));
+  // A couple of your saved titles with upcoming dates, so the gold markers show.
+  const mineComing=(S.watchlist||[]).slice(0,2).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at([8,22][i]||8),key:k,mine:true}));
+  if(_calScope==='mine') return {now:mineNow, coming:mineComing};
+  // All: general releases (muted) overlaid with your titles (gold).
+  const general=[5,12,19,34,48,63].map((off,i)=>mk(off,keys[i%keys.length]));
+  const seen=new Set(mineComing.map(f=>f.key));
+  return {now:mineNow, coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};
 }
 function _calStrip(title, films){
   if(!films.length) return "";
   return `<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 6px;">${title.toUpperCase()}</div>
     <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:4px;">
     ${films.map(f=>`<div style="flex:0 0 auto; width:104px;">
-      <div class="poster" style="width:104px; height:156px; background-image:url('${IMG(f.p)}'); cursor:pointer;" onclick="closeOverlay(); openDetail('${f.key}')"></div>
+      <div class="poster" style="width:104px; height:156px; background-image:url('${IMG(f.p)}'); cursor:pointer; ${f.mine?'box-shadow:0 0 0 2px var(--marquee);':''}" onclick="closeOverlay(); openDetail('${f.key}')"></div>
       <div style="font-size:12px; font-weight:600; margin-top:5px; line-height:1.25;">${f.t}</div>
       <button class="pill out" style="font-size:11px; padding:6px 10px; margin-top:5px;" onclick="closeOverlay(); openShowtimes('${f.key}')">${I("ticket",12)} Tickets</button>
     </div>`).join("")}</div>`;
@@ -1139,8 +1144,8 @@ function _calStrip(title, films){
 function _calRow(f){
   return `<div class="listrow" style="cursor:pointer;" onclick="if(!event.target.closest('button')){closeOverlay(); openDetail('${f.key}')}">
     <div class="poster" style="width:46px;height:69px; background-image:url('${IMG(f.p)}');"></div>
-    <div style="flex:1;"><div style="font-weight:700; font-size:14.5px;">${f.t}</div>
-      <div class="gtxt" style="font-size:12px; font-weight:700; margin-top:2px; color:${f.now?'var(--scoregreen,#4ade80)':'var(--marquee)'};">${f.now?'In theaters now':f.date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
+    <div style="flex:1;"><div style="font-weight:700; font-size:14.5px;">${f.t}${f.mine?` <span style="font-size:10px; font-weight:800; color:var(--marquee); background:var(--marquee-soft); border-radius:999px; padding:1px 6px; vertical-align:1px;">On your list</span>`:''}</div>
+      <div style="font-size:12px; font-weight:700; margin-top:2px; color:${f.now?'var(--scoregreen,#4ade80)':(f.mine?'var(--marquee)':'var(--gray)')};">${f.now?'In theaters now':(f.mine?'':'Releases ')+f.date.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</div>
       <div class="meta">${f.g}</div></div>
     <button class="pill out" style="font-size:12px; padding:7px 12px;" onclick="closeOverlay(); openShowtimes('${f.key}')">${I("ticket",13)} Tickets</button></div>`;
 }
@@ -1149,14 +1154,15 @@ function _calMonth(coming){
   const y=base.getFullYear(), mo=base.getMonth();
   const daysIn=new Date(y,mo+1,0).getDate(), firstDow=new Date(y,mo,1).getDay();
   const byDay={}; coming.forEach(f=>{ if(f.date && f.date.getFullYear()===y && f.date.getMonth()===mo) (byDay[f.date.getDate()]=byDay[f.date.getDate()]||[]).push(f); });
+  const mineDay=d=>(byDay[d]||[]).some(f=>f.mine);
   const monthLbl=base.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   const lastOff=Math.max(0,...coming.filter(f=>f.date).map(f=>{const d=f.date; return (d.getFullYear()-new Date().getFullYear())*12 + d.getMonth()-new Date().getMonth();}));
   let cells="";
   for(let i=0;i<firstDow;i++) cells+=`<div></div>`;
-  for(let d=1; d<=daysIn; d++){ const has=byDay[d]; 
+  for(let d=1; d<=daysIn; d++){ const has=byDay[d], mine=mineDay(d);
     cells+=`<button ${has?"":"disabled"} onclick="_calSel=${d}; _calRender()" style="border:none; background:${_calSel===d&&has?'var(--marquee-soft)':'none'}; border-radius:9px; padding:6px 0; cursor:${has?'pointer':'default'};">
-      <div style="font-size:13px; font-weight:${has?'800':'400'}; color:${has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
-      <div style="width:5px;height:5px;border-radius:50%;margin:2px auto 0;background:${has?'var(--marquee)':'transparent'};"></div></button>`;
+      <div style="font-size:13px; font-weight:${mine?'800':(has?'700':'400')}; color:${has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
+      <div style="width:5px;height:5px;border-radius:50%;margin:2px auto 0;background:${mine?'var(--marquee)':(has?'rgba(255,255,255,.4)':'transparent')};"></div></button>`;
   }
   const selFilms=_calSel && byDay[_calSel] ? byDay[_calSel] : [];
   const dow=["Su","Mo","Tu","We","Th","Fr","Sa"];
@@ -1182,7 +1188,10 @@ function _calRender(){
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div style="display:flex; gap:8px; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}</div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}
+        ${_calScope==='all'?`<span class="spacer"></span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:6px;height:6px;border-radius:50%;background:var(--marquee);"></span>Your list</span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);"></span>Releasing</span>`:''}</div>
       ${body}
     </div>`);
 }

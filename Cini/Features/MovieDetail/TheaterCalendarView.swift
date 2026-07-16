@@ -1,25 +1,21 @@
 import SwiftUI
 
-/// One theatrical browser with a List and a Month view, and a scope filter:
-///   • All releases — everything coming to theaters.
-///   • My list — the movies on your Want to Watch, so you can see what's
-///     playing now and what's coming, and when.
-/// The two entry points (the feed's calendar, and Want to Watch's "In
-/// theaters") just open it on a different default scope. Each title offers
-/// Tickets (showtimes) and a bookmark; tapping opens the movie page.
+/// A theatrical calendar centered on your Want to Watch. Your saved movies —
+/// the ones playing now and the ones coming — are shown prominently, and
+/// general release dates are overlaid too but styled differently (a muted dot
+/// and a plain "Releases …" line) so your own list stands out at a glance.
+/// A filter narrows to just your list. List and Month views. Each title
+/// offers Tickets (showtimes) and a bookmark; tapping opens the movie page.
 struct TheaterCalendarView: View {
     enum Scope: String, CaseIterable { case all, mine }
     var scope: Scope = .all
 
     @Environment(RankingStore.self) private var store
 
-    // Both datasets are cached so flipping the filter is instant; the
-    // watchlist set is fetched lazily the first time it's needed.
-    @State private var allMovies: [Movie] = []
-    @State private var listMovies: [Movie] = []
-    @State private var allLoaded = false
-    @State private var listLoaded = false
-    @State private var listLoading = false
+    @State private var releases: [Movie] = []      // general upcoming (all)
+    @State private var myMovies: [Movie] = []       // Want to Watch, in theaters / coming
+    @State private var releasesLoaded = false
+    @State private var myLoaded = false
 
     @State private var mode: Mode = .list
     @State private var visibleMonth = Date()
@@ -46,27 +42,43 @@ struct TheaterCalendarView: View {
         return f.shortWeekdaySymbols ?? ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
     }()
 
-    // MARK: - Scope-selected data
+    // MARK: - Data (my list, emphasized, overlaid with general releases)
 
-    private var movies: [Movie] { scope == .all ? allMovies : listMovies }
-    private var scopeLoaded: Bool { scope == .all ? allLoaded : listLoaded }
+    private var watchlistIDs: Set<Int> { Set(store.watchlist.map(\.movieID)) }
+    private func isMine(_ movie: Movie) -> Bool { watchlistIDs.contains(movie.tmdbID) }
+
+    /// Everything to show in "All" scope: my in-theaters/coming titles plus
+    /// the general upcoming releases, de-duped (my copy wins — it has the
+    /// exact date). "My list" scope shows only my titles.
+    private var movies: [Movie] {
+        if scope == .mine { return myMovies }
+        var byID: [Int: Movie] = [:]
+        for m in releases { byID[m.tmdbID] = m }
+        for m in myMovies { byID[m.tmdbID] = m }
+        return Array(byID.values)
+    }
+    /// Ready to show: the general feed for All, my titles for My list. (In All,
+    /// the now-playing strip fills in when the watchlist set finishes loading.)
+    private var scopeLoaded: Bool { scope == .mine ? myLoaded : releasesLoaded }
 
     private func releaseDate(_ movie: Movie) -> Date? {
         movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
     }
 
-    /// Out now (only the "my list" scope has these — all releases is future).
     private var nowPlaying: [Movie] {
         movies.filter(\.isReleased)
             .sorted { (releaseDate($0) ?? .distantPast) > (releaseDate($1) ?? .distantPast) }
     }
     private var coming: [Movie] {
         movies.filter { !$0.isReleased }
-            .sorted { (releaseDate($0) ?? .distantFuture) < (releaseDate($1) ?? .distantFuture) }
+            .sorted {
+                // My titles float above general releases on the same day.
+                if isMine($0) != isMine($1) { return isMine($0) }
+                return (releaseDate($0) ?? .distantFuture) < (releaseDate($1) ?? .distantFuture)
+            }
     }
     private var datedComing: [Movie] { coming.filter { releaseDate($0) != nil } }
     private var undatedComing: [Movie] { coming.filter { releaseDate($0) == nil } }
-
     private var byDay: [Date: [Movie]] {
         Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
     }
@@ -106,33 +118,38 @@ struct TheaterCalendarView: View {
         }
         .navigationDestination(item: $detailMovie) { MovieDetailView(movie: $0) }
         .task {
-            if !allLoaded {
-                allMovies = (try? await TMDBService.shared.upcoming()) ?? []
-                allLoaded = true
-            }
-            if scope == .mine { await loadListIfNeeded() }
+            // Both load: general releases for the calendar, my saved set so
+            // my titles are marked and my now-playing appears.
+            async let a: () = loadReleases()
+            async let b: () = loadMine()
+            _ = await (a, b)
             resetMonth()
         }
-        .onChange(of: scope) { _, _ in
-            Task { await loadListIfNeeded(); resetMonth() }
-        }
+        .onChange(of: scope) { _, _ in resetMonth() }
+        .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
     }
 
-    // MARK: - Controls (mode toggle + scope filter, styled like Recs)
+    // MARK: - Controls (mode toggle styled like Recs Find/Rank, + scope filter)
 
     private var controls: some View {
-        VStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Spacer()
                 modeToggle
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
-                        Haptics.tap(); scope = .all
-                    }
-                    FilterPill(title: "On my list", hasChevron: false, active: scope == .mine) {
-                        Haptics.tap(); scope = .mine
+            HStack(spacing: 8) {
+                FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
+                    Haptics.tap(); scope = .all
+                }
+                FilterPill(title: "On my list", hasChevron: false, active: scope == .mine) {
+                    Haptics.tap(); scope = .mine
+                }
+                Spacer()
+                if scope == .all {
+                    // Tell the two dot styles apart.
+                    HStack(spacing: 10) {
+                        legendDot(Theme.marquee, "Your list")
+                        legendDot(Theme.gray.opacity(0.55), "Releasing")
                     }
                 }
             }
@@ -142,8 +159,13 @@ struct TheaterCalendarView: View {
         .padding(.bottom, 10)
     }
 
-    /// Labeled icon+label pill toggle — the same shape as the Recs Find/Rank
-    /// toggle, so the two read as the same kind of control.
+    private func legendDot(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(label).font(.caption2).foregroundStyle(Theme.gray)
+        }
+    }
+
     private var modeToggle: some View {
         HStack(spacing: 2) {
             modeSegment(.list, icon: "list.bullet", label: "List")
@@ -163,8 +185,7 @@ struct TheaterCalendarView: View {
                 Text(label).font(.footnote.weight(.semibold))
             }
             .foregroundStyle(on ? Theme.background : Theme.gray)
-            .padding(.horizontal, 11)
-            .frame(height: 30)
+            .padding(.horizontal, 11).frame(height: 30)
             .background(Capsule().fill(on ? Theme.marquee : .clear))
             .contentShape(Capsule())
         }
@@ -175,10 +196,10 @@ struct TheaterCalendarView: View {
     private var emptyState: some View {
         EmptyStateView(
             icon: "calendar",
-            title: scope == .all ? "No upcoming releases" : "Nothing to catch in theaters",
-            message: scope == .all
-                ? "Check back soon — new movies land here as they're announced."
-                : "Save movies to Want to Watch and the ones playing (or coming) to theaters show up here.")
+            title: scope == .mine ? "Nothing on your list in theaters" : "No upcoming releases",
+            message: scope == .mine
+                ? "Save movies to Want to Watch and the ones playing (or coming) to theaters show up here."
+                : "Check back soon — new movies land here as they're announced.")
     }
 
     // MARK: - List mode
@@ -189,7 +210,7 @@ struct TheaterCalendarView: View {
                 Section("In theaters now") { ForEach(nowPlaying) { movieRow($0) } }
             }
             if !datedComing.isEmpty {
-                Section(scope == .all ? "" : "Coming soon") { ForEach(datedComing) { movieRow($0) } }
+                Section("Coming soon") { ForEach(datedComing) { movieRow($0) } }
             }
             if !undatedComing.isEmpty {
                 Section("Date to be announced") { ForEach(undatedComing) { movieRow($0) } }
@@ -199,13 +220,25 @@ struct TheaterCalendarView: View {
     }
 
     private func movieRow(_ movie: Movie) -> some View {
-        HStack(spacing: 12) {
+        let mine = isMine(movie)
+        return HStack(spacing: 12) {
             PosterView(url: movie.posterURL, width: 48)
             VStack(alignment: .leading, spacing: 3) {
-                Text(movie.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(movie.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                    if mine {
+                        Text("On your list")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(Theme.marquee)
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.marquee.opacity(0.15)))
+                    }
+                }
                 Text(dateLine(movie))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(movie.isReleased ? Theme.scoreGreen : Theme.marquee)
+                    // Your titles read in the accent colors; general releases
+                    // are a quieter gray so they don't compete with yours.
+                    .foregroundStyle(mine ? (movie.isReleased ? Theme.scoreGreen : Theme.marquee) : Theme.gray)
                 if !movie.genres.isEmpty {
                     Text(movie.genres.prefix(2).joined(separator: ", "))
                         .font(.caption).foregroundStyle(Theme.gray)
@@ -224,8 +257,7 @@ struct TheaterCalendarView: View {
                     Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
                         .font(.title3)
                         .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                        .frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
@@ -240,7 +272,8 @@ struct TheaterCalendarView: View {
     private func dateLine(_ movie: Movie) -> String {
         if movie.isReleased { return "In theaters now" }
         if let date = releaseDate(movie) {
-            return date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            let day = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            return isMine(movie) ? day : "Releases \(day)"
         }
         return "Coming soon"
     }
@@ -307,17 +340,22 @@ struct TheaterCalendarView: View {
     private func dayCell(_ day: Date?) -> some View {
         if let day {
             let key = cal.startOfDay(for: day)
-            let count = byDay[key]?.count ?? 0
+            let films = byDay[key] ?? []
+            let mineHere = films.contains(where: isMine)
+            let count = films.count
             let isSelected = selectedDay.map { cal.isDate($0, inSameDayAs: day) } ?? false
             let isToday = cal.isDateInToday(day)
+            // Gold = a title from your list opens; muted = general release only.
+            let dotColor: Color = mineHere ? Theme.marquee
+                : (count > 0 ? Theme.gray.opacity(0.55) : .clear)
             Button {
                 if count > 0 { Haptics.tap(); selectedDay = key }
             } label: {
                 VStack(spacing: 3) {
                     Text("\(cal.component(.day, from: day))")
-                        .font(.footnote.weight(count > 0 ? .bold : .regular))
+                        .font(.footnote.weight(mineHere ? .bold : (count > 0 ? .semibold : .regular)))
                         .foregroundStyle(count > 0 ? Theme.ink : Theme.gray.opacity(0.6))
-                    Circle().fill(count > 0 ? Theme.marquee : .clear).frame(width: 5, height: 5)
+                    Circle().fill(dotColor).frame(width: 5, height: 5)
                 }
                 .frame(maxWidth: .infinity, minHeight: 40)
                 .background(RoundedRectangle(cornerRadius: 9)
@@ -328,7 +366,7 @@ struct TheaterCalendarView: View {
             .buttonStyle(.plain)
             .disabled(count == 0)
             .accessibilityLabel(count > 0
-                ? "\(day.formatted(.dateTime.month().day())), \(count) release\(count == 1 ? "" : "s")"
+                ? "\(day.formatted(.dateTime.month().day())), \(count) release\(count == 1 ? "" : "s")\(mineHere ? ", on your list" : "")"
                 : "")
         } else {
             Color.clear.frame(maxWidth: .infinity, minHeight: 40)
@@ -355,6 +393,7 @@ struct TheaterCalendarView: View {
         }
     }
 
+    /// Compact poster card. My titles get a gold ring; general releases don't.
     private func posterStrip(title: String, _ films: [Movie]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
@@ -365,6 +404,8 @@ struct TheaterCalendarView: View {
                     ForEach(films) { movie in
                         VStack(alignment: .leading, spacing: 6) {
                             PosterView(url: movie.posterURL, width: 104)
+                                .overlay(RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(isMine(movie) ? Theme.marquee : .clear, lineWidth: 2))
                                 .onTapGesture { detailMovie = movie }
                             Text(movie.title)
                                 .font(.caption.weight(.semibold)).lineLimit(2)
@@ -397,18 +438,21 @@ struct TheaterCalendarView: View {
         }
     }
 
-    private func loadListIfNeeded() async {
-        guard scope == .mine, !listLoaded, !listLoading else { return }
-        listLoading = true
-        listMovies = await watchlistInTheaters()
-        listLoaded = true
-        listLoading = false
+    private func loadReleases() async {
+        guard !releasesLoaded else { return }
+        releases = (try? await TMDBService.shared.upcoming()) ?? []
+        releasesLoaded = true
+    }
+
+    private func loadMine() async {
+        guard !myLoaded else { return }
+        myMovies = await watchlistInTheaters()
+        myLoaded = true
     }
 
     /// Want to Watch movies that are theater-relevant: released within the last
     /// ~4 months (still in theaters) or still upcoming. Only fetch exact dates
-    /// for titles from roughly the current era — catalog classics aren't in
-    /// theaters, so there's no point paying for their details.
+    /// for titles from roughly the current era.
     private func watchlistInTheaters() async -> [Movie] {
         let year = Calendar(identifier: .gregorian).component(.year, from: .now)
         let candidates = store.watchlist
@@ -422,9 +466,7 @@ struct TheaterCalendarView: View {
         var result: [Movie] = []
         await withTaskGroup(of: Movie?.self) { group in
             for movie in candidates {
-                group.addTask {
-                    (try? await TMDBService.shared.details(for: movie.tmdbID)) ?? movie
-                }
+                group.addTask { (try? await TMDBService.shared.details(for: movie.tmdbID)) ?? movie }
             }
             for await movie in group {
                 guard let movie else { continue }
