@@ -1133,7 +1133,7 @@ struct YourListsView: View {
             // (TV has no theatrical showtimes) and only once something's saved.
             if category == .movies, !filteredWatchlist.isEmpty {
                 NavigationLink {
-                    TheaterCalendarView(source: .watchlist)
+                    TheaterCalendarView(scope: .mine)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "ticket.fill")
