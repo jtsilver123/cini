@@ -8,7 +8,9 @@ import SwiftUI
 /// offers Tickets (showtimes) and a bookmark; tapping opens the movie page.
 struct TheaterCalendarView: View {
     enum Scope: String, CaseIterable { case all, mine }
-    var scope: Scope = .all
+
+    @State private var scope: Scope
+    init(scope: Scope = .all) { _scope = State(initialValue: scope) }
 
     @Environment(RankingStore.self) private var store
 
@@ -133,10 +135,6 @@ struct TheaterCalendarView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Spacer()
-                modeToggle
-            }
             HStack(spacing: 8) {
                 FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
                     Haptics.tap(); scope = .all
@@ -145,12 +143,14 @@ struct TheaterCalendarView: View {
                     Haptics.tap(); scope = .mine
                 }
                 Spacer()
-                if scope == .all {
-                    // Tell the two dot styles apart.
-                    HStack(spacing: 10) {
-                        legendDot(Theme.marquee, "Your list")
-                        legendDot(Theme.gray.opacity(0.55), "Releasing")
-                    }
+                modeToggle
+            }
+            // The dot legend explains the MONTH grid only (List rows use text
+            // badges, not dots), and only in All scope where both kinds appear.
+            if scope == .all, mode == .month {
+                HStack(spacing: 12) {
+                    legendDot(Theme.marquee, "On your list")
+                    legendDot(Theme.gray.opacity(0.55), "Releasing")
                 }
             }
         }
@@ -365,9 +365,11 @@ struct TheaterCalendarView: View {
             }
             .buttonStyle(.plain)
             .disabled(count == 0)
+            // Always name the date (an empty label would hide it from VoiceOver);
+            // add the release count when there is one.
             .accessibilityLabel(count > 0
                 ? "\(day.formatted(.dateTime.month().day())), \(count) release\(count == 1 ? "" : "s")\(mineHere ? ", on your list" : "")"
-                : "")
+                : day.formatted(.dateTime.month().day()))
         } else {
             Color.clear.frame(maxWidth: .infinity, minHeight: 40)
         }
@@ -378,7 +380,7 @@ struct TheaterCalendarView: View {
             Image(systemName: icon)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(enabled ? Theme.marquee : Theme.gray.opacity(0.35))
-                .frame(width: 40, height: 34).contentShape(Rectangle())
+                .frame(width: 44, height: 44).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(!enabled)

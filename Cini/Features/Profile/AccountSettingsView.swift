@@ -317,6 +317,14 @@ private struct ViewingPrefsScreen: View {
 
     var body: some View {
         Form {
+            if !loaded && !loadFailed {
+                // Don't render a column of all-off switches before the saved
+                // values arrive — that reads as "nothing selected."
+                Section {
+                    HStack { Spacer(); ProgressView(); Spacer() }
+                        .listRowBackground(Color.clear)
+                }
+            }
             Section {
                 ForEach(Self.services, id: \.self) { service in
                     Toggle(isOn: binding(for: service, in: \.streamingServices)) {
