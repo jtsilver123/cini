@@ -1126,10 +1126,12 @@ function _calItems(){
   // A couple of your saved titles with upcoming dates, so the gold markers show.
   const mineComing=(S.watchlist||[]).slice(0,2).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at([8,22][i]||8),key:k,mine:true}));
   if(_calScope==='mine') return {now:mineNow, coming:mineComing};
-  // All: general releases (muted) overlaid with your titles (gold).
+  // All: general now-playing + upcoming (muted) overlaid with your titles (gold).
   const general=[5,12,19,34,48,63].map((off,i)=>mk(off,keys[i%keys.length]));
+  const genNow=keys.filter(k=>!(S.watchlist||[]).includes(k)).slice(0,4).map(k=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:null,key:k,now:true,mine:false}));
+  const seenNow=new Set(mineNow.map(f=>f.key));
   const seen=new Set(mineComing.map(f=>f.key));
-  return {now:mineNow, coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};
+  return {now:mineNow.concat(genNow.filter(f=>!seenNow.has(f.key))), coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};
 }
 function _calStrip(title, films){
   if(!films.length) return "";
@@ -1188,6 +1190,7 @@ function _calRender(){
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); save(); _calRender();}">📍 ${S.showtimesZip?S.showtimesZip:'Set your area'}</div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}
         ${_calScope==='all'?`<span class="spacer"></span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:6px;height:6px;border-radius:50%;background:var(--marquee);"></span>Your list</span>

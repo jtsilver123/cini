@@ -15,9 +15,15 @@ struct TheaterCalendarView: View {
     @Environment(RankingStore.self) private var store
 
     @State private var releases: [Movie] = []      // general upcoming (all)
+    @State private var nowOut: [Movie] = []         // general, in theaters now
     @State private var myMovies: [Movie] = []       // Want to Watch, in theaters / coming
     @State private var releasesLoaded = false
     @State private var myLoaded = false
+
+    /// Powers the Tickets/showtimes sheet — shared with ShowtimesSheet.
+    @AppStorage("showtimes.zipcode") private var zipcode = ""
+    @State private var showZipEntry = false
+    @State private var zipDraft = ""
 
     @State private var mode: Mode = .list
     @State private var visibleMonth = Date()
@@ -49,12 +55,15 @@ struct TheaterCalendarView: View {
     private var watchlistIDs: Set<Int> { Set(store.watchlist.map(\.movieID)) }
     private func isMine(_ movie: Movie) -> Bool { watchlistIDs.contains(movie.tmdbID) }
 
-    /// Everything to show in "All" scope: my in-theaters/coming titles plus
-    /// the general upcoming releases, de-duped (my copy wins — it has the
-    /// exact date). "My list" scope shows only my titles.
+    /// Everything to show in "All" scope: general now-playing + upcoming
+    /// releases, plus my saved titles — de-duped (my copy wins, it has the
+    /// exact date). Including the general now-playing set keeps the calendar
+    /// full even when nothing on your list is in theaters. "My list" scope
+    /// shows only my titles.
     private var movies: [Movie] {
         if scope == .mine { return myMovies }
         var byID: [Int: Movie] = [:]
+        for m in nowOut where m.tmdbID > 0 { byID[m.tmdbID] = m }
         for m in releases { byID[m.tmdbID] = m }
         for m in myMovies { byID[m.tmdbID] = m }
         return Array(byID.values)
@@ -69,7 +78,11 @@ struct TheaterCalendarView: View {
 
     private var nowPlaying: [Movie] {
         movies.filter(\.isReleased)
-            .sorted { (releaseDate($0) ?? .distantPast) > (releaseDate($1) ?? .distantPast) }
+            .sorted {
+                // Your saved titles lead the now-playing strip.
+                if isMine($0) != isMine($1) { return isMine($0) }
+                return (releaseDate($0) ?? .distantPast) > (releaseDate($1) ?? .distantPast)
+            }
     }
     private var coming: [Movie] {
         movies.filter { !$0.isReleased }
@@ -135,6 +148,14 @@ struct TheaterCalendarView: View {
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Row 1: your area (for showtimes) on the left, the view toggle on
+            // the right. The toggle is fixedSize so its labels never truncate.
+            HStack {
+                locationButton
+                Spacer(minLength: 8)
+                modeToggle.fixedSize()
+            }
+            // Row 2: scope filter on its own line so it never crowds the toggle.
             HStack(spacing: 8) {
                 FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
                     Haptics.tap(); scope = .all
@@ -143,13 +164,10 @@ struct TheaterCalendarView: View {
                     Haptics.tap(); scope = .mine
                 }
                 Spacer()
-                modeToggle
-            }
-            // The dot legend explains the MONTH grid only (List rows use text
-            // badges, not dots), and only in All scope where both kinds appear.
-            if scope == .all, mode == .month {
-                HStack(spacing: 12) {
-                    legendDot(Theme.marquee, "On your list")
+                // The dot legend explains the MONTH grid only (List rows use
+                // text badges), and only in All scope where both kinds appear.
+                if scope == .all, mode == .month {
+                    legendDot(Theme.marquee, "Yours")
                     legendDot(Theme.gray.opacity(0.55), "Releasing")
                 }
             }
@@ -157,6 +175,35 @@ struct TheaterCalendarView: View {
         .screenHPadding()
         .padding(.top, 8)
         .padding(.bottom, 10)
+        .alert("Your area", isPresented: $showZipEntry) {
+            TextField("ZIP code", text: $zipDraft).keyboardType(.numberPad)
+            Button("Save") {
+                let z = zipDraft.filter(\.isNumber)
+                guard z.count == 5 else { return }
+                zipcode = z
+                Task { try? await SupabaseService.shared.setHomeZip(z) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Used to show showtimes near you when you tap Tickets.")
+        }
+    }
+
+    /// Compact location chip → prompts for a ZIP that feeds the Tickets sheet.
+    private var locationButton: some View {
+        Button {
+            zipDraft = zipcode; showZipEntry = true
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "mappin.and.ellipse").font(.caption.weight(.bold))
+                Text(zipcode.isEmpty ? "Set your area" : zipcode)
+                    .font(.subheadline.weight(.semibold)).lineLimit(1)
+            }
+            .foregroundStyle(Theme.marquee)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(zipcode.isEmpty ? "Set your area for showtimes"
+                                            : "Your area, ZIP \(zipcode)")
     }
 
     private func legendDot(_ color: Color, _ label: String) -> some View {
@@ -442,7 +489,10 @@ struct TheaterCalendarView: View {
 
     private func loadReleases() async {
         guard !releasesLoaded else { return }
-        releases = (try? await TMDBService.shared.upcoming()) ?? []
+        async let upcoming = TMDBService.shared.upcoming()
+        async let playing = TMDBService.shared.nowOut()
+        releases = (try? await upcoming) ?? []
+        nowOut = ((try? await playing) ?? []).filter { $0.tmdbID > 0 }
         releasesLoaded = true
     }
 
