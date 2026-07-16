@@ -356,7 +356,7 @@ struct FeedView: View {
             HStack(spacing: 2) {
                 // Search now lives in the dedicated bar below the header.
                 NavigationLink {
-                    ReleaseCalendarView()
+                    TheaterCalendarView(source: .upcoming)
                 } label: {
                     Image(systemName: "calendar")
                         .frame(width: 44, height: 44)
@@ -2437,117 +2437,6 @@ struct CommentsSheet: View {
 }
 
 // MARK: - Stubs reached from the header
-
-struct ReleaseCalendarView: View {
-    @Environment(RankingStore.self) private var store
-    @State private var upcoming: [Movie] = []
-    @State private var loaded = false
-    @State private var detailMovie: Movie?
-    // One sheet slot so tickets-vs-save can't race two presentations at once.
-    private enum ActiveSheet: Identifiable {
-        case tickets(Movie), save(Movie)
-        var id: String {
-            switch self {
-            case .tickets(let m): return "t\(m.tmdbID)"
-            case .save(let m): return "s\(m.tmdbID)"
-            }
-        }
-    }
-    @State private var activeSheet: ActiveSheet?
-
-    private func releaseDate(_ movie: Movie) -> Date? {
-        movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
-    }
-
-    var body: some View {
-        List(upcoming) { movie in
-            HStack(spacing: 12) {
-                PosterView(url: movie.posterURL, width: 48)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(movie.title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(2)
-                    if let date = releaseDate(movie) {
-                        Text(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Theme.marquee)
-                    }
-                    if !movie.genres.isEmpty {
-                        Text(movie.genres.prefix(2).joined(separator: ", "))
-                            .font(.caption)
-                            .foregroundStyle(Theme.gray)
-                    }
-                }
-                Spacer()
-                // Tickets up top, save bottom-right — same corner the
-                // bookmark lives in on every other card.
-                VStack(alignment: .trailing, spacing: 10) {
-                    // Theatrical tickets only apply to films — TV shows have no
-                    // showtimes (negative tmdb_id = TV in the app's convention).
-                    if movie.tmdbID > 0 {
-                        PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                            activeSheet = .tickets(movie)
-                        }
-                    }
-                    Button {
-                        bookmarkTapped(movie: movie, store: store) { activeSheet = .save(movie) }
-                    } label: {
-                        Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                            .font(.title3)
-                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
-                        ? "Remove from Want to Watch" : "Bookmark to Want to Watch")
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { detailMovie = movie }
-            .listRowBackground(Theme.background)
-        }
-        .listStyle(.plain)
-        .nativeContentWidth()
-        .background(Theme.background)
-        // Don't show a blank list while loading or if nothing comes back.
-        .overlay {
-            if upcoming.isEmpty {
-                if !loaded {
-                    ProgressView()
-                } else {
-                    EmptyStateView(icon: "calendar",
-                                   title: "No upcoming releases",
-                                   message: "Check back soon — new movies and shows land here as they're announced.")
-                }
-            }
-        }
-        .navigationTitle("Release Calendar")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .tickets(let movie):
-                // Pre-aimed at release day so presale showtimes appear.
-                ShowtimesSheet(movie: movie, initialDate: releaseDate(movie))
-            case .save(let movie):
-                SaveToListSheet(movie: movie)
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-            }
-        }
-        .navigationDestination(item: $detailMovie) { movie in
-            MovieDetailView(movie: movie)
-        }
-        .task {
-            let movies = (try? await TMDBService.shared.upcoming()) ?? []
-            // Soonest first; undated entries sink.
-            upcoming = movies.sorted {
-                (releaseDate($0) ?? .distantFuture) < (releaseDate($1) ?? .distantFuture)
-            }
-            loaded = true
-        }
-    }
-}
 
 struct NotificationsView: View {
     @Environment(TabRouter.self) private var tabRouter

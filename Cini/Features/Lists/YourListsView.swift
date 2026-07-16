@@ -1128,6 +1128,29 @@ struct YourListsView: View {
     private var watchlistList: some View {
         List {
             listTopAnchor
+            // "In theaters" shortcut — the saved MOVIES that are playing now or
+            // coming soon, with tickets/showtimes. Only for the Movies category
+            // (TV has no theatrical showtimes) and only once something's saved.
+            if category == .movies, !filteredWatchlist.isEmpty {
+                NavigationLink {
+                    TheaterCalendarView(source: .watchlist)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "ticket.fill")
+                            .font(.title3).foregroundStyle(Theme.marquee)
+                            .frame(width: 30)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("In theaters").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                            Text("See which of your saved movies are playing or coming — list or month view")
+                                .font(.caption).foregroundStyle(Theme.gray)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(Theme.background)
+            }
             // Discovery lives in the zero state now (the "find to watch" bar was
             // removed to declutter a populated list).
             ForEach(filteredWatchlist) { item in
