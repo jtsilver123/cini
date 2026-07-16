@@ -352,6 +352,7 @@ const ICONS = {
   chevL:'<polyline points="14 5 7 12 14 19"/>',
   chevR:'<polyline points="9 5 16 12 9 19"/>',
   chevD:'<polyline points="6 9 12 15 18 9"/>',
+  chevU:'<polyline points="18 15 12 9 6 15"/>',
   stack:'<rect x="6" y="4" width="12" height="16" rx="2"/><rect x="2.5" y="7" width="3" height="10" rx="1"/><rect x="18.5" y="7" width="3" height="10" rx="1"/>',
   grid:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
   dice:'<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="15" r="1.2" fill="currentColor" stroke="none"/>',
@@ -896,6 +897,7 @@ function renderLists(){
       <button class="pill" style="margin-top:8px;" onclick="setCategory('Movies')">Back to Movies</button></div>`;
   } else if(sub==="watched"){
     let rows=scoredWatched();
+    if(!S.ui.reorder) rows=_applyListSort(rows, w=>w.score, w=>w.k);
     const lq=(S.ui.listQ||"").trim().toLowerCase();
     if(lq && !S.ui.reorder) rows=rows.filter(w=>MOVIES[w.k].t.toLowerCase().includes(lq));
     const pendingHTML = (pendingKeys.length && !S.ui.reorder && !lq) ? `
@@ -941,7 +943,7 @@ function renderLists(){
           <div class="badge ${scoreClass(w.score)}">${w.score.toFixed(1)}</div>
         </div>`;}).join(""));
   } else if(sub==="watchlist"){
-    let wl=S.watchlist;
+    let wl=_applyListSort(S.watchlist.slice(), k=>MOVIES[k].avg, k=>k);
     const lq2=(S.ui.listQ||"").trim().toLowerCase();
     if(lq2) wl=wl.filter(k=>MOVIES[k].t.toLowerCase().includes(lq2));
     content = S.watchlist.length===0
@@ -1065,7 +1067,7 @@ function renderLists(){
       <button style="border:none;background:none;color:var(--marquee);font-weight:600;font-size:14px;cursor:pointer;" onclick="S.ui.showSearch=false; S.ui.listQ=''; save(); render()">Close</button>
     </div>`:""}
     ${sub!=="shared"&&!S.ui.reorder?`<div class="pad" style="margin-top:8px; display:flex; align-items:center;">
-      <button style="border:none;background:none;color:var(--marquee);font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" onclick="S.ui.sortDesc=!(S.ui.sortDesc!==false); save(); render()">↕ ${sub==="watched"?"Score":"Date Added"}</button>
+      <button style="border:none;background:none;color:var(--marquee);font-weight:700;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;" onclick="openListSort()">${(S.ui.sortDesc!==false)?"↓":"↑"} ${_sortLabel()}</button>
       <span class="spacer"></span>
       <button class="iconbtn" onclick="S.ui.showSearch=!S.ui.showSearch; if(!S.ui.showSearch)S.ui.listQ=''; save(); render()" aria-label="Search this list" style="color:${S.ui.showSearch?'var(--marquee)':'var(--ink)'};">${I("search",18)}</button>
     </div>`:""}
@@ -2697,6 +2699,38 @@ function openMemberMenu(handle){
       <div class="erow" style="border-bottom:none; color:var(--red);" onclick="closeOverlay(); toast('Blocked')"><span style="flex:1;">Block member</span></div>
     </div>`);
 }
+/* List sort: exactly three options everywhere — Score, Date added, Runtime. */
+function _rtMin(k){ const m=(MOVIES[k]&&MOVIES[k].rt||"").match(/(?:(\d+)h\s*)?(\d+)m/); if(!m)return -1; return (+(m[1]||0))*60+(+(m[2]||0)); }
+function _sortLabel(){ return {score:"Score",date:"Date added",runtime:"Runtime"}[S.ui.sortMetric||"score"]; }
+// Sort an array (of keys or {k,score} rows) by the chosen metric + direction.
+// `scoreOf`/`keyOf` extract from each element; date uses original array order.
+function _applyListSort(arr, scoreOf, keyOf){
+  const met=S.ui.sortMetric||"score", desc=(S.ui.sortDesc!==false);
+  let out=arr.slice();
+  if(met==="score") out.sort((a,b)=>scoreOf(b)-scoreOf(a));
+  else if(met==="runtime") out.sort((a,b)=>_rtMin(keyOf(b))-_rtMin(keyOf(a)));
+  // date === original order (treated as newest-first = descending)
+  if(!desc) out.reverse();
+  return out;
+}
+function openListSort(){
+  const opt=(m,l)=>`<button class="erow" style="width:100%;" onclick="S.ui.sortMetric='${m}'; save(); openListSort();">
+    <span class="ic" style="color:var(--marquee);">${I({score:'star',date:'calendar',runtime:'clock'}[m]||'star',18)}</span>
+    <span style="flex:1; font-weight:600;">${l}</span>${(S.ui.sortMetric||'score')===m?I('check',16):''}</button>`;
+  const desc=(S.ui.sortDesc!==false);
+  const dirLbl={score:['Highest first','Lowest first'],date:['Newest first','Oldest first'],runtime:['Longest first','Shortest first']}[S.ui.sortMetric||'score'];
+  renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">Sort by</b>
+      <button class="iconbtn" onclick="closeOverlay(); render()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      ${opt('score','Score')}${opt('date','Date added')}${opt('runtime','Runtime')}
+      <div style="height:1px; background:var(--hair); margin:8px 0;"></div>
+      <button class="erow" style="width:100%;" onclick="S.ui.sortDesc=true; save(); openListSort();">
+        <span class="ic">${I('chevD',18)}</span><span style="flex:1; font-weight:600;">${dirLbl[0]}</span>${desc?I('check',16):''}</button>
+      <button class="erow" style="width:100%;" onclick="S.ui.sortDesc=false; save(); openListSort();">
+        <span class="ic">${I('chevU',18)}</span><span style="flex:1; font-weight:600;">${dirLbl[1]}</span>${!desc?I('check',16):''}</button>
+    </div>`);
+}
+
 let _filterSort=0;
 function openBrowseSort(){
   const opts=[["popular","Popular","flame"],["trending","Trending","spark"],["releases","Release Date","calendar"]];

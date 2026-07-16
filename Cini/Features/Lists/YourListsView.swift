@@ -14,6 +14,45 @@ struct YourListsView: View {
     // Sort + filters persist across launches — the list stays the way
     // the user left it.
     @AppStorage("lists.sortDescending") private var sortDescending = true
+    /// The one metric every list sorts by — Score, Date added, or Runtime.
+    /// Exactly these three, everywhere.
+    @AppStorage("lists.sortMetric") private var sortMetricRaw = SortMetric.score.rawValue
+    private var sortMetric: SortMetric { SortMetric(rawValue: sortMetricRaw) ?? .score }
+
+    /// The three (and only three) sort options, shared by every list.
+    enum SortMetric: String, CaseIterable {
+        case score = "Score", dateAdded = "Date added", runtime = "Runtime"
+        var icon: String {
+            switch self {
+            case .score: return "star"
+            case .dateAdded: return "calendar"
+            case .runtime: return "clock"
+            }
+        }
+        var descLabel: String {
+            switch self {
+            case .score: return "Highest first"
+            case .dateAdded: return "Newest first"
+            case .runtime: return "Longest first"
+            }
+        }
+        var ascLabel: String {
+            switch self {
+            case .score: return "Lowest first"
+            case .dateAdded: return "Oldest first"
+            case .runtime: return "Shortest first"
+            }
+        }
+    }
+
+    /// The score a title sorts by: its ranked score if you've ranked it,
+    /// otherwise its Rec Score. Unknown sinks.
+    private func sortScore(_ id: Int) -> Double {
+        store.scoredItem(for: id)?.score ?? store.predictedScores[id] ?? -1
+    }
+    private func sortRuntime(_ id: Int) -> Int {
+        store.movie(id)?.runtimeMinutes ?? -1
+    }
     @AppStorage("lists.genreFilter") private var genreFilter: String?
     @AppStorage("lists.decadeFilter") private var decadeFilter: Int?
     @AppStorage("lists.runtimeFilter") private var runtimeFilter: Int?   // max minutes
@@ -285,6 +324,7 @@ struct YourListsView: View {
         listQuery = ""; showListSearch = false
         genreFilter = nil; decadeFilter = nil
         runtimeFilter = nil; streamingProviderFilter = nil
+        sortMetricRaw = SortMetric.score.rawValue   // drag = your ranked order
         sortDescending = true   // drag offsets need canonical order
     }
 
@@ -370,8 +410,9 @@ struct YourListsView: View {
                                     genreFilter = nil; decadeFilter = nil
                                     runtimeFilter = nil; streamingProviderFilter = nil
                                     // Drag offsets map onto the canonical
-                                    // order — a reversed list would move
+                                    // ranked order — any other sort would move
                                     // the wrong rows.
+                                    sortMetricRaw = SortMetric.score.rawValue
                                     sortDescending = true
                                 }
                             }
@@ -648,13 +689,11 @@ struct YourListsView: View {
         )
     }
 
-    /// Whether the Highest/Lowest sort applies to the current list (it lives
-    /// inside the filter sheet that the filter icon opens).
+    /// Every movie list — Watched, Want to Watch, and any custom list — offers
+    /// the same three-way sort. (Watching/Friend Recs aren't score/date lists.)
     private var showsSortControl: Bool {
-        selectedListID == nil && (subTab == .watched || subTab == .watchlist)
+        selectedListID != nil || subTab == .watched || subTab == .watchlist
     }
-    private var sortHighLabel: String { subTab == .watched ? "Highest score" : "Newest" }
-    private var sortLowLabel: String { subTab == .watched ? "Lowest score" : "Oldest" }
 
     /// Row 1 — the filter icon inline at the head of the quick filter pills
     /// (Streaming · Genre · Runtime · Decade); the icon opens the full sheet.
@@ -685,23 +724,26 @@ struct YourListsView: View {
         .padding(.bottom, 6)
     }
 
-    /// Score (watched) or Date added — the metric the list is sorted on.
-    private var sortMetricLabel: String { subTab == .watched ? "Score" : "Date added" }
-
-    /// Tappable sort control: shows the metric with up/down arrows; the menu
-    /// flips between high→low (or newest→oldest).
+    /// Tappable sort control: the current metric + direction arrow. The menu
+    /// picks one of the three metrics and the direction.
     private var sortMenu: some View {
         Menu {
-            Button { sortDescending = true } label: {
-                Label(sortHighLabel, systemImage: sortDescending ? "checkmark" : "arrow.down")
+            Picker("Sort by", selection: Binding(
+                get: { sortMetric },
+                set: { sortMetricRaw = $0.rawValue })) {
+                ForEach(SortMetric.allCases, id: \.self) { metric in
+                    Label(metric.rawValue, systemImage: metric.icon).tag(metric)
+                }
             }
-            Button { sortDescending = false } label: {
-                Label(sortLowLabel, systemImage: sortDescending ? "arrow.up" : "checkmark")
+            Divider()
+            Picker("Order", selection: $sortDescending) {
+                Label(sortMetric.descLabel, systemImage: "arrow.down").tag(true)
+                Label(sortMetric.ascLabel, systemImage: "arrow.up").tag(false)
             }
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "arrow.up.arrow.down").font(.caption.weight(.bold))
-                Text(sortMetricLabel).font(.subheadline.weight(.bold))
+                Image(systemName: sortDescending ? "arrow.down" : "arrow.up").font(.caption.weight(.bold))
+                Text(sortMetric.rawValue).font(.subheadline.weight(.bold))
             }
             .foregroundStyle(Theme.marquee)
         }
@@ -739,8 +781,20 @@ struct YourListsView: View {
     /// Custom lists respect the same filter pills and search as every
     /// other personal list.
     private var filteredCustomList: [Movie] {
+        // customListMovies arrives oldest-added first — its reverse is the
+        // DESCENDING date order.
+        let descending: [Movie]
+        switch sortMetric {
+        case .score:
+            descending = customListMovies.sorted { sortScore($0.tmdbID) > sortScore($1.tmdbID) }
+        case .dateAdded:
+            descending = customListMovies.reversed()
+        case .runtime:
+            descending = customListMovies.sorted { sortRuntime($0.tmdbID) > sortRuntime($1.tmdbID) }
+        }
+        let ordered = sortDescending ? descending : descending.reversed().map { $0 }
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
-        return customListMovies.filter { movie in
+        return ordered.filter { movie in
             guard passesFilters(movie) else { return false }
             return query.isEmpty || movie.title.lowercased().contains(query)
         }
@@ -852,7 +906,20 @@ struct YourListsView: View {
         if reorderMode {
             return store.lists[category.mediaKind]?.scoredItems ?? []
         }
-        let items = sortDescending ? store.watchedItems : store.watchedItems.reversed()
+        // Build the DESCENDING arrangement for the chosen metric, then flip for
+        // ascending. Score already comes best→worst from the engine.
+        let descending: [ScoredItem<Int>]
+        switch sortMetric {
+        case .score:
+            descending = store.watchedItems
+        case .dateAdded:
+            descending = store.watchedItems.sorted {
+                (store.rankedAt[$0.id] ?? .distantPast) > (store.rankedAt[$1.id] ?? .distantPast)
+            }
+        case .runtime:
+            descending = store.watchedItems.sorted { sortRuntime($0.id) > sortRuntime($1.id) }
+        }
+        let items = sortDescending ? descending : descending.reversed().map { $0 }
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
             guard let movie = store.movie(item.id) else { return true }
@@ -1041,7 +1108,17 @@ struct YourListsView: View {
     /// Want to Watch respects the same sort toggle (date added), search
     /// query, and filter pills as Watched.
     private var filteredWatchlist: [WatchlistItem] {
-        let items = sortDescending ? store.watchlist : store.watchlist.reversed()
+        // store.watchlist is newest-added first (the DESCENDING date order).
+        let descending: [WatchlistItem]
+        switch sortMetric {
+        case .score:
+            descending = store.watchlist.sorted { sortScore($0.movieID) > sortScore($1.movieID) }
+        case .dateAdded:
+            descending = store.watchlist
+        case .runtime:
+            descending = store.watchlist.sorted { sortRuntime($0.movieID) > sortRuntime($1.movieID) }
+        }
+        let items = sortDescending ? descending : descending.reversed().map { $0 }
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
             guard let movie = store.movie(item.movieID) else { return true }

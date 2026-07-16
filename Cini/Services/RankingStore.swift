@@ -19,6 +19,8 @@ final class RankingStore {
     private(set) var watchedItems: [ScoredItem<Int>] = []
     private(set) var movies: [Int: Movie] = [:]          // metadata cache
     private(set) var watchlist: [WatchlistItem] = []
+    /// movieID → when it was ranked, for the Watched list's "Date added" sort.
+    private(set) var rankedAt: [Int: Date] = [:]
     /// Rec Scores for the watchlist, prefetched in the background at
     /// launch so Want to Watch renders its badges instantly.
     private(set) var predictedScores: [Int: Double] = [:]
@@ -62,6 +64,7 @@ final class RankingStore {
         watchedItems = []
         movies = [:]
         watchlist = []
+        rankedAt = [:]
         predictedScores = [:]
         customLists = []
         preSessionList = nil
@@ -96,6 +99,10 @@ final class RankingStore {
             for row in rows { movies[row.tmdbId] = row.asMovie }
 
             lists = buildLists(from: rankings)
+            // When each title was ranked — powers the "Date added" sort on the
+            // Watched list (the scored items themselves carry no timestamp).
+            rankedAt = Dictionary(rankings.map { ($0.movieId, $0.createdAt) },
+                                  uniquingKeysWith: { a, b in max(a, b) })
             listChanged()
             isLoaded = true
             RankingDiskCache.save(.init(userID: userID, lists: lists,
@@ -427,6 +434,9 @@ final class RankingStore {
             return nil
         }
         preSessionList = nil
+        // Freshly ranked → it sorts as "just added" until the next load reads
+        // the real server timestamp.
+        rankedAt[session.newItemID] = Date()
         // Server confirmed — now it's safe to clear it from the import queue
         // (doing this before the write would drop it from "pending to rate"
         // even if the rank failed and we reverted).
