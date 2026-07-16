@@ -94,8 +94,12 @@ struct TheaterCalendarView: View {
     }
     private var datedComing: [Movie] { coming.filter { releaseDate($0) != nil } }
     private var undatedComing: [Movie] { coming.filter { releaseDate($0) == nil } }
+    /// Everything with a date — coming AND already-playing — so the month grid
+    /// marks the day each title opened, not just future releases. (List mode
+    /// keeps its In-theaters-now / Coming-soon split.)
+    private var datedItems: [Movie] { movies.filter { releaseDate($0) != nil } }
     private var byDay: [Date: [Movie]] {
-        Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
+        Dictionary(grouping: datedItems) { cal.startOfDay(for: releaseDate($0)!) }
     }
     private var isEmpty: Bool { nowPlaying.isEmpty && coming.isEmpty }
 
@@ -328,9 +332,15 @@ struct TheaterCalendarView: View {
     // MARK: - Month mode
 
     private var monthBounds: (lower: Date, upper: Date) {
-        let lower = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
-        let lastDate = datedComing.compactMap(releaseDate).max() ?? lower
-        let upper = cal.date(from: cal.dateComponents([.year, .month], from: lastDate))!
+        let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
+        let dates = datedItems.compactMap(releaseDate)
+        // Reach back to the earliest opening still playing (so this-and-last
+        // month's releases are on the grid), but no further than 6 months.
+        let earliest = dates.min().map { cal.date(from: cal.dateComponents([.year, .month], from: $0))! } ?? thisMonth
+        let floor = cal.date(byAdding: .month, value: -6, to: thisMonth) ?? thisMonth
+        let lower = min(thisMonth, max(floor, earliest))
+        let latest = dates.max() ?? thisMonth
+        let upper = cal.date(from: cal.dateComponents([.year, .month], from: latest))!
         return (lower, max(lower, upper))
     }
 
@@ -342,8 +352,11 @@ struct TheaterCalendarView: View {
                 if let day = selectedDay, let films = byDay[day], !films.isEmpty {
                     posterStrip(title: day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
                                 films)
-                } else if datedComing.isEmpty {
+                } else if datedItems.isEmpty {
                     Text("No dated releases yet — check the List view.")
+                        .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
+                } else {
+                    Text("Tap a highlighted day to see what opens.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 }
                 if !undatedComing.isEmpty { posterStrip(title: "Date to be announced", undatedComing) }
@@ -460,9 +473,20 @@ struct TheaterCalendarView: View {
                                 .font(.caption.weight(.semibold)).lineLimit(2)
                                 .frame(width: 104, alignment: .leading)
                             if movie.tmdbID > 0 {
-                                PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                                    activeSheet = .tickets(movie)
+                                // Card-width compact ticket button — PillButton's
+                                // padding overflowed 104pt and truncated to "Tick…".
+                                Button { activeSheet = .tickets(movie) } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "ticket").font(.caption2)
+                                        Text("Tickets").font(.caption.weight(.semibold))
+                                    }
+                                    .foregroundStyle(Theme.marquee)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(Capsule().strokeBorder(Theme.marquee.opacity(0.5), lineWidth: 1))
                                 }
+                                .buttonStyle(.plain)
+                                .frame(width: 104)
                             }
                         }
                         .frame(width: 104)
@@ -481,7 +505,13 @@ struct TheaterCalendarView: View {
     }
 
     private func resetMonth() {
-        if let soonest = datedComing.compactMap(releaseDate).min() {
+        // Open on the current month (this month's openings + what's coming);
+        // fall back to the soonest month that actually has titles.
+        let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
+        if firstReleaseDay(in: thisMonth) != nil {
+            visibleMonth = thisMonth
+            selectedDay = firstReleaseDay(in: thisMonth)
+        } else if let soonest = datedItems.compactMap(releaseDate).min() {
             visibleMonth = soonest
             selectedDay = firstReleaseDay(in: soonest)
         }

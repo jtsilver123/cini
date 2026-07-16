@@ -1121,14 +1121,15 @@ function _calItems(){
   const keys=Object.keys(MOVIES);
   const saved=k=>(S.watchlist||[]).includes(k);
   const mk=(off,key)=>({t:MOVIES[key].t, p:MOVIES[key].p, g:MOVIES[key].g[0], date:at(off), key, mine:saved(key)});
-  // Your saved movies, shown as playing now (demo).
-  const mineNow=(S.watchlist||[]).slice(0,5).map(k=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:null,key:k,now:true,mine:true}));
+  // Your saved movies, in theaters now — dated to recent days so they mark
+  // the month grid too (not just the strip).
+  const mineNow=(S.watchlist||[]).slice(0,5).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at(-2-i*3),key:k,now:true,mine:true}));
   // A couple of your saved titles with upcoming dates, so the gold markers show.
   const mineComing=(S.watchlist||[]).slice(0,2).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at([8,22][i]||8),key:k,mine:true}));
   if(_calScope==='mine') return {now:mineNow, coming:mineComing};
   // All: general now-playing + upcoming (muted) overlaid with your titles (gold).
   const general=[5,12,19,34,48,63].map((off,i)=>mk(off,keys[i%keys.length]));
-  const genNow=keys.filter(k=>!(S.watchlist||[]).includes(k)).slice(0,4).map(k=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:null,key:k,now:true,mine:false}));
+  const genNow=keys.filter(k=>!(S.watchlist||[]).includes(k)).slice(0,4).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at(-1-i*2),key:k,now:true,mine:false}));
   const seenNow=new Set(mineNow.map(f=>f.key));
   const seen=new Set(mineComing.map(f=>f.key));
   return {now:mineNow.concat(genNow.filter(f=>!seenNow.has(f.key))), coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};
@@ -1185,7 +1186,7 @@ function _calRender(){
   const body=_calMode==='list'
     ? `${now.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:10px 0 4px;">IN THEATERS NOW</div>${now.map(_calRow).join("")}`:""}
        ${coming.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${coming.map(_calRow).join("")}`:""}`
-    : `${_calStrip('In theaters now', now)}${_calMonth(coming)}`;
+    : `${_calStrip('In theaters now', now)}${_calMonth(now.concat(coming))}`;
   renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">In Theaters</b>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
