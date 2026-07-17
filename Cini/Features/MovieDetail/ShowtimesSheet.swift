@@ -30,9 +30,26 @@ struct ShowtimesSheet: View {
     /// Set true to skip the re-search that a programmatic date change would
     /// otherwise trigger (we already have the showtimes for the new date).
     @State private var suppressSearch = false
+    /// Graphical calendar for dates beyond the two-week chip row.
+    @State private var showDatePicker = false
 
     enum LoadState {
         case idle, loading, loaded, notConfigured, error(String)
+    }
+
+    private let cal = Calendar.current
+
+    /// The next two weeks as tappable day chips (theater-app style); when the
+    /// selected date is beyond them (a far-off release, or a "find the next
+    /// IMAX date" jump), it joins the row so the selection is always visible.
+    private var chipDates: [Date] {
+        let today = cal.startOfDay(for: Date())
+        var days = (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+        let selected = cal.startOfDay(for: date)
+        if !days.contains(where: { cal.isDate($0, inSameDayAs: selected) }) {
+            days.append(selected)
+        }
+        return days
     }
 
     /// Distinct premium formats in the loaded results ("IMAX", "Dolby", …),
@@ -101,10 +118,62 @@ struct ShowtimesSheet: View {
             if let initialDate, initialDate > Date() { date = initialDate }
             if zipcode.count == 5 { Task { await search() } }
         }
+        .sheet(isPresented: $showDatePicker) {
+            DatePicker("Date", selection: $date, in: Date()..., displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .tint(Theme.marquee)
+                .padding()
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
+                .onChange(of: date) { _, _ in showDatePicker = false }
+        }
+    }
+
+    /// One tappable day — "TODAY / 17" style, gold when selected.
+    private func dayChip(_ day: Date) -> some View {
+        let selected = cal.isDate(day, inSameDayAs: date)
+        let label = cal.isDateInToday(day) ? "TODAY"
+            : day.formatted(.dateTime.weekday(.abbreviated)).uppercased()
+        return Button {
+            guard !selected else { return }
+            Haptics.tap()
+            date = day
+        } label: {
+            VStack(spacing: 2) {
+                Text(label).font(.caption2.weight(.bold))
+                Text(day.formatted(.dateTime.day()))
+                    .font(.subheadline.weight(.bold))
+            }
+            .frame(width: 52, height: 52)
+            .foregroundStyle(selected ? Theme.onMarquee : Theme.ink)
+            .background(RoundedRectangle(cornerRadius: Theme.rControl)
+                .fill(selected ? Theme.marquee : Theme.fill))
+        }
+        .buttonStyle(.plain)
+        .id(day)
+        .accessibilityLabel(day.formatted(.dateTime.weekday(.wide).month().day())
+                            + (selected ? ", selected" : ""))
     }
 
     private var controls: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
+            // The film this sheet is about — grounds the sheet at a glance.
+            HStack(spacing: 12) {
+                PosterView(url: movie.posterURL, width: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(movie.title)
+                        .font(Theme.serif(20))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    Text([movie.releaseYear.map(String.init), movie.runtimeText,
+                          movie.genres.first]
+                        .compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                Spacer()
+            }
+
             HStack(spacing: 8) {
                 Button {
                     Task { await fillFromLocation() }
@@ -126,14 +195,36 @@ struct ShowtimesSheet: View {
                     .disabled(zipcode.count != 5)
             }
             .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
+            .background(RoundedRectangle(cornerRadius: Theme.rControl).fill(Theme.fill))
 
-            DatePicker("Date", selection: $date, in: Date()..., displayedComponents: .date)
-                .datePickerStyle(.compact)
-                .onChange(of: date) { _, _ in
+            // Day chips (theater-app style): the next two weeks one tap away,
+            // the calendar button for anything further out.
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(chipDates, id: \.self) { day in dayChip(day) }
+                        Button {
+                            showDatePicker = true
+                        } label: {
+                            Image(systemName: "calendar")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                                .frame(width: 44, height: 52)
+                                .background(RoundedRectangle(cornerRadius: Theme.rControl)
+                                    .strokeBorder(Theme.hairline))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Pick another date")
+                    }
+                }
+                .onChange(of: date) { _, newValue in
+                    withAnimation(.snappy) {
+                        proxy.scrollTo(cal.startOfDay(for: newValue), anchor: .center)
+                    }
                     if suppressSearch { suppressSearch = false; return }
                     Task { await search() }
                 }
+            }
 
             // Filters — same dropdown-pill UI as the list filter bar:
             // Distance (re-searches), Screen, Seats. The Screen pill only
@@ -230,35 +321,48 @@ struct ShowtimesSheet: View {
                     }
                 }
             } else {
-                VStack(spacing: 0) {
-                    theaterList
-                    Text("Showtimes by Gracenote · $ = bargain pricing · tickets open in Fandango")
-                        .font(.caption2)
-                        .foregroundStyle(Theme.gray)
-                        .padding(.vertical, 8)
-                }
+                theaterList
             }
         }
     }
 
     private var theaterList: some View {
-        List(filteredTheaters) { theater in
-            VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(theater.theaterName).font(.subheadline.weight(.bold)).lineLimit(2)
-                    if !theater.amenities.isEmpty {
-                        // The closest thing showtime data has to seat info.
-                        Text(theater.amenities.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundStyle(Theme.marquee)
-                    }
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(filteredTheaters) { theater in
+                    theaterCard(theater)
                 }
-                FlowingChips(showtimes: theater.showtimes)
+                Text("Showtimes by Gracenote · $ = bargain pricing · tickets open in Fandango")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.gray)
+                    .padding(.vertical, 8)
             }
-            .padding(.vertical, 6)
-            .listRowBackground(Theme.background)
+            .padding(.horizontal, 16)
+            .padding(.top, 2)
+            .padding(.bottom, 16)
         }
-        .listStyle(.plain)
+    }
+
+    /// One theatre on an elevated card: name, seat perks, showtime chips.
+    private func theaterCard(_ theater: TheaterShowtimes) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(theater.theaterName).font(.subheadline.weight(.bold)).lineLimit(2)
+                if !theater.amenities.isEmpty {
+                    // The closest thing showtime data has to seat info.
+                    HStack(spacing: 4) {
+                        Image(systemName: "sofa.fill").font(.system(size: 9))
+                        Text(theater.amenities.joined(separator: " · ")).font(.caption)
+                    }
+                    .foregroundStyle(Theme.marquee)
+                }
+            }
+            FlowingChips(showtimes: theater.showtimes)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.rCard).fill(Theme.surface))
+        .overlay(RoundedRectangle(cornerRadius: Theme.rCard).strokeBorder(Theme.hairline))
     }
 
     /// No showings on this date — offer to jump to the next date that has any.

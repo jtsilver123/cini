@@ -1136,7 +1136,7 @@ function _calItems(){
 }
 function _calStrip(title, films){
   if(!films.length) return "";
-  return `<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 6px;">${title.toUpperCase()}</div>
+  return `<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 6px;">${title.toUpperCase()} <span style="color:var(--marquee);">${films.length}</span></div>
     <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:4px;">
     ${films.map(f=>`<div style="flex:0 0 auto; width:104px;">
       <div class="poster" style="width:104px; height:156px; background-image:url('${IMG(f.p)}'); cursor:pointer; ${f.mine?'box-shadow:0 0 0 2px var(--marquee);':''}" onclick="closeOverlay(); openDetail('${f.key}')"></div>
@@ -1162,17 +1162,26 @@ function _calMonth(coming){
   const lastOff=Math.max(0,...coming.filter(f=>f.date).map(f=>{const d=f.date; return (d.getFullYear()-new Date().getFullYear())*12 + d.getMonth()-new Date().getMonth();}));
   let cells="";
   for(let i=0;i<firstDow;i++) cells+=`<div></div>`;
+  // Each marked day carries its lead film's mini poster (gold ring = yours,
+  // "+N" when more share the day) — the grid reads like a marquee, not dots.
   for(let d=1; d<=daysIn; d++){ const has=byDay[d], mine=mineDay(d);
-    cells+=`<button ${has?"":"disabled"} onclick="_calSel=${d}; _calRender()" style="border:none; background:${_calSel===d&&has?'var(--marquee-soft)':'none'}; border-radius:9px; padding:6px 0; cursor:${has?'pointer':'default'};">
-      <div style="font-size:13px; font-weight:${mine?'800':(has?'700':'400')}; color:${has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
-      <div style="width:5px;height:5px;border-radius:50%;margin:2px auto 0;background:${mine?'var(--marquee)':(has?'rgba(255,255,255,.4)':'transparent')};"></div></button>`;
+    const lead=has&&has[0], extra=has?has.length-1:0;
+    const marker=lead
+      ? `<div style="position:relative; width:22px; height:33px; margin:3px auto 0;">
+           <div style="width:22px; height:33px; border-radius:4px; background-image:url('${IMG(lead.p)}'); background-size:cover; background-position:center; box-shadow:0 0 0 ${mine?'1.4px var(--marquee)':'1px var(--hair)'};"></div>
+           ${extra>0?`<span style="position:absolute; right:-5px; bottom:-4px; font-size:8px; font-weight:900; background:var(--surface-2); border:1px solid var(--hair); border-radius:999px; padding:0 3px;">+${extra}</span>`:''}
+         </div>`
+      : `<div style="height:33px; margin-top:3px;"></div>`;
+    cells+=`<button ${has?"":"disabled"} onclick="_calSel=${d}; _calRender()" style="border:none; background:${_calSel===d&&has?'var(--marquee-soft)':'none'}; border-radius:9px; padding:6px 0 4px; cursor:${has?'pointer':'default'};">
+      <div style="font-size:12px; font-weight:${has?'800':'400'}; color:${has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
+      ${marker}</button>`;
   }
   const selFilms=_calSel && byDay[_calSel] ? byDay[_calSel] : [];
   const selIsToday=_calMonthOff===0 && _calSel===new Date().getDate();
   const dow=["Su","Mo","Tu","We","Th","Fr","Sa"];
   return `<div style="display:flex; align-items:center; margin:6px 0 10px;">
       <button class="iconbtn" ${_calMonthOff<=0?"disabled style=opacity:.3":""} onclick="_calMonthOff--; _calSel=null; _calRender()">${I("chevL",18)}</button>
-      <b style="flex:1; text-align:center;">${monthLbl}</b>
+      <span style="flex:1; text-align:center;"><b>${monthLbl}</b>${_calMonthOff!==0?` <button style="border:none; cursor:pointer; margin-left:6px; font-size:11px; font-weight:800; color:var(--marquee); background:var(--marquee-soft); border-radius:999px; padding:3px 9px;" onclick="_calMonthOff=0; _calSel=new Date().getDate(); _calRender()">Today</button>`:''}</span>
       <button class="iconbtn" ${_calMonthOff>=lastOff?"disabled style=opacity:.3":""} onclick="_calMonthOff++; _calSel=null; _calRender()">${I("chevR",18)}</button></div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700; color:var(--gray); margin-bottom:4px;">${dow.map(d=>`<div>${d}</div>`).join("")}</div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center;">${cells}</div>
@@ -1200,8 +1209,8 @@ function _calRender(){
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); save(); _calRender();}">📍 ${S.showtimesZip?S.showtimesZip:'Set your area'}</div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}
         ${_calScope==='all'?`<span class="spacer"></span>
-          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:6px;height:6px;border-radius:50%;background:var(--marquee);"></span>Your list</span>
-          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.4);"></span>Releasing</span>`:''}</div>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:7px;height:10px;border-radius:2px;border:1.3px solid var(--marquee);"></span>Your list</span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:7px;height:10px;border-radius:2px;border:1.3px solid rgba(255,255,255,.4);"></span>Releasing</span>`:''}</div>
       ${body}
     </div>`);
 }
@@ -2053,10 +2062,10 @@ function renderDetail(){
    $ = bargain pricing, and dropdown filter pills (same UI as the list
    filter) for distance, screen type (IMAX / 4DX / …) and seat type.
    Tickets open the Fandango app. */
-let showtimeFmt=null, showtimeRad=15, showtimeSeat=null, _stMenu=null;
+let showtimeFmt=null, showtimeRad=15, showtimeSeat=null, _stMenu=null, showtimeDay=0;
 function openShowtimes(k, keepFmt){
   const m=MOVIES[k];
-  if(!keepFmt){ showtimeFmt=null; showtimeSeat=null; _stMenu=null; }
+  if(!keepFmt){ showtimeFmt=null; showtimeSeat=null; _stMenu=null; showtimeDay=0; }
   const theatres=[
     {n:"AMC Loews 34th Street 14", perks:"Recliners · Reserved seating",
      times:[["4:15 PM","",1,0],["7:30 PM","IMAX",0,1],["9:45 PM","IMAX",0,0]]},
@@ -2082,11 +2091,28 @@ function openShowtimes(k, keepFmt){
     : _stMenu==='seat'
     ? opt("showtimeSeat=null","Any seats",!showtimeSeat)+["Recliners","Reserved seating"].map(s=>opt(`showtimeSeat='${s}'`,s,showtimeSeat===s)).join("")
     : "";
+  // Day chips: the next two weeks, one tap away (theater-app style).
+  const dayChip=i=>{
+    const d=new Date(); d.setDate(d.getDate()+i);
+    const on=showtimeDay===i;
+    const lbl=i===0?'TODAY':d.toLocaleDateString(undefined,{weekday:'short'}).toUpperCase();
+    return `<button onclick="showtimeDay=${i}; openShowtimes('${k}', true)" style="flex:0 0 auto; width:52px; height:52px; border:none; cursor:pointer; border-radius:12px; background:${on?'var(--marquee)':'var(--surface-2)'}; color:${on?'#1A1618':'var(--ink)'};">
+      <div style="font-size:9px; font-weight:800;">${lbl}</div>
+      <div style="font-size:14px; font-weight:800; margin-top:1px;">${d.getDate()}</div></button>`;
+  };
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Showtimes — ${m.t}</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Showtimes</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <input type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:10px 13px; color:var(--ink); font:inherit; outline:none; margin-bottom:10px;">
+      <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+        <div class="poster" style="width:40px; height:60px; background-image:url('${IMG(m.p)}');"></div>
+        <div><div class="serif" style="font-size:19px; font-weight:700; line-height:1.15;">${m.t}</div>
+          <div class="meta" style="margin-top:2px;">${m.y} · ${m.g[0]}</div></div>
+      </div>
+      <div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:10px; padding-bottom:2px;">
+        ${Array.from({length:14},(_,i)=>dayChip(i)).join("")}
+        <button onclick="toast('Calendar picker — wired in the app')" style="flex:0 0 auto; width:44px; height:52px; border:1px solid var(--hair); background:none; cursor:pointer; border-radius:12px; color:var(--marquee);">${I("calendar",16)}</button>
+      </div>
       <div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:${_stMenu?'8px':'12px'};">
         ${dpill('dist',`${showtimeRad} mi`,showtimeRad!==15)}
         ${formats.length?dpill('screen',showtimeFmt||'Screen',!!showtimeFmt):""}
@@ -2094,9 +2120,9 @@ function openShowtimes(k, keepFmt){
       </div>
       ${menuRow?`<div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;">${menuRow}</div>`:""}
       ${shown.length?shown.map(t=>`
-        <div style="margin-bottom:14px;">
+        <div class="card" style="margin:0 0 12px; padding:14px;">
           <div style="font-weight:700; font-size:14.5px;">${t.n}</div>
-          <div style="color:var(--marquee); font-size:12px; margin:2px 0 8px;">${t.perks}</div>
+          <div style="color:var(--marquee); font-size:12px; margin:2px 0 10px;">🛋 ${t.perks}</div>
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             ${t.times.map(([time,fmt,barg,next])=>`
               <button style="border:1.2px solid ${next?"var(--marquee)":"rgba(232,182,76,.55)"}; background:${next?"rgba(232,182,76,.16)":"none"}; color:var(--ink); border-radius:9px; padding:7px 11px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer;"

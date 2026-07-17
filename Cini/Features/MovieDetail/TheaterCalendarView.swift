@@ -215,9 +215,13 @@ struct TheaterCalendarView: View {
                                             : "Your area, ZIP \(zipcode)")
     }
 
+    /// Mini poster-shaped ring — matches how days are marked on the grid
+    /// (gold ring = yours, hairline = general release).
     private func legendDot(_ color: Color, _ label: String) -> some View {
         HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            RoundedRectangle(cornerRadius: 2)
+                .strokeBorder(color, lineWidth: 1.3)
+                .frame(width: 7, height: 10)
             Text(label).font(.caption2).foregroundStyle(Theme.gray)
         }
     }
@@ -375,11 +379,33 @@ struct TheaterCalendarView: View {
         let bounds = monthBounds
         let weekdays = Self.weekdaySymbols.rotated(by: cal.firstWeekday - 1)
 
+        let offMonth = !cal.isDate(start, equalTo: Date(), toGranularity: .month)
         return VStack(spacing: 10) {
             HStack {
                 monthArrow("chevron.left", enabled: start > bounds.lower) { step(-1) }
                 Spacer()
-                Text(start.formatted(.dateTime.month(.wide).year())).font(.headline)
+                HStack(spacing: 8) {
+                    Text(start.formatted(.dateTime.month(.wide).year())).font(.headline)
+                    // Paged away? One tap home to today's in-theaters cell.
+                    if offMonth {
+                        Button {
+                            Haptics.tap()
+                            withAnimation(.snappy) {
+                                visibleMonth = Date()
+                                let today = cal.startOfDay(for: Date())
+                                selectedDay = byDay[today] != nil ? today : firstReleaseDay(in: Date())
+                            }
+                        } label: {
+                            Text("Today")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(Theme.marquee)
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 4)
+                                .background(Capsule().fill(Theme.marqueeSoft))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 Spacer()
                 monthArrow("chevron.right", enabled: start < bounds.upper) { step(1) }
             }
@@ -405,19 +431,28 @@ struct TheaterCalendarView: View {
             let count = films.count
             let isSelected = selectedDay.map { cal.isDate($0, inSameDayAs: day) } ?? false
             let isToday = cal.isDateInToday(day)
-            // Gold = a title from your list opens; muted = general release only.
-            let dotColor: Color = mineHere ? Theme.marquee
-                : (count > 0 ? Theme.gray.opacity(0.55) : .clear)
             Button {
                 if count > 0 { Haptics.tap(); selectedDay = key }
             } label: {
-                VStack(spacing: 3) {
+                VStack(spacing: 4) {
                     Text("\(cal.component(.day, from: day))")
-                        .font(.footnote.weight(mineHere ? .bold : (count > 0 ? .semibold : .regular)))
+                        .font(.caption.weight(count > 0 ? .bold : .regular))
                         .foregroundStyle(count > 0 ? Theme.ink : Theme.gray.opacity(0.6))
-                    Circle().fill(dotColor).frame(width: 5, height: 5)
+                    // The day's lead film as a mini poster (mine first — byDay
+                    // orders your titles ahead) — the grid reads like a marquee,
+                    // not a page of dots. Dot fallback when there's no artwork.
+                    if count > 0, let poster = films.first?.posterURL {
+                        dayPosterThumb(poster, mine: mineHere, extra: count - 1)
+                    } else {
+                        Circle()
+                            .fill(count > 0
+                                  ? (mineHere ? Theme.marquee : Theme.gray.opacity(0.55))
+                                  : .clear)
+                            .frame(width: 5, height: 5)
+                            .frame(height: 33)   // rows stay aligned with poster cells
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: 40)
+                .frame(maxWidth: .infinity, minHeight: 58)
                 .background(RoundedRectangle(cornerRadius: 9)
                     .fill(isSelected ? Theme.marquee.opacity(0.16) : .clear))
                 .overlay(RoundedRectangle(cornerRadius: 9)
@@ -431,7 +466,33 @@ struct TheaterCalendarView: View {
                 ? "\(day.formatted(.dateTime.month().day())), \(count) release\(count == 1 ? "" : "s")\(mineHere ? ", on your list" : "")"
                 : day.formatted(.dateTime.month().day()))
         } else {
-            Color.clear.frame(maxWidth: .infinity, minHeight: 40)
+            Color.clear.frame(maxWidth: .infinity, minHeight: 58)
+        }
+    }
+
+    /// 22×33 poster thumbnail for a calendar day — gold ring when a title of
+    /// yours is on that day, "+N" when more films share it.
+    private func dayPosterThumb(_ url: URL, mine: Bool, extra: Int) -> some View {
+        CachedAsyncImage(url: url) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Rectangle().fill(Theme.gray.opacity(0.18))
+        }
+        .frame(width: 22, height: 33)
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .overlay(RoundedRectangle(cornerRadius: 4)
+            .strokeBorder(mine ? Theme.marquee : Theme.hairline, lineWidth: mine ? 1.4 : 1))
+        .overlay(alignment: .bottomTrailing) {
+            if extra > 0 {
+                Text("+\(extra)")
+                    .font(.system(size: 8, weight: .heavy))
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 3)
+                    .padding(.vertical, 1)
+                    .background(Capsule().fill(Theme.surface2))
+                    .overlay(Capsule().strokeBorder(Theme.hairline))
+                    .offset(x: 5, y: 4)
+            }
         }
     }
 
@@ -458,9 +519,15 @@ struct TheaterCalendarView: View {
     /// Compact poster card. My titles get a gold ring; general releases don't.
     private func posterStrip(title: String, _ films: [Movie]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(.caption.weight(.bold)).tracking(0.5)
-                .foregroundStyle(Theme.gray).screenHPadding()
+            HStack(spacing: 6) {
+                Text(title.uppercased())
+                    .font(.caption.weight(.bold)).tracking(0.5)
+                    .foregroundStyle(Theme.gray)
+                Text("\(films.count)")
+                    .font(.caption2.weight(.heavy))
+                    .foregroundStyle(Theme.marquee)
+            }
+            .screenHPadding()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 12) {
                     ForEach(films) { movie in
