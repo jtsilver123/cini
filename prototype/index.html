@@ -1141,6 +1141,7 @@ function _calStrip(title, films){
     ${films.map(f=>`<div style="flex:0 0 auto; width:104px;">
       <div class="poster" style="width:104px; height:156px; background-image:url('${IMG(f.p)}'); cursor:pointer; ${f.mine?'box-shadow:0 0 0 2px var(--marquee);':''}" onclick="closeOverlay(); openDetail('${f.key}')"></div>
       <div style="font-size:12px; font-weight:600; margin-top:5px; line-height:1.25;">${f.t}</div>
+      <div style="font-size:10.5px; font-weight:700; margin-top:2px; color:${f.now?'var(--scoregreen,#4ade80)':'var(--marquee)'};">${f.now?'In theaters':'Opens '+f.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div>
       <button class="pill out" style="font-size:11px; padding:6px 10px; margin-top:5px;" onclick="closeOverlay(); openShowtimes('${f.key}')">${I("ticket",12)} Tickets</button>
     </div>`).join("")}</div>`;
 }
@@ -1152,23 +1153,40 @@ function _calRow(f){
       <div class="meta">${f.g}</div></div>
     <button class="pill out" style="font-size:12px; padding:7px 12px;" onclick="closeOverlay(); openShowtimes('${f.key}')">${I("ticket",13)} Tickets</button></div>`;
 }
-function _calMonth(coming){
+function _calMonth(now, coming){
   const base=new Date(); base.setDate(1); base.setHours(0,0,0,0); base.setMonth(base.getMonth()+_calMonthOff);
   const y=base.getFullYear(), mo=base.getMonth();
   const daysIn=new Date(y,mo+1,0).getDate(), firstDow=new Date(y,mo,1).getDay();
-  const byDay={}; coming.forEach(f=>{ if(f.date && f.date.getFullYear()===y && f.date.getMonth()===mo) (byDay[f.date.getDate()]=byDay[f.date.getDate()]||[]).push(f); });
+  const today=new Date(); today.setHours(0,0,0,0);
+  // Openings sit on their release day; a film IN THEATERS NOW marks EVERY
+  // day it's still playing (release + ~120 days), so paging months keeps
+  // showing it for as long as you could actually buy a ticket.
+  const spanEnd=f=>{const e=new Date(f.date||today); e.setDate(e.getDate()+120); return e;};
+  const byDay={};
+  coming.forEach(f=>{ if(f.date && f.date.getFullYear()===y && f.date.getMonth()===mo) (byDay[f.date.getDate()]=byDay[f.date.getDate()]||[]).push(f); });
+  now.forEach(f=>{ const end=spanEnd(f);
+    for(let d=1; d<=daysIn; d++){ const dt=new Date(y,mo,d);
+      if(dt>=today && dt<=end) (byDay[d]=byDay[d]||[]).push(f); } });
+  // Per-day order: your openings, your running films, then general ones —
+  // the visible thumb is always yours when anything of yours plays.
+  const rank=f=>(f.mine?0:2)+(f.now?1:0);
+  Object.keys(byDay).forEach(d=>byDay[d].sort((a,b)=>rank(a)-rank(b)));
   const mineDay=d=>(byDay[d]||[]).some(f=>f.mine);
   const monthLbl=base.toLocaleDateString(undefined,{month:'long',year:'numeric'});
-  const lastOff=Math.max(0,...coming.filter(f=>f.date).map(f=>{const d=f.date; return (d.getFullYear()-new Date().getFullYear())*12 + d.getMonth()-new Date().getMonth();}));
+  const offOf=dt=>(dt.getFullYear()-new Date().getFullYear())*12 + dt.getMonth()-new Date().getMonth();
+  const lastOff=Math.max(0,...coming.filter(f=>f.date).map(f=>offOf(f.date)),...now.map(f=>offOf(spanEnd(f))));
   let cells="";
   for(let i=0;i<firstDow;i++) cells+=`<div></div>`;
-  // Each marked day carries its lead film's mini poster (gold ring = yours,
-  // "+N" when more share the day) — the grid reads like a marquee, not dots.
+  // Each marked day carries its lead film's mini poster. YOURS is
+  // unmistakable: full-strength artwork, gold ring, gold bookmark on the
+  // corner. General releases render dimmed behind a hairline. "+N" = more
+  // films share the day.
   for(let d=1; d<=daysIn; d++){ const has=byDay[d], mine=mineDay(d);
     const lead=has&&has[0], extra=has?has.length-1:0;
     const marker=lead
       ? `<div style="position:relative; width:22px; height:33px; margin:3px auto 0;">
-           <div style="width:22px; height:33px; border-radius:4px; background-image:url('${IMG(lead.p)}'); background-size:cover; background-position:center; box-shadow:0 0 0 ${mine?'1.4px var(--marquee)':'1px var(--hair)'};"></div>
+           <div style="width:22px; height:33px; border-radius:4px; background-image:url('${IMG(lead.p)}'); background-size:cover; background-position:center; opacity:${mine?'1':'.55'}; box-shadow:0 0 0 ${mine?'1.4px var(--marquee)':'1px var(--hair)'};"></div>
+           ${mine?`<span style="position:absolute; right:-3px; top:-3px; color:var(--marquee); filter:drop-shadow(0 0 2px rgba(0,0,0,.7));">${IF("bookmark",9)}</span>`:''}
            ${extra>0?`<span style="position:absolute; right:-5px; bottom:-4px; font-size:8px; font-weight:900; background:var(--surface-2); border:1px solid var(--hair); border-radius:999px; padding:0 3px;">+${extra}</span>`:''}
          </div>`
       : `<div style="height:33px; margin-top:3px;"></div>`;
@@ -1185,15 +1203,11 @@ function _calMonth(coming){
       <button class="iconbtn" ${_calMonthOff>=lastOff?"disabled style=opacity:.3":""} onclick="_calMonthOff++; _calSel=null; _calRender()">${I("chevR",18)}</button></div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700; color:var(--gray); margin-bottom:4px;">${dow.map(d=>`<div>${d}</div>`).join("")}</div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center;">${cells}</div>
-    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':selFilms[0].date.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what opens.</div>`}`;
+    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':new Date(y,mo,_calSel).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what's playing.</div>`}`;
 }
 function _calRender(){
   const {now, coming}=_calItems();
-  // Month view: everything in theaters NOW sits on TODAY's cell (a running
-  // film's opening day is often last month, which hid it from the grid).
-  const today=new Date(); today.setHours(0,0,0,0);
-  const pinnedNow=now.map(f=>Object.assign({},f,{date:today}));
-  if(_calMode==='month' && _calSel===null && _calMonthOff===0 && now.length) _calSel=today.getDate();
+  if(_calMode==='month' && _calSel===null && _calMonthOff===0 && now.length) _calSel=new Date().getDate();
   // Mode toggle — icon + label pills, matching the Recs Find/Rank toggle.
   const seg=(m,ic,l)=>`<button onclick="_calMode='${m}'; _calRender()" style="border:none; cursor:pointer; border-radius:999px; height:30px; padding:0 12px; display:inline-flex; align-items:center; gap:5px; font-weight:700; font-size:12.5px; ${_calMode===m?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I(ic,13)} ${l}</button>`;
   // Scope filter chips.
@@ -1201,16 +1215,16 @@ function _calRender(){
   const body=_calMode==='list'
     ? `${now.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:10px 0 4px;">IN THEATERS NOW</div>${now.map(_calRow).join("")}`:""}
        ${coming.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${coming.map(_calRow).join("")}`:""}`
-    : _calMonth(pinnedNow.concat(coming));
+    : _calMonth(now, coming);
   renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">In Theaters</b>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); save(); _calRender();}">📍 ${S.showtimesZip?S.showtimesZip:'Set your area'}</div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}
-        ${_calScope==='all'?`<span class="spacer"></span>
-          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:7px;height:10px;border-radius:2px;border:1.3px solid var(--marquee);"></span>Your list</span>
-          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:7px;height:10px;border-radius:2px;border:1.3px solid rgba(255,255,255,.4);"></span>Releasing</span>`:''}</div>
+        ${_calMode==='month'?`<span class="spacer"></span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:var(--marquee-soft);border:1.2px solid var(--marquee);"></span>Yours</span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:rgba(255,255,255,.12);border:1.2px solid rgba(255,255,255,.35);"></span>Releasing</span>`:''}</div>
       ${body}
     </div>`);
 }

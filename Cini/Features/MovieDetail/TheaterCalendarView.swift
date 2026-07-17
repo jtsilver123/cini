@@ -95,16 +95,33 @@ struct TheaterCalendarView: View {
     private var datedComing: [Movie] { coming.filter { releaseDate($0) != nil } }
     private var undatedComing: [Movie] { coming.filter { releaseDate($0) == nil } }
     /// Month-grid contents for one day. Upcoming titles sit on their release
-    /// day; everything IN THEATERS NOW sits on TODAY (a running film's opening
-    /// day is often last month — plotting it there hid it from this month's
-    /// page, which read as "my movies aren't on the grid").
+    /// day; a film IN THEATERS NOW marks EVERY day it's still playing — from
+    /// today through ~120 days after its release (the same "still in
+    /// theaters" window the watchlist fetch uses) — so paging the months
+    /// keeps showing it for as long as you could actually buy a ticket.
+    /// Per-day order: your openings, your running films, then general ones —
+    /// the visible thumbnail is always yours when anything of yours plays.
     private var byDay: [Date: [Movie]] {
         var days = Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
-        if !nowPlaying.isEmpty {
-            let today = cal.startOfDay(for: Date())
-            days[today, default: []].insert(contentsOf: nowPlaying, at: 0)
+        let today = cal.startOfDay(for: Date())
+        for movie in nowPlaying {
+            let end = releaseDate(movie).flatMap { cal.date(byAdding: .day, value: 120, to: $0) }
+                ?? cal.date(byAdding: .day, value: 30, to: today)!
+            var day = today
+            while day <= end {
+                days[day, default: []].append(movie)
+                guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
+                day = next
+            }
         }
-        return days
+        // In this dictionary an unreleased film only ever sits on its opening
+        // day, so !isReleased ⇔ "opens that day".
+        return days.mapValues { films in
+            films.filter { isMine($0) && !$0.isReleased }
+                + films.filter { isMine($0) && $0.isReleased }
+                + films.filter { !isMine($0) && !$0.isReleased }
+                + films.filter { !isMine($0) && $0.isReleased }
+        }
     }
     private var isEmpty: Bool { nowPlaying.isEmpty && coming.isEmpty }
 
@@ -173,11 +190,12 @@ struct TheaterCalendarView: View {
                     Haptics.tap(); scope = .mine
                 }
                 Spacer()
-                // The dot legend explains the MONTH grid only (List rows use
-                // text badges), and only in All scope where both kinds appear.
-                if scope == .all, mode == .month {
-                    legendDot(Theme.marquee, "Yours")
-                    legendDot(Theme.gray.opacity(0.55), "Releasing")
+                // The legend explains the MONTH grid (List rows use text
+                // badges). Shown in BOTH scopes so the marking is always
+                // decodable at a glance.
+                if mode == .month {
+                    legendSwatch(mine: true, "Yours")
+                    legendSwatch(mine: false, "Releasing")
                 }
             }
         }
@@ -215,13 +233,15 @@ struct TheaterCalendarView: View {
                                             : "Your area, ZIP \(zipcode)")
     }
 
-    /// Mini poster-shaped ring — matches how days are marked on the grid
-    /// (gold ring = yours, hairline = general release).
-    private func legendDot(_ color: Color, _ label: String) -> some View {
+    /// Mini poster swatch matching exactly how days are marked on the grid:
+    /// yours = bright with a gold ring, general = dimmed behind a hairline.
+    private func legendSwatch(mine: Bool, _ label: String) -> some View {
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 2)
-                .strokeBorder(color, lineWidth: 1.3)
-                .frame(width: 7, height: 10)
+                .fill(mine ? Theme.marqueeSoft : Theme.gray.opacity(0.22))
+                .overlay(RoundedRectangle(cornerRadius: 2)
+                    .strokeBorder(mine ? Theme.marquee : Theme.gray.opacity(0.5), lineWidth: 1.2))
+                .frame(width: 8, height: 11)
             Text(label).font(.caption2).foregroundStyle(Theme.gray)
         }
     }
@@ -340,27 +360,31 @@ struct TheaterCalendarView: View {
 
     // MARK: - Month mode
 
-    private var monthBounds: (lower: Date, upper: Date) {
+    /// Pageable range: current month through the last month with anything
+    /// marked on it (an opening OR a still-playing day).
+    private func monthBounds(_ days: [Date: [Movie]]) -> (lower: Date, upper: Date) {
         let lower = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
-        let lastDate = datedComing.compactMap(releaseDate).max() ?? lower
+        let lastDate = days.keys.max() ?? lower
         let upper = cal.date(from: cal.dateComponents([.year, .month], from: lastDate))!
         return (lower, max(lower, upper))
     }
 
     private var monthBody: some View {
-        ScrollView {
+        // Computed once per render — every day cell reads from this copy.
+        let days = byDay
+        return ScrollView {
             VStack(spacing: 16) {
-                monthGrid
-                if let day = selectedDay, let films = byDay[day], !films.isEmpty {
+                monthGrid(days)
+                if let day = selectedDay, let films = days[day], !films.isEmpty {
                     posterStrip(title: cal.isDateInToday(day)
                                     ? "Today — in theaters now"
                                     : day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
                                 films)
-                } else if byDay.isEmpty {
+                } else if days.isEmpty {
                     Text("No dated releases yet — check the List view.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 } else {
-                    Text("Tap a highlighted day to see what opens.")
+                    Text("Tap a highlighted day to see what's playing.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 }
                 if !undatedComing.isEmpty { posterStrip(title: "Date to be announced", undatedComing) }
@@ -369,14 +393,14 @@ struct TheaterCalendarView: View {
         }
     }
 
-    private var monthGrid: some View {
+    private func monthGrid(_ days: [Date: [Movie]]) -> some View {
         let start = cal.date(from: cal.dateComponents([.year, .month], from: visibleMonth))!
         let daysInMonth = cal.range(of: .day, in: .month, for: start)?.count ?? 30
         let firstWeekday = cal.component(.weekday, from: start)
         let leadingBlanks = (firstWeekday - cal.firstWeekday + 7) % 7
         let cells: [Date?] = Array(repeating: nil, count: leadingBlanks)
             + (0..<daysInMonth).map { cal.date(byAdding: .day, value: $0, to: start) }
-        let bounds = monthBounds
+        let bounds = monthBounds(days)
         let weekdays = Self.weekdaySymbols.rotated(by: cal.firstWeekday - 1)
 
         let offMonth = !cal.isDate(start, equalTo: Date(), toGranularity: .month)
@@ -393,7 +417,7 @@ struct TheaterCalendarView: View {
                             withAnimation(.snappy) {
                                 visibleMonth = Date()
                                 let today = cal.startOfDay(for: Date())
-                                selectedDay = byDay[today] != nil ? today : firstReleaseDay(in: Date())
+                                selectedDay = days[today] != nil ? today : firstReleaseDay(in: Date())
                             }
                         } label: {
                             Text("Today")
@@ -416,17 +440,18 @@ struct TheaterCalendarView: View {
                 }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
-                ForEach(Array(cells.enumerated()), id: \.offset) { _, day in dayCell(day) }
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, day in
+                    dayCell(day, films: day.map { days[cal.startOfDay(for: $0)] ?? [] } ?? [])
+                }
             }
         }
         .screenHPadding()
     }
 
     @ViewBuilder
-    private func dayCell(_ day: Date?) -> some View {
+    private func dayCell(_ day: Date?, films: [Movie]) -> some View {
         if let day {
             let key = cal.startOfDay(for: day)
-            let films = byDay[key] ?? []
             let mineHere = films.contains(where: isMine)
             let count = films.count
             let isSelected = selectedDay.map { cal.isDate($0, inSameDayAs: day) } ?? false
@@ -470,8 +495,10 @@ struct TheaterCalendarView: View {
         }
     }
 
-    /// 22×33 poster thumbnail for a calendar day — gold ring when a title of
-    /// yours is on that day, "+N" when more films share it.
+    /// 22×33 poster thumbnail for a calendar day. YOURS is unmistakable:
+    /// full-strength artwork, gold ring, and a gold bookmark riding the top
+    /// corner (the app-wide "saved" glyph). General releases render dimmed
+    /// behind a hairline. "+N" when more films share the day.
     private func dayPosterThumb(_ url: URL, mine: Bool, extra: Int) -> some View {
         CachedAsyncImage(url: url) { image in
             image.resizable().scaledToFill()
@@ -480,8 +507,18 @@ struct TheaterCalendarView: View {
         }
         .frame(width: 22, height: 33)
         .clipShape(RoundedRectangle(cornerRadius: 4))
+        .opacity(mine ? 1 : 0.55)
         .overlay(RoundedRectangle(cornerRadius: 4)
             .strokeBorder(mine ? Theme.marquee : Theme.hairline, lineWidth: mine ? 1.4 : 1))
+        .overlay(alignment: .topTrailing) {
+            if mine {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Theme.marquee)
+                    .shadow(color: .black.opacity(0.6), radius: 1)
+                    .offset(x: 3, y: -3)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if extra > 0 {
                 Text("+\(extra)")
@@ -539,6 +576,14 @@ struct TheaterCalendarView: View {
                             Text(movie.title)
                                 .font(.caption.weight(.semibold)).lineLimit(2)
                                 .frame(width: 104, alignment: .leading)
+                            // A film can mark many days now — every card says
+                            // whether it's playing or still coming.
+                            Text(movie.isReleased ? "In theaters"
+                                 : releaseDate(movie).map {
+                                     "Opens \($0.formatted(.dateTime.month(.abbreviated).day()))"
+                                 } ?? "Coming soon")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(movie.isReleased ? Theme.scoreGreen : Theme.marquee)
                             if movie.tmdbID > 0 {
                                 // Card-width compact ticket button — PillButton's
                                 // padding overflowed 104pt and truncated to "Tick…".
