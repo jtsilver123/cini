@@ -25,7 +25,7 @@ struct TheaterCalendarView: View {
     @State private var showZipEntry = false
     @State private var zipDraft = ""
 
-    @State private var mode: Mode = .list
+    @State private var mode: Mode = .month   // the calendar IS the feature — default to it
     @State private var visibleMonth = Date()
     @State private var selectedDay: Date?
     @State private var detailMovie: Movie?
@@ -94,12 +94,17 @@ struct TheaterCalendarView: View {
     }
     private var datedComing: [Movie] { coming.filter { releaseDate($0) != nil } }
     private var undatedComing: [Movie] { coming.filter { releaseDate($0) == nil } }
-    /// Everything with a date — coming AND already-playing — so the month grid
-    /// marks the day each title opened, not just future releases. (List mode
-    /// keeps its In-theaters-now / Coming-soon split.)
-    private var datedItems: [Movie] { movies.filter { releaseDate($0) != nil } }
+    /// Month-grid contents for one day. Upcoming titles sit on their release
+    /// day; everything IN THEATERS NOW sits on TODAY (a running film's opening
+    /// day is often last month — plotting it there hid it from this month's
+    /// page, which read as "my movies aren't on the grid").
     private var byDay: [Date: [Movie]] {
-        Dictionary(grouping: datedItems) { cal.startOfDay(for: releaseDate($0)!) }
+        var days = Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
+        if !nowPlaying.isEmpty {
+            let today = cal.startOfDay(for: Date())
+            days[today, default: []].insert(contentsOf: nowPlaying, at: 0)
+        }
+        return days
     }
     private var isEmpty: Bool { nowPlaying.isEmpty && coming.isEmpty }
 
@@ -332,27 +337,22 @@ struct TheaterCalendarView: View {
     // MARK: - Month mode
 
     private var monthBounds: (lower: Date, upper: Date) {
-        let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
-        let dates = datedItems.compactMap(releaseDate)
-        // Reach back to the earliest opening still playing (so this-and-last
-        // month's releases are on the grid), but no further than 6 months.
-        let earliest = dates.min().map { cal.date(from: cal.dateComponents([.year, .month], from: $0))! } ?? thisMonth
-        let floor = cal.date(byAdding: .month, value: -6, to: thisMonth) ?? thisMonth
-        let lower = min(thisMonth, max(floor, earliest))
-        let latest = dates.max() ?? thisMonth
-        let upper = cal.date(from: cal.dateComponents([.year, .month], from: latest))!
+        let lower = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
+        let lastDate = datedComing.compactMap(releaseDate).max() ?? lower
+        let upper = cal.date(from: cal.dateComponents([.year, .month], from: lastDate))!
         return (lower, max(lower, upper))
     }
 
     private var monthBody: some View {
         ScrollView {
             VStack(spacing: 16) {
-                if !nowPlaying.isEmpty { posterStrip(title: "In theaters now", nowPlaying) }
                 monthGrid
                 if let day = selectedDay, let films = byDay[day], !films.isEmpty {
-                    posterStrip(title: day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
+                    posterStrip(title: cal.isDateInToday(day)
+                                    ? "Today — in theaters now"
+                                    : day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
                                 films)
-                } else if datedItems.isEmpty {
+                } else if byDay.isEmpty {
                     Text("No dated releases yet — check the List view.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 } else {
@@ -505,13 +505,12 @@ struct TheaterCalendarView: View {
     }
 
     private func resetMonth() {
-        // Open on the current month (this month's openings + what's coming);
-        // fall back to the soonest month that actually has titles.
-        let thisMonth = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
-        if firstReleaseDay(in: thisMonth) != nil {
-            visibleMonth = thisMonth
-            selectedDay = firstReleaseDay(in: thisMonth)
-        } else if let soonest = datedItems.compactMap(releaseDate).min() {
+        let today = cal.startOfDay(for: Date())
+        if !nowPlaying.isEmpty {
+            // Today carries everything in theaters now — land there, selected.
+            visibleMonth = today
+            selectedDay = today
+        } else if let soonest = datedComing.compactMap(releaseDate).min() {
             visibleMonth = soonest
             selectedDay = firstReleaseDay(in: soonest)
         }

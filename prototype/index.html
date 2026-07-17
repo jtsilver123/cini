@@ -1168,6 +1168,7 @@ function _calMonth(coming){
       <div style="width:5px;height:5px;border-radius:50%;margin:2px auto 0;background:${mine?'var(--marquee)':(has?'rgba(255,255,255,.4)':'transparent')};"></div></button>`;
   }
   const selFilms=_calSel && byDay[_calSel] ? byDay[_calSel] : [];
+  const selIsToday=_calMonthOff===0 && _calSel===new Date().getDate();
   const dow=["Su","Mo","Tu","We","Th","Fr","Sa"];
   return `<div style="display:flex; align-items:center; margin:6px 0 10px;">
       <button class="iconbtn" ${_calMonthOff<=0?"disabled style=opacity:.3":""} onclick="_calMonthOff--; _calSel=null; _calRender()">${I("chevL",18)}</button>
@@ -1175,10 +1176,15 @@ function _calMonth(coming){
       <button class="iconbtn" ${_calMonthOff>=lastOff?"disabled style=opacity:.3":""} onclick="_calMonthOff++; _calSel=null; _calRender()">${I("chevR",18)}</button></div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700; color:var(--gray); margin-bottom:4px;">${dow.map(d=>`<div>${d}</div>`).join("")}</div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center;">${cells}</div>
-    ${selFilms.length?_calStrip(selFilms[0].date.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what opens.</div>`}`;
+    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':selFilms[0].date.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what opens.</div>`}`;
 }
 function _calRender(){
   const {now, coming}=_calItems();
+  // Month view: everything in theaters NOW sits on TODAY's cell (a running
+  // film's opening day is often last month, which hid it from the grid).
+  const today=new Date(); today.setHours(0,0,0,0);
+  const pinnedNow=now.map(f=>Object.assign({},f,{date:today}));
+  if(_calMode==='month' && _calSel===null && _calMonthOff===0 && now.length) _calSel=today.getDate();
   // Mode toggle — icon + label pills, matching the Recs Find/Rank toggle.
   const seg=(m,ic,l)=>`<button onclick="_calMode='${m}'; _calRender()" style="border:none; cursor:pointer; border-radius:999px; height:30px; padding:0 12px; display:inline-flex; align-items:center; gap:5px; font-weight:700; font-size:12.5px; ${_calMode===m?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I(ic,13)} ${l}</button>`;
   // Scope filter chips.
@@ -1186,7 +1192,7 @@ function _calRender(){
   const body=_calMode==='list'
     ? `${now.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:10px 0 4px;">IN THEATERS NOW</div>${now.map(_calRow).join("")}`:""}
        ${coming.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${coming.map(_calRow).join("")}`:""}`
-    : `${_calStrip('In theaters now', now)}${_calMonth(now.concat(coming))}`;
+    : _calMonth(pinnedNow.concat(coming));
   renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">In Theaters</b>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
@@ -1199,7 +1205,7 @@ function _calRender(){
       ${body}
     </div>`);
 }
-function openReleaseCalendar(scope){ _calScope=(scope==='watchlist'||scope==='mine')?'mine':'all'; _calMode='list'; _calMonthOff=0; _calSel=null; _calRender(); }
+function openReleaseCalendar(scope){ _calScope=(scope==='watchlist'||scope==='mine')?'mine':'all'; _calMode='month'; _calMonthOff=0; _calSel=null; _calRender(); }
 
 let _recPick=null;
 function openSendRec(k){
@@ -2044,12 +2050,13 @@ function renderDetail(){
     ${detailPeopleTab==="friends" ? friendsBlock : everyoneBlock(k)}`;
 }
 /* Showtimes: theatres with seat perks, next showing highlighted,
-   $ = bargain pricing, and a screen-type filter (IMAX / 4DX / …) built
-   from the formats actually playing. Tickets open the Fandango app. */
-let showtimeFmt=null;
+   $ = bargain pricing, and dropdown filter pills (same UI as the list
+   filter) for distance, screen type (IMAX / 4DX / …) and seat type.
+   Tickets open the Fandango app. */
+let showtimeFmt=null, showtimeRad=15, showtimeSeat=null, _stMenu=null;
 function openShowtimes(k, keepFmt){
   const m=MOVIES[k];
-  if(!keepFmt) showtimeFmt=null;
+  if(!keepFmt){ showtimeFmt=null; showtimeSeat=null; _stMenu=null; }
   const theatres=[
     {n:"AMC Loews 34th Street 14", perks:"Recliners · Reserved seating",
      times:[["4:15 PM","",1,0],["7:30 PM","IMAX",0,1],["9:45 PM","IMAX",0,0]]},
@@ -2059,18 +2066,33 @@ function openShowtimes(k, keepFmt){
   const formats=[...new Set(theatres.flatMap(t=>t.times.map(x=>x[1]).filter(Boolean)))];
   // First open: pre-filter to a preferred screen if it's actually playing.
   if(!keepFmt){ showtimeFmt=(S.me.screens||[]).find(f=>formats.includes(f))||null; }
-  const shown=theatres.map(t=>({...t, times:showtimeFmt?t.times.filter(x=>x[1]===showtimeFmt):t.times}))
+  const shown=theatres.filter(t=>!showtimeSeat||t.perks.includes(showtimeSeat))
+                      .map(t=>({...t, times:showtimeFmt?t.times.filter(x=>x[1]===showtimeFmt):t.times}))
                       .filter(t=>t.times.length);
-  const pill=(label,val)=>`<button class="pill ${showtimeFmt===val?"":"ghost"}" style="font-size:12px; padding:7px 13px;"
-      onclick="showtimeFmt=${val?`'${val}'`:"null"}===showtimeFmt?null:${val?`'${val}'`:"null"}; openShowtimes('${k}', true)">${label}</button>`;
+  const filterLbl=[showtimeFmt,showtimeSeat].filter(Boolean).join(" · ");
+  // Dropdown pill (list-filter UI): tapping opens its option row below.
+  const dpill=(menu,label,active)=>`<button class="pill ${active?"":"ghost"}" style="font-size:12px; padding:7px 13px; flex:0 0 auto;"
+      onclick="_stMenu=_stMenu==='${menu}'?null:'${menu}'; openShowtimes('${k}', true)">${label} ${I("chevD",11)}</button>`;
+  const opt=(js,label,on)=>`<button class="pill ${on?"":"ghost"}" style="font-size:12px; padding:6px 12px; flex:0 0 auto;"
+      onclick="${js}; _stMenu=null; openShowtimes('${k}', true)">${label}</button>`;
+  const menuRow=_stMenu==='dist'
+    ? [5,10,15,25,50].map(r=>opt(`showtimeRad=${r}`,`${r} miles`,showtimeRad===r)).join("")
+    : _stMenu==='screen'
+    ? opt("showtimeFmt=null","Any screen",!showtimeFmt)+formats.map(f=>opt(`showtimeFmt='${f}'`,f,showtimeFmt===f)).join("")
+    : _stMenu==='seat'
+    ? opt("showtimeSeat=null","Any seats",!showtimeSeat)+["Recliners","Reserved seating"].map(s=>opt(`showtimeSeat='${s}'`,s,showtimeSeat===s)).join("")
+    : "";
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Showtimes — ${m.t}</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <input type="date" value="${new Date().toISOString().slice(0,10)}" style="width:100%; background:var(--surface-2); border:1px solid var(--hair); border-radius:11px; padding:10px 13px; color:var(--ink); font:inherit; outline:none; margin-bottom:10px;">
-      ${formats.length?`<div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;">
-        ${pill("All screens",null)}${formats.map(f=>pill(f,f)).join("")}
-      </div>`:""}
+      <div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:${_stMenu?'8px':'12px'};">
+        ${dpill('dist',`${showtimeRad} mi`,showtimeRad!==15)}
+        ${formats.length?dpill('screen',showtimeFmt||'Screen',!!showtimeFmt):""}
+        ${dpill('seat',showtimeSeat||'Seats',!!showtimeSeat)}
+      </div>
+      ${menuRow?`<div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;">${menuRow}</div>`:""}
       ${shown.length?shown.map(t=>`
         <div style="margin-bottom:14px;">
           <div style="font-weight:700; font-size:14.5px;">${t.n}</div>
@@ -2081,7 +2103,7 @@ function openShowtimes(k, keepFmt){
                 onclick="toast('Opens in the Fandango app 🎟️')">${time}${barg?" · $":""}${fmt?`<div style='font-weight:400; font-size:10.5px; color:var(--gray);'>${fmt}</div>`:""}</button>`).join("")}
           </div>
         </div>`).join("")
-      :`<div class="empty" style="padding:26px 0;"><b>No ${showtimeFmt} showings</b><span class="sub">${m.t} isn't playing in ${showtimeFmt} nearby on this date.</span></div>`}
+      :`<div class="empty" style="padding:26px 0;"><b>No ${filterLbl} showings</b><span class="sub">${m.t} isn't playing nearby with these filters on this date.</span></div>`}
       <div class="sub" style="font-size:11px; text-align:center;">Showtimes by Gracenote · $ = bargain pricing · tickets open in Fandango</div>
     </div>`);
 }

@@ -6,7 +6,7 @@ import Foundation
 /// then group its showtimes by theatre. Without a key the UI degrades to
 /// the "coming soon" state.
 protocol ShowtimesProviding {
-    func showtimes(for movie: Movie, zipcode: String, date: Date) async throws -> [TheaterShowtimes]
+    func showtimes(for movie: Movie, zipcode: String, date: Date, radius: Int) async throws -> [TheaterShowtimes]
 }
 
 struct TheaterShowtimes: Identifiable, Hashable {
@@ -77,7 +77,7 @@ final class ShowtimesService: ShowtimesProviding {
         return URLSession(configuration: config)
     }()
 
-    func showtimes(for movie: Movie, zipcode: String, date: Date) async throws -> [TheaterShowtimes] {
+    func showtimes(for movie: Movie, zipcode: String, date: Date, radius: Int = 15) async throws -> [TheaterShowtimes] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
@@ -92,7 +92,7 @@ final class ShowtimesService: ShowtimesProviding {
         components.queryItems = [
             URLQueryItem(name: "startDate", value: day),
             URLQueryItem(name: "zip", value: zipcode),
-            URLQueryItem(name: "radius", value: "15"),
+            URLQueryItem(name: "radius", value: String(max(1, min(radius, 100)))),
             URLQueryItem(name: "units", value: "mi"),
             URLQueryItem(name: "api_key", value: apiKey),
         ]

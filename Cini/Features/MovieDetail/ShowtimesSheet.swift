@@ -7,6 +7,8 @@ struct ShowtimesSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("showtimes.zipcode") private var zipcode = ""
+    /// Search radius in miles — remembered like the zipcode.
+    @AppStorage("showtimes.radius") private var radius = 15
 
     var initialDate: Date? = nil
     @State private var date = Date()
@@ -22,6 +24,9 @@ struct ShowtimesSheet: View {
     /// preferences) when one is actually playing — once per open, so clearing
     /// or changing it afterwards is never fought.
     @State private var didAutoSelectFormat = false
+    /// Seat-comfort filter (nil = any seats) — matches against the
+    /// theatre-level amenities Gracenote exposes.
+    @State private var seatFilter: String?
     /// Set true to skip the re-search that a programmatic date change would
     /// otherwise trigger (we already have the showtimes for the new date).
     @State private var suppressSearch = false
@@ -49,16 +54,31 @@ struct ShowtimesSheet: View {
         return availableFormats
     }
 
-    /// Theaters trimmed to the selected screen type; theaters left with no
-    /// matching showings drop out entirely.
+    /// Theaters trimmed to the selected screen type and seat filter;
+    /// theaters left with no matching showings drop out entirely.
     private var filteredTheaters: [TheaterShowtimes] {
-        guard let screenFormat else { return theaters }
-        return theaters.compactMap { theater in
+        theaters.compactMap { theater in
+            if let seatFilter, !theater.amenities.contains(seatFilter) { return nil }
+            guard let screenFormat else { return theater }
             let times = theater.showtimes.filter { $0.format == screenFormat }
             guard !times.isEmpty else { return nil }
             return TheaterShowtimes(id: theater.id, theaterName: theater.theaterName,
                                     amenities: theater.amenities, showtimes: times)
         }
+    }
+
+    /// "IMAX", "Recliners", or "IMAX · Recliners" — what the active filters
+    /// mean in copy ("No IMAX showings", "Find the next IMAX date").
+    private var activeFilterLabel: String? {
+        let parts = [screenFormat, seatFilter].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Does this theater satisfy the active screen + seat filters?
+    private func matchesFilters(_ theater: TheaterShowtimes) -> Bool {
+        if let seatFilter, !theater.amenities.contains(seatFilter) { return false }
+        guard let screenFormat else { return !theater.showtimes.isEmpty }
+        return theater.showtimes.contains { $0.format == screenFormat }
     }
 
     var body: some View {
@@ -115,26 +135,43 @@ struct ShowtimesSheet: View {
                     Task { await search() }
                 }
 
-            // Screen type — only offered when a premium format is actually
-            // playing nearby (a standard-only town gets no dead pills). An
-            // ACTIVE filter always keeps its pill, even on a date with no
-            // such showings — otherwise it couldn't be turned off.
-            if case .loaded = state, !pillFormats.isEmpty {
+            // Filters — same dropdown-pill UI as the list filter bar:
+            // Distance (re-searches), Screen, Seats. The Screen pill only
+            // appears when a premium format is actually playing nearby (a
+            // standard-only town gets no dead menu); an ACTIVE screen filter
+            // always keeps its pill, even on a date with no such showings —
+            // otherwise it couldn't be turned off.
+            if case .loaded = state {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        FilterPill(title: "All screens", hasChevron: false,
-                                   active: screenFormat == nil) {
-                            Haptics.tap()
-                            screenFormat = nil
-                            noNextFound = false
-                        }
-                        ForEach(pillFormats, id: \.self) { format in
-                            FilterPill(title: format, hasChevron: false,
-                                       active: screenFormat == format) {
-                                Haptics.tap()
-                                screenFormat = screenFormat == format ? nil : format
-                                noNextFound = false
+                        Menu {
+                            ForEach([5, 10, 15, 25, 50], id: \.self) { miles in
+                                Button("\(miles) miles") {
+                                    guard radius != miles else { return }
+                                    radius = miles
+                                    Task { await search() }
+                                }
                             }
+                        } label: {
+                            FilterPill(title: "\(radius) mi", active: radius != 15)
+                        }
+                        if !pillFormats.isEmpty {
+                            Menu {
+                                Button("Any screen") { screenFormat = nil; noNextFound = false }
+                                ForEach(pillFormats, id: \.self) { format in
+                                    Button(format) { screenFormat = format; noNextFound = false }
+                                }
+                            } label: {
+                                FilterPill(title: screenFormat ?? "Screen",
+                                           active: screenFormat != nil)
+                            }
+                        }
+                        Menu {
+                            Button("Any seats") { seatFilter = nil; noNextFound = false }
+                            Button("Recliners") { seatFilter = "Recliners"; noNextFound = false }
+                            Button("Reserved seating") { seatFilter = "Reserved seating"; noNextFound = false }
+                        } label: {
+                            FilterPill(title: seatFilter ?? "Seats", active: seatFilter != nil)
                         }
                     }
                 }
@@ -159,16 +196,16 @@ struct ShowtimesSheet: View {
         case .loaded:
             if theaters.isEmpty {
                 noShowingsView
-            } else if filteredTheaters.isEmpty, let screenFormat {
-                // The filter emptied the list — say so instead of showing the
+            } else if filteredTheaters.isEmpty, let filterLabel = activeFilterLabel {
+                // The filters emptied the list — say so instead of showing the
                 // generic zero state (the pills above stay tappable to switch),
-                // and offer the next date WITH that screen type.
+                // and offer the next date that matches them.
                 VStack(spacing: 10) {
                     placeholder(icon: "sparkles.tv",
-                                title: "No \(screenFormat) showings",
-                                message: "\(movie.title) isn't playing in \(screenFormat) near \(zipcode) on this date.")
+                                title: "No \(filterLabel) showings",
+                                message: "\(movie.title) isn't playing near \(zipcode) with these filters on this date.")
                     if noNextFound {
-                        Text("No \(screenFormat) showings in the next two weeks either — try another screen type.")
+                        Text("Nothing matching in the next two weeks either — try loosening the filters.")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                             .multilineTextAlignment(.center)
@@ -180,7 +217,7 @@ struct ShowtimesSheet: View {
                         } label: {
                             HStack(spacing: 6) {
                                 if searchingNext { ProgressView().controlSize(.small).tint(.white) }
-                                Text(searchingNext ? "Searching…" : "Find the next \(screenFormat) date")
+                                Text(searchingNext ? "Searching…" : "Find the next \(filterLabel) date")
                             }
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)
@@ -278,13 +315,10 @@ struct ShowtimesSheet: View {
                 // thrown error is a real failure (network/config) → stop, don't
                 // hammer the API 14 times on an outage.
                 let found = try await ShowtimesService.shared.showtimes(
-                    for: movie, zipcode: zipcode, date: probe)
-                // Honor an active screen filter: someone hunting IMAX wants
-                // the next date WITH an IMAX showing, not just any showing.
-                let matches = screenFormat == nil ? !found.isEmpty
-                    : found.contains { theater in
-                        theater.showtimes.contains { $0.format == screenFormat }
-                    }
+                    for: movie, zipcode: zipcode, date: probe, radius: radius)
+                // Honor the active filters: someone hunting IMAX recliners
+                // wants the next date WITH such a showing, not just any.
+                let matches = found.contains { matchesFilters($0) }
                 if matches {
                     suppressSearch = true   // we already have this date's showtimes
                     date = probe
@@ -337,7 +371,7 @@ struct ShowtimesSheet: View {
         state = .loading
         do {
             theaters = try await ShowtimesService.shared.showtimes(
-                for: movie, zipcode: zipcode, date: date)
+                for: movie, zipcode: zipcode, date: date, radius: radius)
             state = .loaded
             // First successful load: open on the user's preferred screen if
             // it's actually playing (Settings → Viewing preferences).
