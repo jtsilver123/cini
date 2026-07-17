@@ -22,8 +22,14 @@ struct TheaterCalendarView: View {
 
     /// Powers the Tickets/showtimes sheet — shared with ShowtimesSheet.
     @AppStorage("showtimes.zipcode") private var zipcode = ""
+    @AppStorage("showtimes.radius") private var radius = 15
     @State private var showZipEntry = false
     @State private var zipDraft = ""
+    /// tmdbID → days it VERIFIABLY plays near the user's zip (Gracenote,
+    /// next-week window). Drives the grid's future-day marks.
+    @State private var localDays: [Int: Set<Date>] = [:]
+    /// The zip the current `localDays` answers for — refetch when it changes.
+    @State private var checkedZip = ""
 
     @State private var mode: Mode = .month   // the calendar IS the feature — default to it
     @State private var visibleMonth = Date()
@@ -34,10 +40,13 @@ struct TheaterCalendarView: View {
     private enum Mode { case list, month }
 
     private enum ActiveSheet: Identifiable {
-        case tickets(Movie), save(Movie)
+        /// Tickets carries the day the user was looking at, so the showtimes
+        /// sheet opens on THAT date (tapping Tickets on Aug 13 asks about
+        /// Aug 13, not today).
+        case tickets(Movie, Date?), save(Movie)
         var id: String {
             switch self {
-            case .tickets(let m): return "t\(m.tmdbID)"
+            case .tickets(let m, _): return "t\(m.tmdbID)"
             case .save(let m): return "s\(m.tmdbID)"
             }
         }
@@ -95,24 +104,22 @@ struct TheaterCalendarView: View {
     private var datedComing: [Movie] { coming.filter { releaseDate($0) != nil } }
     private var undatedComing: [Movie] { coming.filter { releaseDate($0) == nil } }
     /// Month-grid contents for one day. Upcoming titles sit on their release
-    /// day; a film IN THEATERS NOW marks EVERY day it's still playing — from
-    /// today through ~120 days after its release (the same "still in
-    /// theaters" window the watchlist fetch uses) — so paging the months
-    /// keeps showing it for as long as you could actually buy a ticket.
+    /// day (a factual date). A film IN THEATERS NOW sits on TODAY — and on
+    /// exactly the FUTURE days where it verifiably has a showing near the
+    /// user's zip (`localDays`, one Gracenote lookup covering the week
+    /// theaters have posted). The grid never claims a day the showtimes
+    /// sheet can't back up.
     /// Per-day order: your openings, your running films, then general ones —
     /// the visible thumbnail is always yours when anything of yours plays.
     private var byDay: [Date: [Movie]] {
         var days = Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
         let today = cal.startOfDay(for: Date())
         for movie in nowPlaying {
-            let end = releaseDate(movie).flatMap { cal.date(byAdding: .day, value: 120, to: $0) }
-                ?? cal.date(byAdding: .day, value: 30, to: today)!
-            var day = today
-            while day <= end {
-                days[day, default: []].append(movie)
-                guard let next = cal.date(byAdding: .day, value: 1, to: day) else { break }
-                day = next
+            var markDays: Set<Date> = [today]
+            if let verified = localDays[movie.tmdbID] {
+                markDays.formUnion(verified.filter { $0 > today })
             }
+            for day in markDays { days[day, default: []].append(movie) }
         }
         // In this dictionary an unreleased film only ever sits on its opening
         // day, so !isReleased ⇔ "opens that day".
@@ -148,9 +155,8 @@ struct TheaterCalendarView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
-            case .tickets(let movie):
-                ShowtimesSheet(movie: movie,
-                               initialDate: movie.isReleased ? nil : releaseDate(movie))
+            case .tickets(let movie, let day):
+                ShowtimesSheet(movie: movie, initialDate: day)
             case .save(let movie):
                 SaveToListSheet(movie: movie)
                     .presentationDetents([.medium])
@@ -165,9 +171,11 @@ struct TheaterCalendarView: View {
             async let b: () = loadMine()
             _ = await (a, b)
             resetMonth()
+            await loadLocalDays()
         }
         .onChange(of: scope) { _, _ in resetMonth() }
         .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
+        .onChange(of: zipcode) { _, _ in Task { await loadLocalDays() } }
     }
 
     // MARK: - Controls (mode toggle styled like Recs Find/Rank, + scope filter)
@@ -328,7 +336,7 @@ struct TheaterCalendarView: View {
             VStack(alignment: .trailing, spacing: 10) {
                 if movie.tmdbID > 0 {
                     PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
-                        activeSheet = .tickets(movie)
+                        activeSheet = .tickets(movie, movie.isReleased ? nil : releaseDate(movie))
                     }
                 }
                 Button {
@@ -379,7 +387,7 @@ struct TheaterCalendarView: View {
                     posterStrip(title: cal.isDateInToday(day)
                                     ? "Today — in theaters now"
                                     : day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()),
-                                films)
+                                films, day: day)
                 } else if days.isEmpty {
                     Text("No dated releases yet — check the List view.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
@@ -554,7 +562,9 @@ struct TheaterCalendarView: View {
     }
 
     /// Compact poster card. My titles get a gold ring; general releases don't.
-    private func posterStrip(title: String, _ films: [Movie]) -> some View {
+    /// `day` = the calendar day this strip shows, carried into Tickets so the
+    /// showtimes sheet opens on the date the user was looking at.
+    private func posterStrip(title: String, _ films: [Movie], day: Date? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(title.uppercased())
@@ -587,7 +597,10 @@ struct TheaterCalendarView: View {
                             if movie.tmdbID > 0 {
                                 // Card-width compact ticket button — PillButton's
                                 // padding overflowed 104pt and truncated to "Tick…".
-                                Button { activeSheet = .tickets(movie) } label: {
+                                Button {
+                                    activeSheet = .tickets(movie,
+                                        day ?? (movie.isReleased ? nil : releaseDate(movie)))
+                                } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "ticket").font(.caption2)
                                         Text("Tickets").font(.caption.weight(.semibold))
@@ -641,6 +654,27 @@ struct TheaterCalendarView: View {
         guard !myLoaded else { return }
         myMovies = await watchlistInTheaters()
         myLoaded = true
+    }
+
+    /// One Gracenote lookup for the user's zip → which upcoming days each
+    /// running film ACTUALLY plays. Best-effort: without a zip (or on any
+    /// failure) the grid just marks running films on today only.
+    private func loadLocalDays() async {
+        guard zipcode.count == 5, checkedZip != zipcode else { return }
+        // Union of both scopes' running films, so switching the filter never
+        // shows stale unverified marks.
+        var seen = Set<Int>()
+        let released = (myMovies + nowOut).filter {
+            $0.isReleased && $0.tmdbID > 0 && seen.insert($0.tmdbID).inserted
+        }
+        guard !released.isEmpty else { return }
+        do {
+            localDays = try await ShowtimesService.shared.playingDays(
+                for: released, zipcode: zipcode, radius: radius)
+            checkedZip = zipcode
+        } catch {
+            SupabaseService.logSwallowed("theaterCalendar.playingDays", error)
+        }
     }
 
     /// Want to Watch movies that are theater-relevant: released within the last

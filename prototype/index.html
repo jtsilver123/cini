@@ -1134,15 +1134,18 @@ function _calItems(){
   const seen=new Set(mineComing.map(f=>f.key));
   return {now:mineNow.concat(genNow.filter(f=>!seenNow.has(f.key))), coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};
 }
-function _calStrip(title, films){
+function _calStrip(title, films, dayOff){
   if(!films.length) return "";
+  // Tickets carries the day this strip shows, so the showtimes sheet opens
+  // on THAT date (Aug 13's Tickets asks about Aug 13, not today).
+  const off=typeof dayOff==='number'?dayOff:0;
   return `<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 6px;">${title.toUpperCase()} <span style="color:var(--marquee);">${films.length}</span></div>
     <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:4px;">
     ${films.map(f=>`<div style="flex:0 0 auto; width:104px;">
       <div class="poster" style="width:104px; height:156px; background-image:url('${IMG(f.p)}'); cursor:pointer; ${f.mine?'box-shadow:0 0 0 2px var(--marquee);':''}" onclick="closeOverlay(); openDetail('${f.key}')"></div>
       <div style="font-size:12px; font-weight:600; margin-top:5px; line-height:1.25;">${f.t}</div>
       <div style="font-size:10.5px; font-weight:700; margin-top:2px; color:${f.now?'var(--scoregreen,#4ade80)':'var(--marquee)'};">${f.now?'In theaters':'Opens '+f.date.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</div>
-      <button class="pill out" style="font-size:11px; padding:6px 10px; margin-top:5px;" onclick="closeOverlay(); openShowtimes('${f.key}')">${I("ticket",12)} Tickets</button>
+      <button class="pill out" style="font-size:11px; padding:6px 10px; margin-top:5px;" onclick="closeOverlay(); openShowtimes('${f.key}', false, ${off})">${I("ticket",12)} Tickets</button>
     </div>`).join("")}</div>`;
 }
 function _calRow(f){
@@ -1158,10 +1161,12 @@ function _calMonth(now, coming){
   const y=base.getFullYear(), mo=base.getMonth();
   const daysIn=new Date(y,mo+1,0).getDate(), firstDow=new Date(y,mo,1).getDay();
   const today=new Date(); today.setHours(0,0,0,0);
-  // Openings sit on their release day; a film IN THEATERS NOW marks EVERY
-  // day it's still playing (release + ~120 days), so paging months keeps
-  // showing it for as long as you could actually buy a ticket.
-  const spanEnd=f=>{const e=new Date(f.date||today); e.setDate(e.getDate()+120); return e;};
+  // Openings sit on their release day (factual). A film IN THEATERS NOW
+  // marks today plus only the upcoming days with VERIFIED showings near the
+  // user — theaters post about a week out, so the grid never claims a day
+  // the showtimes sheet can't back up. (In the app that's a Gracenote
+  // lookup; the demo mirrors the one-week posted window.)
+  const spanEnd=()=>{const e=new Date(today); e.setDate(e.getDate()+6); return e;};
   const byDay={};
   coming.forEach(f=>{ if(f.date && f.date.getFullYear()===y && f.date.getMonth()===mo) (byDay[f.date.getDate()]=byDay[f.date.getDate()]||[]).push(f); });
   now.forEach(f=>{ const end=spanEnd(f);
@@ -1203,7 +1208,7 @@ function _calMonth(now, coming){
       <button class="iconbtn" ${_calMonthOff>=lastOff?"disabled style=opacity:.3":""} onclick="_calMonthOff++; _calSel=null; _calRender()">${I("chevR",18)}</button></div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700; color:var(--gray); margin-bottom:4px;">${dow.map(d=>`<div>${d}</div>`).join("")}</div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center;">${cells}</div>
-    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':new Date(y,mo,_calSel).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what's playing.</div>`}`;
+    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':new Date(y,mo,_calSel).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms, Math.max(0,Math.round((new Date(y,mo,_calSel)-today)/864e5))):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what's playing.</div>`}`;
 }
 function _calRender(){
   const {now, coming}=_calItems();
@@ -2077,9 +2082,10 @@ function renderDetail(){
    filter) for distance, screen type (IMAX / 4DX / …) and seat type.
    Tickets open the Fandango app. */
 let showtimeFmt=null, showtimeRad=15, showtimeSeat=null, _stMenu=null, showtimeDay=0;
-function openShowtimes(k, keepFmt){
+function openShowtimes(k, keepFmt, dayOff){
   const m=MOVIES[k];
-  if(!keepFmt){ showtimeFmt=null; showtimeSeat=null; _stMenu=null; showtimeDay=0; }
+  if(!keepFmt){ showtimeFmt=null; showtimeSeat=null; _stMenu=null;
+    showtimeDay=(typeof dayOff==='number'&&dayOff>0)?Math.min(dayOff,13):0; }
   const theatres=[
     {n:"AMC Loews 34th Street 14", perks:"Recliners · Reserved seating",
      times:[["4:15 PM","",1,0],["7:30 PM","IMAX",0,1],["9:45 PM","IMAX",0,0]]},

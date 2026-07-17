@@ -294,7 +294,8 @@ struct ShowtimesSheet: View {
                 VStack(spacing: 10) {
                     placeholder(icon: "sparkles.tv",
                                 title: "No \(filterLabel) showings",
-                                message: "\(movie.title) isn't playing near \(zipcode) with these filters on this date.")
+                                message: "\(movie.title) isn't playing near \(zipcode) with these filters on this date."
+                                    + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""))
                     if noNextFound {
                         Text("Nothing matching in the next two weeks either — try loosening the filters.")
                             .font(.caption)
@@ -365,13 +366,22 @@ struct ShowtimesSheet: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.rCard).strokeBorder(Theme.hairline))
     }
 
-    /// No showings on this date — offer to jump to the next date that has any.
+    /// Selected date is far enough out that theaters likely haven't posted
+    /// schedules yet — worth saying, so an empty day doesn't read as "gone".
+    private var isFarFuture: Bool {
+        let days = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
+                                      to: cal.startOfDay(for: date)).day ?? 0
+        return days > 7
+    }
+
+    /// No showings on this date — offer to jump to the nearest date that has any.
     private var noShowingsView: some View {
         VStack(spacing: 10) {
             Spacer()
             Image(systemName: "ticket").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text("No showings").font(.headline)
-            Text("\(movie.title) isn't playing near \(zipcode) on this date.")
+            Text(isFarFuture ? "No showings posted yet" : "No showings").font(.headline)
+            Text("\(movie.title) isn't playing near \(zipcode) on this date."
+                 + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""))
                 .font(.subheadline)
                 .foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -388,7 +398,10 @@ struct ShowtimesSheet: View {
                 } label: {
                     HStack(spacing: 6) {
                         if searchingNext { ProgressView().controlSize(.small).tint(.white) }
-                        Text(searchingNext ? "Searching…" : "Find the next date with showtimes")
+                        Text(searchingNext ? "Searching…"
+                             : movie.isReleased && isFarFuture
+                             ? "Find the closest date with showtimes"
+                             : "Find the next date with showtimes")
                     }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
@@ -404,16 +417,28 @@ struct ShowtimesSheet: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// Probe forward day-by-day (up to two weeks) for the first date with any
-    /// showings, then jump the picker there.
+    /// Dates worth probing for showings, nearest-first. Normally the two
+    /// weeks after the selected date — but for a film that's ALREADY OUT and
+    /// a date picked from the calendar weeks ahead, its showings live near
+    /// TODAY (theaters only post about a week out), so probe from today
+    /// instead of marching further into the future.
+    private var probeDates: [Date] {
+        let today = cal.startOfDay(for: Date())
+        let selected = cal.startOfDay(for: date)
+        if movie.isReleased, selected > today {
+            return (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+                .filter { !cal.isDate($0, inSameDayAs: selected) }
+        }
+        return (1...14).compactMap { cal.date(byAdding: .day, value: $0, to: selected) }
+    }
+
+    /// Probe day-by-day (up to two weeks) for the first date with a matching
+    /// showing, then jump the picker there.
     private func findNextAvailable() async {
         guard zipcode.count == 5 else { return }
         searchingNext = true
         defer { searchingNext = false }
-        let cal = Calendar.current
-        var probe = cal.startOfDay(for: date)
-        for _ in 0..<14 {
-            probe = cal.date(byAdding: .day, value: 1, to: probe) ?? probe
+        for probe in probeDates {
             do {
                 // An empty result is "no showings that day" → keep probing; a
                 // thrown error is a real failure (network/config) → stop, don't
