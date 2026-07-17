@@ -1241,7 +1241,7 @@ function _calRender(){
       ${body}
     </div>`);
 }
-function openReleaseCalendar(scope){ _calScope=(scope==='watchlist'||scope==='mine')?'mine':'all'; _calMode='month'; _calMonthOff=0; _calSel=null; _calRender(); }
+function openReleaseCalendar(scope){ _calScope=(scope==='all')?'all':'mine'; _calMode='month'; _calMonthOff=0; _calSel=null; _calRender(); }
 
 let _recPick=null;
 function openSendRec(k){

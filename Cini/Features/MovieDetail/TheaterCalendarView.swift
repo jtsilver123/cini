@@ -9,8 +9,10 @@ import SwiftUI
 struct TheaterCalendarView: View {
     enum Scope: String, CaseIterable { case all, mine }
 
+    // Your list is the default lens (like Month is the default view) —
+    // "All releases" stays one tap away.
     @State private var scope: Scope
-    init(scope: Scope = .all) { _scope = State(initialValue: scope) }
+    init(scope: Scope = .mine) { _scope = State(initialValue: scope) }
 
     @Environment(RankingStore.self) private var store
 

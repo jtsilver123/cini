@@ -356,7 +356,7 @@ struct FeedView: View {
             HStack(spacing: 2) {
                 // Search now lives in the dedicated bar below the header.
                 NavigationLink {
-                    TheaterCalendarView(scope: .all)
+                    TheaterCalendarView()
                 } label: {
                     Image(systemName: "calendar")
                         .frame(width: 44, height: 44)
