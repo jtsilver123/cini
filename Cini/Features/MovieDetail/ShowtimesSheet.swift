@@ -17,8 +17,8 @@ struct ShowtimesSheet: View {
     @State private var isLocating = false
     @State private var searchingNext = false
     @State private var noNextFound = false
-    /// Screen-type filter (nil = every screen). Options come from the loaded
-    /// results, so the row only offers formats actually playing nearby.
+    /// Screen-type filter (nil = every screen). The menu always offers the
+    /// full format set, sectioned by what's actually playing nearby.
     @State private var screenFormat: String?
     /// The sheet opens pre-filtered to a PREFERRED screen (Settings → Viewing
     /// preferences) when one is actually playing — once per open, so clearing
@@ -70,14 +70,18 @@ struct ShowtimesSheet: View {
         return order.filter(found.contains) + found.subtracting(order).sorted()
     }
 
-    /// The pill row: today's formats, PLUS the active filter when the new
-    /// date has none of it — the "No IMAX showings" state needs its pill to
-    /// stay visible (and deselectable).
-    private var pillFormats: [String] {
-        if let screenFormat, !availableFormats.contains(screenFormat) {
-            return availableFormats + [screenFormat]
-        }
-        return availableFormats
+    /// Every screen type worth asking for. The menu ALWAYS offers the full
+    /// set — split into what's playing near you on this date vs the rest —
+    /// so "is there IMAX?" is answered by reading the menu, never by a
+    /// missing option. Picking one that isn't nearby lands on the "No IMAX
+    /// showings → find the next IMAX date" flow.
+    private static let allFormats = ["IMAX", "Dolby Atmos", "Dolby", "4DX",
+                                     "ScreenX", "RPX", "70mm", "3D", "Laser"]
+
+    /// Formats in the menu beyond what's playing nearby: the full standard
+    /// set, plus any oddball format Gracenote reported that we don't list.
+    private var otherFormats: [String] {
+        Self.allFormats.filter { !availableFormats.contains($0) }
     }
 
     /// Theaters trimmed to the selected screen type and seat filter;
@@ -98,6 +102,34 @@ struct ShowtimesSheet: View {
     private var activeFilterLabel: String? {
         let parts = [screenFormat, seatFilter].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// One row of the Screen menu — checkmarked when it's the active filter.
+    private func screenOption(_ title: String, _ value: String?) -> some View {
+        Button {
+            screenFormat = value
+            noNextFound = false
+        } label: {
+            if screenFormat == value {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
+    }
+
+    /// One row of the Seats menu — checkmarked when it's the active filter.
+    private func seatOption(_ title: String, _ value: String?) -> some View {
+        Button {
+            seatFilter = value
+            noNextFound = false
+        } label: {
+            if seatFilter == value {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     /// Does this theater satisfy the active screen + seat filters?
@@ -245,40 +277,56 @@ struct ShowtimesSheet: View {
             }
 
             // Filters — same dropdown-pill UI as the list filter bar:
-            // Distance (re-searches), Screen, Seats. The Screen pill only
-            // appears when a premium format is actually playing nearby (a
-            // standard-only town gets no dead menu); an ACTIVE screen filter
-            // always keeps its pill, even on a date with no such showings —
-            // otherwise it couldn't be turned off.
+            // Distance (re-searches), Screen type, Seats. The Screen menu
+            // always offers the FULL format set, sectioned by what's playing
+            // near you on this date — so the options are explicit, and
+            // picking a not-nearby one flows into "find the next IMAX date".
             if case .loaded = state {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         Menu {
-                            ForEach([5, 10, 15, 25, 50], id: \.self) { miles in
-                                Button("\(miles) miles") {
-                                    guard radius != miles else { return }
-                                    radius = miles
-                                    Task { await search() }
+                            Section("Distance from \(zipcode.isEmpty ? "you" : zipcode)") {
+                                ForEach([5, 10, 15, 25, 50], id: \.self) { miles in
+                                    Button {
+                                        guard radius != miles else { return }
+                                        radius = miles
+                                        Task { await search() }
+                                    } label: {
+                                        if radius == miles {
+                                            Label("\(miles) miles", systemImage: "checkmark")
+                                        } else {
+                                            Text("\(miles) miles")
+                                        }
+                                    }
                                 }
                             }
                         } label: {
                             FilterPill(title: "\(radius) mi", active: radius != 15)
                         }
-                        if !pillFormats.isEmpty {
-                            Menu {
-                                Button("Any screen") { screenFormat = nil; noNextFound = false }
-                                ForEach(pillFormats, id: \.self) { format in
-                                    Button(format) { screenFormat = format; noNextFound = false }
+                        Menu {
+                            screenOption("Any screen", nil)
+                            if !availableFormats.isEmpty {
+                                Section("Playing near you") {
+                                    ForEach(availableFormats, id: \.self) { screenOption($0, $0) }
                                 }
-                            } label: {
-                                FilterPill(title: screenFormat ?? "Screen",
-                                           active: screenFormat != nil)
                             }
+                            if !otherFormats.isEmpty {
+                                Section(availableFormats.isEmpty
+                                        ? "Screen types"
+                                        : "Not nearby on this date") {
+                                    ForEach(otherFormats, id: \.self) { screenOption($0, $0) }
+                                }
+                            }
+                        } label: {
+                            FilterPill(title: screenFormat ?? "Screen type",
+                                       active: screenFormat != nil)
                         }
                         Menu {
-                            Button("Any seats") { seatFilter = nil; noNextFound = false }
-                            Button("Recliners") { seatFilter = "Recliners"; noNextFound = false }
-                            Button("Reserved seating") { seatFilter = "Reserved seating"; noNextFound = false }
+                            seatOption("Any seats", nil)
+                            Section("Seat type") {
+                                seatOption("Recliners", "Recliners")
+                                seatOption("Reserved seating", "Reserved seating")
+                            }
                         } label: {
                             FilterPill(title: seatFilter ?? "Seats", active: seatFilter != nil)
                         }

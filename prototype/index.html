@@ -2112,12 +2112,20 @@ function openShowtimes(k, keepFmt, dayOff){
       onclick="_stMenu=_stMenu==='${menu}'?null:'${menu}'; openShowtimes('${k}', true)">${label} ${I("chevD",11)}</button>`;
   const opt=(js,label,on)=>`<button class="pill ${on?"":"ghost"}" style="font-size:12px; padding:6px 12px; flex:0 0 auto;"
       onclick="${js}; _stMenu=null; openShowtimes('${k}', true)">${label}</button>`;
+  // The screen menu ALWAYS offers the full format set — what's playing
+  // nearby first, the rest after — so "is there IMAX?" is answered by
+  // reading the options (picking a not-nearby one → the find-next flow).
+  const ALL_FORMATS=["IMAX","Dolby Atmos","Dolby","4DX","ScreenX","RPX","70mm","3D","Laser"];
+  const otherFormats=ALL_FORMATS.filter(f=>!formats.includes(f));
+  const grpLbl=t=>`<span style="flex:0 0 auto; align-self:center; font-size:10px; font-weight:800; letter-spacing:.04em; color:var(--gray);">${t}</span>`;
   const menuRow=_stMenu==='dist'
-    ? [5,10,15,25,50].map(r=>opt(`showtimeRad=${r}`,`${r} miles`,showtimeRad===r)).join("")
+    ? [5,10,15,25,50].map(r=>opt(`showtimeRad=${r}`,(showtimeRad===r?"✓ ":"")+`${r} miles`,showtimeRad===r)).join("")
     : _stMenu==='screen'
-    ? opt("showtimeFmt=null","Any screen",!showtimeFmt)+formats.map(f=>opt(`showtimeFmt='${f}'`,f,showtimeFmt===f)).join("")
+    ? opt("showtimeFmt=null",(!showtimeFmt?"✓ ":"")+"Any screen",!showtimeFmt)
+      +(formats.length?grpLbl("NEAR YOU"):"")+formats.map(f=>opt(`showtimeFmt='${f}'`,(showtimeFmt===f?"✓ ":"")+f,showtimeFmt===f)).join("")
+      +(otherFormats.length?grpLbl(formats.length?"OTHER":"SCREEN TYPES"):"")+otherFormats.map(f=>opt(`showtimeFmt='${f}'`,(showtimeFmt===f?"✓ ":"")+f,showtimeFmt===f)).join("")
     : _stMenu==='seat'
-    ? opt("showtimeSeat=null","Any seats",!showtimeSeat)+["Recliners","Reserved seating"].map(s=>opt(`showtimeSeat='${s}'`,s,showtimeSeat===s)).join("")
+    ? opt("showtimeSeat=null",(!showtimeSeat?"✓ ":"")+"Any seats",!showtimeSeat)+["Recliners","Reserved seating"].map(s=>opt(`showtimeSeat='${s}'`,(showtimeSeat===s?"✓ ":"")+s,showtimeSeat===s)).join("")
     : "";
   // Day chips: the next two weeks, one tap away (theater-app style).
   const dayChip=i=>{
@@ -2143,7 +2151,7 @@ function openShowtimes(k, keepFmt, dayOff){
       </div>
       <div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:${_stMenu?'8px':'12px'};">
         ${dpill('dist',`${showtimeRad} mi`,showtimeRad!==15)}
-        ${formats.length?dpill('screen',showtimeFmt||'Screen',!!showtimeFmt):""}
+        ${dpill('screen',showtimeFmt||'Screen type',!!showtimeFmt)}
         ${dpill('seat',showtimeSeat||'Seats',!!showtimeSeat)}
       </div>
       ${menuRow?`<div style="display:flex; gap:8px; overflow-x:auto; margin-bottom:12px;">${menuRow}</div>`:""}
