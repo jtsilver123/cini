@@ -1230,11 +1230,11 @@ function _calRender(){
        ${coming.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${coming.map(_calRow).join("")}`:""}`
     : _calMonth(now, coming);
   renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">In Theaters</b>
-      <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('list','stack','List')}${seg('month','calendar','Month')}</div>
+      <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('month','calendar','Month')}${seg('list','stack','List')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); save(); _calRender();}">📍 ${S.showtimesZip?S.showtimesZip:'Set your area'}</div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('all','All releases')}${chip('mine','On my list')}
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('mine','On my list')}${chip('all','All releases')}
         ${_calMode==='month'?`<span class="spacer"></span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:var(--marquee);"></span>Yours</span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:rgba(255,255,255,.35);"></span>Releasing</span>`:''}</div>

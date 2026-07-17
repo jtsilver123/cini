@@ -218,13 +218,14 @@ struct TheaterCalendarView: View {
                 Spacer(minLength: 8)
                 modeToggle.fixedSize()
             }
-            // Row 2: scope filter on its own line so it never crowds the toggle.
+            // Row 2: scope filter on its own line so it never crowds the
+            // toggle. The default (On my list) leads, like Month does.
             HStack(spacing: 8) {
-                FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
-                    Haptics.tap(); scope = .all
-                }
                 FilterPill(title: "On my list", hasChevron: false, active: scope == .mine) {
                     Haptics.tap(); scope = .mine
+                }
+                FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
+                    Haptics.tap(); scope = .all
                 }
                 Spacer()
             }
@@ -292,9 +293,10 @@ struct TheaterCalendarView: View {
     }
 
     private var modeToggle: some View {
+        // The default (Month) leads, like On my list does in the scope row.
         HStack(spacing: 2) {
-            modeSegment(.list, icon: "list.bullet", label: "List")
             modeSegment(.month, icon: "calendar", label: "Month")
+            modeSegment(.list, icon: "list.bullet", label: "List")
         }
         .padding(3)
         .background(Capsule().fill(Theme.fill))
