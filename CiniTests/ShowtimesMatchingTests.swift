@@ -54,5 +54,8 @@ final class ShowtimesMatchingTests: XCTestCase {
         XCTAssertNil(GNShowingFormatProbe.format(in: "Climax"))
         // Priority: IMAX outranks 3D no matter the qualifier order.
         XCTAssertEqual(GNShowingFormatProbe.format(in: "3D|IMAX"), "IMAX")
+        // ATMOS is checked before Dolby, so "Dolby Atmos" reports the full
+        // format (a plain "Dolby Cinema" still reports "Dolby" above).
+        XCTAssertEqual(GNShowingFormatProbe.format(in: "Dolby Atmos"), "Dolby Atmos")
     }
 }

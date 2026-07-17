@@ -196,10 +196,19 @@ final class ShowtimesService: ShowtimesProviding {
     /// the IMAX showings simply vanish.
     private static func variantMatches(for movie: Movie, in listings: [GNMovie]) -> [GNMovie] {
         let scored = listings.map { listing -> (GNMovie, Double) in
+            // Both years known and >1 apart = a DIFFERENT film, full stop.
+            // A soft malus wasn't enough: "The Lion King" (1994) vs the 2019
+            // remake share a canonical title, and 1.0 − 0.25 still cleared
+            // the acceptance gate — the wrong film's showtimes shown with
+            // total confidence.
+            if let want = movie.releaseYear, let got = listing.releaseYear,
+               abs(want - got) > 1 {
+                return (listing, -1)
+            }
             var score = Fuzzy.similarity(query: movie.title,
                                          candidate: canonicalTitle(listing.title))
-            if let want = movie.releaseYear, let got = listing.releaseYear {
-                score += want == got ? 0.15 : (abs(want - got) > 1 ? -0.25 : 0)
+            if movie.releaseYear != nil, movie.releaseYear == listing.releaseYear {
+                score += 0.15
             }
             return (listing, score)
         }
@@ -263,8 +272,11 @@ private struct GNMovie: Decodable {
         /// IMAX, not 3D), and matches on word boundaries so "Climax" never
         /// reads as IMAX.
         static func premiumFormat(in text: String) -> String? {
+            // ATMOS before Dolby: "Dolby Atmos" contains both tokens, and
+            // checking Dolby first meant "Dolby Atmos" could never be
+            // reported (so an Atmos viewing preference never matched).
             let premiums = ["IMAX", "4DX", "RPX", "ScreenX", "70mm",
-                            "Dolby", "ATMOS", "3D", "Laser"]
+                            "ATMOS", "Dolby", "3D", "Laser"]
             for premium in premiums
             where text.range(of: #"\b"# + premium + #"\b"#,
                              options: [.regularExpression, .caseInsensitive]) != nil {

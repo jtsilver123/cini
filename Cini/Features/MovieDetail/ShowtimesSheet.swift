@@ -32,6 +32,15 @@ struct ShowtimesSheet: View {
     @State private var suppressSearch = false
     /// Graphical calendar for dates beyond the two-week chip row.
     @State private var showDatePicker = false
+    /// What the user is TYPING — committed to the shared `zipcode` only on
+    /// Search, so half-typed digits never clobber the saved ZIP app-wide.
+    @State private var zipInput = ""
+    /// Monotonic stamp for in-flight searches: only the LATEST may commit.
+    /// Without it, a slow Friday response can land after a fast Saturday one
+    /// and show Friday's showtimes under a selected Saturday chip.
+    @State private var searchGen = 0
+    /// Day chips scale with Dynamic Type instead of clipping their labels.
+    @ScaledMetric(relativeTo: .subheadline) private var chipSize: CGFloat = 52
 
     enum LoadState {
         case idle, loading, loaded, notConfigured, error(String)
@@ -115,7 +124,13 @@ struct ShowtimesSheet: View {
             }
         }
         .onAppear {
-            if let initialDate, initialDate > Date() { date = initialDate }
+            zipInput = zipcode
+            if let initialDate, initialDate > Date() {
+                // The assignment fires the date onChange too — suppress its
+                // search so opening on a future date fetches ONCE, not twice.
+                if zipcode.count == 5 { suppressSearch = true }
+                date = initialDate
+            }
             if zipcode.count == 5 { Task { await search() } }
         }
         .sheet(isPresented: $showDatePicker) {
@@ -144,7 +159,7 @@ struct ShowtimesSheet: View {
                 Text(day.formatted(.dateTime.day()))
                     .font(.subheadline.weight(.bold))
             }
-            .frame(width: 52, height: 52)
+            .frame(width: chipSize, height: chipSize)
             .foregroundStyle(selected ? Theme.onMarquee : Theme.ink)
             .background(RoundedRectangle(cornerRadius: Theme.rControl)
                 .fill(selected ? Theme.marquee : Theme.fill))
@@ -187,12 +202,15 @@ struct ShowtimesSheet: View {
                 .buttonStyle(.plain)
                 .disabled(isLocating)
                 .accessibilityLabel("Use my location")
-                TextField("Zipcode", text: $zipcode)
+                TextField("ZIP code", text: $zipInput)
                     .keyboardType(.numberPad)
-                Button("Search") { Task { await search() } }
+                Button("Search") {
+                    zipcode = zipInput.filter(\.isNumber)
+                    Task { await search() }
+                }
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.marquee)
-                    .disabled(zipcode.count != 5)
+                    .disabled(zipInput.filter(\.isNumber).count != 5)
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: Theme.rControl).fill(Theme.fill))
@@ -209,7 +227,7 @@ struct ShowtimesSheet: View {
                             Image(systemName: "calendar")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(Theme.marquee)
-                                .frame(width: 44, height: 52)
+                                .frame(width: 44, height: chipSize)
                                 .background(RoundedRectangle(cornerRadius: Theme.rControl)
                                     .strokeBorder(Theme.hairline))
                         }
@@ -268,7 +286,8 @@ struct ShowtimesSheet: View {
                 }
             }
         }
-        .padding(16)
+        .screenHPadding()
+        .padding(.vertical, 12)
     }
 
     @ViewBuilder
@@ -276,9 +295,15 @@ struct ShowtimesSheet: View {
         switch state {
         case .idle:
             placeholder(icon: "ticket", title: "Find a showing",
-                        message: "Enter your zipcode to see showtimes for \(movie.title) near you.")
+                        message: "Enter your ZIP code to see showtimes for \(movie.title) near you.")
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Skeleton, not a blank spinner — the shape of what's coming.
+            ScrollView {
+                ListSkeleton(rows: 4)
+                    .screenHPadding()
+                    .padding(.top, 4)
+            }
+            .scrollDisabled(true)
         case .notConfigured:
             placeholder(icon: "ticket", title: "Showtimes coming soon",
                         message: "Showtimes aren't available right now.")
@@ -291,35 +316,28 @@ struct ShowtimesSheet: View {
                 // The filters emptied the list — say so instead of showing the
                 // generic zero state (the pills above stay tappable to switch),
                 // and offer the next date that matches them.
-                VStack(spacing: 10) {
-                    placeholder(icon: "sparkles.tv",
-                                title: "No \(filterLabel) showings",
-                                message: "\(movie.title) isn't playing near \(zipcode) with these filters on this date."
-                                    + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""))
+                VStack(spacing: 0) {
+                    Spacer()
+                    EmptyStateView(
+                        icon: "sparkles.tv",
+                        title: "No \(filterLabel) showings",
+                        message: "\(movie.title) isn't playing near \(zipcode) with these filters on this date."
+                            + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""),
+                        actionTitle: noNextFound ? nil
+                            : searchingNext ? "Searching…"
+                            : movie.isReleased && isFarFuture
+                            ? "Find the closest \(filterLabel) date"
+                            : "Find the next \(filterLabel) date",
+                        action: findNextAction)
+                        .disabled(searchingNext)
                     if noNextFound {
                         Text("Nothing matching in the next two weeks either — try loosening the filters.")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
-                            .padding(.bottom, 24)
-                    } else {
-                        Button {
-                            Task { await findNextAvailable() }
-                        } label: {
-                            HStack(spacing: 6) {
-                                if searchingNext { ProgressView().controlSize(.small).tint(.white) }
-                                Text(searchingNext ? "Searching…" : "Find the next \(filterLabel) date")
-                            }
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 18).padding(.vertical, 11)
-                            .background(Capsule().fill(Theme.velvet))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(searchingNext)
-                        .padding(.bottom, 24)
                     }
+                    Spacer()
                 }
             } else {
                 theaterList
@@ -338,7 +356,7 @@ struct ShowtimesSheet: View {
                     .foregroundStyle(Theme.gray)
                     .padding(.vertical, 8)
             }
-            .padding(.horizontal, 16)
+            .screenHPadding()
             .padding(.top, 2)
             .padding(.bottom, 16)
         }
@@ -366,6 +384,11 @@ struct ShowtimesSheet: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.rCard).strokeBorder(Theme.hairline))
     }
 
+    /// The empty states' CTA — nil once the two-week probe came up dry.
+    private var findNextAction: (() -> Void)? {
+        noNextFound ? nil : { Task { await findNextAvailable() } }
+    }
+
     /// Selected date is far enough out that theaters likely haven't posted
     /// schedules yet — worth saying, so an empty day doesn't read as "gone".
     private var isFarFuture: Bool {
@@ -376,41 +399,26 @@ struct ShowtimesSheet: View {
 
     /// No showings on this date — offer to jump to the nearest date that has any.
     private var noShowingsView: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             Spacer()
-            Image(systemName: "ticket").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text(isFarFuture ? "No showings posted yet" : "No showings").font(.headline)
-            Text("\(movie.title) isn't playing near \(zipcode) on this date."
-                 + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""))
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            EmptyStateView(
+                icon: "ticket",
+                title: isFarFuture ? "No showings posted yet" : "No showings",
+                message: "\(movie.title) isn't playing near \(zipcode) on this date."
+                    + (isFarFuture ? " Theaters usually post showtimes about a week ahead." : ""),
+                actionTitle: noNextFound ? nil
+                    : searchingNext ? "Searching…"
+                    : movie.isReleased && isFarFuture
+                    ? "Find the closest date with showtimes"
+                    : "Find the next date with showtimes",
+                action: findNextAction)
+                .disabled(searchingNext)
             if noNextFound {
-                Text("Nothing in the next two weeks either — try another zipcode.")
+                Text("Nothing in the next two weeks either — try another ZIP code.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
-            } else {
-                Button {
-                    Task { await findNextAvailable() }
-                } label: {
-                    HStack(spacing: 6) {
-                        if searchingNext { ProgressView().controlSize(.small).tint(.white) }
-                        Text(searchingNext ? "Searching…"
-                             : movie.isReleased && isFarFuture
-                             ? "Find the closest date with showtimes"
-                             : "Find the next date with showtimes")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 18).padding(.vertical, 11)
-                    .background(Capsule().fill(Theme.velvet))
-                }
-                .buttonStyle(.plain)
-                .disabled(searchingNext)
-                .padding(.top, 6)
             }
             Spacer()
         }
@@ -435,7 +443,9 @@ struct ShowtimesSheet: View {
     /// Probe day-by-day (up to two weeks) for the first date with a matching
     /// showing, then jump the picker there.
     private func findNextAvailable() async {
-        guard zipcode.count == 5 else { return }
+        guard zipcode.count == 5, !searchingNext else { return }
+        searchGen += 1
+        let gen = searchGen
         searchingNext = true
         defer { searchingNext = false }
         for probe in probeDates {
@@ -445,6 +455,9 @@ struct ShowtimesSheet: View {
                 // hammer the API 14 times on an outage.
                 let found = try await ShowtimesService.shared.showtimes(
                     for: movie, zipcode: zipcode, date: probe, radius: radius)
+                // The user started a fresh search (chip tap, new radius)
+                // mid-probe — theirs wins, this probe stands down.
+                guard gen == searchGen else { return }
                 // Honor the active filters: someone hunting IMAX recliners
                 // wants the next date WITH such a showing, not just any.
                 let matches = found.contains { matchesFilters($0) }
@@ -456,51 +469,56 @@ struct ShowtimesSheet: View {
                     return
                 }
             } catch {
+                guard gen == searchGen else { return }
                 // A real failure (network/config) — say so, rather than
                 // claiming there's nothing playing for two weeks.
                 state = .error("Couldn't check upcoming dates — try again.")
                 return
             }
         }
+        guard gen == searchGen else { return }
         noNextFound = true
     }
 
+    /// All zero/error states share the app-wide EmptyStateView look.
     private func placeholder(icon: String, title: String, message: String) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             Spacer()
-            Image(systemName: icon).font(.largeTitle).foregroundStyle(Theme.gray)
-            Text(title).font(.headline)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(Theme.gray)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+            EmptyStateView(icon: icon, title: title, message: message)
             Spacer()
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Tap the location glyph: permission → position → zipcode → search.
+    /// Tap the location glyph: permission → position → ZIP → search.
     private func fillFromLocation() async {
         isLocating = true
         defer { isLocating = false }
         do {
-            zipcode = try await LocationZip.shared.currentZip()
+            let zip = try await LocationZip.shared.currentZip()
+            zipInput = zip
+            zipcode = zip
             await search()
         } catch LocationZip.LocationError.denied {
-            state = .error("Location is off for Cini — allow it in Settings, or type your zipcode.")
+            state = .error("Location is off for Cini — allow it in Settings, or type your ZIP code.")
         } catch {
-            state = .error("Couldn't pin down your location — type your zipcode instead.")
+            state = .error("Couldn't pin down your location — type your ZIP code instead.")
         }
     }
 
     private func search() async {
         guard zipcode.count == 5 else { return }
+        searchGen += 1
+        let gen = searchGen
         noNextFound = false
         state = .loading
         do {
-            theaters = try await ShowtimesService.shared.showtimes(
+            let found = try await ShowtimesService.shared.showtimes(
                 for: movie, zipcode: zipcode, date: date, radius: radius)
+            // Superseded while in flight (a newer chip/radius search
+            // started)? Discard — only the latest may commit.
+            guard gen == searchGen else { return }
+            theaters = found
             state = .loaded
             // First successful load: open on the user's preferred screen if
             // it's actually playing (Settings → Viewing preferences).
@@ -521,10 +539,13 @@ struct ShowtimesSheet: View {
             do { try await SupabaseService.shared.setHomeZip(zipcode) }
             catch { SupabaseService.logSwallowed("setHomeZip", error) }
         } catch ShowtimesError.notConfigured {
+            guard gen == searchGen else { return }
             state = .notConfigured
         } catch ShowtimesError.zipcodeNotFound {
-            state = .error("We couldn't find that zipcode.")
+            guard gen == searchGen else { return }
+            state = .error("We couldn't find that ZIP code.")
         } catch {
+            guard gen == searchGen else { return }
             state = .error("Something went wrong — try again.")
         }
     }
@@ -573,9 +594,11 @@ private struct FlowingChips: View {
                     .opacity(isPast ? 0.4 : 1)
                 }
                 .buttonStyle(.plain)
-                // Started already, or no ticket link from the provider —
-                // show the time as info, not a button that goes nowhere.
-                .disabled(showtime.bookingURL == nil || isPast)
+                // Only a missing ticket link disables the chip. "Past" is
+                // judged in DEVICE time while showtimes are theatre-local —
+                // searching a zip in another timezone must not lock out a
+                // perfectly bookable showing, so past ones just dim.
+                .disabled(showtime.bookingURL == nil)
             }
         }
     }

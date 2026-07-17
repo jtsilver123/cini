@@ -36,6 +36,8 @@ struct TheaterCalendarView: View {
     @State private var selectedDay: Date?
     @State private var detailMovie: Movie?
     @State private var activeSheet: ActiveSheet?
+    /// Rank flow launched from a poster card's (+) quick action.
+    @State private var logMovie: Movie?
 
     private enum Mode { case list, month }
 
@@ -70,7 +72,16 @@ struct TheaterCalendarView: View {
     /// full even when nothing on your list is in theaters. "My list" scope
     /// shows only my titles.
     private var movies: [Movie] {
-        if scope == .mine { return myMovies }
+        if scope == .mine {
+            // Live-filtered against the CURRENT watchlist: un-bookmarking
+            // drops a title instantly, and a film bookmarked moments ago in
+            // the All view joins without a refetch.
+            var byID: [Int: Movie] = [:]
+            for m in nowOut where isMine(m) { byID[m.tmdbID] = m }
+            for m in releases where isMine(m) { byID[m.tmdbID] = m }
+            for m in myMovies where isMine(m) { byID[m.tmdbID] = m }
+            return Array(byID.values)
+        }
         var byID: [Int: Movie] = [:]
         for m in nowOut where m.tmdbID > 0 { byID[m.tmdbID] = m }
         for m in releases { byID[m.tmdbID] = m }
@@ -139,7 +150,13 @@ struct TheaterCalendarView: View {
             controls
             Group {
                 if !scopeLoaded {
-                    Spacer(); ProgressView(); Spacer()
+                    // Skeleton, not a blank spinner — the shape of what's coming.
+                    ScrollView {
+                        ListSkeleton(rows: 7)
+                            .screenHPadding()
+                            .padding(.top, 8)
+                    }
+                    .scrollDisabled(true)
                 } else if isEmpty {
                     emptyState
                 } else if mode == .list {
@@ -164,13 +181,18 @@ struct TheaterCalendarView: View {
             }
         }
         .navigationDestination(item: $detailMovie) { MovieDetailView(movie: $0) }
+        .fullScreenCover(item: $logMovie) { movie in
+            LogFlowView(movie: movie)
+        }
         .task {
             // Both load: general releases for the calendar, my saved set so
             // my titles are marked and my now-playing appears.
             async let a: () = loadReleases()
             async let b: () = loadMine()
             _ = await (a, b)
-            resetMonth()
+            // The watchlist fetch can take seconds — never yank away a
+            // month/day the user already picked while waiting.
+            if selectedDay == nil { resetMonth() }
             await loadLocalDays()
         }
         .onChange(of: scope) { _, _ in resetMonth() }
@@ -198,10 +220,13 @@ struct TheaterCalendarView: View {
                     Haptics.tap(); scope = .mine
                 }
                 Spacer()
-                // The legend explains the MONTH grid (List rows use text
-                // badges). Shown in BOTH scopes so the marking is always
-                // decodable at a glance.
-                if mode == .month {
+            }
+            // Row 3: the legend explains the MONTH grid (List rows use text
+            // badges). Shown in BOTH scopes, on its own line — sharing the
+            // pill row overflowed and truncated the pills on small phones.
+            if mode == .month {
+                HStack(spacing: 10) {
+                    Spacer()
                     legendSwatch(mine: true, "Yours")
                     legendSwatch(mine: false, "Releasing")
                 }
@@ -218,6 +243,9 @@ struct TheaterCalendarView: View {
                 zipcode = z
                 Task { try? await SupabaseService.shared.setHomeZip(z) }
             }
+            // Alert buttons always dismiss — disable Save until the ZIP is
+            // valid so a typo can't silently save nothing.
+            .disabled(zipDraft.filter(\.isNumber).count != 5)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Used to show showtimes near you when you tap Tickets.")
@@ -235,6 +263,8 @@ struct TheaterCalendarView: View {
                     .font(.subheadline.weight(.semibold)).lineLimit(1)
             }
             .foregroundStyle(Theme.marquee)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(zipcode.isEmpty ? "Set your area for showtimes"
@@ -246,9 +276,9 @@ struct TheaterCalendarView: View {
     private func legendSwatch(mine: Bool, _ label: String) -> some View {
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(mine ? Theme.marqueeSoft : Theme.gray.opacity(0.22))
-                .overlay(RoundedRectangle(cornerRadius: 2)
-                    .strokeBorder(mine ? Theme.marquee : Theme.gray.opacity(0.5), lineWidth: 1.2))
+                // Solid gold for "yours" — the soft 16% tint all but vanished
+                // on the cream light-mode background.
+                .fill(mine ? Theme.marquee : Theme.gray.opacity(0.35))
                 .frame(width: 8, height: 11)
             Text(label).font(.caption2).foregroundStyle(Theme.gray)
         }
@@ -272,10 +302,13 @@ struct TheaterCalendarView: View {
                 Image(systemName: icon).font(.caption.weight(.bold))
                 Text(label).font(.footnote.weight(.semibold))
             }
-            .foregroundStyle(on ? Theme.background : Theme.gray)
+            // onMarquee, not background: cream `background` washes out on
+            // gold in light mode (Theme.swift documents exactly this).
+            .foregroundStyle(on ? Theme.onMarquee : Theme.gray)
             .padding(.horizontal, 11).frame(height: 30)
             .background(Capsule().fill(on ? Theme.marquee : .clear))
-            .contentShape(Capsule())
+            // Expand the hit area toward 44pt without growing the pill.
+            .contentShape(Rectangle().inset(by: -7))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(label) view\(on ? ", selected" : "")")
@@ -312,14 +345,15 @@ struct TheaterCalendarView: View {
         return HStack(spacing: 12) {
             PosterView(url: movie.posterURL, width: 48)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     Text(movie.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                     if mine {
-                        Text("On your list")
-                            .font(.system(size: 10, weight: .bold))
+                        // The app-wide "saved" glyph — a capsule badge here
+                        // crushed the title on small phones.
+                        Image(systemName: "bookmark.fill")
+                            .font(.caption2)
                             .foregroundStyle(Theme.marquee)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.marquee.opacity(0.15)))
+                            .accessibilityLabel("On your list")
                     }
                 }
                 Text(dateLine(movie))
@@ -334,7 +368,9 @@ struct TheaterCalendarView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 10) {
-                if movie.tmdbID > 0 {
+                // No Tickets for a film with no release date anywhere — the
+                // sheet could only dead-end.
+                if movie.tmdbID > 0, movie.isReleased || releaseDate(movie) != nil {
                     PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
                         activeSheet = .tickets(movie, movie.isReleased ? nil : releaseDate(movie))
                     }
@@ -354,14 +390,18 @@ struct TheaterCalendarView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { detailMovie = movie }
+        // The row IS a button (opens the movie) — VoiceOver must hear that.
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { detailMovie = movie }
         .listRowBackground(Theme.background)
     }
 
+    /// One verb everywhere: "In theaters now" or "Opens <day>" — the month
+    /// cards use the same pair, so the two modes never disagree.
     private func dateLine(_ movie: Movie) -> String {
         if movie.isReleased { return "In theaters now" }
         if let date = releaseDate(movie) {
-            let day = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-            return isMine(movie) ? day : "Releases \(day)"
+            return "Opens \(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))"
         }
         return "Coming soon"
     }
@@ -391,6 +431,13 @@ struct TheaterCalendarView: View {
                 } else if days.isEmpty {
                     Text("No dated releases yet — check the List view.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
+                } else if !days.keys.contains(where: {
+                    cal.isDate($0, equalTo: visibleMonth, toGranularity: .month)
+                }) {
+                    // A gap month between marked ones — don't tell the user to
+                    // tap a highlighted day when there isn't one.
+                    Text("Nothing in \(visibleMonth.formatted(.dateTime.month(.wide))) yet — keep paging.")
+                        .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 } else {
                     Text("Tap a highlighted day to see what's playing.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
@@ -414,7 +461,8 @@ struct TheaterCalendarView: View {
         let offMonth = !cal.isDate(start, equalTo: Date(), toGranularity: .month)
         return VStack(spacing: 10) {
             HStack {
-                monthArrow("chevron.left", enabled: start > bounds.lower) { step(-1) }
+                monthArrow("chevron.left", label: "Previous month",
+                           enabled: start > bounds.lower) { step(-1) }
                 Spacer()
                 HStack(spacing: 8) {
                     Text(start.formatted(.dateTime.month(.wide).year())).font(.headline)
@@ -439,7 +487,8 @@ struct TheaterCalendarView: View {
                     }
                 }
                 Spacer()
-                monthArrow("chevron.right", enabled: start < bounds.upper) { step(1) }
+                monthArrow("chevron.right", label: "Next month",
+                           enabled: start < bounds.upper) { step(1) }
             }
             HStack(spacing: 0) {
                 ForEach(weekdays, id: \.self) { d in
@@ -487,7 +536,7 @@ struct TheaterCalendarView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 58)
                 .background(RoundedRectangle(cornerRadius: 9)
-                    .fill(isSelected ? Theme.marquee.opacity(0.16) : .clear))
+                    .fill(isSelected ? Theme.marqueeSoft : .clear))
                 .overlay(RoundedRectangle(cornerRadius: 9)
                     .strokeBorder(isToday ? Theme.marquee.opacity(0.5) : .clear, lineWidth: 1))
             }
@@ -515,7 +564,11 @@ struct TheaterCalendarView: View {
         }
         .frame(width: 22, height: 33)
         .clipShape(RoundedRectangle(cornerRadius: 4))
-        .opacity(mine ? 1 : 0.55)
+        // A dark scrim, not element opacity: opacity LIGHTENS artwork against
+        // the cream light-mode background, erasing the yours-vs-releasing
+        // contrast. A scrim reads as "dimmed" in both rooms.
+        .overlay(RoundedRectangle(cornerRadius: 4)
+            .fill(.black.opacity(mine ? 0 : 0.38)))
         .overlay(RoundedRectangle(cornerRadius: 4)
             .strokeBorder(mine ? Theme.marquee : Theme.hairline, lineWidth: mine ? 1.4 : 1))
         .overlay(alignment: .topTrailing) {
@@ -541,7 +594,8 @@ struct TheaterCalendarView: View {
         }
     }
 
-    private func monthArrow(_ icon: String, enabled: Bool, _ action: @escaping () -> Void) -> some View {
+    private func monthArrow(_ icon: String, label: String, enabled: Bool,
+                            _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.subheadline.weight(.bold))
@@ -550,6 +604,7 @@ struct TheaterCalendarView: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 
     private func step(_ delta: Int) {
@@ -582,7 +637,17 @@ struct TheaterCalendarView: View {
                             PosterView(url: movie.posterURL, width: 104)
                                 .overlay(RoundedRectangle(cornerRadius: 10)
                                     .strokeBorder(isMine(movie) ? Theme.marquee : .clear, lineWidth: 2))
+                                // The same rank/bookmark quick actions that
+                                // ride every poster this size (UI law #1).
+                                .overlay(alignment: .bottomTrailing) {
+                                    ArtworkQuickActions(movie: movie, onLog: { logMovie = $0 })
+                                        .font(.body)
+                                        .padding(6)
+                                }
                                 .onTapGesture { detailMovie = movie }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityAction { detailMovie = movie }
+                                .accessibilityLabel(movie.title)
                             Text(movie.title)
                                 .font(.caption.weight(.semibold)).lineLimit(2)
                                 .frame(width: 104, alignment: .leading)
@@ -594,7 +659,7 @@ struct TheaterCalendarView: View {
                                  } ?? "Coming soon")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(movie.isReleased ? Theme.scoreGreen : Theme.marquee)
-                            if movie.tmdbID > 0 {
+                            if movie.tmdbID > 0, movie.isReleased || releaseDate(movie) != nil {
                                 // Card-width compact ticket button — PillButton's
                                 // padding overflowed 104pt and truncated to "Tick…".
                                 Button {
