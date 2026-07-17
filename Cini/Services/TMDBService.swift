@@ -104,6 +104,24 @@ final class TMDBService {
         return page.results.map(\.asMovie)
     }
 
+    /// Theatrical releases landing in ONE calendar month — lets the release
+    /// calendar page arbitrarily far ahead and fill each month on arrival
+    /// (the /movie/upcoming window only covers the next few weeks).
+    func releases(in month: Date) async throws -> [Movie] {
+        let cal = Calendar.current
+        guard let start = cal.date(from: cal.dateComponents([.year, .month], from: month)),
+              let end = cal.date(byAdding: DateComponents(month: 1, day: -1), to: start)
+        else { return [] }
+        let q = [
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+            URLQueryItem(name: "primary_release_date.gte", value: DateFormatter.localDay.string(from: start)),
+            URLQueryItem(name: "primary_release_date.lte", value: DateFormatter.localDay.string(from: end)),
+            URLQueryItem(name: "region", value: "US"),
+        ]
+        let page: SearchPage = try await get("/discover/movie", query: q)
+        return page.results.map(\.asMovie)
+    }
+
     /// The classics most people have actually seen — sorted by vote count, so
     /// the all-time, widely-watched titles surface first (CIN-34 "Popular").
     func mostWatched() async throws -> [Movie] {

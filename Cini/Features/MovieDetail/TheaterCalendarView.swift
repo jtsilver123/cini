@@ -30,6 +30,10 @@ struct TheaterCalendarView: View {
     @State private var localDays: [Int: Set<Date>] = [:]
     /// The zip the current `localDays` answers for — refetch when it changes.
     @State private var checkedZip = ""
+    /// Months ("yyyy-m") whose releases were already fetched — each month
+    /// fills on first arrival, so you can page as far ahead as you like.
+    @State private var fetchedMonths: Set<String> = []
+    @State private var monthLoading = false
 
     @State private var mode: Mode = .month   // the calendar IS the feature — default to it
     @State private var visibleMonth = Date()
@@ -198,6 +202,7 @@ struct TheaterCalendarView: View {
         .onChange(of: scope) { _, _ in resetMonth() }
         .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
         .onChange(of: zipcode) { _, _ in Task { await loadLocalDays() } }
+        .onChange(of: visibleMonth) { _, month in Task { await loadMonth(month) } }
     }
 
     // MARK: - Controls (mode toggle styled like Recs Find/Rank, + scope filter)
@@ -408,13 +413,15 @@ struct TheaterCalendarView: View {
 
     // MARK: - Month mode
 
-    /// Pageable range: current month through the last month with anything
-    /// marked on it (an opening OR a still-playing day).
+    /// Pageable range: current month through a year out (each month's
+    /// releases are fetched on arrival), or further if something's already
+    /// marked beyond that.
     private func monthBounds(_ days: [Date: [Movie]]) -> (lower: Date, upper: Date) {
         let lower = cal.date(from: cal.dateComponents([.year, .month], from: Date()))!
+        let yearOut = cal.date(byAdding: .month, value: 11, to: lower)!
         let lastDate = days.keys.max() ?? lower
-        let upper = cal.date(from: cal.dateComponents([.year, .month], from: lastDate))!
-        return (lower, max(lower, upper))
+        let lastMarked = cal.date(from: cal.dateComponents([.year, .month], from: lastDate))!
+        return (lower, max(yearOut, lastMarked))
     }
 
     private var monthBody: some View {
@@ -431,13 +438,19 @@ struct TheaterCalendarView: View {
                 } else if days.isEmpty {
                     Text("No dated releases yet — check the List view.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
+                } else if monthLoading {
+                    ProgressView().padding(.top, 4)
                 } else if !days.keys.contains(where: {
                     cal.isDate($0, equalTo: visibleMonth, toGranularity: .month)
                 }) {
-                    // A gap month between marked ones — don't tell the user to
-                    // tap a highlighted day when there isn't one.
-                    Text("Nothing in \(visibleMonth.formatted(.dateTime.month(.wide))) yet — keep paging.")
-                        .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
+                    // An empty month — don't tell the user to tap a
+                    // highlighted day when there isn't one.
+                    Text(scope == .mine
+                         ? "Nothing from your Want to Watch lands in \(visibleMonth.formatted(.dateTime.month(.wide)))."
+                         : "Nothing announced for \(visibleMonth.formatted(.dateTime.month(.wide))) yet — check back soon.")
+                        .font(.caption).foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32).padding(.top, 4)
                 } else {
                     Text("Tap a highlighted day to see what's playing.")
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
@@ -719,6 +732,21 @@ struct TheaterCalendarView: View {
         guard !myLoaded else { return }
         myMovies = await watchlistInTheaters()
         myLoaded = true
+    }
+
+    /// Fill a paged-to month with its theatrical releases (the base
+    /// /upcoming feed only covers the next few weeks). Deduped against
+    /// everything already loaded; failures just leave the month as-is.
+    private func loadMonth(_ month: Date) async {
+        let comps = cal.dateComponents([.year, .month], from: month)
+        let key = "\(comps.year ?? 0)-\(comps.month ?? 0)"
+        guard !fetchedMonths.contains(key) else { return }
+        fetchedMonths.insert(key)
+        monthLoading = true
+        defer { monthLoading = false }
+        guard let extra = try? await TMDBService.shared.releases(in: month) else { return }
+        let known = Set(releases.map(\.tmdbID)).union(nowOut.map(\.tmdbID))
+        releases += extra.filter { $0.tmdbID > 0 && !known.contains($0.tmdbID) }
     }
 
     /// One Gracenote lookup for the user's zip → which upcoming days each

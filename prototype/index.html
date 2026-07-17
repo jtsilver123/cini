@@ -1185,7 +1185,9 @@ function _calMonth(now, coming){
   const mineDay=d=>(byDay[d]||[]).some(f=>f.mine);
   const monthLbl=base.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   const offOf=dt=>(dt.getFullYear()-new Date().getFullYear())*12 + dt.getMonth()-new Date().getMonth();
-  const lastOff=Math.max(0,...coming.filter(f=>f.date).map(f=>offOf(f.date)),...now.map(f=>offOf(spanEnd(f))));
+  // Page up to a year ahead — in the app each month's releases are fetched
+  // on arrival, so far months are reachable even before anything's marked.
+  const lastOff=Math.max(11,...coming.filter(f=>f.date).map(f=>offOf(f.date)),...now.map(f=>offOf(spanEnd(f))));
   let cells="";
   for(let i=0;i<firstDow;i++) cells+=`<div></div>`;
   // Each marked day carries its lead film's mini poster. YOURS is
@@ -1214,7 +1216,7 @@ function _calMonth(now, coming){
       <button class="iconbtn" ${_calMonthOff>=lastOff?"disabled style=opacity:.3":""} onclick="_calMonthOff++; _calSel=null; _calRender()">${I("chevR",18)}</button></div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:11px; font-weight:700; color:var(--gray); margin-bottom:4px;">${dow.map(d=>`<div>${d}</div>`).join("")}</div>
     <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; text-align:center;">${cells}</div>
-    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':new Date(y,mo,_calSel).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms, Math.max(0,Math.round((new Date(y,mo,_calSel)-today)/864e5))):`<div class="sub" style="text-align:center; margin-top:12px;">Tap a highlighted day to see what's playing.</div>`}`;
+    ${selFilms.length?_calStrip(selIsToday&&selFilms.some(f=>f.now)?'Today — in theaters now':new Date(y,mo,_calSel).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'}), selFilms, Math.max(0,Math.round((new Date(y,mo,_calSel)-today)/864e5))):`<div class="sub" style="text-align:center; margin-top:12px;">${Object.keys(byDay).length?"Tap a highlighted day to see what's playing.":(_calScope==='mine'?`Nothing from your Want to Watch lands in ${base.toLocaleDateString(undefined,{month:'long'})}.`:`Nothing announced for ${base.toLocaleDateString(undefined,{month:'long'})} yet — check back soon.`)}</div>`}`;
 }
 function _calRender(){
   const {now, coming}=_calItems();
