@@ -41,6 +41,10 @@ struct LetterboxdImportView: View {
     /// Where the one-tap import email landed — confirmation line under the
     /// waiting card. nil = copy-link path (or the send fell back to Mail).
     @State private var emailedTo: String?
+    /// Estimated time left, measured from the live matching rate — big
+    /// libraries deserve better than an unbounded spinner.
+    @State private var etaText: String?
+    @State private var matchingStarted: Date?
 
     enum Phase {
         case pick, working, summary
@@ -241,12 +245,32 @@ struct LetterboxdImportView: View {
                 .padding(.horizontal, 48)
             Text(progressText)
                 .font(.subheadline.weight(.semibold))
-            Text("Matching every title against TMDB — big libraries take a minute.")
+            // A live estimate once the matching rate settles; the generic
+            // line covers the ramp-up and the non-matching phases.
+            Text(etaText ?? "Matching every title against TMDB — big libraries take a minute.")
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// "About 2 minutes left" from the observed matching rate — only once
+    /// enough titles are done for the rate to mean something.
+    private func updateETA(done: Int, total: Int) {
+        if matchingStarted == nil { matchingStarted = Date() }
+        guard let started = matchingStarted, done >= 20, total > done else {
+            if done >= total { etaText = nil }
+            return
+        }
+        let rate = Double(done) / max(Date().timeIntervalSince(started), 0.1)
+        let secondsLeft = Double(total - done) / max(rate, 0.1)
+        if secondsLeft < 50 {
+            etaText = "Under a minute left"
+        } else {
+            let minutes = max(1, Int((secondsLeft / 60).rounded()))
+            etaText = "About \(minutes) minute\(minutes == 1 ? "" : "s") left"
+        }
     }
 
     // MARK: Step 3 — summary
@@ -350,6 +374,8 @@ struct LetterboxdImportView: View {
         progressText = "Reading your list…"
         progressFraction = 0
         do {
+            matchingStarted = nil
+            etaText = nil
             let outcome = try await LetterboxdImporter.runText(pastedText) { progress in
                 switch progress {
                 case .reading:
@@ -357,14 +383,17 @@ struct LetterboxdImportView: View {
                 case .matching(let done, let total):
                     progressText = "Matching \(done) of \(total)"
                     progressFraction = Double(done) / Double(max(total, 1))
+                    updateETA(done: done, total: total)
                 }
             }
+            etaText = nil
             pastedToWatchlist = pasteDestination == .wantToWatch
             if pastedToWatchlist {
-                for match in outcome.watched
-                where !store.isOnWatchlist(match.movie.tmdbID) && !store.isWatched(match.movie.tmdbID) {
-                    if Task.isCancelled { break }
-                    await store.toggleWatchlist(movie: match.movie)
+                let pending = outcome.watched.filter {
+                    !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
+                }
+                if !pending.isEmpty, !Task.isCancelled {
+                    await saveWatchlistBulk(pending)
                 }
             } else if !Task.isCancelled {
                 ImportQueue.shared.seed(with: outcome.watched, store: store)
@@ -680,6 +709,10 @@ struct LetterboxdImportView: View {
             var results: [LetterboxdImporter.Result] = []
             for (index, url) in urls.enumerated() {
                 let prefix = urls.count > 1 ? "File \(index + 1) of \(urls.count): " : ""
+                // ETA rate resets per file — Netflix and Letterboxd files
+                // match at different speeds.
+                matchingStarted = nil
+                etaText = nil
                 let r = try await LetterboxdImporter.run(fileURL: url) { progress in
                     switch progress {
                     case .reading:
@@ -687,10 +720,12 @@ struct LetterboxdImportView: View {
                     case .matching(let done, let total):
                         progressText = "\(prefix)Matching \(done) of \(total)"
                         progressFraction = Double(done) / Double(max(total, 1))
+                        updateETA(done: done, total: total)
                     }
                 }
                 results.append(r)
             }
+            etaText = nil
             var outcome = mergeImportResults(results)
             // Only bring in net-new titles: skip anything already ranked
             // (watched), and skip watchlist entries already saved or ranked, so
@@ -746,17 +781,15 @@ struct LetterboxdImportView: View {
                 }
             }
 
-            // Letterboxd watchlist → Cini watchlist. Keep the bar moving and
-            // honor Stop — these are one network call per title, so a big
-            // watchlist would otherwise look frozen at 100%.
+            // Letterboxd watchlist → Cini watchlist, in bulk: one quiet RPC
+            // per 400 titles instead of two round trips per title (a 300-film
+            // watchlist used to take minutes here — and spray 'watchlisted'
+            // feed events at followers while it did).
             let pendingSaves = outcome.watchlist.filter {
                 !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
             }
-            for (i, match) in pendingSaves.enumerated() {
-                if Task.isCancelled { break }
-                progressText = "Saving your watchlist… \(i + 1) of \(pendingSaves.count)"
-                progressFraction = Double(i + 1) / Double(max(pendingSaves.count, 1))
-                await store.toggleWatchlist(movie: match.movie)
+            if !pendingSaves.isEmpty, !Task.isCancelled {
+                await saveWatchlistBulk(pendingSaves)
             }
 
             // Letterboxd custom lists → Cini lists (same name reused). A failed
@@ -798,6 +831,45 @@ struct LetterboxdImportView: View {
                 ?? "Something went wrong reading that file."
             withAnimation(.snappy) { phase = .pick }
         }
+    }
+
+    /// Bulk-save matched titles to the watchlist: one quiet RPC per 400
+    /// titles (retried once — it's idempotent), then reload the shared store
+    /// so the app reflects rows the RPC wrote behind its back.
+    private func saveWatchlistBulk(_ matches: [LetterboxdImporter.MatchedTitle]) async {
+        progressText = "Saving your watchlist… \(matches.count) title\(matches.count == 1 ? "" : "s")"
+        let items = matches.map { match in
+            SupabaseService.ImportDetailItem(
+                tmdb_id: match.movie.tmdbID,
+                media_kind: match.movie.mediaKind,
+                title: match.movie.title,
+                release_year: match.movie.releaseYear,
+                poster_path: match.movie.posterPath,
+                review: nil,
+                watched_on: nil,
+                watched_dates: [])
+        }
+        let chunks = stride(from: 0, to: items.count, by: 400).map {
+            Array(items[$0..<min($0 + 400, items.count)])
+        }
+        for (index, chunk) in chunks.enumerated() {
+            if Task.isCancelled { return }
+            progressFraction = Double(index + 1) / Double(chunks.count)
+            do {
+                try await SupabaseService.shared.importWatchlist(chunk)
+            } catch {
+                do {
+                    try await SupabaseService.shared.importWatchlist(chunk)
+                } catch {
+                    SupabaseService.logSwallowed("import_watchlist", error)
+                    ToastCenter.shared.saveFailed()
+                    break
+                }
+            }
+        }
+        matches.forEach { store.cache($0.movie) }
+        // Reconcile the single shared cache with what the server now holds.
+        await store.load()
     }
 
     /// Fold several parsed exports (e.g. Letterboxd + Netflix) into one result,

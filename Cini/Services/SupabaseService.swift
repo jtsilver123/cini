@@ -810,6 +810,16 @@ final class SupabaseService {
         try await client.storage.from("imports").download(path: path)
     }
 
+    /// Bulk watchlist import: one RPC per batch instead of two round trips
+    /// per title, and QUIET — no 'watchlisted' feed events, so a mass import
+    /// never floods followers' feeds. Reuses ImportDetailItem; the RPC reads
+    /// only the movie-stub fields.
+    func importWatchlist(_ items: [ImportDetailItem]) async throws {
+        struct Params: Encodable { let p_items: [ImportDetailItem] }
+        try await client.rpc("import_watchlist", params: Params(p_items: items))
+            .execute()
+    }
+
     /// One-tap import email: the server mails the signed-in user their own
     /// private import link from hello@trycini.com (Resend) — no composer.
     /// Returns the address it was sent to.

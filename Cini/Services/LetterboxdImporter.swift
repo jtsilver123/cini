@@ -555,7 +555,9 @@ enum LetterboxdImporter {
         let total = titles.count
         var done = 0
 
-        // Bounded concurrency: gentle on TMDB, fast for 1000+ film libraries.
+        // Bounded concurrency: 10 in flight is still gentle on TMDB (their
+        // limit is ~50 req/s) and roughly halves a 1,500-film library's
+        // matching time vs the old 5.
         try await withThrowingTaskGroup(of: (ImportedTitle, Movie?).self) { group in
             var iterator = titles.makeIterator()
             var inFlight = 0
@@ -574,7 +576,7 @@ enum LetterboxdImporter {
                 }
             }
 
-            for _ in 0..<5 { addNext() }
+            for _ in 0..<10 { addNext() }
             while inFlight > 0 {
                 guard let (imported, movie) = try await group.next() else { break }
                 inFlight -= 1
