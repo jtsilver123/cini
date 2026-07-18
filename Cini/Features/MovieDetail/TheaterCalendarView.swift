@@ -87,6 +87,7 @@ struct TheaterCalendarView: View {
             // drops a title instantly, and a film bookmarked moments ago in
             // the All view joins without a refetch.
             var byID: [Int: Movie] = [:]
+            for m in localFilms where isMine(m) { byID[m.tmdbID] = m }
             for m in nowOut where isMine(m) { byID[m.tmdbID] = m }
             for m in releases where isMine(m) { byID[m.tmdbID] = m }
             for m in myMovies where isMine(m) { byID[m.tmdbID] = m }
@@ -152,6 +153,14 @@ struct TheaterCalendarView: View {
                 markDays.formUnion(verified.filter { $0 >= today })
             }
             for day in markDays { days[day, default: []].append(movie) }
+        }
+        // No official date at all but verified local showings (festival runs,
+        // one-off events): mark exactly the posted days.
+        for movie in undatedComing {
+            guard let verified = localDays[movie.tmdbID] else { continue }
+            for day in verified where day >= today {
+                days[day, default: []].append(movie)
+            }
         }
         // In this dictionary an unreleased film only ever sits on its opening
         // day, so !isReleased ⇔ "opens that day".
@@ -801,9 +810,13 @@ struct TheaterCalendarView: View {
         do {
             let schedule = try await ShowtimesService.shared.localSchedule(
                 zipcode: zipcode, radius: radius)
-            // Cheap first pass: normalized-title lookup over loaded movies.
+            // Cheap first pass: normalized-title lookup over loaded movies —
+            // including the FULL cached watchlist, so an older film you saved
+            // (a rerelease, say) still resolves without a search.
+            let watchlistMovies = store.watchlist.compactMap { store.movie($0.movieID) }
+            let loadedIDs = Set((myMovies + nowOut + releases).map(\.tmdbID))
             var byTitle: [String: [Movie]] = [:]
-            for m in (myMovies + nowOut + releases) where m.tmdbID > 0 {
+            for m in (myMovies + nowOut + releases + watchlistMovies) where m.tmdbID > 0 {
                 byTitle[LetterboxdImporter.normalize(m.title), default: []].append(m)
             }
             var days: [Int: Set<Date>] = [:]
@@ -826,7 +839,9 @@ struct TheaterCalendarView: View {
                 }
                 guard let movie, movie.tmdbID > 0 else { continue }
                 days[movie.tmdbID, default: []].formUnion(listing.days)
-                if known == nil, seen.insert(movie.tmdbID).inserted {
+                // Anything not already in a loaded array joins the pool —
+                // whether it resolved from the watchlist cache or a search.
+                if !loadedIDs.contains(movie.tmdbID), seen.insert(movie.tmdbID).inserted {
                     extras.append(movie)
                 }
             }
