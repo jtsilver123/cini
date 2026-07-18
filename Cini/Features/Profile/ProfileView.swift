@@ -405,11 +405,11 @@ struct ProfileScreen: View {
     private var topThree: some View {
         // Films only, ranked among films — movies and TV rank separately, so
         // a cross-kind "#1/#2/#3" would be meaningless here.
-        let top = rankings.compactMap { row in
+        let top = Array(rankings.lazy.compactMap { row in
             movies[row.movieId].map { (row: row, movie: $0) }
         }
         .filter { $0.movie.mediaKind != "tv" }
-        .prefix(3)
+        .prefix(3))
         if !top.isEmpty {
             HStack(spacing: 12) {
                 Spacer(minLength: 0)
@@ -1191,6 +1191,9 @@ struct ProfileScreen: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 16) {
+                // ONE TasteSummary build per render — each `taste.` access
+                // used to re-tally 1,500 rankings from scratch.
+                let taste = self.taste
                 // A plain-language summary so the taste profile reads as an
                 // identity ("here's who I am") before the breakdown.
                 if let headline = taste.headline {
@@ -1443,7 +1446,9 @@ struct RankedListScreen: View {
 
     private var scrollBody: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                // One sort+filter pass per render, not one per use.
+                let sortedRows = visible
                 // Split by kind whenever there are both — movies and TV are
                 // ranked separately. Hidden when a parent already drives the kind.
                 if forcedCategory == nil && !rows(in: .movies).isEmpty && !rows(in: .tvShows).isEmpty {
@@ -1498,7 +1503,7 @@ struct RankedListScreen: View {
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
-                } else if visible.isEmpty {
+                } else if sortedRows.isEmpty {
                     Text(searchText.isEmpty ? "No titles match these filters."
                                             : "No titles match \"\(searchText)\".")
                         .font(.subheadline)
@@ -1506,7 +1511,7 @@ struct RankedListScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 32)
                 }
-                ForEach(visible, id: \.row.id) { index, row in
+                ForEach(sortedRows, id: \.row.id) { index, row in
                     if let movie = movies[row.movieId] {
                         ActivityMovieRow(
                             rank: index + 1,
@@ -1605,7 +1610,9 @@ struct WatchlistScreen: View {
 
     private var scrollBody: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                // One sort+filter pass per render, not one per use.
+                let rows = entries
                 HStack {
                     ListSortMenu(
                         metric: Binding(get: { sortMetric }, set: { sortMetricRaw = $0.rawValue }),
@@ -1619,7 +1626,7 @@ struct WatchlistScreen: View {
                                    ? store.watchlist.compactMap { store.movie($0.movieID) }
                                    : Array(movies.values))
                     .padding(.horizontal, -16)
-                if entries.isEmpty {
+                if rows.isEmpty {
                     if isSelf || listLoaded {
                         Text(filters.isActive ? "No titles match these filters."
                                               : "Nothing on your Want to Watch list yet.")
@@ -1633,7 +1640,7 @@ struct WatchlistScreen: View {
                             .padding(.vertical, 32)
                     }
                 }
-                ForEach(entries, id: \.movieID) { entry in
+                ForEach(rows, id: \.movieID) { entry in
                     if let movie = movies[entry.movieID] ?? store.movie(entry.movieID) {
                         ActivityMovieRow(
                             movie: movie,

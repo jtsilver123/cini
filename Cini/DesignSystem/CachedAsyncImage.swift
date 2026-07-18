@@ -61,6 +61,10 @@ actor ImageLoader {
         config.requestCachePolicy = .returnCacheDataElseLoad
         session = URLSession(configuration: config)
         memoryCache.countLimit = 400
+        // Cost cap too: 400 DECODED posters can legitimately hold hundreds
+        // of MB (NSCache tracks no cost by default) — a jetsam risk for
+        // exactly the heavy scrollers.
+        memoryCache.totalCostLimit = 64 * 1024 * 1024
     }
 
     func image(for url: URL) async -> UIImage? {
@@ -75,7 +79,10 @@ actor ImageLoader {
         inFlight[url] = task
         let image = await task.value
         inFlight[url] = nil
-        if let image { memoryCache.setObject(image, forKey: url as NSURL) }
+        if let image {
+            let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+            memoryCache.setObject(image, forKey: url as NSURL, cost: cost)
+        }
         return image
     }
 }

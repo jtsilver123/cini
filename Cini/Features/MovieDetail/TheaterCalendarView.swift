@@ -77,7 +77,7 @@ struct TheaterCalendarView: View {
 
     // MARK: - Data (my list, emphasized, overlaid with general releases)
 
-    private var watchlistIDs: Set<Int> { Set(store.watchlist.map(\.movieID)) }
+    private var watchlistIDs: Set<Int> { store.watchlistIDs }
     private func isMine(_ movie: Movie) -> Bool { watchlistIDs.contains(movie.tmdbID) }
 
     /// Everything to show in "All" scope: general now-playing + upcoming
@@ -945,11 +945,17 @@ struct TheaterCalendarView: View {
 
         let cutoff = Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date()
         var result: [Movie] = []
+        // Bounded to 6 in flight — 60 simultaneous detail fetches spiked
+        // memory/sockets and courted TMDB rate limits on calendar open.
         await withTaskGroup(of: Movie?.self) { group in
-            for movie in candidates {
+            var iterator = candidates.makeIterator()
+            func addNext() {
+                guard let movie = iterator.next() else { return }
                 group.addTask { (try? await TMDBService.shared.details(for: movie.tmdbID)) ?? movie }
             }
+            for _ in 0..<6 { addNext() }
             for await movie in group {
+                addNext()
                 guard let movie else { continue }
                 let date = movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
                 if !movie.isReleased || (date.map { $0 >= cutoff } ?? true) {

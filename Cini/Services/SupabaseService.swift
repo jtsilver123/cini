@@ -316,7 +316,19 @@ final class SupabaseService {
 
     func movies(ids: [Int]) async throws -> [MovieRow] {
         guard !ids.isEmpty else { return [] }
-        return try await client.from("movies").select().in("tmdb_id", values: ids).execute().value
+        // Chunked: PostgREST encodes .in() in the request URL, and a power
+        // user's full library (2,000+ ids) overflows common gateway URI
+        // limits — the biggest libraries would be exactly the ones failing.
+        let chunks = stride(from: 0, to: ids.count, by: 200).map {
+            Array(ids[$0..<min($0 + 200, ids.count)])
+        }
+        var rows: [MovieRow] = []
+        rows.reserveCapacity(ids.count)
+        for chunk in chunks {
+            rows += try await client.from("movies").select()
+                .in("tmdb_id", values: chunk).execute().value as [MovieRow]
+        }
+        return rows
     }
 
     // MARK: - Rankings (atomic via RPC)

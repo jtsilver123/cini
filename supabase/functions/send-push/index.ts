@@ -82,7 +82,7 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "friend_ranked_watchlist_movie":
       return `@${actor} ranked ${movie ?? "a movie"} — it's on your Want to Watch list`;
     case "watchlist_showing":
-      return `${movie ?? "A movie you want to watch"} is playing in theaters near you 🎬`;
+      return `🎟️ Tickets are on sale near you for ${movie ?? "a movie on your list"} — good seats go fast`;
     case "direct_rec":
       return `@${actor} recommended ${movie ?? "a movie"} to you 🎬`;
     case "invite_joined":

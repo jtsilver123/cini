@@ -848,7 +848,8 @@ struct SearchView: View {
                 // the popularity ranking below can rescue them.
                 if results.map({ $0.popularity ?? 0 }).max() ?? 0 < 5, results.count >= 15 {
                     let more = (try? await TMDBService.shared.search(query: text, year: nil, page: 2)) ?? []
-                    for movie in more where !results.contains(where: { $0.tmdbID == movie.tmdbID }) {
+                    var seenIDs = Set(results.map(\.tmdbID))
+                    for movie in more where seenIDs.insert(movie.tmdbID).inserted {
                         results.append(movie)
                     }
                 }
@@ -868,7 +869,8 @@ struct SearchView: View {
                     for attempt in attempts where results.count < 5 {
                         guard !Task.isCancelled else { return }
                         let more = (try? await TMDBService.shared.search(query: attempt, year: nil)) ?? []
-                        for movie in more where !results.contains(where: { $0.tmdbID == movie.tmdbID }) {
+                        var seenIDs = Set(results.map(\.tmdbID))
+                        for movie in more where seenIDs.insert(movie.tmdbID).inserted {
                             results.append(movie)
                         }
                     }
@@ -888,7 +890,12 @@ struct SearchView: View {
                         }
                         return 0.5 * similarity + 0.6 * min(movie.popularity ?? 0, 30) / 30
                     }
-                    results.sort { rank($0) > rank($1) }
+                    // Rank ONCE per movie, then sort by the key — inside the
+                    // comparator the O(len²) edit distance ran n·log n times.
+                    results = results
+                        .map { (movie: $0, key: rank($0)) }
+                        .sorted { $0.key > $1.key }
+                        .map(\.movie)
                 }
                 // Director matches lead, then the genre's most popular,
                 // then title matches — deduped.

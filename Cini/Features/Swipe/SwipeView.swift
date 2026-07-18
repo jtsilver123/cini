@@ -386,6 +386,12 @@ struct SwipeView: View {
     private func recordDismiss(_ id: Int) {
         var s = persistedDismissed
         guard s.insert(id).inserted else { return }
+        // Bounded: the server-side pass keeps the taste signal permanently;
+        // this local list only prevents quick re-shows, and unpruned it grew
+        // forever (and was re-parsed per candidate before the hoists above).
+        if s.count > 2000 {
+            s = Set(Array(s).suffix(1500) + [id])
+        }
         dismissedRaw = s.map(String.init).joined(separator: ",")
     }
     private func unrecordDismiss(_ id: Int) {
@@ -424,9 +430,12 @@ struct SwipeView: View {
 
         var seen = Set<Int>()
         var built: [YourListsView.RecCandidate] = []
+        // Parsed ONCE — inside the loop this re-split the whole (unbounded)
+        // dismissed string per candidate.
+        let dismissed = persistedDismissed
         for movie in pool where movie.posterPath != nil
             && seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID)
-            && !persistedDismissed.contains(movie.tmdbID) {
+            && !dismissed.contains(movie.tmdbID) {
             store.cache(movie)
             built.append(YourListsView.RecCandidate(movie: movie, reason: filterReason()))
         }
@@ -498,8 +507,9 @@ struct SwipeView: View {
         }
 
         guard token == loadSeq else { return }   // a newer reload superseded this one
+        let dismissed = persistedDismissed
         candidates = pending.compactMap { candidate in
-            guard !persistedDismissed.contains(candidate.id) else { return nil }
+            guard !dismissed.contains(candidate.id) else { return nil }
             return store.movie(candidate.id).map {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
             }

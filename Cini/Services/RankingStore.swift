@@ -16,9 +16,22 @@ final class RankingStore {
     /// list mutates — reading rankings is hot (every list render, chat
     /// context), scoring a few hundred items on each read is not free. Each
     /// item's rank/score is within its own media kind.
-    private(set) var watchedItems: [ScoredItem<Int>] = []
+    private(set) var watchedItems: [ScoredItem<Int>] = [] {
+        // uniquing defensively: a transient duplicate id (mid kind-flip)
+        // must never crash the index rebuild.
+        didSet { scoredByID = Dictionary(watchedItems.map { ($0.id, $0) },
+                                         uniquingKeysWith: { first, _ in first }) }
+    }
+    /// O(1) score lookups — sort comparators over 1,500 titles were doing a
+    /// linear scan PER COMPARISON without this.
+    private(set) var scoredByID: [Int: ScoredItem<Int>] = [:]
     private(set) var movies: [Int: Movie] = [:]          // metadata cache
-    private(set) var watchlist: [WatchlistItem] = []
+    private(set) var watchlist: [WatchlistItem] = [] {
+        didSet { watchlistIDs = Set(watchlist.map(\.movieID)) }
+    }
+    /// O(1) membership — poster quick-actions ask "is this saved?" two or
+    /// three times per artwork, on every render, everywhere.
+    private(set) var watchlistIDs: Set<Int> = []
     /// movieID → when it was ranked, for the Watched list's "Date added" sort.
     private(set) var rankedAt: [Int: Date] = [:]
     /// Rec Scores for the watchlist, prefetched in the background at
@@ -261,10 +274,8 @@ final class RankingStore {
 
     func movie(_ id: Int) -> Movie? { movies[id] }
     func isWatched(_ movieID: Int) -> Bool { lists.values.contains { $0.contains(movieID) } }
-    func isOnWatchlist(_ movieID: Int) -> Bool { watchlist.contains { $0.movieID == movieID } }
-    func scoredItem(for movieID: Int) -> ScoredItem<Int>? {
-        watchedItems.first { $0.id == movieID }
-    }
+    func isOnWatchlist(_ movieID: Int) -> Bool { watchlistIDs.contains(movieID) }
+    func scoredItem(for movieID: Int) -> ScoredItem<Int>? { scoredByID[movieID] }
 
     /// Every list mutation funnels through here so the scored snapshot stays
     /// in lockstep. Movies first, then TV — each scored within its own kind.

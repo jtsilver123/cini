@@ -1,11 +1,16 @@
-// showtime-alerts: daily cron. Tells users when a watchlist movie is
-// playing near their saved zip — at ANY age (a decades-old re-release
-// counts, not just new releases).
+// showtime-alerts: HOURLY cron. Tells users the moment tickets for a
+// watchlist movie go on sale near their saved zip — at ANY age (a
+// decades-old re-release counts), and with a VERY LARGE look-ahead:
+// advance sales (IMAX pre-sales weeks out) fire the alert as soon as
+// Gracenote lists them, because those are exactly the tickets that sell
+// out.
 //
-// API frugality: exactly ONE Gracenote call per DISTINCT zip per run,
-// regardless of user count. Each user is notified at most once per movie
-// ever (showtime_notices), and delivery rides the normal notifications
-// table -> trigger -> send-push pipeline.
+// API frugality vs instantness: every hourly run scans the next 14 days
+// (one call per DISTINCT zip); four runs a day extend the sweep out to
+// ~70 days (four extra calls per zip). Near-term on-sales alert within
+// the hour; far-future ones within six. Each user is notified at most
+// once per movie ever (showtime_notices), and delivery rides the normal
+// notifications table -> trigger -> send-push pipeline.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -113,14 +118,34 @@ Deno.serve(async (_req: Request) => {
       byZip.get(p.home_zip)!.push(p);
     }
 
-    const today = new Date().toISOString().slice(0, 10);
     let notified = 0;
+    // Window offsets (days from today), each fetched with numDays=14. The
+    // near-term window runs EVERY hour; the far windows join four times a
+    // day (hours 4/10/16/22 UTC) to keep Gracenote usage bounded.
+    const fullSweep = new Date().getUTCHours() % 6 === 4;
+    const offsets = fullSweep ? [0, 14, 28, 42, 56] : [0];
 
     for (const [zip, users] of byZip) {
-      const url = `https://data.tmsapi.com/v1.1/movies/showings?startDate=${today}&zip=${zip}&radius=15&units=mi&api_key=${gnKey}`;
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const playing: { title: string; releaseYear?: number }[] = await res.json();
+      const playing: { title: string; releaseYear?: number }[] = [];
+      const seenListing = new Set<string>();
+      for (const offset of offsets) {
+        const start = new Date(Date.now() + offset * 86400e3).toISOString().slice(0, 10);
+        const url = `https://data.tmsapi.com/v1.1/movies/showings?startDate=${start}&numDays=14&zip=${zip}&radius=15&units=mi&api_key=${gnKey}`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        // One malformed/empty window response (transient rate limiting
+        // returns 200 with an empty body) must not abort the whole sweep.
+        let chunk: unknown;
+        try { chunk = await res.json(); } catch { continue; }
+        if (!Array.isArray(chunk)) continue;
+        for (const listing of chunk) {
+          const key = `${listing.title}|${listing.releaseYear ?? ""}`;
+          if (seenListing.has(key)) continue;
+          seenListing.add(key);
+          playing.push(listing);
+        }
+      }
+      if (!playing.length) continue;
 
       for (const user of users) {
         const entries = (watchlists ?? []).filter((w: any) => w.user_id === user.id);

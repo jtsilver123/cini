@@ -1295,16 +1295,21 @@ struct FeedView: View {
             events = withNotes
             FeedDiskCache.save(withNotes)
         }
-        likedEventIDs = await SupabaseService.shared.myLikedEventIDs(events.map(\.id))
-        // Bookmark counts for every title in view — social proof over the
-        // bookmark on each card (Beli's "N bookmark").
+        // Five independent queries — in flight TOGETHER, not one after
+        // another (serially this added ~5 round trips of latency before the
+        // feed showed as loaded).
         let movieIDs = Array(Set(events.compactMap { $0.movies?.tmdbId }))
-        if !movieIDs.isEmpty {
-            savedCounts = await SupabaseService.shared.watchlistCounts(movieIDs: movieIDs)
-        }
-        unreadCount = await SupabaseService.shared.unreadNotificationCount()
-        pendingAsks = (try? await SupabaseService.shared.incomingRecRequests()) ?? []
-        friendsWatchingRows = await SupabaseService.shared.friendsWatching()
+        async let liked = SupabaseService.shared.myLikedEventIDs(events.map(\.id))
+        async let counts = movieIDs.isEmpty
+            ? [:] : SupabaseService.shared.watchlistCounts(movieIDs: movieIDs)
+        async let unread = SupabaseService.shared.unreadNotificationCount()
+        async let asks = SupabaseService.shared.incomingRecRequests()
+        async let watching = SupabaseService.shared.friendsWatching()
+        likedEventIDs = await liked
+        savedCounts = await counts
+        unreadCount = await unread
+        pendingAsks = (try? await asks) ?? []
+        friendsWatchingRows = await watching
         feedLoaded = true
     }
 }
