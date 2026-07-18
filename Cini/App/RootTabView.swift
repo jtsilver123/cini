@@ -83,6 +83,13 @@ final class TabRouter {
             selection = .swipe
             return
         }
+        // "Import complete" lands on My Lists → Watched, where the freshly
+        // queued titles wait to be ranked.
+        if userInfo["kind"] as? String == "import_done" {
+            pendingListsTab = .watched
+            selection = .lists
+            return
+        }
         let movieID = (userInfo["movie_id"] as? Int)
             ?? (userInfo["movie_id"] as? NSNumber)?.intValue
             ?? (userInfo["movie_id"] as? String).flatMap(Int.init)
@@ -126,14 +133,10 @@ struct RootTabView: View {
     @State private var router = TabRouter.shared
     @State private var network = NetworkMonitor.shared
     @State private var showChat = false
-    /// A desktop-transfer upload landed while the import screen wasn't
-    /// watching — auto-open the import so the handoff needs no babysitting.
-    @State private var resumeImport: ResumeImport?
-
-    struct ResumeImport: Identifiable {
-        let code: String
-        var id: String { code }
-    }
+    /// Import status chip tapped — open the import screen on the live
+    /// progress (or the finished summary).
+    @State private var showImportStatus = false
+    @State private var importRunner = ImportRunner.shared
     /// The signed-in user's avatar, rendered circular for the Profile tab —
     /// like Beli, your own photo IS the Profile tab icon. Reloads whenever
     /// the avatar URL changes (URLs are cache-busted on a photo change).
@@ -241,21 +244,31 @@ struct RootTabView: View {
                 try? await Task.sleep(for: .seconds(8))
             }
         }
-        .sheet(item: $resumeImport) { resume in
-            LetterboxdImportView(resumeCode: resume.code)
+        // The import runs app-wide (ImportRunner) — this chip is its
+        // always-visible status: progress while running, a receipt when
+        // done. Tapping opens the import screen on the live state.
+        .overlay(alignment: .bottom) {
+            ImportStatusChip { showImportStatus = true }
+                .padding(.bottom, 62)
+        }
+        .sheet(isPresented: $showImportStatus) {
+            LetterboxdImportView()
                 .environment(router)
         }
     }
 
-    /// One watcher tick: if a pending transfer's upload is complete and the
-    /// import screen isn't already handling it, open the import on it.
+    /// One watcher tick: a pending transfer's upload is complete and the
+    /// import screen isn't open — start the import in the BACKGROUND. The
+    /// status chip and the completion notification take it from here; the
+    /// user never has to babysit a screen.
     private func checkPendingImport() async {
-        guard !ImportTransfer.viewIsHandling, resumeImport == nil,
+        guard !ImportTransfer.viewIsHandling,
+              importRunner.state != .running,
               let code = ImportTransfer.pendingCode else { return }
-        let (ready, _) = await SupabaseService.shared.importUploadState(code: code)
-        guard ready, !ImportTransfer.viewIsHandling, resumeImport == nil else { return }
-        Haptics.success()
-        resumeImport = ResumeImport(code: code)
+        let (ready, paths) = await SupabaseService.shared.importUploadState(code: code)
+        guard ready, !ImportTransfer.viewIsHandling,
+              importRunner.state != .running else { return }
+        importRunner.startFromStorage(paths: paths, store: session.rankingStore)
     }
 
     /// Beli's bar: a solid, opaque bottom bar with a top hairline and labeled
@@ -335,6 +348,61 @@ struct RootTabView: View {
             let w = image.size.width * scale, h = image.size.height * scale
             image.draw(in: CGRect(x: (size - w) / 2, y: (size - h) / 2, width: w, height: h))
         }.withRenderingMode(.alwaysOriginal)
+    }
+}
+
+/// Compact pill above the tab bar tracking the app-wide import: live
+/// progress while it runs, a tappable receipt when it lands, an error when
+/// it fails. Gone the rest of the time.
+struct ImportStatusChip: View {
+    var onTap: () -> Void
+    @State private var runner = ImportRunner.shared
+
+    var body: some View {
+        switch runner.state {
+        case .idle:
+            EmptyView()
+        case .running:
+            chip {
+                ProgressView().controlSize(.small)
+                Text(runner.etaText.map { "Importing… \($0.lowercased())" }
+                     ?? "Importing your movies…")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+        case .done:
+            chip {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Theme.scoreGreen)
+                Text("Import complete — tap to see what landed")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+        case .failed:
+            chip {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Theme.scoreRed)
+                Text("Import failed — tap for details")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func chip(@ViewBuilder _ content: () -> some View) -> some View {
+        Button(action: onTap) {
+            HStack(spacing: 8, content: content)
+                .foregroundStyle(Theme.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(Capsule().fill(Theme.surface2))
+                .overlay(Capsule().strokeBorder(Theme.hairline))
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(.snappy, value: runner.state)
+        .accessibilityLabel("Import status")
     }
 }
 

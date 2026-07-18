@@ -25,6 +25,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to pick a profile photo. Your library is never scanned or uploaded.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Cini adds your planned movie nights to your calendar — it only writes events, never reads your schedule.</string>
 	<key>NSContactsUsageDescription</key>
 	<string>Cini matches your contacts to find friends already here and to let you know when one joins. We store only one-way hashes of their phone numbers — never names, and you can remove them any time in Settings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

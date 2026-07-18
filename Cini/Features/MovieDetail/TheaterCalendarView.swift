@@ -460,6 +460,16 @@ struct TheaterCalendarView: View {
                         .font(.caption).foregroundStyle(Theme.gray).padding(.top, 4)
                 }
                 if !undatedComing.isEmpty { posterStrip(title: "Date to be announced", undatedComing) }
+                // Next week can look sparse until theaters publish it — say
+                // why, so an empty Friday doesn't read as "nothing's showing".
+                if !nowPlaying.isEmpty,
+                   cal.isDate(visibleMonth, equalTo: Date(), toGranularity: .month) {
+                    Text("Days fill in as theaters post showtimes — usually one to two weeks ahead.")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
             }
             .padding(.vertical, 8)
         }

@@ -605,7 +605,7 @@ function openSaveTo(k){
      refinement — swipe it away or let it slip off on its own. */
   if(!S.watchlist.includes(k)) saveToWatchlist(k);
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(()=>closeOverlay(), 4000);
+  _saveTimer=setTimeout(()=>closeOverlay(), 2500);
   renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Saved ✓</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
@@ -1169,10 +1169,10 @@ function _calMonth(now, coming){
   const today=new Date(); today.setHours(0,0,0,0);
   // Openings sit on their release day (factual). A film IN THEATERS NOW
   // marks today plus only the upcoming days with VERIFIED showings near the
-  // user — theaters post about a week out, so the grid never claims a day
-  // the showtimes sheet can't back up. (In the app that's a Gracenote
-  // lookup; the demo mirrors the one-week posted window.)
-  const spanEnd=()=>{const e=new Date(today); e.setDate(e.getDate()+6); return e;};
+  // user — the grid never claims a day the showtimes sheet can't back up.
+  // (In the app that's a Gracenote lookup over the posted window, up to two
+  // weeks; the demo mirrors it.)
+  const spanEnd=()=>{const e=new Date(today); e.setDate(e.getDate()+13); return e;};
   const byDay={};
   coming.forEach(f=>{ if(f.date && f.date.getFullYear()===y && f.date.getMonth()===mo) (byDay[f.date.getDate()]=byDay[f.date.getDate()]||[]).push(f); });
   now.forEach(f=>{ const end=spanEnd(f);
@@ -1941,7 +1941,20 @@ const PUBLIC_NOTES = {
   past:[{n:"Lena", u:"lenawrites", av:"av1", score:8.6, note:"Quietest heartbreak of the year. The bar scene destroyed me.", likes:7}],
 };
 let detailPeopleTab="friends", detailMoreOpen=false;
-function planWatch(u){ toast(`Invite sent to @${u} — they'll get a nudge to pick a time 🎬`); }
+function planWatch(u){
+  toast(`Invite sent to @${u} — they'll get a nudge to pick a time 🎬`);
+  // Demo: once they accept, both sides get an Add to Calendar action.
+  setTimeout(()=>renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Movie night</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="card" style="margin:0 0 14px; padding:14px 16px; display:flex; gap:10px; align-items:center;">
+        <span style="color:var(--scoregreen,#4ade80);">${I("check",18,2.4)}</span>
+        <div><b style="font-size:14px;">@${u} accepted!</b><div class="sub" style="margin-top:1px;">Saturday, Jul 25 · 8:00 PM</div></div>
+      </div>
+      <button class="pill out" style="width:100%; justify-content:center; padding:12px;" onclick="toast('Added to your calendar 🗓️')">${I("calendar",15)} Add to Calendar</button>
+    </div>`), 2600);
+}
 /* Beli-style compact row: overlapping avatars + "N friends …", tappable to a popup. */
 function interestRow(avs, label, type){
   const stack = avs.map((a,i)=>`<span class="avatar ${a[1]}" style="width:30px;height:30px;font-size:13px;box-shadow:0 0 0 2px var(--bg);${i?`margin-left:-10px;`:""}">${a[0]}</span>`).join("");
@@ -2897,6 +2910,7 @@ function importPick(){return `
     <button class="lnk" onclick="pasteDest=null; importProgress()">${I("download",15)} Already have the file?</button>
     <button class="lnk" onclick="importPaste()">${I("pencil",15)} Paste a list</button>
   </div>
+  <button class="lnk" style="width:100%; justify-content:center; margin-top:10px; font-size:12px;" onclick="openImportHistory()">${I("calendar",13)} Import history</button>
   <div class="sub" style="text-align:center; margin-top:13px; line-height:1.5;">Star ratings are never copied — we just use them to order your queue.</div>`;}
 function importLinkSent(){
   const card=$("importCard"); if(!card) return;
@@ -2948,16 +2962,60 @@ function setPasteDest(d){
     ? "They'll join your ranking queue so you can score them head-to-head."
     : "They'll land straight on your Want to Watch list.";
 }
+/* Import history: every past import — what landed, what didn't match. */
+function openImportHistory(){
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Import history</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="font-weight:800; letter-spacing:.05em; margin-bottom:6px;">JUL 12 · 9:41 PM</div>
+      <div class="card" style="margin:0 0 14px; padding:6px 16px;">
+        <div style="display:flex; gap:12px; padding:11px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("film",16)}</span><b style="font-size:13.5px;">389 films queued to rank</b></div>
+        <div style="display:flex; gap:12px; padding:11px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",16)}</span><b style="font-size:13.5px;">57 saved to Want to Watch</b></div>
+        <div style="display:flex; gap:12px; padding:11px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("pencil",16)}</span><b style="font-size:13.5px;">12 reviews brought over</b></div>
+        <div style="padding:11px 0;">
+          <div style="display:flex; gap:12px;"><span style="color:var(--marquee);">${I("search",16)}</span><b style="font-size:13.5px;">3 couldn't be matched</b></div>
+          <div class="sub" style="margin:6px 0 0 28px; line-height:1.7;">Der Himmel über Berlin (1987)<br>Home Movie Vol. 2<br>Untitled Cousin Wedding Cut</div>
+        </div>
+      </div>
+      <div class="sub" style="text-align:center; font-size:11.5px;">Unmatched titles usually have a different name on TMDB — try adding them by search.</div>
+    </div>`);
+}
+/* The import runs app-wide: hide the card and keep browsing — a status
+   chip above the tab bar tracks progress and lands the receipt. */
+function _impChip(html, done){
+  let c=$("impChip");
+  if(!c){ c=document.createElement("div"); c.id="impChip";
+    c.style.cssText="position:fixed; left:50%; transform:translateX(-50%); bottom:86px; z-index:60; background:var(--surface-2); border:1px solid var(--hair); border-radius:999px; padding:9px 16px; font-size:12px; font-weight:700; color:var(--ink); box-shadow:0 4px 14px rgba(0,0,0,.35); cursor:pointer; display:flex; align-items:center; gap:8px;";
+    document.body.appendChild(c); }
+  c.innerHTML=html;
+  c.onclick=()=>{ c.remove(); openImport(); setTimeout(done?importDone:importProgress,60); };
+}
+function _impHide(){
+  closeOverlay();
+  _impChip("<span class='tdots'><span></span><span></span><span></span></span> Importing… about a minute left", false);
+  toast("We'll finish in the background 🎬");
+}
+function _impRemoveChip(){ const c=$("impChip"); if(c) c.remove(); }
 function importProgress(){
-  $("importCard").innerHTML=`
+  if($("importCard")) $("importCard").innerHTML=`
     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:380px; gap:16px;">
       <div style="width:80%; height:8px; background:rgba(255,255,255,.12); border-radius:999px;"><div id="ibar" style="width:18%; height:100%; background:var(--marquee); border-radius:999px; transition:width 1s;"></div></div>
       <b id="itext" style="font-size:15px;">Matching 74 of 412</b>
-      <div class="sub" style="text-align:center;">Matching every title against TMDB —<br>big libraries take a minute.</div>
+      <div class="sub" style="text-align:center;">Matching every title against TMDB —<br>about a minute left.</div>
+      <button class="lnk" style="font-size:12.5px;" onclick="_impHide()">Hide — keep browsing, we'll finish up</button>
     </div>`;
-  setTimeout(()=>{ const b=$("ibar"); if(b){b.style.width="62%"; $("itext").textContent="Matching 255 of 412";} },700);
-  setTimeout(()=>{ const b=$("ibar"); if(b){b.style.width="96%"; $("itext").textContent="Matching 396 of 412";} },1500);
-  setTimeout(importDone,2300);
+  const upd=(pct,txt)=>{ const b=$("ibar"); if(b){ b.style.width=pct+"%"; $("itext").textContent=txt; }
+    if($("impChip") && !_impDone) _impChip(`<span class='tdots'><span></span><span></span><span></span></span> Importing… ${txt}`, false); };
+  setTimeout(()=>upd(62,"Matching 255 of 412"),700);
+  setTimeout(()=>upd(96,"Matching 396 of 412"),1500);
+  setTimeout(importDoneAnywhere,2300);
+}
+let _impDone=false;
+function importDoneAnywhere(){
+  _impDone=true;
+  if($("importCard")){ _impRemoveChip(); importDone(); }
+  else { toast("Import complete 🎬"); _impChip(`<span style="color:var(--scoregreen,#4ade80);">✓</span> Import complete — tap to see what landed`, true); }
 }
 function importDone(){
   if(!$("importCard")) return;

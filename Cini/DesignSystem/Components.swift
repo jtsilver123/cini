@@ -810,8 +810,9 @@ struct SaveToListSheet: View {
             }
             .task {
                 // Quick-glance popup: if they don't touch it, it leaves
-                // on its own (the save already happened).
-                try? await Task.sleep(for: .seconds(4))
+                // on its own (the save already happened). 2.5s — long
+                // enough to read, short enough to never feel in the way.
+                try? await Task.sleep(for: .seconds(2.5))
                 if !interacted { dismiss() }
             }
         }

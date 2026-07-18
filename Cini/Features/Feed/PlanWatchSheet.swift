@@ -1,5 +1,6 @@
 import SwiftUI
 import MessageUI
+import EventKit
 
 /// Plan to watch a title together with a friend — pick a time and send an
 /// in-app invite (they Accept or propose another time), with an optional
@@ -22,6 +23,16 @@ struct PlanWatchSheet: View {
 
     private var friend: MemberRef { context.friend }
     private var myID: UUID? { SupabaseService.shared.currentUserID }
+
+    /// You can't plan a watch before the film exists: for unreleased titles
+    /// the pickable range starts on release day, not today.
+    private var dateFloor: Date {
+        guard let movie, !movie.isReleased,
+              let releaseDay = movie.releaseDateFull
+                  .flatMap({ DateFormatter.localDay.date(from: $0) })
+        else { return Date() }
+        return max(Date(), releaseDay)
+    }
 
     var body: some View {
         NavigationStack {
@@ -154,7 +165,49 @@ struct PlanWatchSheet: View {
                     Spacer()
                 }
             }
+            if plan.proposedAt != nil {
+                addToCalendarButton(plan)
+            }
             draftTextButton
+        }
+    }
+
+    /// The plan is locked in — put it on the real calendar. Write-only
+    /// EventKit access (iOS 17+), so Cini never reads existing events.
+    private func addToCalendarButton(_ plan: WatchPlanRow) -> some View {
+        Button {
+            Task { await addToCalendar(plan) }
+        } label: {
+            Label("Add to Calendar", systemImage: "calendar.badge.plus")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.marquee)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .overlay(Capsule().strokeBorder(Theme.marquee.opacity(0.5)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func addToCalendar(_ plan: WatchPlanRow) async {
+        guard let at = plan.proposedAt else { return }
+        let eventStore = EKEventStore()
+        let granted = (try? await eventStore.requestWriteOnlyAccessToEvents()) ?? false
+        guard granted else {
+            ToastCenter.shared.show("Calendar access is off for Cini — allow it in Settings.")
+            return
+        }
+        let event = EKEvent(eventStore: eventStore)
+        event.title = "🎬 \(movie?.title ?? "Movie night") with @\(friend.username)"
+        event.startDate = at
+        event.endDate = at.addingTimeInterval(2 * 3600)
+        event.notes = "Planned on Cini"
+        event.calendar = eventStore.defaultCalendarForNewEvents
+        do {
+            try eventStore.save(event, span: .event)
+            Haptics.success()
+            ToastCenter.shared.show("Added to your calendar 🗓️")
+        } catch {
+            ToastCenter.shared.show("Couldn't add it to your calendar — try again.")
         }
     }
 
@@ -173,11 +226,17 @@ struct PlanWatchSheet: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.ink)
             HStack(spacing: 8) {
+                // Presets that fall before an unreleased film's opening day
+                // just don't appear — you can't plan "Tonight" for a film
+                // that opens next month.
                 quickChip("Tonight", Self.at(20, daysFromNow: 0))
                 quickChip("Tomorrow", Self.at(20, daysFromNow: 1))
                 quickChip("Weekend", Self.nextSaturday())
+                if dateFloor > Date() {
+                    quickChip("Opening night", Self.eveningOf(dateFloor))
+                }
             }
-            DatePicker("", selection: $when, in: Date()...,
+            DatePicker("", selection: $when, in: dateFloor...,
                        displayedComponents: [.date, .hourAndMinute])
                 .labelsHidden()
                 .datePickerStyle(.compact)
@@ -218,11 +277,20 @@ struct PlanWatchSheet: View {
         .padding(.vertical, 12)
     }
 
+    @ViewBuilder
     private func quickChip(_ label: String, _ date: Date) -> some View {
+        // A preset before the film's release day would offer an impossible
+        // plan — skip it (the DatePicker floor guards manual picks).
+        if date >= Calendar.current.startOfDay(for: dateFloor) {
+            quickChipBody(label, date)
+        }
+    }
+
+    private func quickChipBody(_ label: String, _ date: Date) -> some View {
         Button {
             Haptics.tap()
             // Never propose a time in the past (e.g. "Tonight" tapped after 8pm).
-            when = max(date, Date())
+            when = max(date, max(Date(), dateFloor))
         } label: {
             Text(label)
                 .font(.subheadline.weight(.semibold))
@@ -246,6 +314,9 @@ struct PlanWatchSheet: View {
         // The latest plan in either direction drives which UI we show.
         plan = try? await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id)
         if let at = plan?.proposedAt, at > Date() { when = at }
+        // Unreleased film: the default "tonight at 8" would be before its
+        // opening — move the selection up to opening night.
+        if when < dateFloor { when = Self.eveningOf(dateFloor) }
     }
 
     private func sendNewTime(_ plan: WatchPlanRow) {
@@ -318,6 +389,11 @@ struct PlanWatchSheet: View {
     // MARK: Time helpers
 
     static func defaultTime() -> Date { at(20, daysFromNow: 0) }
+
+    /// 8pm on the given day (opening-night default for unreleased titles).
+    static func eveningOf(_ day: Date) -> Date {
+        Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: day) ?? day
+    }
 
     static func at(_ hour: Int, daysFromNow days: Int) -> Date {
         let cal = Calendar.current

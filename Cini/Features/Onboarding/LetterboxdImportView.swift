@@ -10,29 +10,24 @@ struct LetterboxdImportView: View {
     /// Entry points that promise "paste a list" land directly on the
     /// paste sheet instead of the full import picker.
     var startWithPaste = false
-    /// Set when RootTabView's watcher spotted a landed upload for this code —
-    /// the screen opens straight into fetching it instead of the picker.
-    var resumeCode: String? = nil
 
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
+    /// The import itself runs app-wide in ImportRunner — this screen just
+    /// starts imports and renders the runner's state, so closing it (or
+    /// browsing the app) never kills a half-done import.
+    @State private var runner = ImportRunner.shared
     @State private var phase: Phase = .pick
-    @State private var result: LetterboxdImporter.Result?
     @State private var transferCode: String?
     @State private var transferTask: Task<Void, Never>?
-    @State private var progressText = ""
-    @State private var progressFraction: Double = 0
     @State private var errorMessage: String?
     @State private var showPicker = false
     @State private var showPaste = false
     @State private var pastedText = ""
     @State private var pasteDestination: PasteDestination = .watched
-    @State private var pastedToWatchlist = false
-    @State private var detailsImportFailed = false
-    @State private var importTask: Task<Void, Never>?
     @State private var linkCopied = false
     @State private var mailDraft: MailDraft?
     /// Files the server has received so far on this transfer code — shown
@@ -41,10 +36,6 @@ struct LetterboxdImportView: View {
     /// Where the one-tap import email landed — confirmation line under the
     /// waiting card. nil = copy-link path (or the send fell back to Mail).
     @State private var emailedTo: String?
-    /// Estimated time left, measured from the live matching rate — big
-    /// libraries deserve better than an unbounded spinner.
-    @State private var etaText: String?
-    @State private var matchingStarted: Date?
 
     enum Phase {
         case pick, working, summary
@@ -54,6 +45,21 @@ struct LetterboxdImportView: View {
         case watched = "I've watched these"
         case wantToWatch = "I want to watch these"
         var id: String { rawValue }
+    }
+
+    /// This screen's phase mirrors the app-wide runner — opening it during
+    /// a background import lands on live progress; after one, the summary.
+    private func syncPhase(with state: ImportRunner.RunState) {
+        switch state {
+        case .running: phase = .working
+        case .done: phase = .summary
+        case .failed(let message):
+            errorMessage = message
+            phase = .pick
+            runner.acknowledge()
+        case .idle:
+            if phase == .working { phase = .pick }
+        }
     }
 
     var body: some View {
@@ -70,40 +76,39 @@ struct LetterboxdImportView: View {
             .onAppear {
                 ImportTransfer.viewIsHandling = true
                 if startWithPaste { showPaste = true }
-                if let resumeCode {
-                    // The watcher saw the upload land — go get it.
-                    transferCode = resumeCode
-                    startPolling(code: resumeCode)
-                }
+                syncPhase(with: runner.state)
             }
             .onDisappear {
                 ImportTransfer.viewIsHandling = false
-                UIApplication.shared.isIdleTimerDisabled = false
-                transferTask?.cancel(); importTask?.cancel()
+                transferTask?.cancel()
+                // The runner keeps importing — that's the point.
             }
-            // A 1,500-film library matches for a couple of minutes — the
-            // screen must not auto-lock mid-import and suspend the work.
-            .onChange(of: phase) { _, newPhase in
-                UIApplication.shared.isIdleTimerDisabled = newPhase == .working
+            .onChange(of: runner.state) { _, newState in
+                withAnimation(.snappy) { syncPhase(with: newState) }
             }
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if phase == .working {
-                    // A stuck import must never trap the user. Cancel BOTH task
-                    // slots — file imports run in importTask, desktop transfers
-                    // in transferTask — or a "stopped" import keeps writing in
-                    // the background and later yanks the screen to the summary.
+                    // A stuck import must never trap the user…
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Stop") {
-                            importTask?.cancel()
+                            runner.cancel()
                             transferTask?.cancel()
                             withAnimation(.snappy) { phase = .pick }
                         }
                     }
+                    // …and neither should a HEALTHY one: Hide keeps it
+                    // running in the background (status chip tracks it).
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Hide") { dismiss() }
+                    }
                 } else {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button(phase == .summary ? "Done" : "Cancel") { dismiss() }
+                        Button(phase == .summary ? "Done" : "Cancel") {
+                            if phase == .summary { runner.acknowledge() }
+                            dismiss()
+                        }
                     }
                 }
             }
@@ -149,8 +154,10 @@ struct LetterboxdImportView: View {
                     .safeAreaInset(edge: .bottom) {
                         PillButton(title: "Import list") {
                             showPaste = false
-                            // Stored so the Stop button can actually cancel it.
-                            importTask = Task { await runPastedImport() }
+                            errorMessage = nil
+                            runner.startText(pastedText,
+                                             toWatchlist: pasteDestination == .wantToWatch,
+                                             store: store)
                         }
                         .frame(maxWidth: .infinity)
                         .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -166,7 +173,8 @@ struct LetterboxdImportView: View {
             ) { pickResult in
                 switch pickResult {
                 case .success(let url):
-                    importTask = Task { await runImport(from: [url]) }
+                    errorMessage = nil
+                    runner.startFiles([url], store: store)
                 case .failure:
                     // iOS failed to hand us the file — say so instead of leaving
                     // the user on a silent pick screen wondering what happened.
@@ -175,7 +183,6 @@ struct LetterboxdImportView: View {
                 }
             }
         }
-        .interactiveDismissDisabled(phase == .working)
     }
 
     // MARK: Step 1 — pick the file
@@ -218,6 +225,19 @@ struct LetterboxdImportView: View {
                     .buttonStyle(.plain)
                 }
 
+                if !ImportHistory.all().isEmpty {
+                    NavigationLink {
+                        ImportHistoryScreen()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock.arrow.circlepath")
+                            Text("Import history").font(.subheadline.weight(.semibold))
+                        }
+                        .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
@@ -239,38 +259,25 @@ struct LetterboxdImportView: View {
     private var workingStep: some View {
         VStack(spacing: 18) {
             Spacer()
-            ProgressView(value: progressFraction)
+            ProgressView(value: runner.progressFraction)
                 .progressViewStyle(.linear)
                 .tint(Theme.marquee)
                 .padding(.horizontal, 48)
-            Text(progressText)
+            Text(runner.progressText)
                 .font(.subheadline.weight(.semibold))
             // A live estimate once the matching rate settles; the generic
             // line covers the ramp-up and the non-matching phases.
-            Text(etaText ?? "Matching every title against TMDB — big libraries take a minute.")
+            Text(runner.etaText ?? "Matching every title against TMDB — big libraries take a minute.")
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
+            Text("You can keep using Cini — tap Hide and we'll finish in the background.")
+                .font(.caption)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
             Spacer()
         }
         .frame(maxWidth: .infinity)
-    }
-
-    /// "About 2 minutes left" from the observed matching rate — only once
-    /// enough titles are done for the rate to mean something.
-    private func updateETA(done: Int, total: Int) {
-        if matchingStarted == nil { matchingStarted = Date() }
-        guard let started = matchingStarted, done >= 20, total > done else {
-            if done >= total { etaText = nil }
-            return
-        }
-        let rate = Double(done) / max(Date().timeIntervalSince(started), 0.1)
-        let secondsLeft = Double(total - done) / max(rate, 0.1)
-        if secondsLeft < 50 {
-            etaText = "Under a minute left"
-        } else {
-            let minutes = max(1, Int((secondsLeft / 60).rounded()))
-            etaText = "About \(minutes) minute\(minutes == 1 ? "" : "s") left"
-        }
     }
 
     // MARK: Step 3 — summary
@@ -285,9 +292,9 @@ struct LetterboxdImportView: View {
                 Text("Import complete")
                     .font(Theme.serif(30))
 
-                if let result {
+                if let result = runner.result {
                     VStack(spacing: 0) {
-                        if pastedToWatchlist {
+                        if runner.pastedToWatchlist {
                             summaryRow(icon: "bookmark.fill", count: result.watched.count,
                                        label: "added to Want to Watch",
                                        detail: "Find them under My Lists → Want to Watch.")
@@ -302,7 +309,7 @@ struct LetterboxdImportView: View {
                         let reviewCount = result.watched.filter { $0.imported.review != nil }.count
                         if reviewCount > 0 {
                             Divider()
-                            if detailsImportFailed {
+                            if runner.detailsImportFailed {
                                 summaryRow(icon: "exclamationmark.triangle", count: reviewCount,
                                            label: "reviews couldn't sync",
                                            detail: "Run the same import again to retry — nothing else is affected.")
@@ -339,6 +346,7 @@ struct LetterboxdImportView: View {
                         TabRouter.shared.pendingListsTab = .watched
                         TabRouter.shared.selection = .lists
                     }
+                    runner.acknowledge()
                     dismiss()
                 }
             }
@@ -349,7 +357,7 @@ struct LetterboxdImportView: View {
     /// True when the import queued titles to rank (so "Start ranking" should
     /// jump to My Lists → Watched). Watchlist-only/pasted imports don't.
     private var pendingToRank: Bool {
-        !pastedToWatchlist && !(result?.watched.isEmpty ?? true)
+        !runner.pastedToWatchlist && !(runner.result?.watched.isEmpty ?? true)
     }
 
     private func summaryRow(icon: String, count: Int, label: String, detail: String? = nil) -> some View {
@@ -364,56 +372,6 @@ struct LetterboxdImportView: View {
             Spacer()
         }
         .padding(14)
-    }
-
-    // MARK: Pipeline
-
-    private func runPastedImport() async {
-        errorMessage = nil
-        withAnimation(.snappy) { phase = .working }
-        progressText = "Reading your list…"
-        progressFraction = 0
-        do {
-            matchingStarted = nil
-            etaText = nil
-            let outcome = try await LetterboxdImporter.runText(pastedText) { progress in
-                switch progress {
-                case .reading:
-                    progressText = "Reading your list…"
-                case .matching(let done, let total):
-                    progressText = "Matching \(done) of \(total)"
-                    progressFraction = Double(done) / Double(max(total, 1))
-                    updateETA(done: done, total: total)
-                }
-            }
-            etaText = nil
-            pastedToWatchlist = pasteDestination == .wantToWatch
-            if pastedToWatchlist {
-                let pending = outcome.watched.filter {
-                    !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
-                }
-                if !pending.isEmpty, !Task.isCancelled {
-                    await saveWatchlistBulk(pending)
-                }
-            } else if !Task.isCancelled {
-                ImportQueue.shared.seed(with: outcome.watched, store: store)
-            }
-            // Stopped mid-flight: stay on the picker instead of yanking the
-            // screen to a summary the user just cancelled out of.
-            guard !Task.isCancelled else { return }
-            result = outcome
-            Haptics.success()
-            ToastCenter.shared.show(successLine(for: outcome))
-            withAnimation(.snappy) { phase = .summary }
-        } catch is CancellationError {
-            // User tapped Stop — the toolbar already returned them to the
-            // picker; no error banner for an intentional stop.
-        } catch {
-            Haptics.error()
-            errorMessage = (error as? LocalizedError)?.errorDescription
-                ?? "Couldn't read that list."
-            withAnimation(.snappy) { phase = .pick }
-        }
     }
 
     // MARK: Desktop transfer - export on a computer, beam it here
@@ -641,7 +599,8 @@ struct LetterboxdImportView: View {
                 guard !Task.isCancelled else { return }
                 let (ready, paths) = await SupabaseService.shared.importUploadState(code: code)
                 if ready {
-                    await importFromStorage(paths: paths)
+                    transferCode = nil
+                    runner.startFromStorage(paths: paths, store: store)
                     return
                 }
                 // A first file has landed (two-file transfers upload one at a
@@ -655,296 +614,70 @@ struct LetterboxdImportView: View {
         }
     }
 
-    private func importFromStorage(paths: [String]) async {
-        // The upload is being consumed — the app-wide watcher can stand down.
-        ImportTransfer.clear()
-        do {
-            Haptics.tap()
-            ToastCenter.shared.show(paths.count > 1
-                                    ? "Your exports landed — importing now 🎬"
-                                    : "Your export landed — importing now 🎬")
-            // Straight to the progress screen — a big export downloading over
-            // cellular must not sit behind a stale "Waiting for your upload…".
-            withAnimation(.snappy) { phase = .working }
-            progressFraction = 0
-            // Cap at two — the page only ever sends Letterboxd + Netflix.
-            let capped = Array(paths.prefix(2))
-            var urls: [URL] = []
-            for (index, path) in capped.enumerated() {
-                progressText = capped.count > 1
-                    ? "Downloading file \(index + 1) of \(capped.count)…"
-                    : "Downloading your export…"
-                progressFraction = Double(index) / Double(capped.count)
-                let data = try await SupabaseService.shared.downloadImport(path: path)
-                let filename = (path as NSString).lastPathComponent
-                let tempURL = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(filename)
-                try data.write(to: tempURL)
-                urls.append(tempURL)
-            }
-            transferCode = nil
-            await runImport(from: urls)
-        } catch {
-            // Clear the transfer code too, otherwise the "Waiting for your
-            // upload…" spinner hangs forever behind the error — and land back
-            // on the picker, not a frozen progress screen.
-            transferCode = nil
-            Haptics.error()
-            errorMessage = "Got your file but couldn't read it — try again."
-            withAnimation(.snappy) { phase = .pick }
-        }
-    }
+}
 
-    private func runImport(from urls: [URL]) async {
-        errorMessage = nil
-        pastedToWatchlist = false
-        withAnimation(.snappy) { phase = .working }
-        progressText = "Reading export…"
-        progressFraction = 0
+// MARK: - Import history
 
-        do {
-            // Run each export through the parser/matcher, then fold them into a
-            // single outcome so the rest of the import (queue seed, reviews,
-            // watchlist, lists) runs once over the combined set.
-            var results: [LetterboxdImporter.Result] = []
-            for (index, url) in urls.enumerated() {
-                let prefix = urls.count > 1 ? "File \(index + 1) of \(urls.count): " : ""
-                // ETA rate resets per file — Netflix and Letterboxd files
-                // match at different speeds.
-                matchingStarted = nil
-                etaText = nil
-                let r = try await LetterboxdImporter.run(fileURL: url) { progress in
-                    switch progress {
-                    case .reading:
-                        progressText = "\(prefix)Reading export…"
-                    case .matching(let done, let total):
-                        progressText = "\(prefix)Matching \(done) of \(total)"
-                        progressFraction = Double(done) / Double(max(total, 1))
-                        updateETA(done: done, total: total)
+/// Every past import on this device: when, what landed, and — expandable —
+/// exactly which titles couldn't be matched, so nothing vanishes silently.
+struct ImportHistoryScreen: View {
+    private let entries = ImportHistory.all()
+
+    var body: some View {
+        List {
+            ForEach(entries) { entry in
+                Section(entry.date.formatted(date: .abbreviated, time: .shortened)) {
+                    if entry.toRank > 0 {
+                        statRow(icon: "film.stack", text: "\(entry.toRank) films queued to rank")
                     }
-                }
-                results.append(r)
-            }
-            etaText = nil
-            var outcome = mergeImportResults(results)
-            // Only bring in net-new titles: skip anything already ranked
-            // (watched), and skip watchlist entries already saved or ranked, so
-            // re-importing never duplicates what's already in your library.
-            outcome.watched = outcome.watched.filter { !store.isWatched($0.movie.tmdbID) }
-            outcome.watchlist = outcome.watchlist.filter {
-                !store.isWatched($0.movie.tmdbID) && !store.isOnWatchlist($0.movie.tmdbID)
-            }
-
-            // Seed the persistent ranking queue (favorites first).
-            ImportQueue.shared.seed(with: outcome.watched, store: store)
-
-            // Reviews → Your Details notes; diary dates (every rewatch) →
-            // the Diary. All server-side in bulk, so huge histories land
-            // fast — and a failure is SAID, never shrugged off.
-            let detailItems = outcome.watched
-                .filter { $0.imported.review != nil || !$0.imported.watchDates.isEmpty }
-                .map { match in
-                    SupabaseService.ImportDetailItem(
-                        tmdb_id: match.movie.tmdbID,
-                        media_kind: match.movie.mediaKind,
-                        title: match.movie.title,
-                        release_year: match.movie.releaseYear,
-                        poster_path: match.movie.posterPath,
-                        review: match.imported.review,
-                        watched_on: match.imported.watchedOn,
-                        watched_dates: match.imported.watchDates.sorted())
-                }
-            if !detailItems.isEmpty {
-                // Chunked: a 1,500-film library in ONE payload risks a
-                // request-size/statement timeout — 400 rows at a time lands
-                // reliably and keeps the bar honest.
-                let chunks = stride(from: 0, to: detailItems.count, by: 400).map {
-                    Array(detailItems[$0..<min($0 + 400, detailItems.count)])
-                }
-                for (index, chunk) in chunks.enumerated() {
-                    if Task.isCancelled { break }
-                    progressText = chunks.count > 1
-                        ? "Saving your reviews and watch dates… (\(index + 1) of \(chunks.count))"
-                        : "Saving your reviews and watch dates…"
-                    progressFraction = Double(index + 1) / Double(chunks.count)
-                    do {
-                        try await SupabaseService.shared.importMovieDetails(chunk)
-                    } catch {
-                        // One quiet retry — the RPC is idempotent.
-                        do {
-                            try await SupabaseService.shared.importMovieDetails(chunk)
-                        } catch {
-                            SupabaseService.logSwallowed("import_movie_details", error)
-                            detailsImportFailed = true
+                    if entry.saved > 0 {
+                        statRow(icon: "bookmark.fill", text: "\(entry.saved) saved to Want to Watch")
+                    }
+                    if entry.reviews > 0 {
+                        statRow(icon: "square.and.pencil",
+                                text: entry.detailsFailed
+                                    ? "\(entry.reviews) reviews (some couldn't sync)"
+                                    : "\(entry.reviews) reviews brought over")
+                    }
+                    if entry.lists > 0 {
+                        statRow(icon: "list.star", text: "\(entry.lists) list\(entry.lists == 1 ? "" : "s") rebuilt")
+                    }
+                    if entry.unmatched.isEmpty {
+                        statRow(icon: "checkmark.circle", text: "Every title matched")
+                    } else {
+                        DisclosureGroup {
+                            ForEach(entry.unmatched, id: \.self) { title in
+                                Text(title)
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.gray)
+                            }
+                        } label: {
+                            statRow(icon: "questionmark.circle",
+                                    text: "\(entry.unmatched.count) couldn't be matched")
                         }
                     }
                 }
+                .listRowBackground(Theme.surface)
             }
-
-            // Letterboxd watchlist → Cini watchlist, in bulk: one quiet RPC
-            // per 400 titles instead of two round trips per title (a 300-film
-            // watchlist used to take minutes here — and spray 'watchlisted'
-            // feed events at followers while it did).
-            let pendingSaves = outcome.watchlist.filter {
-                !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
+        }
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle("Import history")
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if entries.isEmpty {
+                EmptyStateView(icon: "clock.arrow.circlepath",
+                               title: "No imports yet",
+                               message: "Your past imports and their results will show up here.")
             }
-            if !pendingSaves.isEmpty, !Task.isCancelled {
-                await saveWatchlistBulk(pendingSaves)
-            }
-
-            // Letterboxd custom lists → Cini lists (same name reused). A failed
-            // read of existing lists must NOT look like "you have none" — that
-            // would re-create every list as new on a retry. Skip the phase then.
-            if !Task.isCancelled, !outcome.importedLists.isEmpty,
-               let existing = try? await SupabaseService.shared.myLists() {
-                progressText = "Rebuilding your lists…"
-                for list in outcome.importedLists {
-                    if Task.isCancelled { break }
-                    var target = existing.first {
-                        $0.name.localizedCaseInsensitiveCompare(list.name) == .orderedSame
-                    }
-                    if target == nil {
-                        target = try? await SupabaseService.shared.createList(name: list.name)
-                    }
-                    guard let target else { continue }
-                    for match in list.matches {
-                        if Task.isCancelled { break }
-                        store.cache(match.movie)
-                        try? await SupabaseService.shared.cacheMovie(match.movie)
-                        try? await SupabaseService.shared.addToList(target.id, movieID: match.movie.tmdbID)
-                    }
-                }
-                await store.refreshCustomLists()
-            }
-
-            result = outcome
-            Haptics.success()
-            ToastCenter.shared.show(successLine(for: outcome))
-            withAnimation(.snappy) { phase = .summary }
-        } catch is CancellationError {
-            // User tapped Stop during matching — return to the picker quietly,
-            // no error banner.
-            withAnimation(.snappy) { phase = .pick }
-        } catch {
-            Haptics.error()
-            errorMessage = (error as? LocalizedError)?.errorDescription
-                ?? "Something went wrong reading that file."
-            withAnimation(.snappy) { phase = .pick }
         }
     }
 
-    /// Bulk-save matched titles to the watchlist: one quiet RPC per 400
-    /// titles (retried once — it's idempotent), then reload the shared store
-    /// so the app reflects rows the RPC wrote behind its back.
-    private func saveWatchlistBulk(_ matches: [LetterboxdImporter.MatchedTitle]) async {
-        progressText = "Saving your watchlist… \(matches.count) title\(matches.count == 1 ? "" : "s")"
-        let items = matches.map { match in
-            SupabaseService.ImportDetailItem(
-                tmdb_id: match.movie.tmdbID,
-                media_kind: match.movie.mediaKind,
-                title: match.movie.title,
-                release_year: match.movie.releaseYear,
-                poster_path: match.movie.posterPath,
-                review: nil,
-                watched_on: nil,
-                watched_dates: [])
+    private func statRow(icon: String, text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(Theme.marquee).frame(width: 24)
+            Text(text).font(.subheadline)
         }
-        let chunks = stride(from: 0, to: items.count, by: 400).map {
-            Array(items[$0..<min($0 + 400, items.count)])
-        }
-        for (index, chunk) in chunks.enumerated() {
-            if Task.isCancelled { return }
-            progressFraction = Double(index + 1) / Double(chunks.count)
-            do {
-                try await SupabaseService.shared.importWatchlist(chunk)
-            } catch {
-                do {
-                    try await SupabaseService.shared.importWatchlist(chunk)
-                } catch {
-                    SupabaseService.logSwallowed("import_watchlist", error)
-                    ToastCenter.shared.saveFailed()
-                    break
-                }
-            }
-        }
-        matches.forEach { store.cache($0.movie) }
-        // Reconcile the single shared cache with what the server now holds.
-        await store.load()
-    }
-
-    /// Fold several parsed exports (e.g. Letterboxd + Netflix) into one result,
-    /// de-duping by TMDB id so a title in both isn't queued or counted twice.
-    /// Watched wins over watchlist; richer metadata (a review, more watch dates,
-    /// a like) is kept when the same title appears in more than one file.
-    private func mergeImportResults(_ results: [LetterboxdImporter.Result]) -> LetterboxdImporter.Result {
-        guard results.count > 1 else { return results.first ?? LetterboxdImporter.Result() }
-
-        var watchedByID: [Int: LetterboxdImporter.MatchedTitle] = [:]
-        var watchedOrder: [Int] = []
-        for result in results {
-            for match in result.watched {
-                let id = match.movie.tmdbID
-                if let existing = watchedByID[id] {
-                    watchedByID[id] = combineMatches(existing, match)
-                } else {
-                    watchedByID[id] = match
-                    watchedOrder.append(id)
-                }
-            }
-        }
-
-        var watchlistByID: [Int: LetterboxdImporter.MatchedTitle] = [:]
-        var watchlistOrder: [Int] = []
-        for result in results {
-            for match in result.watchlist where watchedByID[match.movie.tmdbID] == nil {
-                let id = match.movie.tmdbID
-                if watchlistByID[id] == nil {
-                    watchlistByID[id] = match
-                    watchlistOrder.append(id)
-                }
-            }
-        }
-
-        var merged = LetterboxdImporter.Result()
-        merged.watched = watchedOrder.compactMap { watchedByID[$0] }
-        merged.watchlist = watchlistOrder.compactMap { watchlistByID[$0] }
-        merged.importedLists = results.flatMap { $0.importedLists }
-        merged.unmatched = results.flatMap { $0.unmatched }
-        merged.totalParsed = results.reduce(0) { $0 + $1.totalParsed }
-        return merged
-    }
-
-    /// Merge the imported metadata for a title that showed up in two files.
-    private func combineMatches(_ a: LetterboxdImporter.MatchedTitle,
-                                _ b: LetterboxdImporter.MatchedTitle) -> LetterboxdImporter.MatchedTitle {
-        var imported = a.imported
-        imported.review = imported.review ?? b.imported.review
-        imported.watchedOn = imported.watchedOn ?? b.imported.watchedOn
-        imported.rating = imported.rating ?? b.imported.rating
-        imported.liked = imported.liked || b.imported.liked
-        imported.watchDates.formUnion(b.imported.watchDates)
-        return LetterboxdImporter.MatchedTitle(imported: imported, movie: a.movie)
-    }
-
-    /// "Imported 389 to rank · 57 saved · 2 lists" — the one-line receipt.
-    private func successLine(for outcome: LetterboxdImporter.Result) -> String {
-        var parts: [String] = []
-        if pastedToWatchlist {
-            parts.append("\(outcome.watched.count) saved to Want to Watch")
-        } else {
-            if !outcome.watched.isEmpty { parts.append("\(outcome.watched.count) to rank") }
-            if !outcome.watchlist.isEmpty {
-                parts.append("\(outcome.watchlist.count) saved")
-            }
-        }
-        let reviews = outcome.watched.filter { $0.imported.review != nil }.count
-        if reviews > 0 && !detailsImportFailed {
-            parts.append("\(reviews) review\(reviews == 1 ? "" : "s")")
-        }
-        if !outcome.importedLists.isEmpty {
-            parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
-        }
-        return parts.isEmpty ? "Import complete" : "Imported: " + parts.joined(separator: " · ")
     }
 }
 

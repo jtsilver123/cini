@@ -155,14 +155,14 @@ final class ShowtimesService: ShowtimesProviding {
     /// future days from this, so it never claims a day the showtimes sheet
     /// can't back up. Returns tmdbID → set of local days with ≥1 showing.
     func playingDays(for movies: [Movie], zipcode: String, radius: Int = 15,
-                     days: Int = 7) async throws -> [Int: Set<Date>] {
+                     days: Int = 14) async throws -> [Int: Set<Date>] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
         components.queryItems = [
             URLQueryItem(name: "startDate", value: DateFormatter.localDay.string(from: Date())),
-            URLQueryItem(name: "numDays", value: String(max(1, min(days, 7)))),
+            URLQueryItem(name: "numDays", value: String(max(1, min(days, 14)))),
             URLQueryItem(name: "zip", value: zipcode),
             URLQueryItem(name: "radius", value: String(max(1, min(radius, 100)))),
             URLQueryItem(name: "units", value: "mi"),
