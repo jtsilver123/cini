@@ -126,6 +126,14 @@ struct RootTabView: View {
     @State private var router = TabRouter.shared
     @State private var network = NetworkMonitor.shared
     @State private var showChat = false
+    /// A desktop-transfer upload landed while the import screen wasn't
+    /// watching — auto-open the import so the handoff needs no babysitting.
+    @State private var resumeImport: ResumeImport?
+
+    struct ResumeImport: Identifiable {
+        let code: String
+        var id: String { code }
+    }
     /// The signed-in user's avatar, rendered circular for the Profile tab —
     /// like Beli, your own photo IS the Profile tab icon. Reloads whenever
     /// the avatar URL changes (URLs are cache-busted on a photo change).
@@ -223,6 +231,31 @@ struct RootTabView: View {
             .environment(router)
             .presentationDragIndicator(.visible)
         }
+        // Desktop-import watcher: while a transfer code is pending, keep an
+        // eye out for the landed upload anywhere in the app — the import
+        // screen's own poll dies if it's closed or the phone locks, and an
+        // upload nobody notices reads as "the import didn't work".
+        .task {
+            while !Task.isCancelled {
+                await checkPendingImport()
+                try? await Task.sleep(for: .seconds(8))
+            }
+        }
+        .sheet(item: $resumeImport) { resume in
+            LetterboxdImportView(resumeCode: resume.code)
+                .environment(router)
+        }
+    }
+
+    /// One watcher tick: if a pending transfer's upload is complete and the
+    /// import screen isn't already handling it, open the import on it.
+    private func checkPendingImport() async {
+        guard !ImportTransfer.viewIsHandling, resumeImport == nil,
+              let code = ImportTransfer.pendingCode else { return }
+        let (ready, _) = await SupabaseService.shared.importUploadState(code: code)
+        guard ready, !ImportTransfer.viewIsHandling, resumeImport == nil else { return }
+        Haptics.success()
+        resumeImport = ResumeImport(code: code)
     }
 
     /// Beli's bar: a solid, opaque bottom bar with a top hairline and labeled

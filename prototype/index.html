@@ -2916,6 +2916,12 @@ function importLinkSent(){
       <button class="lnk" onclick="toast('Link copied')">${I("share",15)} Copy the link</button>
     </div>
     <button class="lnk" style="width:100%; justify-content:center; margin-top:18px; font-size:12.5px;" onclick="pasteDest=null; toast('Your export landed — importing now 🎬'); importProgress()">Demo: pretend the upload just arrived →</button>`;
+  // The app auto-recognizes the landed upload wherever you are — the demo
+  // mirrors that: after a few seconds the import just starts by itself.
+  clearTimeout(window._importDemoTimer);
+  window._importDemoTimer = setTimeout(() => {
+    if ($("importCard")) { pasteDest = null; toast("Your export landed — importing now 🎬"); importProgress(); }
+  }, 7000);
 }
 let pasteDest=null;
 function importPaste(){

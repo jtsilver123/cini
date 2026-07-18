@@ -10,6 +10,9 @@ struct LetterboxdImportView: View {
     /// Entry points that promise "paste a list" land directly on the
     /// paste sheet instead of the full import picker.
     var startWithPaste = false
+    /// Set when RootTabView's watcher spotted a landed upload for this code —
+    /// the screen opens straight into fetching it instead of the picker.
+    var resumeCode: String? = nil
 
     @Environment(AppSession.self) private var session
     @Environment(RankingStore.self) private var store
@@ -57,8 +60,25 @@ struct LetterboxdImportView: View {
             }
             .background(Theme.background)
             .swipeDismissesKeyboard()
-            .onAppear { if startWithPaste { showPaste = true } }
-            .onDisappear { transferTask?.cancel(); importTask?.cancel() }
+            .onAppear {
+                ImportTransfer.viewIsHandling = true
+                if startWithPaste { showPaste = true }
+                if let resumeCode {
+                    // The watcher saw the upload land — go get it.
+                    transferCode = resumeCode
+                    startPolling(code: resumeCode)
+                }
+            }
+            .onDisappear {
+                ImportTransfer.viewIsHandling = false
+                UIApplication.shared.isIdleTimerDisabled = false
+                transferTask?.cancel(); importTask?.cancel()
+            }
+            // A 1,500-film library matches for a couple of minutes — the
+            // screen must not auto-lock mid-import and suspend the work.
+            .onChange(of: phase) { _, newPhase in
+                UIApplication.shared.isIdleTimerDisabled = newPhase == .working
+            }
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -513,6 +533,9 @@ struct LetterboxdImportView: View {
         }
         errorMessage = nil
         transferCode = code
+        // Persist the handoff so a landed upload is caught app-wide, even if
+        // this screen closes before the computer side finishes.
+        ImportTransfer.begin(code)
         linkCopied = false
         if thenOpenEmail {
             // The in-app composer lets us send a nicely formatted (bold) email;
@@ -528,12 +551,18 @@ struct LetterboxdImportView: View {
             UIPasteboard.general.string = transferLink(code: code)
             linkCopied = true
         }
+        startPolling(code: code)
+    }
+
+    /// Watch the transfer code until the upload lands (checking immediately,
+    /// then every 3s for the code's 30-minute window). The code also persists
+    /// in `ImportTransfer` so RootTabView's watcher picks the upload up even
+    /// if this screen is closed or the phone locks meanwhile.
+    private func startPolling(code: String) {
         transferTask?.cancel()
         receivedCount = 0
         transferTask = Task {
-            // Poll for the upload until the code's 30-minute window closes.
             for _ in 0..<600 {
-                try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled else { return }
                 let (ready, paths) = await SupabaseService.shared.importUploadState(code: code)
                 if ready {
@@ -543,13 +572,17 @@ struct LetterboxdImportView: View {
                 // A first file has landed (two-file transfers upload one at a
                 // time) — reflect it instead of a generic "waiting".
                 receivedCount = paths.count
+                try? await Task.sleep(for: .seconds(3))
             }
             transferCode = nil
+            ImportTransfer.clear()
             errorMessage = "That link expired — email yourself a fresh one."
         }
     }
 
     private func importFromStorage(paths: [String]) async {
+        // The upload is being consumed — the app-wide watcher can stand down.
+        ImportTransfer.clear()
         do {
             Haptics.tap()
             ToastCenter.shared.show(paths.count > 1
@@ -641,16 +674,28 @@ struct LetterboxdImportView: View {
                         watched_dates: match.imported.watchDates.sorted())
                 }
             if !detailItems.isEmpty {
-                progressText = "Saving your reviews and watch dates…"
-                do {
-                    try await SupabaseService.shared.importMovieDetails(detailItems)
-                } catch {
-                    // One quiet retry — the RPC is idempotent.
+                // Chunked: a 1,500-film library in ONE payload risks a
+                // request-size/statement timeout — 400 rows at a time lands
+                // reliably and keeps the bar honest.
+                let chunks = stride(from: 0, to: detailItems.count, by: 400).map {
+                    Array(detailItems[$0..<min($0 + 400, detailItems.count)])
+                }
+                for (index, chunk) in chunks.enumerated() {
+                    if Task.isCancelled { break }
+                    progressText = chunks.count > 1
+                        ? "Saving your reviews and watch dates… (\(index + 1) of \(chunks.count))"
+                        : "Saving your reviews and watch dates…"
+                    progressFraction = Double(index + 1) / Double(chunks.count)
                     do {
-                        try await SupabaseService.shared.importMovieDetails(detailItems)
+                        try await SupabaseService.shared.importMovieDetails(chunk)
                     } catch {
-                        SupabaseService.logSwallowed("import_movie_details", error)
-                        detailsImportFailed = true
+                        // One quiet retry — the RPC is idempotent.
+                        do {
+                            try await SupabaseService.shared.importMovieDetails(chunk)
+                        } catch {
+                            SupabaseService.logSwallowed("import_movie_details", error)
+                            detailsImportFailed = true
+                        }
                     }
                 }
             }
