@@ -32,6 +32,9 @@ struct LetterboxdImportView: View {
     @State private var importTask: Task<Void, Never>?
     @State private var linkCopied = false
     @State private var mailDraft: MailDraft?
+    /// Files the server has received so far on this transfer code — shown
+    /// live while waiting (a two-file transfer lands one at a time).
+    @State private var receivedCount = 0
 
     enum Phase {
         case pick, working, summary
@@ -157,7 +160,7 @@ struct LetterboxdImportView: View {
                     .padding(.top, 28)
                 Text("Bring your history")
                     .font(Theme.serif(30))
-                Text("Takes about a minute. Import from Letterboxd, IMDb, or Netflix — easiest on a computer, so we'll email you a link.")
+                Text("Takes about a minute. Import from Letterboxd, IMDb, or Netflix — the export can be a .zip or a .csv, both work. Easiest on a computer, so we'll email you a link.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -389,9 +392,11 @@ struct LetterboxdImportView: View {
                         .foregroundStyle(Theme.gray)
                     HStack {
                         ProgressView().controlSize(.small)
-                        Text("Waiting for your upload… link works for 30 minutes")
+                        Text(receivedCount > 0
+                             ? "\(receivedCount) file\(receivedCount == 1 ? "" : "s") received — finishing the transfer…"
+                             : "Waiting for your upload… link works for 30 minutes")
                             .font(.caption2)
-                            .foregroundStyle(Theme.gray)
+                            .foregroundStyle(receivedCount > 0 ? Theme.marquee : Theme.gray)
                     }
                     HStack(spacing: 22) {
                         Button {
@@ -524,16 +529,20 @@ struct LetterboxdImportView: View {
             linkCopied = true
         }
         transferTask?.cancel()
+        receivedCount = 0
         transferTask = Task {
             // Poll for the upload until the code's 30-minute window closes.
             for _ in 0..<600 {
                 try? await Task.sleep(for: .seconds(3))
                 guard !Task.isCancelled else { return }
-                let paths = await SupabaseService.shared.importUploadPaths(code: code)
-                if !paths.isEmpty {
+                let (ready, paths) = await SupabaseService.shared.importUploadState(code: code)
+                if ready {
                     await importFromStorage(paths: paths)
                     return
                 }
+                // A first file has landed (two-file transfers upload one at a
+                // time) — reflect it instead of a generic "waiting".
+                receivedCount = paths.count
             }
             transferCode = nil
             errorMessage = "That link expired — email yourself a fresh one."
@@ -546,9 +555,18 @@ struct LetterboxdImportView: View {
             ToastCenter.shared.show(paths.count > 1
                                     ? "Your exports landed — importing now 🎬"
                                     : "Your export landed — importing now 🎬")
+            // Straight to the progress screen — a big export downloading over
+            // cellular must not sit behind a stale "Waiting for your upload…".
+            withAnimation(.snappy) { phase = .working }
+            progressFraction = 0
             // Cap at two — the page only ever sends Letterboxd + Netflix.
+            let capped = Array(paths.prefix(2))
             var urls: [URL] = []
-            for path in paths.prefix(2) {
+            for (index, path) in capped.enumerated() {
+                progressText = capped.count > 1
+                    ? "Downloading file \(index + 1) of \(capped.count)…"
+                    : "Downloading your export…"
+                progressFraction = Double(index) / Double(capped.count)
                 let data = try await SupabaseService.shared.downloadImport(path: path)
                 let filename = (path as NSString).lastPathComponent
                 let tempURL = FileManager.default.temporaryDirectory
@@ -560,10 +578,12 @@ struct LetterboxdImportView: View {
             await runImport(from: urls)
         } catch {
             // Clear the transfer code too, otherwise the "Waiting for your
-            // upload…" spinner hangs forever behind the error.
+            // upload…" spinner hangs forever behind the error — and land back
+            // on the picker, not a frozen progress screen.
             transferCode = nil
             Haptics.error()
             errorMessage = "Got your file but couldn't read it — try again."
+            withAnimation(.snappy) { phase = .pick }
         }
     }
 

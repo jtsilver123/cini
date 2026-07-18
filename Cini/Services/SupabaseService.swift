@@ -788,19 +788,22 @@ final class SupabaseService {
         return code
     }
 
-    /// Storage path(s) of the uploaded export(s) once the computer side is done.
+    /// Upload state of a transfer code as the server sees it: the storage
+    /// path(s) that have landed so far, and whether the set is complete.
     /// The import page can send more than one file in a session (e.g. a
     /// Letterboxd .zip and a Netflix .csv); they arrive as a comma-separated
-    /// list in `path` and only become "ready" once the last one lands.
-    func importUploadPaths(code: String) async -> [String] {
+    /// list in `path` and only become "ready" once the last one lands — the
+    /// partial count lets the app show live transfer progress while waiting.
+    func importUploadState(code: String) async -> (ready: Bool, paths: [String]) {
         struct Row: Decodable { let status: String; let path: String? }
         let row: Row? = try? await client.from("pending_imports")
             .select("status, path")
             .eq("code", value: code)
             .single().execute().value
-        guard row?.status == "ready", let path = row?.path else { return [] }
-        return path.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let paths = (row?.path ?? "").split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+        return (row?.status == "ready" && !paths.isEmpty, paths)
     }
 
     func downloadImport(path: String) async throws -> Data {

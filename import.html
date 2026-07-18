@@ -42,7 +42,14 @@
     cursor:pointer; transition:background .15s;}
   .drop:hover,.drop.over{background:rgba(232,182,76,.08);}
   .drop b{color:var(--marquee);}
-  .status{margin-top:16px; font-size:14px; min-height:20px;}
+  .drop.busy{pointer-events:none; opacity:.6;}
+  .track{display:none; margin-top:16px; height:8px; border-radius:999px;
+    background:rgba(255,255,255,.08); overflow:hidden;}
+  .fill{height:100%; width:0%; border-radius:999px; background:var(--marquee);
+    transition:width .15s ease;}
+  .fill.pulse{animation:pulse 1.1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+  .status{margin-top:12px; font-size:14px; min-height:20px;}
   .ok{color:var(--green);} .err{color:var(--red);}
   .footer{margin-top:24px; font-size:11px; color:#6E665D;}
 </style>
@@ -53,11 +60,15 @@
   <div class="tagline">EVERYTHING YOU WATCH · RANKED</div>
   <h1>Send your history to your phone</h1>
   <ol>
-    <li><b style="color:var(--ink);">Choose where you're importing from</b> — Letterboxd, Netflix, or both.</li>
-    <li><b style="color:var(--ink);">Export your history:</b>
+    <li><b style="color:var(--ink);">Choose where you're importing from</b> — Letterboxd, IMDb, Netflix, or a mix.</li>
+    <li><b style="color:var(--ink);">Export your history</b> — a <b>.zip</b> or a <b>.csv</b>, both work:
       <div class="platform">
         <div class="pname">Letterboxd</div>
-        <div class="psteps">Go to <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a> → click <b>Export your data</b> → save the <b>.zip</b>.</div>
+        <div class="psteps">Go to <a href="https://letterboxd.com/settings/data/" target="_blank" rel="noopener">letterboxd.com/settings/data</a> → click <b>Export your data</b> (saves a <b>.zip</b>).</div>
+      </div>
+      <div class="platform">
+        <div class="pname">IMDb</div>
+        <div class="psteps">Go to <a href="https://www.imdb.com/list/ratings" target="_blank" rel="noopener">imdb.com → Your Ratings</a> → the <b>⋮</b> menu → <b>Export</b> (saves a <b>.csv</b>).</div>
       </div>
       <div class="platform">
         <div class="pname">Netflix</div>
@@ -65,15 +76,16 @@
       </div>
     </li>
     <li id="codeStep">Enter the 6-letter code from the Cini app.</li>
-    <li>Drop your file(s) below — importing from both? Drop both at once.</li>
+    <li>Drop your file(s) below — importing from two places? Drop both at once.</li>
   </ol>
   <input id="code" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false">
   <span class="linked" id="linked">✓ Linked to the Cini app on your phone</span>
   <div class="drop" id="drop">
     <b>Drop your export here</b><br>
-    <span style="font-size:13px; color:var(--gray);">or click to choose the .zip / .csv — up to 2 files</span>
+    <span style="font-size:13px; color:var(--gray);">.zip or .csv — both work · or click to choose · up to 2 files</span>
     <input type="file" id="file" accept=".zip,.csv,.txt" multiple style="display:none;">
   </div>
+  <div class="track" id="track"><div class="fill" id="fill"></div></div>
   <div class="status" id="status"></div>
   <div class="footer">Files transfer privately to your account only and expire after a day.<br>ADMIT ONE · CINI</div>
 </div>
@@ -111,42 +123,82 @@ drop.addEventListener("drop", e => {
   if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
 });
 
-// Up to two files (Letterboxd + Netflix) go up one at a time; only the last
-// is marked final=1 so the app waits for the whole set before importing.
+const track = document.getElementById("track");
+const fill = document.getElementById("fill");
+let uploading = false;
+
+// XHR (not fetch) so the browser reports REAL upload progress — the bar
+// tracks bytes sent, then pulses while the server files it away.
+function sendFile(file, code, isLast, onProgress) {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST",
+      "https://npumchnkbcajyuhurgez.supabase.co/functions/v1/import-upload?code=" +
+        encodeURIComponent(code) + "&name=" + encodeURIComponent(file.name) +
+        "&final=" + (isLast ? "1" : "0"));
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let body = {};
+      try { body = JSON.parse(xhr.responseText); } catch {}
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, body });
+    };
+    xhr.onerror = () => resolve({ ok: false, network: true });
+    xhr.send(file);
+  });
+}
+
+// Up to two files (e.g. Letterboxd + Netflix) go up one at a time; only the
+// last is marked final=1 so the app waits for the whole set before importing.
 async function upload(fileList) {
+  if (uploading) return;
   const code = codeInput.value.trim();
   if (code.length !== 6) {
     status.className = "status err";
     status.textContent = "Enter the 6-letter code from the Cini app first.";
     return;
   }
+  uploading = true;
+  drop.classList.add("busy");
+  track.style.display = "block";
   const files = Array.from(fileList).slice(0, 2);
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const isLast = i === files.length - 1;
+    const label = files.length > 1
+      ? file.name + " (" + (i + 1) + " of " + files.length + ")"
+      : file.name;
+    fill.classList.remove("pulse");
+    fill.style.width = "0%";
     status.className = "status";
-    status.textContent = files.length > 1
-      ? "Uploading " + file.name + " (" + (i + 1) + " of " + files.length + ")…"
-      : "Uploading " + file.name + "…";
-    try {
-      const res = await fetch(
-        "https://npumchnkbcajyuhurgez.supabase.co/functions/v1/import-upload?code=" +
-          encodeURIComponent(code) + "&name=" + encodeURIComponent(file.name) +
-          "&final=" + (isLast ? "1" : "0"),
-        { method: "POST", body: file }
-      );
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        status.className = "status err";
-        status.textContent = body.error || ("Upload failed for " + file.name + " — try again.");
-        return;
+    status.textContent = "Uploading " + label + " — 0%";
+    const result = await sendFile(file, code, isLast, (frac) => {
+      const pct = Math.min(100, Math.round(frac * 100));
+      fill.style.width = pct + "%";
+      if (pct >= 100) {
+        // Bytes are all sent — the server is unpacking and filing it.
+        fill.classList.add("pulse");
+        status.textContent = "Processing " + label + "…";
+      } else {
+        status.textContent = "Uploading " + label + " — " + pct + "%";
       }
-    } catch {
+    });
+    fill.classList.remove("pulse");
+    if (!result.ok) {
+      uploading = false;
+      drop.classList.remove("busy");
+      track.style.display = "none";
       status.className = "status err";
-      status.textContent = "Couldn't reach the server — check your connection.";
+      status.textContent = result.network
+        ? "Couldn't reach the server — check your connection."
+        : (result.body.error || ("Upload failed for " + file.name + " — try again."));
       return;
     }
   }
+  fill.style.width = "100%";
+  uploading = false;
+  drop.classList.remove("busy");
   status.className = "status ok";
   status.textContent = files.length > 1
     ? "Done! Both files sent — check your phone, Cini is importing them now. 🎬"
