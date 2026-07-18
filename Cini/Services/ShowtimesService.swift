@@ -162,9 +162,10 @@ final class ShowtimesService: ShowtimesProviding {
     /// exhaustive source for the "All releases" calendar — Gracenote returns
     /// the whole schedule in one call; variants ("… IMAX") merge into their
     /// canonical film.
-    func localSchedule(zipcode: String, radius: Int = 15,
-                       days: Int = 14) async throws -> [LocalListing] {
-        let listings = try await fetchShowings(zipcode: zipcode, radius: radius, days: days)
+    func localSchedule(zipcode: String, radius: Int = 15, days: Int = 14,
+                       from start: Date = Date()) async throws -> [LocalListing] {
+        let listings = try await fetchShowings(zipcode: zipcode, radius: radius,
+                                               days: days, start: start)
         let cal = Calendar.current
         var merged: [String: (title: String, year: Int?, days: Set<Date>)] = [:]
         for listing in listings {
@@ -208,13 +209,14 @@ final class ShowtimesService: ShowtimesProviding {
 
     /// The raw multi-day showings feed for a zip — shared by every consumer
     /// so the query (and its clamps) can't drift between them.
-    private func fetchShowings(zipcode: String, radius: Int, days: Int) async throws -> [GNMovie] {
+    private func fetchShowings(zipcode: String, radius: Int, days: Int,
+                               start: Date = Date()) async throws -> [GNMovie] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
         components.queryItems = [
-            URLQueryItem(name: "startDate", value: DateFormatter.localDay.string(from: Date())),
+            URLQueryItem(name: "startDate", value: DateFormatter.localDay.string(from: start)),
             URLQueryItem(name: "numDays", value: String(max(1, min(days, 14)))),
             URLQueryItem(name: "zip", value: zipcode),
             URLQueryItem(name: "radius", value: String(max(1, min(radius, 100)))),

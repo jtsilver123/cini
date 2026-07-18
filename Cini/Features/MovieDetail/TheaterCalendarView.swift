@@ -32,6 +32,10 @@ struct TheaterCalendarView: View {
     @State private var localDays: [Int: Set<Date>] = [:]
     /// The zip the current `localDays` answers for — refetch when it changes.
     @State private var checkedZip = ""
+    /// 14-day schedule windows already fetched (0 = today, 1 = +14d, …) —
+    /// paging into the future fetches its window in real time, so days
+    /// beyond the first fortnight fill in as theaters post them.
+    @State private var fetchedWindows: Set<Int> = []
     /// Films playing nearby that no loaded set (charts, upcoming, your list)
     /// included — resolved from the local schedule so "All releases" is
     /// exhaustive for what's actually showing.
@@ -235,12 +239,24 @@ struct TheaterCalendarView: View {
             // The watchlist fetch can take seconds — never yank away a
             // month/day the user already picked while waiting.
             if selectedDay == nil { resetMonth() }
-            await loadLocalDays()
+            await ensureLocalCoverage(for: visibleMonth)
         }
         .onChange(of: scope) { _, _ in resetMonth() }
         .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
-        .onChange(of: zipcode) { _, _ in Task { await loadLocalDays() } }
-        .onChange(of: visibleMonth) { _, month in Task { await loadMonth(month) } }
+        .onChange(of: zipcode) { _, _ in
+            // New zip = new truth: drop everything verified and refetch.
+            localDays = [:]
+            localFilms = []
+            fetchedWindows = []
+            checkedZip = ""
+            Task { await ensureLocalCoverage(for: visibleMonth) }
+        }
+        .onChange(of: visibleMonth) { _, month in
+            Task {
+                await loadMonth(month)
+                await ensureLocalCoverage(for: month)
+            }
+        }
     }
 
     // MARK: - Controls (mode toggle styled like Recs Find/Rank, + scope filter)
@@ -841,11 +857,39 @@ struct TheaterCalendarView: View {
     /// against what's already loaded first, then a TMDB search — so "All
     /// releases" shows everything actually playing on each day, not just
     /// whatever TMDB's popularity chart happened to include.
-    private func loadLocalDays() async {
-        guard zipcode.count == 5, checkedZip != zipcode else { return }
+    /// Fetch every 14-day schedule window needed to cover the given month
+    /// (bounded to ~60 days out — theaters essentially never post further).
+    /// Paging ahead triggers this, so future days populate in real time as
+    /// soon as theaters publish them (advance sales included).
+    private func ensureLocalCoverage(for month: Date) async {
+        guard zipcode.count == 5 else { return }
+        let today = cal.startOfDay(for: Date())
+        guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: month)),
+              let monthEnd = cal.date(byAdding: DateComponents(month: 1, day: -1), to: monthStart)
+        else { return }
+        let firstDay = max(today, monthStart)
+        guard firstDay <= monthEnd,
+              let horizon = cal.date(byAdding: .day, value: 60, to: today),
+              firstDay <= horizon else { return }
+        let lastDay = min(monthEnd, horizon)
+        let firstIndex = (cal.dateComponents([.day], from: today, to: firstDay).day ?? 0) / 14
+        let lastIndex = (cal.dateComponents([.day], from: today, to: lastDay).day ?? 0) / 14
+        for index in firstIndex...lastIndex {
+            await loadLocalWindow(index: index)
+        }
+    }
+
+    /// One aligned window (today + index×14 days): fetch the local schedule,
+    /// resolve every listing, and MERGE into the verified-day map.
+    private func loadLocalWindow(index: Int) async {
+        guard zipcode.count == 5, !fetchedWindows.contains(index),
+              let start = cal.date(byAdding: .day, value: index * 14,
+                                   to: cal.startOfDay(for: Date()))
+        else { return }
+        fetchedWindows.insert(index)
         do {
             let schedule = try await ShowtimesService.shared.localSchedule(
-                zipcode: zipcode, radius: radius)
+                zipcode: zipcode, radius: radius, from: start)
             // Cheap first pass: normalized-title lookup over loaded movies —
             // including the FULL cached watchlist, so an older film you saved
             // (a rerelease, say) still resolves without a search.
@@ -855,9 +899,7 @@ struct TheaterCalendarView: View {
             for m in (myMovies + nowOut + releases + watchlistMovies) where m.tmdbID > 0 {
                 byTitle[LetterboxdImporter.normalize(m.title), default: []].append(m)
             }
-            var days: [Int: Set<Date>] = [:]
-            var extras: [Movie] = []
-            var seen = Set<Int>()
+            var extraIDs = Set(localFilms.map(\.tmdbID))
             for listing in schedule {
                 let known = byTitle[LetterboxdImporter.normalize(listing.title)]?.first {
                     listing.year == nil || $0.releaseYear == nil
@@ -874,17 +916,17 @@ struct TheaterCalendarView: View {
                     movie = LetterboxdImporter.bestMatch(for: imported, in: candidates)
                 }
                 guard let movie, movie.tmdbID > 0 else { continue }
-                days[movie.tmdbID, default: []].formUnion(listing.days)
+                localDays[movie.tmdbID, default: []].formUnion(listing.days)
                 // Anything not already in a loaded array joins the pool —
                 // whether it resolved from the watchlist cache or a search.
-                if !loadedIDs.contains(movie.tmdbID), seen.insert(movie.tmdbID).inserted {
-                    extras.append(movie)
+                if !loadedIDs.contains(movie.tmdbID), extraIDs.insert(movie.tmdbID).inserted {
+                    localFilms.append(movie)
                 }
             }
-            localDays = days
-            localFilms = extras
             checkedZip = zipcode
         } catch {
+            // Failed windows may retry on the next visit.
+            fetchedWindows.remove(index)
             SupabaseService.logSwallowed("theaterCalendar.localSchedule", error)
         }
     }
