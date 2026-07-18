@@ -810,6 +810,18 @@ final class SupabaseService {
         try await client.storage.from("imports").download(path: path)
     }
 
+    /// One-tap import email: the server mails the signed-in user their own
+    /// private import link from hello@trycini.com (Resend) — no composer.
+    /// Returns the address it was sent to.
+    func sendImportLinkEmail(code: String, firstName: String?) async throws -> String {
+        struct Body: Encodable { let code: String; let name: String? }
+        struct Reply: Decodable { let ok: Bool; let to: String }
+        let reply: Reply = try await client.functions.invoke(
+            "send-import-link",
+            options: FunctionInvokeOptions(body: Body(code: code, name: firstName)))
+        return reply.to
+    }
+
     // MARK: - Push
 
     /// Store/refresh this device's APNs token so the send-push edge

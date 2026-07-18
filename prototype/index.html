@@ -2883,7 +2883,7 @@ function importPick(){return `
     <div class="sub" style="font-size:14px; line-height:1.5;">Cini queues every film you've logged so you can rank them — favorites first.</div>
   </div>
   <div style="background:var(--surface-2); border-radius:16px; padding:16px; margin:16px 0;">
-    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">Email yourself your <b>private import link</b></span></div>
+    <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">1</b><span style="font-size:14px;">We email you your <b>private import link</b></span></div>
     <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">2</b><span style="font-size:14px;">Open it on your computer and follow two steps</span></div>
     <div style="display:flex; gap:12px; margin-bottom:11px;"><b style="color:var(--marquee);">3</b><span style="font-size:14px;">Your movies land here by themselves</span></div>
     <button class="pill" style="width:100%; justify-content:center; padding:13px; margin-top:4px;" onclick="importLinkSent()">Email me the link</button>
@@ -2905,16 +2905,17 @@ function importLinkSent(){
     <div style="text-align:center;">
       <span style="color:var(--marquee);">${I("mail",38,1.5)}</span>
       <div class="serif" style="font-size:25px; font-weight:700; margin:8px 0 6px;">Check your email</div>
-      <div class="sub" style="font-size:14px; line-height:1.6;">Open your link on your computer and drop in your export — a .zip or a .csv both work — it lands here automatically.</div>
+      <div class="sub" style="font-size:14px; line-height:1.6;"><span style="color:var(--scoregreen,#4ade80); font-weight:700;">✓ Link sent to your inbox.</span> Open it on your computer and drop in your export — a .zip or a .csv both work — it lands here automatically.</div>
     </div>
     <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin:20px 0;">
       <span class="tdots"><span></span><span></span><span></span></span>
       <span class="sub">Waiting for your upload… link works for 30 minutes</span>
     </div>
     <div style="display:flex; justify-content:center; gap:22px;">
-      <button class="lnk" onclick="toast('Email sent again')">${I("mail",15)} Resend email</button>
+      <button class="lnk" onclick="toast('Sent again 📬')">${I("mail",15)} Resend email</button>
       <button class="lnk" onclick="toast('Link copied')">${I("share",15)} Copy the link</button>
     </div>
+    <button class="lnk" style="width:100%; justify-content:center; margin-top:10px; font-size:12px;" onclick="toast('Opens your Mail app — send it anywhere')">Or email it yourself — to any address</button>
     <button class="lnk" style="width:100%; justify-content:center; margin-top:18px; font-size:12.5px;" onclick="pasteDest=null; toast('Your export landed — importing now 🎬'); importProgress()">Demo: pretend the upload just arrived →</button>`;
   // The app auto-recognizes the landed upload wherever you are — the demo
   // mirrors that: after a few seconds the import just starts by itself.

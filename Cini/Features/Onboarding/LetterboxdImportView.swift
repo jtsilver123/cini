@@ -38,6 +38,9 @@ struct LetterboxdImportView: View {
     /// Files the server has received so far on this transfer code — shown
     /// live while waiting (a two-file transfer lands one at a time).
     @State private var receivedCount = 0
+    /// Where the one-tap import email landed — confirmation line under the
+    /// waiting card. nil = copy-link path (or the send fell back to Mail).
+    @State private var emailedTo: String?
 
     enum Phase {
         case pick, working, summary
@@ -407,7 +410,16 @@ struct LetterboxdImportView: View {
                         .background(Capsule().fill(Theme.marquee))
                 }
                 if let transferCode {
-                    Text("Check your email on your computer, open your link, and drop in your export — it lands here automatically.")
+                    if let emailedTo {
+                        Label {
+                            Text("Link sent to \(emailedTo)")
+                                .font(.caption.weight(.semibold))
+                        } icon: {
+                            Image(systemName: "checkmark.circle.fill")
+                        }
+                        .foregroundStyle(Theme.scoreGreen)
+                    }
+                    Text("Open your email on your computer, tap your link, and drop in your export — it lands here automatically.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                     HStack {
@@ -420,7 +432,10 @@ struct LetterboxdImportView: View {
                     }
                     HStack(spacing: 22) {
                         Button {
-                            openURL(emailMyselfURL(code: transferCode))
+                            Task {
+                                await sendLinkEmail(code: transferCode)
+                                if emailedTo != nil { ToastCenter.shared.show("Sent again 📬") }
+                            }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "envelope")
@@ -443,9 +458,25 @@ struct LetterboxdImportView: View {
                         .buttonStyle(.plain)
                     }
                     .frame(maxWidth: .infinity)
+                    // Backup: compose it yourself — handy when the link
+                    // should go to a DIFFERENT address than your account's.
+                    Button {
+                        if MFMailComposeViewController.canSendMail() {
+                            mailDraft = MailDraft(subject: Self.emailSubject,
+                                                  htmlBody: emailHTMLBody(code: transferCode))
+                        } else {
+                            openURL(emailMyselfURL(code: transferCode))
+                        }
+                    } label: {
+                        Text("Or email it yourself — to any address")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.marquee)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Label { Text("Email yourself your private import link") } icon: {
+                        Label { Text("We email you your private import link") } icon: {
                             Text("1").bold().foregroundStyle(Theme.marquee)
                         }
                         Label { Text("Open it on your computer and follow two steps") } icon: {
@@ -537,21 +568,36 @@ struct LetterboxdImportView: View {
         // this screen closes before the computer side finishes.
         ImportTransfer.begin(code)
         linkCopied = false
+        emailedTo = nil
         if thenOpenEmail {
-            // The in-app composer lets us send a nicely formatted (bold) email;
-            // fall back to a plain mailto if no Mail account is set up.
-            if MFMailComposeViewController.canSendMail() {
-                mailDraft = MailDraft(subject: Self.emailSubject,
-                                      htmlBody: emailHTMLBody(code: code),
-                                      to: SupabaseService.shared.currentEmail.map { [$0] } ?? [])
-            } else {
-                openURL(emailMyselfURL(code: code))
-            }
+            await sendLinkEmail(code: code)
         } else {
             UIPasteboard.general.string = transferLink(code: code)
             linkCopied = true
         }
         startPolling(code: code)
+    }
+
+    /// One tap → the server emails the link to the user's own inbox
+    /// (hello@trycini.com via Resend). Only if that fails do we fall back
+    /// to the old compose-it-yourself path.
+    private func sendLinkEmail(code: String) async {
+        let name = session.profile.flatMap { firstName($0.displayName, $0.username) }
+        if let to = try? await SupabaseService.shared.sendImportLinkEmail(
+            code: code, firstName: name) {
+            emailedTo = to
+            Haptics.tap()
+            return
+        }
+        // Server send failed (offline, phone-only account with no email…) —
+        // the composer still gets the link across.
+        if MFMailComposeViewController.canSendMail() {
+            mailDraft = MailDraft(subject: Self.emailSubject,
+                                  htmlBody: emailHTMLBody(code: code),
+                                  to: SupabaseService.shared.currentEmail.map { [$0] } ?? [])
+        } else {
+            openURL(emailMyselfURL(code: code))
+        }
     }
 
     /// Watch the transfer code until the upload lands (checking immediately,
