@@ -203,7 +203,7 @@ struct PlanWatchSheet: View {
         event.notes = "Planned on Cini"
         event.calendar = eventStore.defaultCalendarForNewEvents
         do {
-            try eventStore.save(event, span: .event)
+            try eventStore.save(event, span: .thisEvent)
             Haptics.success()
             ToastCenter.shared.show("Added to your calendar 🗓️")
         } catch {
