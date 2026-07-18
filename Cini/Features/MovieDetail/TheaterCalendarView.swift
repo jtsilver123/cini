@@ -134,12 +134,22 @@ struct TheaterCalendarView: View {
     /// Per-day order: your openings, your running films, then general ones —
     /// the visible thumbnail is always yours when anything of yours plays.
     private var byDay: [Date: [Movie]] {
-        var days = Dictionary(grouping: datedComing) { cal.startOfDay(for: releaseDate($0)!) }
+        var days: [Date: [Movie]] = [:]
         let today = cal.startOfDay(for: Date())
         for movie in nowPlaying {
             var markDays: Set<Date> = [today]
             if let verified = localDays[movie.tmdbID] {
                 markDays.formUnion(verified.filter { $0 > today })
+            }
+            for day in markDays { days[day, default: []].append(movie) }
+        }
+        for movie in datedComing {
+            // Opening day (the factual date) — PLUS any verified showing
+            // BEFORE it: advance screenings and previews are posted days the
+            // showtimes sheet already shows, so the grid must mark them too.
+            var markDays: Set<Date> = [cal.startOfDay(for: releaseDate(movie)!)]
+            if let verified = localDays[movie.tmdbID] {
+                markDays.formUnion(verified.filter { $0 >= today })
             }
             for day in markDays { days[day, default: []].append(movie) }
         }
@@ -648,6 +658,19 @@ struct TheaterCalendarView: View {
         }
     }
 
+    /// "In theaters" / "Opens Aug 21" / "Early screening" — what this film is
+    /// doing on the strip's day. A verified showing BEFORE the official date
+    /// is a preview, and saying "Opens Aug 21" on a card sitting on Aug 17
+    /// would read as a contradiction.
+    private func statusCaption(for movie: Movie, on day: Date?) -> String {
+        if movie.isReleased { return "In theaters" }
+        guard let opening = releaseDate(movie) else { return "Coming soon" }
+        if let day, cal.startOfDay(for: day) < cal.startOfDay(for: opening) {
+            return "Early screening"
+        }
+        return "Opens \(opening.formatted(.dateTime.month(.abbreviated).day()))"
+    }
+
     /// Compact poster card. My titles get a gold ring; general releases don't.
     /// `day` = the calendar day this strip shows, carried into Tickets so the
     /// showtimes sheet opens on the date the user was looking at.
@@ -684,11 +707,8 @@ struct TheaterCalendarView: View {
                                 .font(.caption.weight(.semibold)).lineLimit(2)
                                 .frame(width: 104, alignment: .leading)
                             // A film can mark many days now — every card says
-                            // whether it's playing or still coming.
-                            Text(movie.isReleased ? "In theaters"
-                                 : releaseDate(movie).map {
-                                     "Opens \($0.formatted(.dateTime.month(.abbreviated).day()))"
-                                 } ?? "Coming soon")
+                            // whether it's playing, previewing, or coming.
+                            Text(statusCaption(for: movie, on: day))
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(movie.isReleased ? Theme.scoreGreen : Theme.marquee)
                             if movie.tmdbID > 0, movie.isReleased || releaseDate(movie) != nil {
