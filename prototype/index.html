@@ -1196,15 +1196,19 @@ function _calMonth(now, coming){
   // films share the day.
   for(let d=1; d<=daysIn; d++){ const has=byDay[d], mine=mineDay(d);
     const lead=has&&has[0], extra=has?has.length-1:0;
+    // ★ = something OPENS this day (its release date), apart from days a
+    // film merely keeps showing.
+    const opens=(has||[]).some(f=>!f.now && f.date && f.date.getFullYear()===y && f.date.getMonth()===mo && f.date.getDate()===d);
     const marker=lead
       ? `<div style="position:relative; width:22px; height:33px; margin:3px auto 0;">
            <div style="width:22px; height:33px; border-radius:4px; background-image:${mine?'':'linear-gradient(rgba(0,0,0,.38),rgba(0,0,0,.38)),'}url('${IMG(lead.p)}'); background-size:cover; background-position:center; box-shadow:0 0 0 ${mine?'1.4px var(--marquee)':'1px var(--hair)'};"></div>
+           ${opens?`<span style="position:absolute; left:-4px; top:-4px; color:var(--marquee); font-size:9px; filter:drop-shadow(0 0 2px rgba(0,0,0,.7));">★</span>`:''}
            ${mine?`<span style="position:absolute; right:-3px; top:-3px; color:var(--marquee); filter:drop-shadow(0 0 2px rgba(0,0,0,.7));">${IF("bookmark",9)}</span>`:''}
            ${extra>0?`<span style="position:absolute; right:-5px; bottom:-4px; font-size:8px; font-weight:900; background:var(--surface-2); border:1px solid var(--hair); border-radius:999px; padding:0 3px;">+${extra}</span>`:''}
          </div>`
       : `<div style="height:33px; margin-top:3px;"></div>`;
     cells+=`<button ${has?"":"disabled"} onclick="_calSel=${d}; _calRender()" style="border:none; background:${_calSel===d&&has?'var(--marquee-soft)':'none'}; border-radius:9px; padding:6px 0 4px; cursor:${has?'pointer':'default'};">
-      <div style="font-size:12px; font-weight:${has?'800':'400'}; color:${has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
+      <div style="font-size:12px; font-weight:${has?'800':'400'}; color:${opens?'var(--marquee)':has?'var(--ink)':'rgba(255,255,255,.35)'};">${d}</div>
       ${marker}</button>`;
   }
   const selFilms=_calSel && byDay[_calSel] ? byDay[_calSel] : [];
@@ -1237,7 +1241,8 @@ function _calRender(){
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('mine','On my list')}${chip('all','All releases')}
         ${_calMode==='month'?`<span class="spacer"></span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:var(--marquee);"></span>Yours</span>
-          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:rgba(255,255,255,.35);"></span>Releasing</span>`:''}</div>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="color:var(--marquee);">★</span>Opens</span>
+          <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:rgba(255,255,255,.35);"></span>Showing</span>`:''}</div>
       ${body}
     </div>`);
 }

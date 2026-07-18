@@ -134,13 +134,25 @@ struct TheaterCalendarView: View {
     /// sheet can't back up.
     /// Per-day order: your openings, your running films, then general ones —
     /// the visible thumbnail is always yours when anything of yours plays.
+    /// Verified local data is in hand for the current zip — day marks can be
+    /// exact instead of assumed.
+    private var hasLocalData: Bool {
+        zipcode.count == 5 && checkedZip == zipcode && !localDays.isEmpty
+    }
+
     private var byDay: [Date: [Movie]] {
         var days: [Date: [Movie]] = [:]
         let today = cal.startOfDay(for: Date())
         for movie in nowPlaying {
-            var markDays: Set<Date> = [today]
-            if let verified = localDays[movie.tmdbID] {
-                markDays.formUnion(verified.filter { $0 > today })
+            var markDays: Set<Date>
+            if hasLocalData {
+                // Exact: only the days it verifiably plays near you. A chart
+                // film with no local showings doesn't sit on the grid at all.
+                markDays = Set((localDays[movie.tmdbID] ?? []).filter { $0 >= today })
+                guard !markDays.isEmpty else { continue }
+            } else {
+                // No zip / no data — the honest fallback is "in theaters now".
+                markDays = [today]
             }
             for day in markDays { days[day, default: []].append(movie) }
         }
@@ -260,7 +272,13 @@ struct TheaterCalendarView: View {
                 HStack(spacing: 10) {
                     Spacer()
                     legendSwatch(mine: true, "Yours")
-                    legendSwatch(mine: false, "Releasing")
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Theme.marquee)
+                        Text("Opens").font(.caption2).foregroundStyle(Theme.gray)
+                    }
+                    legendSwatch(mine: false, "Showing")
                 }
             }
         }
@@ -564,18 +582,24 @@ struct TheaterCalendarView: View {
             let count = films.count
             let isSelected = selectedDay.map { cal.isDate($0, inSameDayAs: day) } ?? false
             let isToday = cal.isDateInToday(day)
+            // A film OPENING here (its release day) is the day's event —
+            // marked distinctly from films merely showing.
+            let opensHere = films.contains {
+                !$0.isReleased && releaseDate($0).map { cal.isDate($0, inSameDayAs: key) } == true
+            }
             Button {
                 if count > 0 { Haptics.tap(); selectedDay = key }
             } label: {
                 VStack(spacing: 4) {
                     Text("\(cal.component(.day, from: day))")
                         .font(.caption.weight(count > 0 ? .bold : .regular))
-                        .foregroundStyle(count > 0 ? Theme.ink : Theme.gray.opacity(0.6))
+                        .foregroundStyle(opensHere ? Theme.marquee
+                                         : count > 0 ? Theme.ink : Theme.gray.opacity(0.6))
                     // The day's lead film as a mini poster (mine first — byDay
                     // orders your titles ahead) — the grid reads like a marquee,
                     // not a page of dots. Dot fallback when there's no artwork.
                     if count > 0, let poster = films.first?.posterURL {
-                        dayPosterThumb(poster, mine: mineHere, extra: count - 1)
+                        dayPosterThumb(poster, mine: mineHere, opens: opensHere, extra: count - 1)
                     } else {
                         Circle()
                             .fill(count > 0
@@ -596,18 +620,19 @@ struct TheaterCalendarView: View {
             // Always name the date (an empty label would hide it from VoiceOver);
             // add the release count when there is one.
             .accessibilityLabel(count > 0
-                ? "\(day.formatted(.dateTime.month().day())), \(count) release\(count == 1 ? "" : "s")\(mineHere ? ", on your list" : "")"
+                ? "\(day.formatted(.dateTime.month().day())), \(count) film\(count == 1 ? "" : "s")\(opensHere ? ", new release" : "")\(mineHere ? ", on your list" : "")"
                 : day.formatted(.dateTime.month().day()))
         } else {
             Color.clear.frame(maxWidth: .infinity, minHeight: 58)
         }
     }
 
-    /// 22×33 poster thumbnail for a calendar day. YOURS is unmistakable:
+    /// 22×33 poster thumbnail for a calendar day. A gold ★ marks a day
+    /// something OPENS (vs merely keeps showing). YOURS is unmistakable:
     /// full-strength artwork, gold ring, and a gold bookmark riding the top
     /// corner (the app-wide "saved" glyph). General releases render dimmed
     /// behind a hairline. "+N" when more films share the day.
-    private func dayPosterThumb(_ url: URL, mine: Bool, extra: Int) -> some View {
+    private func dayPosterThumb(_ url: URL, mine: Bool, opens: Bool, extra: Int) -> some View {
         CachedAsyncImage(url: url) { image in
             image.resizable().scaledToFill()
         } placeholder: {
@@ -629,6 +654,17 @@ struct TheaterCalendarView: View {
                     .foregroundStyle(Theme.marquee)
                     .shadow(color: .black.opacity(0.6), radius: 1)
                     .offset(x: 3, y: -3)
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            // A release opens on this day — the star says "premiere", apart
+            // from every day it merely keeps showing.
+            if opens {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Theme.marquee)
+                    .shadow(color: .black.opacity(0.6), radius: 1)
+                    .offset(x: -3, y: -3)
             }
         }
         .overlay(alignment: .bottomTrailing) {
