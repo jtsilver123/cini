@@ -149,6 +149,41 @@ final class ShowtimesService: ShowtimesProviding {
             .sorted { $0.theaterName < $1.theaterName }
     }
 
+    /// One film playing nearby: canonical title (variants merged), year, and
+    /// every posted day it has ≥1 showing.
+    struct LocalListing {
+        let title: String
+        let year: Int?
+        let days: Set<Date>
+    }
+
+    /// The COMPLETE local slate: every film with a posted showing near this
+    /// zip over the posted window, with the days each one plays. This is the
+    /// exhaustive source for the "All releases" calendar — Gracenote returns
+    /// the whole schedule in one call; variants ("… IMAX") merge into their
+    /// canonical film.
+    func localSchedule(zipcode: String, radius: Int = 15,
+                       days: Int = 14) async throws -> [LocalListing] {
+        let listings = try await fetchShowings(zipcode: zipcode, radius: radius, days: days)
+        let cal = Calendar.current
+        var merged: [String: (title: String, year: Int?, days: Set<Date>)] = [:]
+        for listing in listings {
+            let canonical = Self.canonicalTitle(listing.title)
+            guard !canonical.isEmpty else { continue }
+            let key = canonical.lowercased() + "|" + (listing.releaseYear.map(String.init) ?? "")
+            var entry = merged[key] ?? (canonical, listing.releaseYear, [])
+            for showing in listing.showtimes ?? [] {
+                guard let start = DateFormatter.gracenoteDateTime
+                    .date(from: showing.dateTime ?? "") else { continue }
+                entry.days.insert(cal.startOfDay(for: start))
+            }
+            merged[key] = entry
+        }
+        return merged.values
+            .filter { !$0.days.isEmpty }
+            .map { LocalListing(title: $0.title, year: $0.year, days: $0.days) }
+    }
+
     /// Which upcoming days does each of these films VERIFIABLY play near this
     /// zip? One Gracenote call covering the posted window (theaters publish
     /// about a week out) answers for all of them — the theater calendar marks
@@ -156,6 +191,24 @@ final class ShowtimesService: ShowtimesProviding {
     /// can't back up. Returns tmdbID → set of local days with ≥1 showing.
     func playingDays(for movies: [Movie], zipcode: String, radius: Int = 15,
                      days: Int = 14) async throws -> [Int: Set<Date>] {
+        let listings = try await fetchShowings(zipcode: zipcode, radius: radius, days: days)
+        let cal = Calendar.current
+        var result: [Int: Set<Date>] = [:]
+        for movie in movies where movie.tmdbID > 0 {
+            for listing in Self.variantMatches(for: movie, in: listings) {
+                for showing in listing.showtimes ?? [] {
+                    guard let start = DateFormatter.gracenoteDateTime
+                        .date(from: showing.dateTime ?? "") else { continue }
+                    result[movie.tmdbID, default: []].insert(cal.startOfDay(for: start))
+                }
+            }
+        }
+        return result
+    }
+
+    /// The raw multi-day showings feed for a zip — shared by every consumer
+    /// so the query (and its clamps) can't drift between them.
+    private func fetchShowings(zipcode: String, radius: Int, days: Int) async throws -> [GNMovie] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
@@ -173,20 +226,7 @@ final class ShowtimesService: ShowtimesProviding {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
-        let listings = try JSONDecoder().decode([GNMovie].self, from: data)
-
-        let cal = Calendar.current
-        var result: [Int: Set<Date>] = [:]
-        for movie in movies where movie.tmdbID > 0 {
-            for listing in Self.variantMatches(for: movie, in: listings) {
-                for showing in listing.showtimes ?? [] {
-                    guard let start = DateFormatter.gracenoteDateTime
-                        .date(from: showing.dateTime ?? "") else { continue }
-                    result[movie.tmdbID, default: []].insert(cal.startOfDay(for: start))
-                }
-            }
-        }
-        return result
+        return try JSONDecoder().decode([GNMovie].self, from: data)
     }
 
     /// Find our film among everything playing nearby. Gracenote lists

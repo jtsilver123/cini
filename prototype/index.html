@@ -1129,7 +1129,7 @@ function _calItems(){
   if(_calScope==='mine') return {now:mineNow, coming:mineComing};
   // All: general now-playing + upcoming (muted) overlaid with your titles (gold).
   const general=[5,12,19,34,48,63].map((off,i)=>mk(off,keys[i%keys.length]));
-  const genNow=keys.filter(k=>!(S.watchlist||[]).includes(k)).slice(0,4).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at(-1-i*2),key:k,now:true,mine:false}));
+  const genNow=keys.filter(k=>!(S.watchlist||[]).includes(k)).slice(0,8).map((k,i)=>({t:MOVIES[k].t,p:MOVIES[k].p,g:MOVIES[k].g[0],date:at(-1-i*2),key:k,now:true,mine:false}));
   const seenNow=new Set(mineNow.map(f=>f.key));
   const seen=new Set(mineComing.map(f=>f.key));
   return {now:mineNow.concat(genNow.filter(f=>!seenNow.has(f.key))), coming:mineComing.concat(general.filter(f=>!seen.has(f.key)))};

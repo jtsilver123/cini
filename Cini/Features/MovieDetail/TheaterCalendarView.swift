@@ -32,6 +32,10 @@ struct TheaterCalendarView: View {
     @State private var localDays: [Int: Set<Date>] = [:]
     /// The zip the current `localDays` answers for — refetch when it changes.
     @State private var checkedZip = ""
+    /// Films playing nearby that no loaded set (charts, upcoming, your list)
+    /// included — resolved from the local schedule so "All releases" is
+    /// exhaustive for what's actually showing.
+    @State private var localFilms: [Movie] = []
     /// Months ("yyyy-m") whose releases were already fetched — each month
     /// fills on first arrival, so you can page as far ahead as you like.
     @State private var fetchedMonths: Set<String> = []
@@ -89,6 +93,7 @@ struct TheaterCalendarView: View {
             return Array(byID.values)
         }
         var byID: [Int: Movie] = [:]
+        for m in localFilms where m.tmdbID > 0 { byID[m.tmdbID] = m }
         for m in nowOut where m.tmdbID > 0 { byID[m.tmdbID] = m }
         for m in releases { byID[m.tmdbID] = m }
         for m in myMovies { byID[m.tmdbID] = m }
@@ -766,21 +771,50 @@ struct TheaterCalendarView: View {
     /// One Gracenote lookup for the user's zip → which upcoming days each
     /// running film ACTUALLY plays. Best-effort: without a zip (or on any
     /// failure) the grid just marks running films on today only.
+    /// The EXHAUSTIVE local slate: one Gracenote call returns every film with
+    /// a posted showing near the zip. Each is resolved to a TMDB movie —
+    /// against what's already loaded first, then a TMDB search — so "All
+    /// releases" shows everything actually playing on each day, not just
+    /// whatever TMDB's popularity chart happened to include.
     private func loadLocalDays() async {
         guard zipcode.count == 5, checkedZip != zipcode else { return }
-        // Union of both scopes' running films, so switching the filter never
-        // shows stale unverified marks.
-        var seen = Set<Int>()
-        let released = (myMovies + nowOut).filter {
-            $0.isReleased && $0.tmdbID > 0 && seen.insert($0.tmdbID).inserted
-        }
-        guard !released.isEmpty else { return }
         do {
-            localDays = try await ShowtimesService.shared.playingDays(
-                for: released, zipcode: zipcode, radius: radius)
+            let schedule = try await ShowtimesService.shared.localSchedule(
+                zipcode: zipcode, radius: radius)
+            // Cheap first pass: normalized-title lookup over loaded movies.
+            var byTitle: [String: [Movie]] = [:]
+            for m in (myMovies + nowOut + releases) where m.tmdbID > 0 {
+                byTitle[LetterboxdImporter.normalize(m.title), default: []].append(m)
+            }
+            var days: [Int: Set<Date>] = [:]
+            var extras: [Movie] = []
+            var seen = Set<Int>()
+            for listing in schedule {
+                let known = byTitle[LetterboxdImporter.normalize(listing.title)]?.first {
+                    listing.year == nil || $0.releaseYear == nil
+                        || abs($0.releaseYear! - listing.year!) <= 1
+                }
+                var movie = known
+                if movie == nil {
+                    // Not in any loaded set — resolve via TMDB so the film
+                    // still gets a poster, a detail page, and a Tickets path.
+                    let imported = LetterboxdImporter.ImportedTitle(
+                        title: listing.title, year: listing.year)
+                    let candidates = (try? await TMDBService.shared.search(
+                        query: listing.title, year: listing.year)) ?? []
+                    movie = LetterboxdImporter.bestMatch(for: imported, in: candidates)
+                }
+                guard let movie, movie.tmdbID > 0 else { continue }
+                days[movie.tmdbID, default: []].formUnion(listing.days)
+                if known == nil, seen.insert(movie.tmdbID).inserted {
+                    extras.append(movie)
+                }
+            }
+            localDays = days
+            localFilms = extras
             checkedZip = zipcode
         } catch {
-            SupabaseService.logSwallowed("theaterCalendar.playingDays", error)
+            SupabaseService.logSwallowed("theaterCalendar.localSchedule", error)
         }
     }
 
