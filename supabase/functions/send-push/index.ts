@@ -164,7 +164,12 @@ Deno.serve(async (req: Request) => {
     const name = (dname && dname.length) ? dname : `@${uname}`;
     // Append a free-text message (e.g. why they passed on a rec) to the body.
     let alertBody = headline(n.kind, uname, name, (n.movies as any)?.title ?? null);
-    if ((n as any).message) alertBody += `: “${(n as any).message}”`;
+    if (n.kind === "watchlist_showing" && (n as any).message) {
+      // The ticket alert embeds WHEN — these sell out, so the date is the
+      // point: "…— first showing Fri, Jul 24. Tickets go fast".
+      const when = String((n as any).message).replace(/^First showing /, "first showing ");
+      alertBody = `🎟️ ${(n.movies as any)?.title ?? "A movie on your list"} is in theaters near you — ${when}. Tickets go fast`;
+    } else if ((n as any).message) alertBody += `: “${(n as any).message}”`;
     const body = {
       aps: {
         alert: {

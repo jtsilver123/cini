@@ -64,6 +64,18 @@ const VARIANT_PATTERNS = [
   /[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$/i,
   /\s*\(\d{4}\)\s*$/,
 ];
+// "today" / "tomorrow" / "Fri, Jul 24" — when the first showing is.
+function datePhrase(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const that = new Date(d); that.setHours(0, 0, 0, 0);
+  const diff = Math.round((that.getTime() - today.getTime()) / 86400e3);
+  if (diff <= 0) return "today";
+  if (diff === 1) return "tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
 function canonicalTitle(raw: string): string {
   let title = raw;
   let changed = true;
@@ -126,8 +138,8 @@ Deno.serve(async (_req: Request) => {
     const offsets = fullSweep ? [0, 14, 28, 42, 56] : [0];
 
     for (const [zip, users] of byZip) {
-      const playing: { title: string; releaseYear?: number }[] = [];
-      const seenListing = new Set<string>();
+      const playing: { title: string; releaseYear?: number; earliest: string | null }[] = [];
+      const seenListing = new Map<string, number>();
       for (const offset of offsets) {
         const start = new Date(Date.now() + offset * 86400e3).toISOString().slice(0, 10);
         const url = `https://data.tmsapi.com/v1.1/movies/showings?startDate=${start}&numDays=14&zip=${zip}&radius=15&units=mi&api_key=${gnKey}`;
@@ -139,10 +151,24 @@ Deno.serve(async (_req: Request) => {
         try { chunk = await res.json(); } catch { continue; }
         if (!Array.isArray(chunk)) continue;
         for (const listing of chunk) {
+          // Earliest showing across this listing's showtimes — the alert
+          // says WHEN, not just that tickets exist. ISO-ish local strings
+          // ("2026-07-24T19:30") compare correctly as text.
+          let earliest: string | null = null;
+          for (const showing of listing.showtimes ?? []) {
+            const at = showing?.dateTime;
+            if (typeof at === "string" && at && (!earliest || at < earliest)) earliest = at;
+          }
           const key = `${listing.title}|${listing.releaseYear ?? ""}`;
-          if (seenListing.has(key)) continue;
-          seenListing.add(key);
-          playing.push(listing);
+          const existing = seenListing.get(key);
+          if (existing !== undefined) {
+            // Same variant seen in an earlier window — keep the sooner date.
+            const kept = playing[existing];
+            if (earliest && (!kept.earliest || earliest < kept.earliest)) kept.earliest = earliest;
+            continue;
+          }
+          seenListing.set(key, playing.length);
+          playing.push({ title: listing.title, releaseYear: listing.releaseYear, earliest });
         }
       }
       if (!playing.length) continue;
@@ -163,21 +189,30 @@ Deno.serve(async (_req: Request) => {
           // disambiguates remakes on a FUZZY title; an exact-title
           // screening matches outright even if the listing's year is the
           // re-release year.
-          const hit = playing.some((p) => {
+          let hit = false;
+          let earliest: string | null = null;
+          for (const p of playing) {
             const candidate = canonicalTitle(p.title);
             // Exact normalized match FIRST — punctuation-heavy titles
             // ("WALL·E" vs "WALL-E") have low edit-distance similarity and
             // must not be lost behind the fuzzy gate.
-            if (norm(movie.title) === norm(candidate)) return true;
-            const sim = similarity(movie.title, candidate);
-            if (sim <= 0.85) return false;
-            return !movie.release_year || !p.releaseYear ||
-                   Math.abs(movie.release_year - p.releaseYear) <= 1;
-          });
+            let match = norm(movie.title) === norm(candidate);
+            if (!match) {
+              const sim = similarity(movie.title, candidate);
+              match = sim > 0.85 && (!movie.release_year || !p.releaseYear ||
+                     Math.abs(movie.release_year - p.releaseYear) <= 1);
+            }
+            if (!match) continue;
+            hit = true;
+            if (p.earliest && (!earliest || p.earliest < earliest)) earliest = p.earliest;
+          }
           if (!hit) continue;
 
           // Record first so a crash can't double-notify, then let the
-          // notifications trigger handle bell + push delivery.
+          // notifications trigger handle bell + push delivery. The message
+          // carries WHEN — "First showing Fri, Jul 24" — because these
+          // tickets sell out and urgency needs a date.
+          const phrase = earliest ? datePhrase(earliest) : "";
           const { error: noticeError } = await supabase
             .from("showtime_notices")
             .insert({ user_id: user.id, movie_id: entry.movie_id });
@@ -186,6 +221,7 @@ Deno.serve(async (_req: Request) => {
             recipient_id: user.id,
             kind: "watchlist_showing",
             movie_id: entry.movie_id,
+            message: phrase ? `First showing ${phrase}` : null,
           });
           notified++;
         }

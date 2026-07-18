@@ -2710,7 +2710,7 @@ struct NotificationsView: View {
         case "like": text = "**\(who)** liked your activity on **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
-        case "watchlist_showing": text = "**\(movie)** from your Want to Watch list is playing near you 🎬"
+        case "watchlist_showing": text = "**\(movie)** from your Want to Watch is in theaters near you — tickets go fast 🎟️"
         case "invite_joined": text = "**\(name)** joined Cini from your invite — you now follow each other 🎉"
         case "direct_rec": text = "**\(who)** recommended **\(movie)** to you 🎬"
         case "rec_request": text = "**\(who)** wants a rec from you — send one 🎬"
