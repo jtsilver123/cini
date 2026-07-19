@@ -50,6 +50,9 @@ struct SwipeView: View {
 
     /// The current pool minus dismissed / already-watched, filtered to the
     /// selected media kind.
+    /// Grid-mode action history (movie id, was-bookmarked) — powers Undo.
+    @State private var gridHistory: [(id: Int, saved: Bool)] = []
+
     private var visible: [YourListsView.RecCandidate] {
         // No client-side `filters.passes` here: when filters are active the pool
         // is fetched to match them (discover), and streaming data on a card is
@@ -284,13 +287,17 @@ struct SwipeView: View {
                         movies: visible.map(\.movie),
                         onRank: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                         onSave: { movie in
-                            // One bookmark rule everywhere: tap saves, tap again
-                            // removes. The fill state is the confirmation —
-                            // no toast, so rapid swiping stays uninterrupted.
+                            // A bookmark HANDLES the tile: it leaves the grid
+                            // (same as card mode) so the page always shows
+                            // what's still undecided. Undo brings it back.
+                            recordDismiss(movie.tmdbID)
+                            gridHistory.append((movie.tmdbID, true))
                             Task { await store.toggleWatchlist(movie: movie) }
+                            withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         },
                         onDismiss: { movie in
                             recordDismiss(movie.tmdbID)
+                            gridHistory.append((movie.tmdbID, false))
                             Task { await SupabaseService.shared.passRec(movie.tmdbID) }
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         }
@@ -298,6 +305,28 @@ struct SwipeView: View {
                     .screenHPadding()
                     .padding(.top, 2)
                     .id("recsTop")
+                }
+                // Pull down to rebuild the whole pool with fresh picks.
+                .refreshable { await reloadPool() }
+                // Undo the last bookmark/pass — the tile springs back.
+                .overlay(alignment: .bottom) {
+                    if !gridHistory.isEmpty {
+                        Button {
+                            undoGridAction()
+                        } label: {
+                            Label("Undo", systemImage: "arrow.uturn.backward")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.ink)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Capsule().fill(Theme.surface2))
+                                .overlay(Capsule().strokeBorder(Theme.hairline))
+                                .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.bottom, 14)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             case .cards:
                 RecCardDeck(
@@ -400,10 +429,34 @@ struct SwipeView: View {
         dismissedRaw = s.map(String.init).joined(separator: ",")
     }
 
+    /// Reverse the most recent grid action: the tile returns, and a
+    /// bookmark it made is taken back off the watchlist.
+    private func undoGridAction() {
+        guard let last = gridHistory.popLast() else { return }
+        Haptics.tap()
+        unrecordDismiss(last.id)
+        withAnimation(.snappy) { _ = dismissed.remove(last.id) }
+        if last.saved {
+            if let movie = store.movie(last.id) ?? candidates.first(where: { $0.movie.tmdbID == last.id })?.movie {
+                Task {
+                    // Let the save toggle settle first (the store guards
+                    // concurrent toggles per id — racing it would no-op).
+                    try? await Task.sleep(for: .milliseconds(400))
+                    if store.isOnWatchlist(movie.tmdbID) {
+                        await store.toggleWatchlist(movie: movie)
+                    }
+                }
+            }
+        } else {
+            Task { await SupabaseService.shared.unpassRec(last.id) }
+        }
+    }
+
     private func reloadPool() async {
         candidates = []
         loaded = false
         dismissed = []
+        gridHistory = []
         await load()
         // "Refresh recs" must actually GIVE MORE CARDS: a power user can have
         // dismissed everything the pool serves, and a refresh that comes back
