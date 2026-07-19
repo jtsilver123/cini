@@ -1229,15 +1229,20 @@ function _calRender(){
   const seg=(m,ic,l)=>`<button onclick="_calMode='${m}'; _calRender()" style="border:none; cursor:pointer; border-radius:999px; height:30px; padding:0 12px; display:inline-flex; align-items:center; gap:5px; font-weight:700; font-size:12.5px; ${_calMode===m?'background:var(--marquee); color:var(--bg);':'background:none; color:var(--gray);'}">${I(ic,13)} ${l}</button>`;
   // Scope filter chips.
   const chip=(sc,l)=>`<button class="pill ${_calScope===sc?'':'ghost'}" style="font-size:12.5px; padding:7px 13px;" onclick="_calScope='${sc}'; _calMonthOff=0; _calSel=null; _calRender()">${l}</button>`;
+  const q=(window._calQ||'').toLowerCase();
+  const nowF=q?now.filter(f=>f.t.toLowerCase().includes(q)):now;
+  const comingF=q?coming.filter(f=>f.t.toLowerCase().includes(q)):coming;
   const body=_calMode==='list'
-    ? `${now.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:10px 0 4px;">IN THEATERS NOW</div>${now.map(_calRow).join("")}`:""}
-       ${coming.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${coming.map(_calRow).join("")}`:""}`
+    ? `<div style="display:flex; align-items:center; gap:8px; background:var(--surface-2); border-radius:12px; padding:9px 12px; margin-bottom:10px;">${I("search",15)}<input value="${esc(window._calQ||'')}" placeholder="Search theaters near you" style="flex:1; background:none; border:none; outline:none; color:var(--ink); font:inherit; font-size:14px;" oninput="window._calQ=this.value; clearTimeout(window._calQT); window._calQT=setTimeout(_calRender,250)"></div>
+       ${nowF.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:10px 0 4px;">IN THEATERS NOW</div>${nowF.map(_calRow).join("")}`:""}
+       ${comingF.length?`<div class="sub" style="font-weight:800; letter-spacing:.05em; margin:12px 0 4px;">${_calScope==='all'?'':'COMING SOON'}</div>${comingF.map(_calRow).join("")}`:""}
+       ${(!nowF.length&&!comingF.length&&q)?`<div class="sub" style="text-align:center; padding:22px 0;">No titles match "${esc(window._calQ)}".</div>`:""}`
     : _calMonth(now, coming);
   renderSheet(`<div class="sheet-head"><b style="flex:1; font-size:17px;">In Theaters</b>
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('month','calendar','Month')}${seg('list','stack','List')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); save(); _calRender();}">📍 ${S.showtimesZip?S.showtimesZip:'Set your area'}</div>
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); const r=prompt('Search radius in miles (5, 10, 15, 25, 50)', S.showtimesRadius||15); if(r!==null){S.showtimesRadius=[5,10,15,25,50].includes(+r)?+r:15;} save(); _calRender();}">📍 ${S.showtimesZip?`${S.showtimesZip} · ${S.showtimesRadius||15} mi`:'Set your area'}</div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('mine','On my list')}${chip('all','All releases')}
         ${_calMode==='month'?`<span class="spacer"></span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:var(--marquee);"></span>Yours</span>
@@ -3034,6 +3039,7 @@ function importDone(){
       ${want
         ? `<div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",18)}</span><div><b style="font-size:14px;">23 added to Want to Watch</b><div class="sub" style="margin-top:1px;">Your Lists → Want to Watch.</div></div></div>`
         : `<div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("film",18)}</span><div><b style="font-size:14px;">389 films queued to rank</b><div class="sub" style="margin-top:1px;">My Lists → Watched → Pending — favorites first.</div></div></div>
+      <div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("tv",18)}</span><div><b style="font-size:14px;">2 shows you're still watching</b><div class="sub" style="margin-top:1px;">Marked as Currently Watching — rank them when you finish.</div></div></div>
       <div style="display:flex; gap:14px; padding:13px 0; border-bottom:1px solid var(--hair);"><span style="color:var(--marquee);">${I("bookmark",18)}</span><div><b style="font-size:14px;">57 added to your watchlist</b></div></div>`}
       <div style="display:flex; gap:14px; padding:13px 0;"><span style="color:var(--marquee);">${I("question",18)}</span><div><b style="font-size:14px;">4 couldn't be matched</b><div class="sub" style="margin-top:1px;">Obscure festival shorts, mostly…</div></div></div>
     </div>

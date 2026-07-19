@@ -30,6 +30,13 @@ enum LetterboxdImporter {
         /// Marked in likes/films.csv (a Letterboxd favorite) — sorts to the
         /// front of the ranking queue so favorites get ranked first.
         var liked: Bool = false
+        /// Netflix: the highest season number seen in the viewing history —
+        /// carried into Currently Watching progress.
+        var lastSeason: Int?
+        /// Netflix: episodes watched RECENTLY (still mid-show) — routed to
+        /// Currently Watching instead of the "rank it" queue, because the
+        /// user hasn't finished it.
+        var stillWatching: Bool = false
     }
 
     struct MatchedTitle: Identifiable, Hashable {
@@ -48,6 +55,9 @@ enum LetterboxdImporter {
     struct Result {
         var watched: [MatchedTitle] = []
         var watchlist: [MatchedTitle] = []
+        /// Shows the user is mid-way through (recent Netflix activity) —
+        /// marked as Currently Watching, NOT queued to rank.
+        var stillWatching: [MatchedTitle] = []
         var unmatched: [ImportedTitle] = []
         var importedLists: [ImportedList] = []
         /// Matches that exist only for list membership.
@@ -324,6 +334,11 @@ enum LetterboxdImporter {
                 if result[index].watchedOn == nil { result[index].watchedOn = title.watchedOn }
                 result[index].watchDates.formUnion(title.watchDates)
                 if title.liked { result[index].liked = true }
+                if title.stillWatching { result[index].stillWatching = true }
+                if let season = title.lastSeason,
+                   season > (result[index].lastSeason ?? 0) {
+                    result[index].lastSeason = season
+                }
             } else {
                 indexByKey[key(title)] = result.count
                 result.append(title)
@@ -419,17 +434,59 @@ enum LetterboxdImporter {
             let k = normalize(title)
             guard !k.isEmpty else { continue }
             let date = dateIdx.flatMap { fields.indices.contains($0) ? netflixDate(fields[$0]) : nil }
+            let season = netflixSeason(raw)
             if var existing = byKey[k] {
                 if let date { existing.watchDates.insert(date); existing.watchedOn = existing.watchDates.max() }
+                if let season, season > (existing.lastSeason ?? 0) { existing.lastSeason = season }
                 byKey[k] = existing
             } else {
                 var entry = ImportedTitle(title: title, year: nil)
                 if let date { entry.watchDates = [date]; entry.watchedOn = date }
+                entry.lastSeason = season
                 byKey[k] = entry
                 order.append(k)
             }
         }
-        return order.compactMap { byKey[$0] }
+        // A show watched RECENTLY is mid-flight, not finished: it belongs in
+        // Currently Watching, not the "rank everything you've seen" queue.
+        // 60 days matches how people binge — an older last-watch means the
+        // show was finished (or abandoned), and ranking it is fair game.
+        let cutoff = Calendar.current.date(byAdding: .day, value: -60, to: Date()) ?? Date()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return order.compactMap { k in
+            guard var entry = byKey[k] else { return nil }
+            // Only shows (episode rows collapsed): a movie title never gets
+            // a season, and single-view titles with no season stay movies.
+            if entry.lastSeason != nil || entry.watchDates.count > 1,
+               let last = entry.watchedOn.flatMap({ formatter.date(from: $0) }),
+               last >= cutoff {
+                entry.stillWatching = true
+            }
+            return entry
+        }
+    }
+
+    /// The season number in a Netflix episode row: "Show: Season 7: Ep" → 7,
+    /// "Show: Part 2: Ep" → 2, branded "Show 5: Ep" → 5. nil for movies.
+    static func netflixSeason(_ raw: String) -> Int? {
+        let segments = raw.components(separatedBy: ": ")
+        guard segments.count >= 2 else { return nil }
+        let label = segments[1].lowercased()
+        for marker in ["season ", "series ", "volume ", "part ", "book ", "chapter "]
+        where label.hasPrefix(marker) {
+            let digits = label.dropFirst(marker.count).prefix { $0.isNumber }
+            return Int(digits)
+        }
+        if label.hasPrefix("limited series") { return 1 }
+        // Branded season: "Stranger Things 5" — trailing number, only when
+        // this is unambiguously a series (3+ segments).
+        if segments.count >= 3,
+           let match = segments[0].range(of: #" (\d+)$"#, options: .regularExpression) {
+            return Int(segments[0][match].trimmingCharacters(in: .whitespaces))
+        }
+        return nil
     }
 
     /// "Show: Season 7: The Sponge" → "Show"; "Inception" → "Inception".

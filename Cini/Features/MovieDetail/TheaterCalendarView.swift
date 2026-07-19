@@ -27,6 +27,8 @@ struct TheaterCalendarView: View {
     @AppStorage("showtimes.radius") private var radius = 15
     @State private var showZipEntry = false
     @State private var zipDraft = ""
+    /// List-view search query (title match).
+    @State private var listSearch = ""
     /// tmdbID → days it VERIFIABLY plays near the user's zip (Gracenote,
     /// next-week window). Drives the grid's future-day marks.
     @State private var localDays: [Int: Set<Date>] = [:]
@@ -233,24 +235,22 @@ struct TheaterCalendarView: View {
         .task {
             // Both load: general releases for the calendar, my saved set so
             // my titles are marked and my now-playing appears.
+            // ALL THREE in flight together: general releases, my saved set,
+            // and the local schedule (its resolution step waits for the
+            // pools internally) — serially this doubled the cold-open time.
             async let a: () = loadReleases()
             async let b: () = loadMine()
+            async let c: () = ensureLocalCoverage(for: visibleMonth)
             _ = await (a, b)
             // The watchlist fetch can take seconds — never yank away a
             // month/day the user already picked while waiting.
             if selectedDay == nil { resetMonth() }
-            await ensureLocalCoverage(for: visibleMonth)
+            await c
         }
         .onChange(of: scope) { _, _ in resetMonth() }
         .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
-        .onChange(of: zipcode) { _, _ in
-            // New zip = new truth: drop everything verified and refetch.
-            localDays = [:]
-            localFilms = []
-            fetchedWindows = []
-            checkedZip = ""
-            Task { await ensureLocalCoverage(for: visibleMonth) }
-        }
+        .onChange(of: zipcode) { _, _ in resetLocalData() }
+        .onChange(of: radius) { _, _ in resetLocalData() }
         .onChange(of: visibleMonth) { _, month in
             Task {
                 await loadMonth(month)
@@ -301,20 +301,67 @@ struct TheaterCalendarView: View {
         .screenHPadding()
         .padding(.top, 8)
         .padding(.bottom, 10)
-        .alert("Your area", isPresented: $showZipEntry) {
-            TextField("ZIP code", text: $zipDraft).keyboardType(.numberPad)
-            Button("Save") {
-                let z = zipDraft.filter(\.isNumber)
-                guard z.count == 5 else { return }
-                zipcode = z
-                Task { try? await SupabaseService.shared.setHomeZip(z) }
+        .sheet(isPresented: $showZipEntry) {
+            areaSheet
+                .presentationDetents([.height(320)])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    /// ZIP + search radius in one place — the radius drives both the
+    /// calendar's verified marks and the showtimes sheet's default.
+    private var areaSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Showtimes and the calendar use this to find theaters near you.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin.and.ellipse").foregroundStyle(Theme.marquee)
+                    TextField("ZIP code", text: $zipDraft)
+                        .keyboardType(.numberPad)
+                }
+                .padding(12)
+                .background(RoundedRectangle(cornerRadius: Theme.rControl).fill(Theme.fill))
+                HStack {
+                    Text("Search radius").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Menu {
+                        ForEach([5, 10, 15, 25, 50], id: \.self) { miles in
+                            Button {
+                                radius = miles
+                            } label: {
+                                if radius == miles {
+                                    Label("\(miles) miles", systemImage: "checkmark")
+                                } else {
+                                    Text("\(miles) miles")
+                                }
+                            }
+                        }
+                    } label: {
+                        FilterPill(title: "\(radius) mi", active: true)
+                    }
+                }
+                PillButton(title: "Save") {
+                    let z = zipDraft.filter(\.isNumber)
+                    guard z.count == 5 else { return }
+                    zipcode = z
+                    Task { try? await SupabaseService.shared.setHomeZip(z) }
+                    showZipEntry = false
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(zipDraft.filter(\.isNumber).count != 5)
+                Spacer()
             }
-            // Alert buttons always dismiss — disable Save until the ZIP is
-            // valid so a typo can't silently save nothing.
-            .disabled(zipDraft.filter(\.isNumber).count != 5)
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Used to show showtimes near you when you tap Tickets.")
+            .padding(20)
+            .background(Theme.background)
+            .navigationTitle("Your area")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showZipEntry = false }
+                }
+            }
         }
     }
 
@@ -325,7 +372,7 @@ struct TheaterCalendarView: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: "mappin.and.ellipse").font(.caption.weight(.bold))
-                Text(zipcode.isEmpty ? "Set your area" : zipcode)
+                Text(zipcode.isEmpty ? "Set your area" : "\(zipcode) · \(radius) mi")
                     .font(.subheadline.weight(.semibold)).lineLimit(1)
             }
             .foregroundStyle(Theme.marquee)
@@ -392,16 +439,51 @@ struct TheaterCalendarView: View {
 
     // MARK: - List mode
 
+    /// Case-insensitive title match for the List view's search field.
+    private func matchesSearch(_ movie: Movie) -> Bool {
+        let query = listSearch.trimmingCharacters(in: .whitespaces).lowercased()
+        return query.isEmpty || movie.title.lowercased().contains(query)
+    }
+
     private var listBody: some View {
-        List {
-            if !nowPlaying.isEmpty {
-                Section("In theaters now") { ForEach(nowPlaying) { movieRow($0) } }
+        let playing = nowPlaying.filter(matchesSearch)
+        let dated = datedComing.filter(matchesSearch)
+        let undated = undatedComing.filter(matchesSearch)
+        return List {
+            // Find one film fast in a hundred-row list.
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
+                TextField("Search theaters near you", text: $listSearch)
+                if !listSearch.isEmpty {
+                    Button {
+                        listSearch = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.gray)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            if !datedComing.isEmpty {
-                Section("Coming soon") { ForEach(datedComing) { movieRow($0) } }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: Theme.rControl).fill(Theme.fill))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Theme.background)
+            if !playing.isEmpty {
+                Section("In theaters now") { ForEach(playing) { movieRow($0) } }
             }
-            if !undatedComing.isEmpty {
-                Section("Date to be announced") { ForEach(undatedComing) { movieRow($0) } }
+            if !dated.isEmpty {
+                Section("Coming soon") { ForEach(dated) { movieRow($0) } }
+            }
+            if !undated.isEmpty {
+                Section("Date to be announced") { ForEach(undated) { movieRow($0) } }
+            }
+            if playing.isEmpty, dated.isEmpty, undated.isEmpty, !listSearch.isEmpty {
+                Text("No titles match \"\(listSearch)\".")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
             }
         }
         .listStyle(.plain)
@@ -879,6 +961,15 @@ struct TheaterCalendarView: View {
         }
     }
 
+    /// New zip or radius = new truth: drop everything verified and refetch.
+    private func resetLocalData() {
+        localDays = [:]
+        localFilms = []
+        fetchedWindows = []
+        checkedZip = ""
+        Task { await ensureLocalCoverage(for: visibleMonth) }
+    }
+
     /// One aligned window (today + index×14 days): fetch the local schedule,
     /// resolve every listing, and MERGE into the verified-day map.
     private func loadLocalWindow(index: Int) async {
@@ -890,6 +981,12 @@ struct TheaterCalendarView: View {
         do {
             let schedule = try await ShowtimesService.shared.localSchedule(
                 zipcode: zipcode, radius: radius, from: start)
+            // The schedule fetch runs concurrently with the TMDB pool loads;
+            // resolution wants the pools (cheap matches beat searches), so
+            // give them a moment to land before falling back to searches.
+            for _ in 0..<50 where !(releasesLoaded && myLoaded) {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
             // Cheap first pass: normalized-title lookup over loaded movies —
             // including the FULL cached watchlist, so an older film you saved
             // (a rerelease, say) still resolves without a search.
@@ -900,27 +997,31 @@ struct TheaterCalendarView: View {
                 byTitle[LetterboxdImporter.normalize(m.title), default: []].append(m)
             }
             var extraIDs = Set(localFilms.map(\.tmdbID))
+            // Split: pool matches apply instantly; the rest resolve via TMDB
+            // searches IN PARALLEL (bounded) — sequentially this was the
+            // slowest stretch of a cold month view.
+            var unresolved: [ShowtimesService.LocalListing] = []
             for listing in schedule {
                 let known = byTitle[LetterboxdImporter.normalize(listing.title)]?.first {
                     listing.year == nil || $0.releaseYear == nil
                         || abs($0.releaseYear! - listing.year!) <= 1
                 }
-                var movie = known
-                if movie == nil {
-                    // Not in any loaded set — resolve via TMDB so the film
-                    // still gets a poster, a detail page, and a Tickets path.
-                    let imported = LetterboxdImporter.ImportedTitle(
-                        title: listing.title, year: listing.year)
-                    let candidates = (try? await TMDBService.shared.search(
-                        query: listing.title, year: listing.year)) ?? []
-                    movie = LetterboxdImporter.bestMatch(for: imported, in: candidates)
+                if let known {
+                    localDays[known.tmdbID, default: []].formUnion(listing.days)
+                } else {
+                    unresolved.append(listing)
                 }
-                guard let movie, movie.tmdbID > 0 else { continue }
-                localDays[movie.tmdbID, default: []].formUnion(listing.days)
-                // Anything not already in a loaded array joins the pool —
-                // whether it resolved from the watchlist cache or a search.
-                if !loadedIDs.contains(movie.tmdbID), extraIDs.insert(movie.tmdbID).inserted {
-                    localFilms.append(movie)
+            }
+            if !unresolved.isEmpty {
+                let resolved = await Self.resolveViaSearch(unresolved)
+                for (listing, movie) in resolved {
+                    guard movie.tmdbID > 0 else { continue }
+                    localDays[movie.tmdbID, default: []].formUnion(listing.days)
+                    // Anything not already loaded joins the pool — whether it
+                    // resolved from the watchlist cache or a search.
+                    if !loadedIDs.contains(movie.tmdbID), extraIDs.insert(movie.tmdbID).inserted {
+                        localFilms.append(movie)
+                    }
                 }
             }
             checkedZip = zipcode
@@ -928,6 +1029,32 @@ struct TheaterCalendarView: View {
             // Failed windows may retry on the next visit.
             fetchedWindows.remove(index)
             SupabaseService.logSwallowed("theaterCalendar.localSchedule", error)
+        }
+    }
+
+    /// Resolve listings to TMDB movies with a bounded parallel fan-out.
+    private static func resolveViaSearch(
+        _ listings: [ShowtimesService.LocalListing]
+    ) async -> [(ShowtimesService.LocalListing, Movie)] {
+        await withTaskGroup(of: (ShowtimesService.LocalListing, Movie?).self) { group in
+            var iterator = listings.makeIterator()
+            func addNext() {
+                guard let listing = iterator.next() else { return }
+                group.addTask {
+                    let imported = LetterboxdImporter.ImportedTitle(
+                        title: listing.title, year: listing.year)
+                    let candidates = (try? await TMDBService.shared.search(
+                        query: listing.title, year: listing.year)) ?? []
+                    return (listing, LetterboxdImporter.bestMatch(for: imported, in: candidates))
+                }
+            }
+            for _ in 0..<4 { addNext() }
+            var result: [(ShowtimesService.LocalListing, Movie)] = []
+            for await (listing, movie) in group {
+                addNext()
+                if let movie { result.append((listing, movie)) }
+            }
+            return result
         }
     }
 

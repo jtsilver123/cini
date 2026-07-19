@@ -920,7 +920,10 @@ struct LogFlowView: View {
         guard !didScheduleReveal else { return }
         didScheduleReveal = true
         Task {
-            try? await Task.sleep(for: .milliseconds(1000))
+            // 450ms: long enough for the calculating flicker to register as
+            // a moment, short enough that the number feels instant. (A full
+            // second read as lag once users ranked in volume.)
+            try? await Task.sleep(for: .milliseconds(450))
             beatElapsed = true
             maybeRevealScore()
         }

@@ -1058,7 +1058,15 @@ struct YourListsView: View {
     private func watchlistCount(in target: MediaCategory) -> Int {
         var count = 0
         for item in store.watchlist {
-            if let movie = store.movie(item.movieID), target.matches(movie) { count += 1 }
+            if let movie = store.movie(item.movieID) {
+                if target.matches(movie) { count += 1 }
+            } else if target == .movies {
+                // Metadata not cached yet: the row still RENDERS (see
+                // filteredWatchlist), so it must be counted — under Movies,
+                // the same default the row list uses — or the header count
+                // disagrees with the visible list.
+                count += 1
+            }
         }
         return count
     }
@@ -1079,7 +1087,11 @@ struct YourListsView: View {
         let items = sortDescending ? descending : descending.reversed().map { $0 }
         let query = listQuery.trimmingCharacters(in: .whitespaces).lowercased()
         return items.filter { item in
-            guard let movie = store.movie(item.movieID) else { return true }
+            guard let movie = store.movie(item.movieID) else {
+                // Unknown metadata: show under Movies (the default kind)
+                // only — appearing in BOTH tabs made every count look wrong.
+                return category == .movies
+            }
             guard passesFilters(movie) else { return false }
             return query.isEmpty || movie.title.lowercased().contains(query)
         }

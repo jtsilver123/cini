@@ -305,6 +305,12 @@ struct LetterboxdImportView: View {
                             Divider()
                             summaryRow(icon: "bookmark.fill", count: result.watchlist.count,
                                        label: "saved to Want to Watch")
+                            if !result.stillWatching.isEmpty {
+                                Divider()
+                                summaryRow(icon: "play.tv", count: result.stillWatching.count,
+                                           label: "shows you're still watching",
+                                           detail: "Marked as Currently Watching — rank them when you finish.")
+                            }
                         }
                         let reviewCount = result.watched.filter { $0.imported.review != nil }.count
                         if reviewCount > 0 {
@@ -641,6 +647,9 @@ struct ImportHistoryScreen: View {
                     }
                     if entry.lists > 0 {
                         statRow(icon: "list.star", text: "\(entry.lists) list\(entry.lists == 1 ? "" : "s") rebuilt")
+                    }
+                    if let watching = entry.watching, watching > 0 {
+                        statRow(icon: "play.tv", text: "\(watching) show\(watching == 1 ? "" : "s") marked still watching")
                     }
                     if entry.unmatched.isEmpty {
                         statRow(icon: "checkmark.circle", text: "Every title matched")

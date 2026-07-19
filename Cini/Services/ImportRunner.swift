@@ -13,6 +13,9 @@ struct ImportHistoryEntry: Codable, Identifiable {
     let lists: Int
     let unmatched: [String]
     let detailsFailed: Bool
+    /// Shows routed to Currently Watching (nil on entries logged before
+    /// this field existed).
+    let watching: Int?
 }
 
 /// Local, per-device log of past imports (capped at the last 20).
@@ -170,7 +173,8 @@ final class ImportRunner {
             unmatched: outcome.unmatched.map { title in
                 title.year.map { "\(title.title) (\($0))" } ?? title.title
             },
-            detailsFailed: detailsImportFailed))
+            detailsFailed: detailsImportFailed,
+            watching: outcome.stillWatching.count))
         // App in the background? Land a notification so "import done" reaches
         // the user without them babysitting the screen.
         if UIApplication.shared.applicationState != .active {
@@ -233,6 +237,28 @@ final class ImportRunner {
         outcome.watched = outcome.watched.filter { !store.isWatched($0.movie.tmdbID) }
         outcome.watchlist = outcome.watchlist.filter {
             !store.isWatched($0.movie.tmdbID) && !store.isOnWatchlist($0.movie.tmdbID)
+        }
+
+        // Shows with RECENT Netflix activity are mid-flight — mark them as
+        // Currently Watching (with the season) instead of pretending they're
+        // finished and asking the user to rank them.
+        let inProgress = outcome.watched.filter {
+            $0.movie.mediaKind == "tv" && $0.imported.stillWatching
+        }
+        if !inProgress.isEmpty {
+            let inProgressIDs = Set(inProgress.map(\.movie.tmdbID))
+            outcome.watched.removeAll { inProgressIDs.contains($0.movie.tmdbID) }
+            outcome.stillWatching = inProgress
+            progressText = "Marking shows you're still watching…"
+            for match in inProgress {
+                if Task.isCancelled { break }
+                store.cache(match.movie)
+                try? await SupabaseService.shared.cacheMovie(match.movie)
+                try? await SupabaseService.shared.setShowProgress(
+                    showID: match.movie.tmdbID,
+                    season: match.imported.lastSeason,
+                    episode: nil)
+            }
         }
 
         // Seed the persistent ranking queue (favorites first).
@@ -400,6 +426,9 @@ final class ImportRunner {
             if !outcome.watchlist.isEmpty {
                 parts.append("\(outcome.watchlist.count) saved")
             }
+        }
+        if !outcome.stillWatching.isEmpty {
+            parts.append("\(outcome.stillWatching.count) still watching")
         }
         let reviews = outcome.watched.filter { $0.imported.review != nil }.count
         if reviews > 0 && !detailsImportFailed {

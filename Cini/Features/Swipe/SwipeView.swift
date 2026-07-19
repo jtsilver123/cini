@@ -405,6 +405,17 @@ struct SwipeView: View {
         loaded = false
         dismissed = []
         await load()
+        // "Refresh recs" must actually GIVE MORE CARDS: a power user can have
+        // dismissed everything the pool serves, and a refresh that comes back
+        // empty is a dead end. Forget the oldest local dismissals and try
+        // once more — the server-side pass signal (taste) is untouched.
+        if candidates.isEmpty, !dismissedRaw.isEmpty {
+            let recent = persistedDismissed.suffix(200)
+            dismissedRaw = recent.map(String.init).joined(separator: ",")
+            candidates = []
+            loaded = false
+            await load()
+        }
     }
 
     private func load() async {

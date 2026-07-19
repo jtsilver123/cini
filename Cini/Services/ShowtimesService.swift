@@ -151,10 +151,37 @@ final class ShowtimesService: ShowtimesProviding {
 
     /// One film playing nearby: canonical title (variants merged), year, and
     /// every posted day it has ≥1 showing.
-    struct LocalListing {
+    struct LocalListing: Codable {
         let title: String
         let year: Int?
         let days: Set<Date>
+    }
+
+    /// Schedules barely change hour to hour — cache each (zip, start,
+    /// radius) window for 6h. Reopening the calendar becomes instant, and
+    /// the shared client API key stops being hammered (transient rate
+    /// limiting was emptying users' grids).
+    private struct CachedSchedule: Codable {
+        let savedAt: Date
+        let listings: [LocalListing]
+    }
+
+    private func scheduleCacheKey(zipcode: String, radius: Int, start: String) -> String {
+        "gn.schedule.\(zipcode).\(radius).\(start)"
+    }
+
+    private func cachedSchedule(key: String) -> [LocalListing]? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let cached = try? JSONDecoder().decode(CachedSchedule.self, from: data),
+              Date().timeIntervalSince(cached.savedAt) < 6 * 3600
+        else { return nil }
+        return cached.listings
+    }
+
+    private func cacheSchedule(_ listings: [LocalListing], key: String) {
+        if let data = try? JSONEncoder().encode(CachedSchedule(savedAt: Date(), listings: listings)) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 
     /// The COMPLETE local slate: every film with a posted showing near this
@@ -164,8 +191,21 @@ final class ShowtimesService: ShowtimesProviding {
     /// canonical film.
     func localSchedule(zipcode: String, radius: Int = 15, days: Int = 14,
                        from start: Date = Date()) async throws -> [LocalListing] {
-        let listings = try await fetchShowings(zipcode: zipcode, radius: radius,
+        let startDay = DateFormatter.localDay.string(from: start)
+        let cacheKey = scheduleCacheKey(zipcode: zipcode, radius: radius, start: startDay)
+        if let cached = cachedSchedule(key: cacheKey) { return cached }
+        // One quiet retry: the provider occasionally answers 200 with an
+        // empty body (transient rate limiting), and a single blip must not
+        // blank the user's calendar for the session.
+        var listings: [GNMovie]
+        do {
+            listings = try await fetchShowings(zipcode: zipcode, radius: radius,
                                                days: days, start: start)
+        } catch {
+            try await Task.sleep(for: .seconds(1.5))
+            listings = try await fetchShowings(zipcode: zipcode, radius: radius,
+                                               days: days, start: start)
+        }
         let cal = Calendar.current
         var merged: [String: (title: String, year: Int?, days: Set<Date>)] = [:]
         for listing in listings {
@@ -180,9 +220,11 @@ final class ShowtimesService: ShowtimesProviding {
             }
             merged[key] = entry
         }
-        return merged.values
+        let result = merged.values
             .filter { !$0.days.isEmpty }
             .map { LocalListing(title: $0.title, year: $0.year, days: $0.days) }
+        cacheSchedule(result, key: cacheKey)
+        return result
     }
 
     /// Which upcoming days does each of these films VERIFIABLY play near this

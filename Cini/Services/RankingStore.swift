@@ -110,6 +110,28 @@ final class RankingStore {
             let allIDs = Set(rankings.map(\.movieId) + watching.map(\.movieId))
             let rows = try await supabase.movies(ids: Array(allIDs))
             for row in rows { movies[row.tmdbId] = row.asMovie }
+            // Heal any row the movies table doesn't know (saved via a path
+            // that skipped the cache): without metadata the title is
+            // invisible to category tabs and counts drift — the #1 "my
+            // Want to Watch count is off" report. Bounded fan-out.
+            let missing = allIDs.filter { movies[$0] == nil }
+            if !missing.isEmpty {
+                await withTaskGroup(of: Movie?.self) { group in
+                    var iterator = missing.makeIterator()
+                    func addNext() {
+                        guard let id = iterator.next() else { return }
+                        group.addTask { try? await TMDBService.shared.details(for: id) }
+                    }
+                    for _ in 0..<6 { addNext() }
+                    for await movie in group {
+                        addNext()
+                        guard let movie else { continue }
+                        movies[movie.tmdbID] = movie
+                        // Server-side too, so every future load has it.
+                        try? await supabase.cacheMovie(movie)
+                    }
+                }
+            }
 
             lists = buildLists(from: rankings)
             // When each title was ranked — powers the "Date added" sort on the
