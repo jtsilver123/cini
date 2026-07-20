@@ -118,8 +118,13 @@ final class TMDBService {
             URLQueryItem(name: "primary_release_date.lte", value: DateFormatter.localDay.string(from: end)),
             URLQueryItem(name: "region", value: "US"),
         ]
-        let page: SearchPage = try await get("/discover/movie", query: q)
-        return page.results.map(\.asMovie)
+        // Two pages: one only covers the ~20 most popular — a paged-to month
+        // deserves the same exhaustiveness as the near term.
+        async let first: SearchPage = get("/discover/movie", query: q + [URLQueryItem(name: "page", value: "1")])
+        async let second: SearchPage = get("/discover/movie", query: q + [URLQueryItem(name: "page", value: "2")])
+        let a = (try await first).results.map(\.asMovie)
+        let b = ((try? await second)?.results ?? []).map(\.asMovie)
+        return a + b
     }
 
     /// The classics most people have actually seen — sorted by vote count, so
@@ -807,7 +812,10 @@ private struct DetailDTO: Codable {
             runtimeMinutes: runtime,
             director: credits?.crew.first { $0.job == "Director" }?.name,
             overview: overview,
-            originalLanguage: originalLanguage
+            originalLanguage: originalLanguage,
+            // The calendar's refine pass exists to get EXACT dates — without
+            // this the details fetch silently dropped them.
+            releaseDateFull: releaseDate
         )
     }
 }

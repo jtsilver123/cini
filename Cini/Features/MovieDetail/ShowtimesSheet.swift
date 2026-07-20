@@ -166,14 +166,28 @@ struct ShowtimesSheet: View {
             if zipcode.count == 5 { Task { await search() } }
         }
         .sheet(isPresented: $showDatePicker) {
-            DatePicker("Date", selection: $date, in: Date()..., displayedComponents: .date)
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Done") { showDatePicker = false }
+                        .font(.body.weight(.semibold))
+                        .padding([.top, .trailing], 16)
+                }
+                datePickerBody
+            }
+        }
+    }
+
+    private var datePickerBody: some View {
+            DatePicker("Date", selection: $date,
+                       in: cal.startOfDay(for: Date())...,
+                       displayedComponents: .date)
                 .datePickerStyle(.graphical)
                 .tint(Theme.marquee)
                 .padding()
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
                 .onChange(of: date) { _, _ in showDatePicker = false }
-        }
     }
 
     /// One tappable day — "TODAY / 17" style, gold when selected.
@@ -268,8 +282,13 @@ struct ShowtimesSheet: View {
                     }
                 }
                 .onChange(of: date) { _, newValue in
-                    withAnimation(.snappy) {
-                        proxy.scrollTo(cal.startOfDay(for: newValue), anchor: .center)
+                    // One-tick defer: a far-future date APPENDS its chip in
+                    // this same update — scrolling immediately targets a row
+                    // that doesn't exist yet and parks the strip on today.
+                    Task { @MainActor in
+                        withAnimation(.snappy) {
+                            proxy.scrollTo(cal.startOfDay(for: newValue), anchor: .center)
+                        }
                     }
                     if suppressSearch { suppressSearch = false; return }
                     Task { await search() }
@@ -481,9 +500,14 @@ struct ShowtimesSheet: View {
     private var probeDates: [Date] {
         let today = cal.startOfDay(for: Date())
         let selected = cal.startOfDay(for: date)
-        if movie.isReleased, selected > today {
-            return (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
-                .filter { !cal.isDate($0, inSameDayAs: selected) }
+        if selected > today {
+            // A future date drew a blank: check today→selected first (a
+            // running film's showings live near today; an unreleased one may
+            // have PREVIEWS before its date), then march past the selection.
+            let before = (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: today) }
+                .filter { $0 < selected }
+            let after = (1...14).compactMap { cal.date(byAdding: .day, value: $0, to: selected) }
+            return Array((before + after).prefix(14))
         }
         return (1...14).compactMap { cal.date(byAdding: .day, value: $0, to: selected) }
     }
@@ -547,10 +571,17 @@ struct ShowtimesSheet: View {
             zipInput = zip
             zipcode = zip
             await search()
-        } catch LocationZip.LocationError.denied {
-            state = .error("Location is off for Cini — allow it in Settings, or type your ZIP code.")
         } catch {
-            state = .error("Couldn't pin down your location — type your ZIP code instead.")
+            let message = (error as? LocationZip.LocationError) == .denied
+                ? "Location is off for Cini — allow it in Settings, or type your ZIP code."
+                : "Couldn't pin down your location — type your ZIP code instead."
+            // Results already on screen survive a failed location tap — the
+            // message rides a toast instead of replacing the whole list.
+            if case .loaded = state {
+                ToastCenter.shared.show(message)
+            } else {
+                state = .error(message)
+            }
         }
     }
 
@@ -570,7 +601,10 @@ struct ShowtimesSheet: View {
             state = .loaded
             // First successful load: open on the user's preferred screen if
             // it's actually playing (Settings → Viewing preferences).
-            if !didAutoSelectFormat {
+            if !didAutoSelectFormat, !theaters.isEmpty {
+                // Consumed only when there was something to consider — an
+                // empty first load (a future date) must not burn the
+                // preferred-screen pre-filter for the whole open.
                 didAutoSelectFormat = true
                 if screenFormat == nil,
                    let favorite = PrefsCache.shared.screenFormats
@@ -647,6 +681,15 @@ private struct FlowingChips: View {
                 // searching a zip in another timezone must not lock out a
                 // perfectly bookable showing, so past ones just dim.
                 .disabled(showtime.bookingURL == nil)
+                // VoiceOver hears the real state, not "7:30 PM · dollar".
+                .accessibilityLabel([
+                    showtime.startTime.formatted(date: .omitted, time: .shortened),
+                    showtime.format,
+                    showtime.isBargain ? "bargain price" : nil,
+                    isNext ? "next showing" : nil,
+                    isPast ? "already started" : nil,
+                    showtime.bookingURL == nil ? "no online tickets" : nil,
+                ].compactMap { $0 }.joined(separator: ", "))
             }
         }
     }

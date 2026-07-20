@@ -45,7 +45,13 @@ struct TheaterCalendarView: View {
     /// Months ("yyyy-m") whose releases were already fetched — each month
     /// fills on first arrival, so you can page as far ahead as you like.
     @State private var fetchedMonths: Set<String> = []
-    @State private var monthLoading = false
+    /// Months currently fetching — keyed like fetchedMonths, so fast paging
+    /// can't flash a false "nothing announced" for a month still loading.
+    @State private var loadingMonths: Set<String> = []
+    private var monthLoading: Bool {
+        let comps = cal.dateComponents([.year, .month], from: visibleMonth)
+        return loadingMonths.contains("\(comps.year ?? 0)-\(comps.month ?? 0)")
+    }
 
     @State private var mode: Mode = .month   // the calendar IS the feature — default to it
     @State private var visibleMonth = Date()
@@ -143,7 +149,7 @@ struct TheaterCalendarView: View {
     /// Verified local data is in hand for the current zip — day marks can be
     /// exact instead of assumed.
     private var hasLocalData: Bool {
-        zipcode.count == 5 && checkedZip == zipcode && !localDays.isEmpty
+        zipcode.count == 5 && checkedZip == zipcode
     }
 
     private var byDay: [Date: [Movie]] {
@@ -247,14 +253,28 @@ struct TheaterCalendarView: View {
             if selectedDay == nil { resetMonth() }
             await c
         }
-        .onChange(of: scope) { _, _ in resetMonth() }
+        .onChange(of: scope) { _, _ in
+            // Keep the user's place when the new scope still has something
+            // on the selected day; only re-home when it doesn't.
+            if let day = selectedDay, byDay[day]?.isEmpty == false { return }
+            selectedDay = firstReleaseDay(in: visibleMonth)
+            if selectedDay == nil { resetMonth() }
+        }
         .onChange(of: myLoaded) { _, _ in if selectedDay == nil { resetMonth() } }
         .onChange(of: zipcode) { _, _ in resetLocalData() }
         .onChange(of: radius) { _, _ in resetLocalData() }
         .onChange(of: visibleMonth) { _, month in
             Task {
-                await loadMonth(month)
-                await ensureLocalCoverage(for: month)
+                // Both fetches in flight together; then, if the user is
+                // still on this month with nothing selected, land on its
+                // first marked day.
+                async let a: () = loadMonth(month)
+                async let b: () = ensureLocalCoverage(for: month)
+                _ = await (a, b)
+                if cal.isDate(visibleMonth, equalTo: month, toGranularity: .month),
+                   selectedDay == nil {
+                    selectedDay = firstReleaseDay(in: month)
+                }
             }
         }
     }
@@ -602,7 +622,13 @@ struct TheaterCalendarView: View {
                 if !undatedComing.isEmpty { posterStrip(title: "Date to be announced", undatedComing) }
                 // Next week can look sparse until theaters publish it — say
                 // why, so an empty Friday doesn't read as "nothing's showing".
-                if !nowPlaying.isEmpty,
+                if hasLocalData, localDays.isEmpty {
+                    Text("No theaters found near \(zipcode) within \(radius) mi — try widening your radius.")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                } else if !nowPlaying.isEmpty,
                    cal.isDate(visibleMonth, equalTo: Date(), toGranularity: .month) {
                     Text("Days fill in as theaters post showtimes — usually one to two weeks ahead.")
                         .font(.caption2)
@@ -683,7 +709,7 @@ struct TheaterCalendarView: View {
             // A film OPENING here (its release day) is the day's event —
             // marked distinctly from films merely showing.
             let opensHere = films.contains {
-                !$0.isReleased && releaseDate($0).map { cal.isDate($0, inSameDayAs: key) } == true
+                releaseDate($0).map { cal.isDate($0, inSameDayAs: key) } == true
             }
             Button {
                 if count > 0 { Haptics.tap(); selectedDay = key }
@@ -806,6 +832,13 @@ struct TheaterCalendarView: View {
     /// is a preview, and saying "Opens Aug 21" on a card sitting on Aug 17
     /// would read as a contradiction.
     private func statusCaption(for movie: Movie, on day: Date?) -> String {
+        if let opening = releaseDate(movie), let day,
+           cal.isDate(day, inSameDayAs: opening) {
+            // Its actual premiere day — even for a film TMDB already counts
+            // as released (openings must keep their moment ON the day).
+            return cal.isDateInToday(opening) ? "Opens today"
+                : "Opens \(opening.formatted(.dateTime.month(.abbreviated).day()))"
+        }
         if movie.isReleased { return "In theaters" }
         guard let opening = releaseDate(movie) else { return "Coming soon" }
         if let day, cal.startOfDay(for: day) < cal.startOfDay(for: opening) {
@@ -912,8 +945,24 @@ struct TheaterCalendarView: View {
 
     private func loadMine() async {
         guard !myLoaded else { return }
-        myMovies = await watchlistInTheaters()
+        // INSTANT first paint: the candidate list is already in the store's
+        // cache — show it now, refine each title as its details land. The
+        // old wait-for-everything path blocked the whole screen 2-3s.
+        myMovies = Self.theaterCandidates(from: store)
         myLoaded = true
+        await refineMine()
+    }
+
+    /// The watchlist titles worth showing on a theatrical calendar, straight
+    /// from cached metadata (no network).
+    private static func theaterCandidates(from store: RankingStore) -> [Movie] {
+        let year = Calendar(identifier: .gregorian).component(.year, from: .now)
+        return Array(store.watchlist
+            .compactMap { store.movie($0.movieID) }
+            .filter { $0.tmdbID > 0 }
+            .filter { ($0.releaseYear ?? year) >= year - 1 }
+            .sorted { ($0.releaseYear ?? 0) > ($1.releaseYear ?? 0) }
+            .prefix(60))
     }
 
     /// Fill a paged-to month with its theatrical releases (the base
@@ -924,9 +973,15 @@ struct TheaterCalendarView: View {
         let key = "\(comps.year ?? 0)-\(comps.month ?? 0)"
         guard !fetchedMonths.contains(key) else { return }
         fetchedMonths.insert(key)
-        monthLoading = true
-        defer { monthLoading = false }
-        guard let extra = try? await TMDBService.shared.releases(in: month) else { return }
+        loadingMonths.insert(key)
+        defer { loadingMonths.remove(key) }
+        guard let extra = try? await TMDBService.shared.releases(in: month) else {
+            // A flaky connection must not blank the month for the session —
+            // un-mark it so paging back retries (same rule as the schedule
+            // windows).
+            fetchedMonths.remove(key)
+            return
+        }
         let known = Set(releases.map(\.tmdbID)).union(nowOut.map(\.tmdbID))
         releases += extra.filter { $0.tmdbID > 0 && !known.contains($0.tmdbID) }
     }
@@ -971,22 +1026,31 @@ struct TheaterCalendarView: View {
     }
 
     /// One aligned window (today + index×14 days): fetch the local schedule,
-    /// resolve every listing, and MERGE into the verified-day map.
+    /// resolve every listing, and MERGE into the verified-day map. Guarded
+    /// by a location snapshot: a zip/radius change mid-flight must never
+    /// merge the OLD location's schedule into the fresh state.
     private func loadLocalWindow(index: Int) async {
         guard zipcode.count == 5, !fetchedWindows.contains(index),
               let start = cal.date(byAdding: .day, value: index * 14,
                                    to: cal.startOfDay(for: Date()))
         else { return }
+        let zip = zipcode
+        let rad = radius
+        func stillCurrent() -> Bool { zip == zipcode && rad == radius }
         fetchedWindows.insert(index)
         do {
             let schedule = try await ShowtimesService.shared.localSchedule(
-                zipcode: zipcode, radius: radius, from: start)
+                zipcode: zip, radius: rad, from: start)
+            guard stillCurrent() else { return }
             // The schedule fetch runs concurrently with the TMDB pool loads;
             // resolution wants the pools (cheap matches beat searches), so
             // give them a moment to land before falling back to searches.
-            for _ in 0..<50 where !(releasesLoaded && myLoaded) {
+            // myMovies now seeds synchronously, so only the general pools
+            // are worth a short wait before falling back to searches.
+            for _ in 0..<50 where !releasesLoaded {
                 try? await Task.sleep(for: .milliseconds(100))
             }
+            guard stillCurrent() else { return }
             // Cheap first pass: normalized-title lookup over loaded movies —
             // including the FULL cached watchlist, so an older film you saved
             // (a rerelease, say) still resolves without a search.
@@ -1014,6 +1078,7 @@ struct TheaterCalendarView: View {
             }
             if !unresolved.isEmpty {
                 let resolved = await Self.resolveViaSearch(unresolved)
+                guard stillCurrent() else { return }
                 for (listing, movie) in resolved {
                     guard movie.tmdbID > 0 else { continue }
                     localDays[movie.tmdbID, default: []].formUnion(listing.days)
@@ -1027,10 +1092,11 @@ struct TheaterCalendarView: View {
             // Only the NEAR-TERM window unlocks exact-marks mode: if window 0
             // failed but a far window landed, flipping this would blank today
             // and this week (released films would mark only far days).
-            if index == 0 { checkedZip = zipcode }
+            if index == 0 { checkedZip = zip }
         } catch {
-            // Failed windows may retry on the next visit.
-            fetchedWindows.remove(index)
+            // Failed windows may retry on the next visit — but a stale task
+            // must not un-mark the NEW location's in-flight fetch.
+            if stillCurrent() { fetchedWindows.remove(index) }
             SupabaseService.logSwallowed("theaterCalendar.localSchedule", error)
         }
     }
@@ -1046,18 +1112,18 @@ struct TheaterCalendarView: View {
                 group.addTask {
                     let imported = LetterboxdImporter.ImportedTitle(
                         title: listing.title, year: listing.year)
-                    let candidates = (try? await TMDBService.shared.search(
-                        query: listing.title, year: listing.year)) ?? []
-                    var match = LetterboxdImporter.bestMatch(for: imported, in: candidates)
-                    if match == nil, listing.year != nil {
-                        // The year filter is EXACT and Gracenote/TMDB disagree
-                        // by a year all the time — retry unfiltered (the
-                        // import pipeline does the same) so the film doesn't
-                        // silently vanish from the grid.
-                        let fallback = (try? await TMDBService.shared.search(
-                            query: listing.title)) ?? []
-                        match = LetterboxdImporter.bestMatch(for: imported, in: fallback)
+                    // ONE unfiltered search, matched locally: theatrical
+                    // listings can never be TV (drop negative ids), and
+                    // year-compatible candidates get first refusal — same
+                    // semantics as filtered-then-fallback, half the requests.
+                    let all = ((try? await TMDBService.shared.search(
+                        query: listing.title)) ?? []).filter { $0.tmdbID > 0 }
+                    let compatible = all.filter {
+                        listing.year == nil || $0.releaseYear == nil
+                            || abs($0.releaseYear! - listing.year!) <= 1
                     }
+                    let match = LetterboxdImporter.bestMatch(for: imported, in: compatible)
+                        ?? LetterboxdImporter.bestMatch(for: imported, in: all)
                     return (listing, match)
                 }
             }
@@ -1074,36 +1140,30 @@ struct TheaterCalendarView: View {
     /// Want to Watch movies that are theater-relevant: released within the last
     /// ~4 months (still in theaters) or still upcoming. Only fetch exact dates
     /// for titles from roughly the current era.
-    private func watchlistInTheaters() async -> [Movie] {
-        let year = Calendar(identifier: .gregorian).component(.year, from: .now)
-        let candidates = store.watchlist
-            .compactMap { store.movie($0.movieID) }
-            .filter { $0.tmdbID > 0 }
-            .filter { ($0.releaseYear ?? year) >= year - 1 }
-            .sorted { ($0.releaseYear ?? 0) > ($1.releaseYear ?? 0) }
-            .prefix(60)
-
+    /// Refine the seeded candidates with full TMDB details (exact release
+    /// dates), UPDATING the visible list per result — the grid sharpens live
+    /// instead of blocking on the whole fan-out. Bounded to 6 in flight.
+    private func refineMine() async {
         let cutoff = Calendar.current.date(byAdding: .day, value: -120, to: Date()) ?? Date()
-        var result: [Movie] = []
-        // Bounded to 6 in flight — 60 simultaneous detail fetches spiked
-        // memory/sockets and courted TMDB rate limits on calendar open.
+        let candidates = myMovies
         await withTaskGroup(of: Movie?.self) { group in
             var iterator = candidates.makeIterator()
             func addNext() {
                 guard let movie = iterator.next() else { return }
-                group.addTask { (try? await TMDBService.shared.details(for: movie.tmdbID)) ?? movie }
+                group.addTask { try? await TMDBService.shared.details(for: movie.tmdbID) }
             }
             for _ in 0..<6 { addNext() }
-            for await movie in group {
+            for await refined in group {
                 addNext()
-                guard let movie else { continue }
-                let date = movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
-                if !movie.isReleased || (date.map { $0 >= cutoff } ?? true) {
-                    result.append(movie)
+                guard let refined else { continue }
+                let date = refined.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
+                let keep = !refined.isReleased || (date.map { $0 >= cutoff } ?? true)
+                if let index = myMovies.firstIndex(where: { $0.tmdbID == refined.tmdbID }) {
+                    if keep { myMovies[index] = refined }
+                    else { myMovies.remove(at: index) }   // left theaters long ago
                 }
             }
         }
-        return result
     }
 }
 

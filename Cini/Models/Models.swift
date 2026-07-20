@@ -123,12 +123,25 @@ struct Movie: Identifiable, Codable, Hashable {
     }
 
     private static let currentYear = Calendar(identifier: .gregorian).component(.year, from: .now)
-    private static var todayISO: String {
+    private static let todayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: .now)
+        return f
+    }()
+    /// Cached per day — isReleased runs hundreds of times per month-grid
+    /// render, and a fresh DateFormatter per call was measurable.
+    private static var cachedTodayISO = (day: "", value: "")
+    private static var todayISO: String {
+        // Cheap staleness check: rebuild only when the day changes.
+        let now = Date()
+        let day = String(describing: Calendar(identifier: .gregorian)
+            .ordinality(of: .day, in: .era, for: now) ?? 0)
+        if cachedTodayISO.day != day {
+            cachedTodayISO = (day, todayFormatter.string(from: now))
+        }
+        return cachedTodayISO.value
     }
 
     var availabilityText: String? {

@@ -20,6 +20,9 @@ final class ShowtimesMatchingTests: XCTestCase {
             ("Aliens: Director's Cut", "Aliens"),
             ("Poor Things – Dolby Cinema", "Poor Things"),
             ("Spirited Away (2002)", "Spirited Away"),
+            // Live-audit finds: real listings the patterns used to miss.
+            ("Interstellar in 70mm Film", "Interstellar"),
+            ("Blade Runner: The Final Cut", "Blade Runner"),
         ]
         for (raw, want) in cases {
             XCTAssertEqual(ShowtimesService.canonicalTitle(raw), want, raw)
@@ -27,7 +30,8 @@ final class ShowtimesMatchingTests: XCTestCase {
     }
 
     func testPlainTitlesPassThrough() {
-        for title in ["Dune: Part Two", "Past Lives", "The Zone of Interest",
+        for title in ["The Final Cut", "Final Destination",
+                      "Dune: Part Two", "Past Lives", "The Zone of Interest",
                       "M3GAN", "Se7en"] {
             XCTAssertEqual(ShowtimesService.canonicalTitle(title), title)
         }

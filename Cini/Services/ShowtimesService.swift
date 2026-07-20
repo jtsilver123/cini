@@ -46,9 +46,9 @@ final class ShowtimesService: ShowtimesProviding {
         let patterns = [
             #"[:\-–—]?\s*((the|an?)\s+)?\bimax(\s+(2d|3d|70mm|laser))?(\s+experience)?\s*$"#,
             #"[:\-–—]?\s*(an?\s+)?\b(imax|4dx|screenx|rpx|dolby(\s+(cinema|atmos))?)\s*(experience)?\s*$"#,
-            #"[:\-–—]?\s*(in\s+)?\b(3d|70\s?mm|35\s?mm)\s*$"#,
+            #"[:\-–—]?\s*(in\s+)?\b(3d|70\s?mm|35\s?mm)(\s+film)?\s*$"#,
             #"[:\-–—]?\s*\(?\b\d+(th|st|nd|rd)\s+anniversary\)?\s*$"#,
-            #"[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$"#,
+            #"[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut|(the\s+)?final\s+cut)\)?\s*$"#,
             #"\s*\(\d{4}\)\s*$"#,
         ]
         var changed = true
@@ -101,6 +101,11 @@ final class ShowtimesService: ShowtimesProviding {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+        // Gracenote's NORMAL "no theaters in range" answer is 200 with a
+        // ZERO-BYTE body (verified live across rural zips) — decoding it
+        // throws and turned every search in a low-density area into
+        // "Something went wrong". Empty body = empty slate.
+        guard !data.isEmpty else { return [] }
 
         let listings = try JSONDecoder().decode([GNMovie].self, from: data)
         let matches = Self.variantMatches(for: movie, in: listings)
@@ -182,6 +187,19 @@ final class ShowtimesService: ShowtimesProviding {
         if let data = try? JSONEncoder().encode(CachedSchedule(savedAt: Date(), listings: listings)) {
             UserDefaults.standard.set(data, forKey: key)
         }
+        // Evict expired siblings so a season of zip/radius changes doesn't
+        // leave orphaned blobs in UserDefaults forever.
+        let defaults = UserDefaults.standard
+        for staleKey in defaults.dictionaryRepresentation().keys
+        where staleKey.hasPrefix("gn.schedule.") && staleKey != key {
+            if let data = defaults.data(forKey: staleKey),
+               let cached = try? JSONDecoder().decode(CachedSchedule.self, from: data),
+               Date().timeIntervalSince(cached.savedAt) >= 6 * 3600 {
+                defaults.removeObject(forKey: staleKey)
+            } else if defaults.data(forKey: staleKey) == nil {
+                defaults.removeObject(forKey: staleKey)
+            }
+        }
     }
 
     /// The COMPLETE local slate: every film with a posted showing near this
@@ -194,13 +212,16 @@ final class ShowtimesService: ShowtimesProviding {
         let startDay = DateFormatter.localDay.string(from: start)
         let cacheKey = scheduleCacheKey(zipcode: zipcode, radius: radius, start: startDay)
         if let cached = cachedSchedule(key: cacheKey) { return cached }
-        // One quiet retry: the provider occasionally answers 200 with an
-        // empty body (transient rate limiting), and a single blip must not
-        // blank the user's calendar for the session.
+        // One quiet retry for TRANSIENT failures only — a config error or a
+        // bad zip is deterministic and must surface immediately.
         var listings: [GNMovie]
         do {
             listings = try await fetchShowings(zipcode: zipcode, radius: radius,
                                                days: days, start: start)
+        } catch let error as ShowtimesError {
+            throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             try await Task.sleep(for: .seconds(1.5))
             listings = try await fetchShowings(zipcode: zipcode, radius: radius,
@@ -270,6 +291,9 @@ final class ShowtimesService: ShowtimesProviding {
         guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
         if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+        // 200 + zero bytes is Gracenote's normal "no theaters here" (see
+        // showtimes(for:)) — an empty slate, not an error to retry.
+        guard !data.isEmpty else { return [] }
         return try JSONDecoder().decode([GNMovie].self, from: data)
     }
 
@@ -278,16 +302,32 @@ final class ShowtimesService: ShowtimesProviding {
     /// Experience", "… 70mm", "… (25th Anniversary)"), so score against
     /// the CANONICAL title and merge every matching variant — otherwise
     /// the IMAX showings simply vanish.
+    /// Lowercased, diacritic-folded, alphanumeric-word form for equality
+    /// checks ("WALL·E" == "WALL-E").
+    private static func normalizeForMatch(_ title: String) -> String {
+        title.lowercased()
+            .folding(options: [.diacriticInsensitive], locale: .current)
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+
     private static func variantMatches(for movie: Movie, in listings: [GNMovie]) -> [GNMovie] {
+        let movieNorm = normalizeForMatch(movie.title)
         let scored = listings.map { listing -> (GNMovie, Double) in
-            // Both years known and >1 apart = a DIFFERENT film, full stop.
-            // A soft malus wasn't enough: "The Lion King" (1994) vs the 2019
-            // remake share a canonical title, and 1.0 − 0.25 still cleared
-            // the acceptance gate — the wrong film's showtimes shown with
-            // total confidence.
+            // Year gating, aligned with the calendar's resolver so the grid
+            // and this sheet can never disagree about the same listing:
+            // - exact canonical-title match: tolerate up to 3 years of
+            //   Gracenote(US release year) vs TMDB(premiere year) drift
+            // - anything else >1 year apart = a DIFFERENT film, full stop
+            //   ("The Lion King" 1994 vs the 2019 remake share a title; a
+            //   soft malus once let the wrong film's showtimes through)
             if let want = movie.releaseYear, let got = listing.releaseYear,
                abs(want - got) > 1 {
-                return (listing, -1)
+                let exactTitle = normalizeForMatch(canonicalTitle(listing.title)) == movieNorm
+                if !(exactTitle && abs(want - got) <= 3) {
+                    return (listing, -1)
+                }
             }
             var score = Fuzzy.similarity(query: movie.title,
                                          candidate: canonicalTitle(listing.title))
