@@ -961,8 +961,9 @@ function renderLists(){
             <div style="font-weight:700; font-size:15.5px;">${m.t}</div>
             <div class="meta">${m.cert} | ${m.g.join(", ")}</div>
             <div class="meta">${m.y} · Dir. ${m.dir}</div>
+            <div style="font-size:12px; font-weight:700; margin-top:3px; color:var(--marquee);">On ${m.on.join(", ")}</div>
           </div>
-          <div style="display:flex; flex-direction:column; align-items:flex-end; justify-content:space-between; min-height:80px;">
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
             <div style="text-align:center;"><div class="badge ${scoreClass(m.avg)}">${m.avg.toFixed(1)}</div>
               <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>
             <div style="display:flex; gap:14px;">
@@ -1900,7 +1901,10 @@ function memberListRow(k,{rank=null, score=null, context=null, contextColor=null
       </div>`}
     </div>
     ${ranked?`<span style="color:var(--green); opacity:.85;">${I("check",20,1.8)}</span>`:""}
-    ${score!==null?`<div class="badge ${scoreClass(score)}">${score.toFixed(1)}</div>`:""}
+    ${score!==null?(rank!==null
+      ?`<div class="badge ${scoreClass(score)}">${score.toFixed(1)}</div>`
+      :`<div style="text-align:center;"><div class="badge ${scoreClass(score)}">${score.toFixed(1)}</div>
+          <div style="font-size:9px; font-weight:800; color:var(--gray); margin-top:3px;">REC SCORE</div></div>`):""}
   </div>`;
 }
 /* Toggle a save from inside a sheet and redraw just the sheet body so the
@@ -1929,7 +1933,7 @@ function openMemberWatchlist(u){
     const list=memberWatchlistOf(u);
     return list.length===0
       ? `<div class="empty"><span style="color:var(--marquee);">${I("bookmark",34,1.4)}</span><b>Nothing saved yet</b></div>`
-      : list.map(k=>memberListRow(k,{context:`On ${MOVIES[k].on.join(", ")}`})).join("");
+      : list.map(k=>memberListRow(k,{score:MOVIES[k].avg, context:`On ${MOVIES[k].on.join(", ")}`})).join("");
   });
 }
 function openBothList(u){

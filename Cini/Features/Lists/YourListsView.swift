@@ -1250,9 +1250,12 @@ struct YourListsView: View {
             ForEach(filteredWatchlist) { item in
                 if let movie = store.movie(item.movieID) {
                     // Prefetched at launch — badges render instantly.
+                    let context = WatchlistRowView.contextLine(for: movie, savedAt: item.createdAt)
                     WatchlistRowView(movie: movie,
                                      predicted: predicted[item.movieID]
                                          ?? store.predictedScores[item.movieID],
+                                     context: context?.text,
+                                     contextColor: context?.color ?? Theme.gray,
                                      note: item.note, watchBy: item.watchBy) {
                         logMovie = movie
                     }
@@ -1385,6 +1388,10 @@ struct WatchlistRowView: View {
     let movie: Movie
     /// Rec Score — how much we think the user will like it.
     var predicted: Double?
+    /// "On Netflix, Max" or "Added 2 days ago" — the SAME context line on
+    /// your list and any member's, so the two screens read identically.
+    var context: String?
+    var contextColor: Color = Theme.gray
     /// The "why I saved this" note from the save popup.
     var note: String?
     /// "Watch by" goal as an ISO date string.
@@ -1393,6 +1400,15 @@ struct WatchlistRowView: View {
 
     @Environment(RankingStore.self) private var store
     @State private var showSaveSheet = false
+
+    /// Shared context rule for every watchlist surface: streaming
+    /// availability wins (it answers "can I watch this tonight?");
+    /// otherwise when it was saved.
+    static func contextLine(for movie: Movie, savedAt: Date?) -> (text: String, color: Color)? {
+        if let availability = movie.availabilityText { return (availability, Theme.marquee) }
+        guard let savedAt else { return nil }
+        return ("Added \(savedAt.formatted(.relative(presentation: .named)))", Theme.gray)
+    }
 
     /// "Watch by Jun 20", red once the date has passed.
     private var watchByLabel: (text: String, overdue: Bool)? {
@@ -1408,13 +1424,25 @@ struct WatchlistRowView: View {
         HStack(alignment: .top, spacing: 12) {
             PosterView(url: movie.posterURL, width: 52)
             VStack(alignment: .leading, spacing: 3) {
-                Text(movie.title).font(.headline)
+                Text(movie.title)
+                    .font(.headline)
+                    .lineLimit(1)
                 Text(movie.metadataLine)
                     .font(.subheadline)
                     .foregroundStyle(Theme.ink.opacity(0.8))
-                Text(movie.bylineText)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.ink.opacity(0.8))
+                    .lineLimit(1)
+                if !movie.bylineText.isEmpty {
+                    Text(movie.bylineText)
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
+                }
+                if let context {
+                    Text(context)
+                        .font(.caption2)
+                        .foregroundStyle(contextColor)
+                        .lineLimit(1)
+                }
                 if let note {
                     Text("“\(note)”")
                         .font(.caption)
@@ -1431,44 +1459,51 @@ struct WatchlistRowView: View {
                     .foregroundStyle(watchByLabel.overdue ? Theme.scoreRed : Theme.marquee)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             // Score top-right, (+)/bookmark bottom-right — the same
             // corners they occupy on every artwork and card.
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: 4) {
                 if let predicted {
                     VStack(spacing: 3) {
-                        ScoreBadge(score: predicted)
+                        ScoreBadge(score: predicted, size: 44)
                         Text("Rec Score")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(Theme.gray)
                     }
                 }
-                Spacer(minLength: 0)
-                HStack(spacing: 6) {
-                    // Same 40pt hit targets as MovieSuggestionRow — the glyphs
-                    // are small, the taps shouldn't be.
-                    Button(action: onQuickRank) {
-                        Image(systemName: "plus.circle")
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
+                if store.isWatched(movie.tmdbID) {
+                    // Already seen (a member's list can hold titles you've
+                    // ranked) — say so instead of offering save/rank.
+                    Image(systemName: "checkmark.circle")
+                        .font(.title3)
+                        .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                        .frame(width: 40, height: 40)
+                } else {
+                    HStack(spacing: 6) {
+                        // Same 40pt hit targets as MovieSuggestionRow — the glyphs
+                        // are small, the taps shouldn't be.
+                        Button(action: onQuickRank) {
+                            Image(systemName: "plus.circle")
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("Rank \(movie.title)")
+                        Button {
+                            bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
+                        } label: {
+                            Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
+                                .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
+                            ? "Remove \(movie.title) from Want to Watch"
+                            : "Add \(movie.title) to Want to Watch")
                     }
-                    .accessibilityLabel("Rank \(movie.title)")
-                    Button {
-                        bookmarkTapped(movie: movie, store: store) { showSaveSheet = true }
-                    } label: {
-                        Image(systemName: store.isOnWatchlist(movie.tmdbID) ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(store.isOnWatchlist(movie.tmdbID) ? Theme.marquee : Theme.ink)
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel(store.isOnWatchlist(movie.tmdbID)
-                        ? "Remove \(movie.title) from Want to Watch"
-                        : "Add \(movie.title) to Want to Watch")
+                    .font(.title3)
+                    .buttonStyle(.plain)
                 }
-                .font(.title3)
-                .buttonStyle(.plain)
             }
-            .frame(minHeight: 78)
         }
         .padding(.vertical, 6)
         .sheet(isPresented: $showSaveSheet) {

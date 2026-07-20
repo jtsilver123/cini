@@ -1659,13 +1659,15 @@ struct WatchlistScreen: View {
                 }
                 ForEach(rows, id: \.movieID) { entry in
                     if let movie = movies[entry.movieID] ?? store.movie(entry.movieID) {
-                        ActivityMovieRow(
+                        // The SAME row your own Want to Watch tab renders —
+                        // one component, so the two screens can't drift.
+                        let context = WatchlistRowView.contextLine(for: movie, savedAt: entry.savedAt)
+                        WatchlistRowView(
                             movie: movie,
-                            context: watchlistContext(movie: movie, savedAt: entry.savedAt),
-                            contextColor: movie.availabilityText == nil ? Theme.gray : Theme.marquee,
-                            score: predicted[entry.movieID],
-                            showsQuickActions: true,
-                            onLog: { (openLog ?? { logMovie = $0 })($0) }
+                            predicted: predicted[entry.movieID],
+                            context: context?.text,
+                            contextColor: context?.color ?? Theme.gray,
+                            onQuickRank: { (openLog ?? { logMovie = $0 })(movie) }
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { (openDetail ?? { detailMovie = $0 })(movie) }
@@ -1690,10 +1692,6 @@ struct WatchlistScreen: View {
         }
     }
 
-    private func watchlistContext(movie: Movie, savedAt: Date) -> String {
-        if let availability = movie.availabilityText { return availability }
-        return "Added \(savedAt.formatted(.relative(presentation: .named)))"
-    }
 }
 
 /// Movies on both your watchlist and the member's — the "Places you both
@@ -1725,14 +1723,14 @@ struct BothWantToWatchScreen: View {
                 }
                 ForEach(rows) { row in
                     // Intersection rows are on the viewer's own watchlist,
-                    // so the store always has their metadata.
+                    // so the store always has their metadata. Same shared
+                    // row as every other Want to Watch surface.
                     if let movie = store.movie(row.movieId) {
-                        ActivityMovieRow(
+                        WatchlistRowView(
                             movie: movie,
                             context: movie.availabilityText ?? "You both saved this",
                             contextColor: Theme.marquee,
-                            showsQuickActions: true,
-                            onLog: { logMovie = $0 }
+                            onQuickRank: { logMovie = movie }
                         )
                         .contentShape(Rectangle())
                         .onTapGesture { detailMovie = movie }
