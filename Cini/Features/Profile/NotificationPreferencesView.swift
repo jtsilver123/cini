@@ -123,10 +123,12 @@ struct NotificationPreferencesView: View {
                 errorMessage = nil
                 let previous = muted
                 if enabled { muted.remove(kind) } else { muted.insert(kind) }
-                let snapshot = muted
                 Task {
                     do {
-                        try await SupabaseService.shared.setMutedNotificationKinds(snapshot)
+                        // Atomic per-kind flip server-side — a whole-array
+                        // write raced the theater page's toggle (and other
+                        // devices) and clobbered their changes.
+                        try await SupabaseService.shared.setNotificationKindMuted(kind, muted: !enabled)
                     } catch {
                         muted = previous   // roll the switch back on failure
                         errorMessage = "Couldn't save — check your connection."

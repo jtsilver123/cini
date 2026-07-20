@@ -2722,7 +2722,7 @@ struct NotificationsView: View {
         } else if ["comment", "mention", "like"].contains(row.kind), let eventId = row.eventId {
             // Land on the actual activity/thread — not the bare movie page.
             commentsLink = CommentsLink(id: eventId)
-        } else if ["watch_match", "watch_invite"].contains(row.kind),
+        } else if ["watch_match", "watch_invite", "watch_accept"].contains(row.kind),
                   let movieId = row.movieId, let actorId = row.actorId, let actor = row.actor {
             // Same as tapping the push: open the Plan-a-Watch sheet for that
             // title + friend — the bare movie page has no accept/decline flow.
@@ -2809,6 +2809,7 @@ struct NotificationsView: View {
         case "tonight_pick": text = "Tonight's pick: **\(movie)** 🍿"
         case "watch_match": text = "**\(who)** also wants to watch **\(movie)** — plan a movie night? 🍿"
         case "watch_invite": text = "**\(who)** wants to watch **\(movie)** together — when works? 🎬"
+        case "watch_accept": text = "**\(who)** is in for **\(movie)** 🍿 You're on"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"

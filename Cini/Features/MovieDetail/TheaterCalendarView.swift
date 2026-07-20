@@ -25,8 +25,10 @@ struct TheaterCalendarView: View {
     /// Powers the Tickets/showtimes sheet — shared with ShowtimesSheet.
     @AppStorage("showtimes.zipcode") private var zipcode = ""
     @AppStorage("showtimes.radius") private var radius = 15
-    /// The user's full muted-kinds set — the theater toggle flips ONLY
-    /// 'watchlist_showing' inside it, never clobbering other preferences.
+    /// The user's muted-kinds set, refreshed every time the area sheet
+    /// opens. The toggle itself flips ONLY 'watchlist_showing', via an
+    /// atomic server-side RPC — never a whole-array write that could
+    /// clobber mutes changed in Settings or on another device.
     @State private var mutedKinds: Set<String> = []
     @State private var alertPrefLoaded = false
     @State private var showZipEntry = false
@@ -355,6 +357,12 @@ struct TheaterCalendarView: View {
                         ForEach([5, 10, 15, 25, 50], id: \.self) { miles in
                             Button {
                                 radius = miles
+                                // Keep the server's alert radius in step even
+                                // if the user never taps Save.
+                                if zipcode.count == 5 {
+                                    let z = zipcode
+                                    Task { try? await SupabaseService.shared.setHomeArea(zip: z, radius: miles) }
+                                }
                             } label: {
                                 if radius == miles {
                                     Label("\(miles) miles", systemImage: "checkmark")
@@ -393,7 +401,10 @@ struct TheaterCalendarView: View {
                     let z = zipDraft.filter(\.isNumber)
                     guard z.count == 5 else { return }
                     zipcode = z
-                    Task { try? await SupabaseService.shared.setHomeZip(z) }
+                    // ZIP + radius together — the server's alert sweep honors
+                    // the radius the user picked here.
+                    let r = radius
+                    Task { try? await SupabaseService.shared.setHomeArea(zip: z, radius: r) }
                     showZipEntry = false
                 }
                 .frame(maxWidth: .infinity)
@@ -427,13 +438,21 @@ struct TheaterCalendarView: View {
                 let previous = mutedKinds
                 if enabled { mutedKinds.remove("watchlist_showing") }
                 else { mutedKinds.insert("watchlist_showing") }
-                let snapshot = mutedKinds
                 Task {
                     do {
-                        try await SupabaseService.shared.setMutedNotificationKinds(snapshot)
-                        // Alerts need push permission — ask now if never asked,
-                        // so flipping this on actually results in alerts.
-                        if enabled { await PushManager.request() }
+                        // Atomic single-kind flip: rapid re-flips are
+                        // last-write-wins for THIS kind only, and mutes set
+                        // elsewhere are untouched.
+                        try await SupabaseService.shared.setNotificationKindMuted(
+                            "watchlist_showing", muted: !enabled)
+                        if enabled {
+                            // The toggle promises a push — if permission is
+                            // denied, SAY so instead of silently never firing.
+                            let granted = await PushManager.request()
+                            if !granted {
+                                ToastCenter.shared.show("Notifications are off for Cini — turn them on in Settings to get ticket alerts. You'll still see them in your bell.")
+                            }
+                        }
                     } catch {
                         mutedKinds = previous   // roll the switch back
                         ToastCenter.shared.saveFailed()
@@ -442,8 +461,9 @@ struct TheaterCalendarView: View {
             })
     }
 
+    /// Refetches every call — the sheet must show the CURRENT server state,
+    /// not a snapshot from the first time the view ever loaded.
     private func loadAlertPref() async {
-        guard !alertPrefLoaded else { return }
         if let kinds = try? await SupabaseService.shared.mutedNotificationKinds() {
             mutedKinds = kinds
             alertPrefLoaded = true
@@ -457,16 +477,20 @@ struct TheaterCalendarView: View {
             zipDraft = zipcode
             showZipEntry = true
         } label: {
-            Image(systemName: alertPrefLoaded && !ticketAlertsOn ? "bell.slash" : "bell.badge")
+            // Neutral until the pref actually loads — claiming "on" while
+            // the server might say muted would lie to the user.
+            Image(systemName: !alertPrefLoaded ? "bell"
+                  : ticketAlertsOn ? "bell.badge" : "bell.slash")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(alertPrefLoaded && !ticketAlertsOn ? Theme.gray : Theme.marquee)
+                .foregroundStyle(!alertPrefLoaded ? Theme.gray
+                                 : ticketAlertsOn ? Theme.marquee : Theme.gray)
                 .frame(width: 34, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(alertPrefLoaded && !ticketAlertsOn
-                            ? "Ticket alerts off — open area settings"
-                            : "Ticket alerts on — open area settings")
+        .accessibilityLabel(!alertPrefLoaded ? "Ticket alerts — open area settings"
+                            : ticketAlertsOn ? "Ticket alerts on — open area settings"
+                                             : "Ticket alerts off — open area settings")
         .task { await loadAlertPref() }
     }
 

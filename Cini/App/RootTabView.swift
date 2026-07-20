@@ -105,7 +105,8 @@ final class TabRouter {
         }()
         // A watch-match / invite opens the Plan-a-Watch sheet for that title +
         // friend, not the plain movie page.
-        if kind == "watch_match" || kind == "watch_invite", let movieID, let actor {
+        if kind == "watch_match" || kind == "watch_invite" || kind == "watch_accept",
+           let movieID, let actor {
             pendingWatchPlan = WatchPlanContext(movieID: movieID, friend: actor)
             return
         }

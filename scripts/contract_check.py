@@ -187,6 +187,9 @@ RPCS = [
     # re-running never changes demo state in a way that matters for review.
     ("set_timezone", {"p_tz": "America/New_York"}),
     ("set_home_zip", {"p_zip": "10001"}),
+    ("set_home_area", {"p_zip": "10001", "p_radius": 15}),
+    # Muting then unmuting a kind the demo doesn't use leaves state unchanged.
+    ("set_notification_kind_muted", {"p_kind": "contract_check_probe", "p_muted": False}),
     # Empty array stores nothing; forget clears the caller's own hashes.
     ("store_contacts", {"p_phones": []}),
     ("forget_contacts", {}),

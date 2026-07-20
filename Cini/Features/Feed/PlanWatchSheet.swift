@@ -156,18 +156,51 @@ struct PlanWatchSheet: View {
     @ViewBuilder
     private var stateContent: some View {
         // The respond/waiting split keys on who suggested the CURRENT time
-        // (lastProposer) — after a counter-propose the ball is back in the
-        // original inviter's court, and they must get the Accept button.
+        // (lastProposer), NOT on which friend the sheet was opened for — a
+        // co-invitee tapping another invitee's row must still get the
+        // respond card for the live plan, never a fresh-invite card that
+        // forks a competing plan.
         if loadFailed {
             retryState
+        } else if let plan, let myID, plan.status != "declined",
+                  plan.memberStatus(myID) == "declined" {
+            declinedState(plan)           // I passed — offer a way back in
         } else if let plan, plan.status == "accepted" {
             acceptedState(plan)
-        } else if let plan, plan.status == "proposed", plan.currentProposerId == friend.id {
-            respondState(plan)            // their suggested time — I respond
         } else if let plan, plan.status == "proposed", let myID, plan.currentProposerId == myID {
             waitingState(plan)            // my suggested time — waiting on them
+        } else if let plan, plan.status == "proposed" {
+            respondState(plan)            // someone else's time — I respond
         } else {
             planControls                  // no plan (or declined) → fresh invite
+        }
+    }
+
+    /// I already said "can't make it" — say so instead of showing the
+    /// accepted/respond cards as if I were going, and offer a way back in.
+    private func declinedState(_ plan: WatchPlanRow) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HairlineCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "xmark.circle").foregroundStyle(Theme.gray)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("You passed on this one").font(.subheadline.weight(.semibold))
+                            if let at = plan.proposedAt {
+                                Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                                    .font(.caption).foregroundStyle(Theme.gray)
+                            }
+                        }
+                        Spacer()
+                    }
+                    rosterView(plan)
+                }
+            }
+            PillButton(title: sending ? "…" : "Count me back in", systemImage: "arrow.uturn.backward") {
+                accept(plan)
+            }
+            .disabled(sending)
+            draftTextButton
         }
     }
 
@@ -362,6 +395,10 @@ struct PlanWatchSheet: View {
                             if on {
                                 // Never empty: the last friend stays.
                                 if invitees.count > 1 { invitees.removeAll { $0 == option } }
+                            } else if invitees.count >= 10 {
+                                // Matches the server's roster cap — a bigger
+                                // group would hard-error on send.
+                                ToastCenter.shared.show("Movie night maxes out at 10 friends.")
                             } else {
                                 invitees.append(option)
                             }
@@ -499,11 +536,12 @@ struct PlanWatchSheet: View {
         sending = true
         Task {
             do {
-                try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: true, newTime: when)
+                try await SupabaseService.shared.respondWatchPlan(
+                    planID: plan.id, accept: true, newTime: when)
                 Haptics.success()
-                doneMessage = "New time sent to @\(friend.username)."
+                doneMessage = "New time sent."
                 withAnimation(.snappy) { done = true }
-            } catch { ToastCenter.shared.saveFailed() }
+            } catch { handleRespondError(error) }
             sending = false
         }
     }
@@ -513,13 +551,14 @@ struct PlanWatchSheet: View {
         sending = true
         Task {
             do {
-                try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: false)
+                try await SupabaseService.shared.respondWatchPlan(
+                    planID: plan.id, accept: false, expectedTime: plan.proposedAt)
                 Haptics.tap()
                 ToastCenter.shared.show("Replied — they'll see you can't make it 👍")
                 dismiss()
             } catch {
                 // Don't dismiss as if it worked — the inviter would still be waiting.
-                ToastCenter.shared.saveFailed()
+                handleRespondError(error)
             }
             sending = false
         }
@@ -547,7 +586,11 @@ struct PlanWatchSheet: View {
                     : "Invite sent to \(invitees.count) friends. Each gets a nudge to confirm."
                 withAnimation(.snappy) { done = true }
             } catch {
-                ToastCenter.shared.saveFailed()
+                if "\(error)".contains("blocked") {
+                    ToastCenter.shared.show("One of those friends can't be invited — remove them and try again.")
+                } else {
+                    ToastCenter.shared.saveFailed()
+                }
             }
             sending = false
         }
@@ -558,14 +601,26 @@ struct PlanWatchSheet: View {
         sending = true
         Task {
             do {
-                try await SupabaseService.shared.respondWatchPlan(planID: plan.id, accept: true)
+                try await SupabaseService.shared.respondWatchPlan(
+                    planID: plan.id, accept: true, expectedTime: plan.proposedAt)
                 Haptics.success()
-                doneMessage = "You're set — see you and @\(friend.username) at the movies 🍿"
+                doneMessage = "You're set — see you at the movies 🍿"
                 withAnimation(.snappy) { done = true }
             } catch {
-                ToastCenter.shared.saveFailed()
+                handleRespondError(error)
             }
             sending = false
+        }
+    }
+
+    /// A respond can fail because the time changed underneath us — reload
+    /// so the user sees (and answers) the CURRENT time, never a stale one.
+    private func handleRespondError(_ error: Error) {
+        if "\(error)".contains("time changed") {
+            ToastCenter.shared.show("The time changed — take another look.")
+            loadKey += 1
+        } else {
+            ToastCenter.shared.saveFailed()
         }
     }
 

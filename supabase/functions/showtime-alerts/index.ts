@@ -119,27 +119,32 @@ Deno.serve(async (_req: Request) => {
     // ZIPs live in the private user_locations table (service role reads it).
     const locations = await allRows((f, t) => supabase
       .from("user_locations")
-      .select("user_id, home_zip")
+      .select("user_id, home_zip, alert_radius")
       .not("home_zip", "is", null)
       .range(f, t));
     if (!locations.length) return new Response("no users with zips", { status: 200 });
-    const profiles = locations.map((l: any) => ({ id: l.user_id, home_zip: l.home_zip }));
+    const profiles = locations.map((l: any) => ({
+      id: l.user_id, home_zip: l.home_zip,
+      // Honor the radius the user picked in the app (the sweep was
+      // hardcoded to 15 mi while the UI promised 5-50).
+      radius: [5, 10, 15, 25, 50].includes(l.alert_radius) ? l.alert_radius : 15,
+    }));
 
-    const tokens = await allRows((f, t) => supabase
-      .from("device_tokens").select("user_id").range(f, t));
-    const pushable = new Set(tokens.map((t: any) => t.user_id));
     // Users with this alert kind muted are skipped BEFORE the once-ever
     // notice is recorded — the mute trigger silently drops the notification
     // row, so recording a notice for them would burn their only alert and
-    // unmuting later would never bring it back.
+    // unmuting later would never bring it back. Users WITHOUT a device
+    // token still qualify: they get the in-app bell entry (send-push
+    // no-ops for them), instead of being silently excluded from a feature
+    // the app advertises.
     const muted = await allRows((f, t) => supabase
       .from("profiles")
       .select("id")
       .contains("muted_notification_kinds", ["watchlist_showing"])
       .range(f, t));
     const mutedIDs = new Set(muted.map((m: any) => m.id));
-    const candidates = profiles.filter((p: any) => pushable.has(p.id) && !mutedIDs.has(p.id));
-    if (!candidates.length) return new Response("no pushable users", { status: 200 });
+    const candidates = profiles.filter((p: any) => !mutedIDs.has(p.id));
+    if (!candidates.length) return new Response("no eligible users", { status: 200 });
 
     const userIDs = candidates.map((p: any) => p.id);
     const watchlists = await allRows((f, t) => supabase
@@ -154,11 +159,12 @@ Deno.serve(async (_req: Request) => {
       .range(f, t));
     const alreadyNoticed = new Set(noticed.map((n: any) => `${n.user_id}:${n.movie_id}`));
 
-    // One Gracenote request per DISTINCT zip.
+    // One Gracenote request per DISTINCT (zip, radius) pair.
     const byZip = new Map<string, any[]>();
     for (const p of candidates) {
-      if (!byZip.has(p.home_zip)) byZip.set(p.home_zip, []);
-      byZip.get(p.home_zip)!.push(p);
+      const key = `${p.home_zip}|${p.radius}`;
+      if (!byZip.has(key)) byZip.set(key, []);
+      byZip.get(key)!.push(p);
     }
 
     let notified = 0;
@@ -168,12 +174,13 @@ Deno.serve(async (_req: Request) => {
     const fullSweep = new Date().getUTCHours() % 6 === 4;
     const offsets = fullSweep ? [0, 14, 28, 42, 56] : [0];
 
-    for (const [zip, users] of byZip) {
+    for (const [zipKey, users] of byZip) {
+      const [zip, radius] = zipKey.split("|");
       const playing: { title: string; releaseYear?: number; earliest: string | null }[] = [];
       const seenListing = new Map<string, number>();
       for (const offset of offsets) {
         const start = new Date(Date.now() + offset * 86400e3).toISOString().slice(0, 10);
-        const url = `https://data.tmsapi.com/v1.1/movies/showings?startDate=${start}&numDays=14&zip=${zip}&radius=15&units=mi&api_key=${gnKey}`;
+        const url = `https://data.tmsapi.com/v1.1/movies/showings?startDate=${start}&numDays=14&zip=${zip}&radius=${radius}&units=mi&api_key=${gnKey}`;
         const res = await fetch(url);
         if (!res.ok) continue;
         // One malformed/empty window response (transient rate limiting
@@ -264,11 +271,18 @@ Deno.serve(async (_req: Request) => {
             .select("id");
           if (notifError || !inserted?.length) {
             if (notifError) console.error("showtime-alerts notification insert:", notifError);
-            await supabase
-              .from("showtime_notices")
-              .delete()
-              .eq("user_id", user.id)
-              .eq("movie_id", entry.movie_id);
+            // The rollback delete must LAND — if it also fails, the notice
+            // survives with no notification behind it and the once-ever
+            // alert is burned forever. Retry once and log a loud error.
+            for (let attempt = 0; attempt < 2; attempt++) {
+              const { error: delErr } = await supabase
+                .from("showtime_notices")
+                .delete()
+                .eq("user_id", user.id)
+                .eq("movie_id", entry.movie_id);
+              if (!delErr) break;
+              console.error("showtime-alerts notice rollback failed:", delErr);
+            }
             continue;
           }
           notified++;

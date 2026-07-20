@@ -192,6 +192,15 @@ final class SupabaseService {
         return Set(row.muted_notification_kinds)
     }
 
+    /// Flip ONE notification kind atomically server-side — a client
+    /// read-modify-write of the whole array races Settings and clobbers
+    /// other mutes.
+    func setNotificationKindMuted(_ kind: String, muted: Bool) async throws {
+        struct Params: Encodable { let p_kind: String; let p_muted: Bool }
+        try await client.rpc("set_notification_kind_muted",
+                             params: Params(p_kind: kind, p_muted: muted)).execute()
+    }
+
     func setMutedNotificationKinds(_ kinds: Set<String>) async throws {
         guard let id = currentUserID else { return }
         struct Update: Encodable { let muted_notification_kinds: [String] }
@@ -234,6 +243,14 @@ final class SupabaseService {
             enum CodingKeys: String, CodingKey { case p_zip }
         }
         _ = try await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
+    }
+
+    /// ZIP + alert radius together — the server's ticket-alert sweep honors
+    /// the radius the user picked (it used to be hardcoded to 15 mi).
+    func setHomeArea(zip: String, radius: Int) async throws {
+        struct Params: Encodable { let p_zip: String; let p_radius: Int }
+        _ = try await client.rpc("set_home_area",
+                                 params: Params(p_zip: zip, p_radius: radius)).execute()
     }
 
     // MARK: - Viewing preferences (streaming services + theater screens)
@@ -1680,15 +1697,22 @@ final class SupabaseService {
     }
 
     /// Accept/decline a plan, or propose a different time (pass newTime).
-    func respondWatchPlan(planID: UUID, accept: Bool, newTime: Date? = nil) async throws {
+    /// `expectedTime` guards against racing counter-proposals: the server
+    /// raises 'time changed' when the plan's time no longer matches what
+    /// the user was looking at.
+    func respondWatchPlan(planID: UUID, accept: Bool, newTime: Date? = nil,
+                          expectedTime: Date? = nil) async throws {
         struct Params: Encodable {
             let p_plan_id: UUID
             let p_accept: Bool
             let p_new_time: String?
+            let p_expected_time: String?
         }
-        let iso = newTime.map { ISO8601DateFormatter().string(from: $0) }
+        let iso = ISO8601DateFormatter()
         try await client.rpc("respond_watch_plan",
-            params: Params(p_plan_id: planID, p_accept: accept, p_new_time: iso)).execute()
+            params: Params(p_plan_id: planID, p_accept: accept,
+                           p_new_time: newTime.map { iso.string(from: $0) },
+                           p_expected_time: expectedTime.map { iso.string(from: $0) })).execute()
     }
 
     /// The most recent plan between me and a friend for a title, so the sheet
@@ -1702,17 +1726,26 @@ final class SupabaseService {
             .order("created_at", ascending: false)
             .limit(20)
             .execute().value
-        return rows.first { $0.involves(withUser) }
+        // Plans are re-proposed IN PLACE (created_at never bumps), so a newer
+        // DECLINED row must not shadow an older still-live plan.
+        let involved = rows.filter { $0.involves(withUser) }
+        return involved.first { $0.status != "declined" } ?? involved.first
     }
 
     /// All my plans for a title (RLS scopes to plans I'm part of), so the movie
     /// page can label each friend's button (Invite / Pending / Respond / Planned).
-    func watchPlans(movieID: Int) async -> [WatchPlanRow] {
-        (try? await client.from("watch_plans")
-            .select("*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))")
-            .eq("movie_id", value: movieID)
-            .order("created_at", ascending: false)
-            .execute().value) ?? []
+    /// Nil = the fetch FAILED (keep whatever is showing); [] = truly none.
+    func watchPlans(movieID: Int) async -> [WatchPlanRow]? {
+        do {
+            return try await client.from("watch_plans")
+                .select("*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))")
+                .eq("movie_id", value: movieID)
+                .order("created_at", ascending: false)
+                .execute().value
+        } catch {
+            SupabaseService.logSwallowed("watchPlans", error)
+            return nil
+        }
     }
 
     // MARK: - Currently Watching (binging signal)

@@ -999,12 +999,19 @@ struct MovieDetailView: View {
     // MARK: Data
 
     private func loadWatchPlans(_ movieID: Int) async {
-        let plans = await SupabaseService.shared.watchPlans(movieID: movieID)
+        // nil = the fetch failed — keep the previous map rather than showing
+        // "Invite" over live plans for the session.
+        guard let plans = await SupabaseService.shared.watchPlans(movieID: movieID) else { return }
         let me = SupabaseService.shared.currentUserID
         var map: [UUID: WatchPlanRow] = [:]
-        for plan in plans {   // newest-first, so first seen per friend wins
-            // A plan can involve several friends now — key EVERY other
-            // participant (host + roster) to it.
+        // LIVE plans first: re-proposals update rows in place, so a newer
+        // declined row must never shadow a still-live plan for a friend.
+        for plan in plans where plan.status != "declined" {
+            for other in plan.others(besides: me) where map[other] == nil {
+                map[other] = plan
+            }
+        }
+        for plan in plans where plan.status == "declined" {
             for other in plan.others(besides: me) where map[other] == nil {
                 map[other] = plan
             }

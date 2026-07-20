@@ -105,6 +105,8 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `You and @${actor} both want to watch ${movie ?? "the same movie"} — plan a movie night? 🍿`;
     case "watch_invite":
       return `@${actor} wants to watch ${movie ?? "a movie"} together — when works? 🎬`;
+    case "watch_accept":
+      return `@${actor} is in for ${movie ?? "movie night"} 🍿 You're on`;
     case "streaming_now":
       return `${movie ?? "A title you saved"} is streaming now 🍿`;
     case "season_premiere":
