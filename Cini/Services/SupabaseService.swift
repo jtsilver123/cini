@@ -1660,16 +1660,23 @@ final class SupabaseService {
 
     /// Propose watching a title together at a time; notifies the invitee.
     @discardableResult
-    func proposeWatchPlan(movieID: Int, inviteeID: UUID, proposedAt: Date?) async throws -> UUID {
+    /// Invite one or several friends to watch a title. Returns the plan id
+    /// (nil when every invitee was filtered server-side — blocked, unknown).
+    @discardableResult
+    func proposeWatchPlan(movieID: Int, inviteeIDs: [UUID], proposedAt: Date?) async throws -> UUID? {
         struct Params: Encodable {
             let p_movie_id: Int
-            let p_invitee: UUID
+            let p_invitees: [UUID]
             let p_proposed_at: String?
         }
         let iso = proposedAt.map { ISO8601DateFormatter().string(from: $0) }
-        return try await client.rpc("propose_watch_plan",
-            params: Params(p_movie_id: movieID, p_invitee: inviteeID, p_proposed_at: iso))
+        return try await client.rpc("propose_watch_plan_multi",
+            params: Params(p_movie_id: movieID, p_invitees: inviteeIDs, p_proposed_at: iso))
             .execute().value
+    }
+
+    func proposeWatchPlan(movieID: Int, inviteeID: UUID, proposedAt: Date?) async throws -> UUID? {
+        try await proposeWatchPlan(movieID: movieID, inviteeIDs: [inviteeID], proposedAt: proposedAt)
     }
 
     /// Accept/decline a plan, or propose a different time (pass newTime).
@@ -1690,19 +1697,19 @@ final class SupabaseService {
     /// that involves this friend (avoids any ambiguous OR-filter encoding).
     func latestWatchPlan(movieID: Int, withUser: UUID) async throws -> WatchPlanRow? {
         let rows: [WatchPlanRow] = try await client.from("watch_plans")
-            .select()
+            .select("*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))")
             .eq("movie_id", value: movieID)
             .order("created_at", ascending: false)
             .limit(20)
             .execute().value
-        return rows.first { $0.proposerId == withUser || $0.inviteeId == withUser }
+        return rows.first { $0.involves(withUser) }
     }
 
     /// All my plans for a title (RLS scopes to plans I'm part of), so the movie
     /// page can label each friend's button (Invite / Pending / Respond / Planned).
     func watchPlans(movieID: Int) async -> [WatchPlanRow] {
         (try? await client.from("watch_plans")
-            .select()
+            .select("*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))")
             .eq("movie_id", value: movieID)
             .order("created_at", ascending: false)
             .execute().value) ?? []
@@ -2614,6 +2621,23 @@ struct ContinueWatchingRow: Codable, Hashable {
 }
 
 /// A watch-together plan between two friends.
+/// One invitee on a watch plan's roster, with their individual response.
+struct WatchPlanMemberRow: Codable, Hashable {
+    let userId: UUID
+    let status: String   // proposed | accepted | declined
+    let profile: Lite?
+
+    struct Lite: Codable, Hashable {
+        let username: String
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case status
+        case profile = "profiles"
+    }
+}
+
 struct WatchPlanRow: Codable, Identifiable, Hashable {
     let id: UUID
     let movieId: Int
@@ -2625,10 +2649,34 @@ struct WatchPlanRow: Codable, Identifiable, Hashable {
     /// respond/waiting UI always puts the Accept button on the right side.
     /// Optional for rows from before the column existed.
     let lastProposer: UUID?
+    /// The invited roster (multi-friend plans). Optional for rows fetched
+    /// without the embed.
+    let members: [WatchPlanMemberRow]?
 
     /// Whose turn it is to respond to the current time: the participant who
     /// did NOT suggest it.
     var currentProposerId: UUID { lastProposer ?? proposerId }
+
+    var memberList: [WatchPlanMemberRow] { members ?? [] }
+
+    /// A user's individual response, roster first, falling back to the
+    /// legacy single-invitee column for pre-roster rows.
+    func memberStatus(_ id: UUID) -> String? {
+        if let row = memberList.first(where: { $0.userId == id }) { return row.status }
+        return id == inviteeId ? status : nil
+    }
+
+    /// Everyone on the plan (host + roster), minus the given user.
+    func others(besides me: UUID?) -> [UUID] {
+        var ids = memberList.map(\.userId)
+        if !ids.contains(proposerId) { ids.append(proposerId) }
+        if !ids.contains(inviteeId) { ids.append(inviteeId) }
+        return ids.filter { $0 != me }
+    }
+
+    func involves(_ id: UUID) -> Bool {
+        proposerId == id || inviteeId == id || memberList.contains { $0.userId == id }
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, status
@@ -2637,6 +2685,7 @@ struct WatchPlanRow: Codable, Identifiable, Hashable {
         case inviteeId = "invitee_id"
         case proposedAt = "proposed_at"
         case lastProposer = "last_proposer"
+        case members = "watch_plan_members"
     }
 }
 

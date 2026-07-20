@@ -1243,7 +1243,8 @@ function _calRender(){
       <div style="display:flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px;">${seg('month','calendar','Month')}${seg('list','stack','List')}</div>
       <button class="iconbtn" style="margin-left:8px;" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); const r=prompt('Search radius in miles (5, 10, 15, 25, 50)', S.showtimesRadius||15); if(r!==null){S.showtimesRadius=[5,10,15,25,50].includes(+r)?+r:15;} save(); _calRender();}">📍 ${S.showtimesZip?`${S.showtimesZip} · ${S.showtimesRadius||15} mi`:'Set your area'}</div>
+      <div style="display:flex; align-items:center; gap:6px; margin-bottom:8px; color:var(--marquee); font-weight:600; font-size:13px; cursor:pointer;" onclick="const z=prompt('ZIP code for showtimes', S.showtimesZip||''); if(z!==null){S.showtimesZip=(z||'').replace(/\\D/g,'').slice(0,5); const r=prompt('Search radius in miles (5, 10, 15, 25, 50)', S.showtimesRadius||15); if(r!==null){S.showtimesRadius=[5,10,15,25,50].includes(+r)?+r:15;} save(); _calRender();}">📍 ${S.showtimesZip?`${S.showtimesZip} · ${S.showtimesRadius||15} mi`:'Set your area'}
+        <span style="margin-left:8px;" onclick="event.stopPropagation(); S.ticketAlerts=S.ticketAlerts===false; save(); toast(S.ticketAlerts!==false?'Ticket alerts on — one push when tickets go on sale near you 🔔':'Ticket alerts off'); _calRender();">${S.ticketAlerts===false?"🔕":"🔔"}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">${chip('mine','On my list')}${chip('all','All releases')}
         ${_calMode==='month'?`<span class="spacer"></span>
           <span style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; color:var(--gray);"><span style="width:8px;height:11px;border-radius:2px;background:var(--marquee);"></span>Yours</span>
@@ -1955,16 +1956,53 @@ const PUBLIC_NOTES = {
   past:[{n:"Lena", u:"lenawrites", av:"av1", score:8.6, note:"Quietest heartbreak of the year. The bar scene destroyed me.", likes:7}],
 };
 let detailPeopleTab="friends", detailMoreOpen=false;
+let _planInvitees = [];
 function planWatch(u){
-  toast(`Invite sent to @${u} — they'll get a nudge to pick a time 🎬`);
-  // Demo: once they accept, both sides get an Add to Calendar action.
+  // Multi-friend movie night: the invite starts with the tapped friend and
+  // more can be added — mirrors the app's roster invites.
+  _planInvitees = [u];
+  renderPlanSheet(u);
+}
+function togglePlanInvitee(u, seed){
+  if(_planInvitees.includes(u)){
+    if(_planInvitees.length > 1) _planInvitees = _planInvitees.filter(x=>x!==u);
+  } else {
+    _planInvitees.push(u);
+  }
+  renderPlanSheet(seed);
+}
+function renderPlanSheet(seed){
+  const friends = [seed, ...MEMBERS.map(m=>m.u).filter(x=>x!==seed)].slice(0,6);
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Movie night</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div style="font-weight:700; font-size:14px; margin-bottom:8px;">Who's coming?</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        ${friends.map(f=>{
+          const on=_planInvitees.includes(f);
+          return `<button class="pill ${on?"":"out"}" style="padding:7px 12px;" onclick="togglePlanInvitee('${f}','${seed}')">${on?I("check",12,2.6)+" ":""}@${f}</button>`;
+        }).join("")}
+      </div>
+      <button class="pill" style="width:100%; justify-content:center; padding:12px;" onclick="sendPlanInvites('${seed}')">${I("send",15)} Send invite to ${_planInvitees.length} friend${_planInvitees.length===1?"":"s"}</button>
+    </div>`);
+}
+function sendPlanInvites(seed){
+  const n=_planInvitees.length;
+  closeOverlay();
+  toast(`Invite sent to ${n===1?"@"+_planInvitees[0]:n+" friends"} — each gets a nudge to confirm 🎬`);
+  // Demo: once someone accepts, everyone gets an Add to Calendar action.
   setTimeout(()=>renderSheet(`
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Movie night</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="card" style="margin:0 0 14px; padding:14px 16px; display:flex; gap:10px; align-items:center;">
-        <span style="color:var(--scoregreen,#4ade80);">${I("check",18,2.4)}</span>
-        <div><b style="font-size:14px;">@${u} accepted!</b><div class="sub" style="margin-top:1px;">Saturday, Jul 25 · 8:00 PM</div></div>
+      <div class="card" style="margin:0 0 14px; padding:14px 16px;">
+        <div style="display:flex; gap:10px; align-items:center;">
+          <span style="color:var(--scoregreen,#4ade80);">${I("check",18,2.4)}</span>
+          <div><b style="font-size:14px;">@${seed} is in!</b><div class="sub" style="margin-top:1px;">Saturday, Jul 25 · 8:00 PM</div></div>
+        </div>
+        ${_planInvitees.filter(x=>x!==seed).map(f=>`<div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+          <span style="color:var(--gray);">${I("clock",14)}</span><span style="font-size:13px; font-weight:600;">@${f}</span><span class="sub" style="margin-left:auto;">Waiting</span></div>`).join("")}
       </div>
       <button class="pill out" style="width:100%; justify-content:center; padding:12px;" onclick="toast('Added to your calendar 🗓️')">${I("calendar",15)} Add to Calendar</button>
     </div>`), 2600);

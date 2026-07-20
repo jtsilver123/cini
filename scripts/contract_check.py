@@ -115,7 +115,7 @@ READS = [
     ("feed_notes", "notes", "user_id, movie_id, body, contains_spoilers"),
     ("comments", "comments", "*, profiles!comments_user_id_fkey(username, display_name, avatar_url), comment_likes(count)"),
     ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
-    ("watch_plans", "watch_plans", "*"),
+    ("watch_plans", "watch_plans", "*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))"),
     ("my_show_progress", "show_progress", "season, episode"),
 ]
 
@@ -159,6 +159,11 @@ RPCS = [
     ("propose_watch_plan", {"p_movie_id": 2,
                             "p_invitee": "00000000-0000-0000-0000-000000000000",
                             "p_proposed_at": None}),
+    # Multi-invite: the zero UUID is filtered server-side -> graceful null,
+    # exercising the array signature without writing a plan.
+    ("propose_watch_plan_multi", {"p_movie_id": 2,
+                                  "p_invitees": ["00000000-0000-0000-0000-000000000000"],
+                                  "p_proposed_at": None}),
     # Show-progress: a movie the demo isn't watching → harmless no-op upsert,
     # then cleared, so the pair exercises both signatures without lingering state.
     ("set_show_progress", {"p_show_id": 2, "p_season": None,

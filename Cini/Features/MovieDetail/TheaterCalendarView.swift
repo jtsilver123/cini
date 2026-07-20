@@ -25,6 +25,10 @@ struct TheaterCalendarView: View {
     /// Powers the Tickets/showtimes sheet — shared with ShowtimesSheet.
     @AppStorage("showtimes.zipcode") private var zipcode = ""
     @AppStorage("showtimes.radius") private var radius = 15
+    /// The user's full muted-kinds set — the theater toggle flips ONLY
+    /// 'watchlist_showing' inside it, never clobbering other preferences.
+    @State private var mutedKinds: Set<String> = []
+    @State private var alertPrefLoaded = false
     @State private var showZipEntry = false
     @State private var zipDraft = ""
     /// List-view search query (title match).
@@ -287,6 +291,7 @@ struct TheaterCalendarView: View {
             // the right. The toggle is fixedSize so its labels never truncate.
             HStack {
                 locationButton
+                alertBell
                 Spacer(minLength: 8)
                 modeToggle.fixedSize()
             }
@@ -323,7 +328,7 @@ struct TheaterCalendarView: View {
         .padding(.bottom, 10)
         .sheet(isPresented: $showZipEntry) {
             areaSheet
-                .presentationDetents([.height(320)])
+                .presentationDetents([.height(430)])
                 .presentationDragIndicator(.visible)
         }
     }
@@ -362,6 +367,28 @@ struct TheaterCalendarView: View {
                         FilterPill(title: "\(radius) mi", active: true)
                     }
                 }
+                Divider()
+                // Theater-only notification setting: ticket on-sale alerts.
+                // Just this one kind — the full notification menu lives in
+                // Settings; here it's strictly "theater stuff".
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: ticketAlertsOn ? "bell.badge.fill" : "bell.slash")
+                        .foregroundStyle(ticketAlertsOn ? Theme.marquee : Theme.gray)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ticket alerts").font(.subheadline.weight(.semibold))
+                        Text("One push when tickets go on sale near you for a movie you've saved — IMAX pre-sales included.")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Toggle("", isOn: ticketAlertsBinding)
+                        .labelsHidden()
+                        .disabled(!alertPrefLoaded)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Ticket alerts, \(ticketAlertsOn ? "on" : "off")")
                 PillButton(title: "Save") {
                     let z = zipDraft.filter(\.isNumber)
                     guard z.count == 5 else { return }
@@ -382,7 +409,65 @@ struct TheaterCalendarView: View {
                     Button("Cancel") { showZipEntry = false }
                 }
             }
+            .task { await loadAlertPref() }
         }
+    }
+
+    /// Default is ON (nothing muted server-side) — ticket alerts fire at
+    /// most once per movie ever and only near the saved zip, so they're
+    /// high-signal. A failed load keeps the toggle disabled rather than
+    /// showing a state that might be wrong.
+    private var ticketAlertsOn: Bool { !mutedKinds.contains("watchlist_showing") }
+
+    private var ticketAlertsBinding: Binding<Bool> {
+        Binding(
+            get: { ticketAlertsOn },
+            set: { enabled in
+                Haptics.tap()
+                let previous = mutedKinds
+                if enabled { mutedKinds.remove("watchlist_showing") }
+                else { mutedKinds.insert("watchlist_showing") }
+                let snapshot = mutedKinds
+                Task {
+                    do {
+                        try await SupabaseService.shared.setMutedNotificationKinds(snapshot)
+                        // Alerts need push permission — ask now if never asked,
+                        // so flipping this on actually results in alerts.
+                        if enabled { await PushManager.request() }
+                    } catch {
+                        mutedKinds = previous   // roll the switch back
+                        ToastCenter.shared.saveFailed()
+                    }
+                }
+            })
+    }
+
+    private func loadAlertPref() async {
+        guard !alertPrefLoaded else { return }
+        if let kinds = try? await SupabaseService.shared.mutedNotificationKinds() {
+            mutedKinds = kinds
+            alertPrefLoaded = true
+        }
+    }
+
+    /// Compact bell chip beside the area control — the at-a-glance state of
+    /// theater ticket alerts; tapping opens the same area sheet to change it.
+    private var alertBell: some View {
+        Button {
+            zipDraft = zipcode
+            showZipEntry = true
+        } label: {
+            Image(systemName: alertPrefLoaded && !ticketAlertsOn ? "bell.slash" : "bell.badge")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(alertPrefLoaded && !ticketAlertsOn ? Theme.gray : Theme.marquee)
+                .frame(width: 34, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(alertPrefLoaded && !ticketAlertsOn
+                            ? "Ticket alerts off — open area settings"
+                            : "Ticket alerts on — open area settings")
+        .task { await loadAlertPref() }
     }
 
     /// Compact location chip → prompts for a ZIP that feeds the Tickets sheet.

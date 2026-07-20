@@ -1003,8 +1003,11 @@ struct MovieDetailView: View {
         let me = SupabaseService.shared.currentUserID
         var map: [UUID: WatchPlanRow] = [:]
         for plan in plans {   // newest-first, so first seen per friend wins
-            let other = plan.proposerId == me ? plan.inviteeId : plan.proposerId
-            if map[other] == nil { map[other] = plan }
+            // A plan can involve several friends now — key EVERY other
+            // participant (host + roster) to it.
+            for other in plan.others(besides: me) where map[other] == nil {
+                map[other] = plan
+            }
         }
         watchPlansByFriend = map
     }
@@ -1014,11 +1017,28 @@ struct MovieDetailView: View {
         guard let plan = watchPlansByFriend[friendID] else { return ("Invite", true) }
         let me = SupabaseService.shared.currentUserID
         switch plan.status {
-        case "accepted": return ("Planned ✓", false)
+        case "accepted":
+            // The night is on — but THIS friend may still be deciding, or out.
+            if plan.proposerId == friendID { return ("Planned ✓", false) }
+            switch plan.memberStatus(friendID) {
+            case "accepted": return ("Planned ✓", false)
+            case "declined": return ("Invite", true)
+            default:         return ("Pending", false)
+            }
         // Keyed on who suggested the CURRENT time — after a counter-propose
         // it's the original inviter who needs to respond.
-        case "proposed": return plan.currentProposerId == me ? ("Pending", false) : ("Respond", true)
-        default:         return ("Invite", true)   // declined → can re-invite
+        case "proposed":
+            if plan.currentProposerId == me {
+                switch plan.memberStatus(friendID) {
+                case "accepted": return ("In ✓", false)
+                case "declined": return ("Invite", true)
+                default:         return ("Pending", false)
+                }
+            }
+            if plan.currentProposerId == friendID { return ("Respond", true) }
+            return ("Pending", false)   // a co-invitee on someone else's plan
+        default:
+            return ("Invite", true)   // declined → can re-invite
         }
     }
 

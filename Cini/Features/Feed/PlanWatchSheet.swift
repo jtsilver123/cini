@@ -25,8 +25,76 @@ struct PlanWatchSheet: View {
     @State private var doneMessage = ""
     @State private var showMessages = false
 
+    /// Who's invited — starts with the friend the sheet was opened for;
+    /// the picker in the invite card can add more.
+    @State private var invitees: [MemberRef] = []
+
     private var friend: MemberRef { context.friend }
     private var myID: UUID? { SupabaseService.shared.currentUserID }
+
+    /// Friends offered by the picker: the tapped friend first, then the
+    /// user's follows in tag-frequency order (the order every picker uses).
+    private var friendOptions: [MemberRef] {
+        var options = [friend]
+        for row in FriendsCache.shared.byTagFrequency where row.id != friend.id {
+            options.append(MemberRef(id: row.id, username: row.username))
+        }
+        return options
+    }
+
+    /// "with @sam" / "with @sam + 2 friends" — whoever the plan involves.
+    private var headerLine: String {
+        let otherCount = plan.map { $0.others(besides: myID).count }
+            ?? max(invitees.count, 1)
+        return otherCount <= 1 ? "with @\(friend.username)"
+                               : "with @\(friend.username) + \(otherCount - 1) friend\(otherCount == 2 ? "" : "s")"
+    }
+
+    /// Display name for anyone on the plan: the roster embed, the opened
+    /// friend, the friends cache — in that order.
+    private func memberName(_ id: UUID) -> String {
+        if id == myID { return "You" }
+        if id == friend.id { return "@\(friend.username)" }
+        if let uname = plan?.memberList.first(where: { $0.userId == id })?.profile?.username {
+            return "@\(uname)"
+        }
+        if let row = FriendsCache.shared.following.first(where: { $0.id == id }) {
+            return "@\(row.username)"
+        }
+        return "a friend"
+    }
+
+    /// The plan's roster as display rows: every invitee + their response.
+    private func rosterRows(_ plan: WatchPlanRow) -> [(name: String, status: String)] {
+        plan.memberList
+            .filter { $0.userId != myID }
+            .map { (memberName($0.userId), $0.status) }
+    }
+
+    /// Per-friend status lines under a waiting/accepted card.
+    @ViewBuilder
+    private func rosterView(_ plan: WatchPlanRow) -> some View {
+        let rows = rosterRows(plan)
+        if rows.count > 1 || (rows.count == 1 && plan.proposerId == myID) {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(rows, id: \.name) { row in
+                    HStack(spacing: 8) {
+                        Image(systemName: row.status == "accepted" ? "checkmark.circle.fill"
+                              : row.status == "declined" ? "xmark.circle" : "clock")
+                            .foregroundStyle(row.status == "accepted" ? Theme.scoreGreen
+                                             : row.status == "declined" ? Theme.scoreRed : Theme.gray)
+                        Text(row.name).font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Text(row.status == "accepted" ? "In"
+                             : row.status == "declined" ? "Can't make it" : "Waiting")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
+                    }
+                }
+            }
+            .padding(.top, 2)
+        }
+    }
 
     /// You can't plan a watch before the film exists: for unreleased titles
     /// the pickable range starts on release day, not today.
@@ -73,9 +141,10 @@ struct PlanWatchSheet: View {
                     .lineLimit(2)
                 HStack(spacing: 6) {
                     AvatarView(url: nil, size: 22, name: friend.username)
-                    Text("with @\(friend.username)")
+                    Text(headerLine)
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
+                        .lineLimit(1)
                 }
             }
             Spacer()
@@ -107,12 +176,22 @@ struct PlanWatchSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             HairlineCard {
                 VStack(alignment: .leading, spacing: 10) {
+                    let suggester = memberName(plan.currentProposerId)
                     if let at = plan.proposedAt {
-                        Text("@\(friend.username) suggested \(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))")
+                        Text("\(suggester) suggested \(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))")
                             .font(.subheadline.weight(.semibold))
                     } else {
-                        Text("@\(friend.username) wants to watch this together")
+                        Text("\(suggester) wants to watch this together")
                             .font(.subheadline.weight(.semibold))
+                    }
+                    // Group night? Say who else is on the invite.
+                    let others = plan.others(besides: myID)
+                        .filter { $0 != plan.currentProposerId }
+                        .map { memberName($0) }
+                    if !others.isEmpty {
+                        Text("Also invited: \(others.joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
                     }
                     PillButton(title: sending ? "…" : "Accept", systemImage: "checkmark") { accept(plan) }
                         .disabled(sending)
@@ -135,17 +214,25 @@ struct PlanWatchSheet: View {
     private func waitingState(_ plan: WatchPlanRow) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HairlineCard {
-                HStack(spacing: 10) {
-                    Image(systemName: "clock.badge.checkmark").foregroundStyle(Theme.marquee)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Invite sent to @\(friend.username)").font(.subheadline.weight(.semibold))
-                        if let at = plan.proposedAt {
-                            Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "clock.badge.checkmark").foregroundStyle(Theme.marquee)
+                        VStack(alignment: .leading, spacing: 2) {
+                            let count = plan.memberList.count
+                            Text(count > 1 ? "Invite sent to \(count) friends"
+                                           : "Invite sent to @\(friend.username)")
+                                .font(.subheadline.weight(.semibold))
+                            if let at = plan.proposedAt {
+                                Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                                    .font(.caption).foregroundStyle(Theme.gray)
+                            }
+                            Text(count > 1 ? "Waiting for them to confirm"
+                                           : "Waiting for them to confirm")
                                 .font(.caption).foregroundStyle(Theme.gray)
                         }
-                        Text("Waiting for them to confirm").font(.caption).foregroundStyle(Theme.gray)
+                        Spacer()
                     }
-                    Spacer()
+                    rosterView(plan)
                 }
             }
             Button { withAnimation(.snappy) { showTimePicker.toggle() } } label: {
@@ -162,16 +249,25 @@ struct PlanWatchSheet: View {
     private func acceptedState(_ plan: WatchPlanRow) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HairlineCard {
-                HStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("You're watching with @\(friend.username)").font(.subheadline.weight(.semibold))
-                        if let at = plan.proposedAt {
-                            Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
-                                .font(.caption).foregroundStyle(Theme.gray)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.scoreGreen)
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Name whoever is actually IN (host + accepted
+                            // members); pending friends show in the roster.
+                            let confirmed = plan.others(besides: myID).filter {
+                                $0 == plan.proposerId || plan.memberStatus($0) == "accepted"
+                            }.map { memberName($0) }
+                            Text("You're watching with \(confirmed.isEmpty ? "@\(friend.username)" : confirmed.joined(separator: ", "))")
+                                .font(.subheadline.weight(.semibold))
+                            if let at = plan.proposedAt {
+                                Text(at.formatted(.dateTime.weekday(.wide).month(.abbreviated).day().hour().minute()))
+                                    .font(.caption).foregroundStyle(Theme.gray)
+                            }
                         }
+                        Spacer()
                     }
-                    Spacer()
+                    rosterView(plan)
                 }
             }
             if plan.proposedAt != nil {
@@ -206,7 +302,10 @@ struct PlanWatchSheet: View {
             return
         }
         let event = EKEvent(eventStore: eventStore)
-        event.title = "🎬 \(movie?.title ?? "Movie night") with @\(friend.username)"
+        let others = plan.others(besides: myID)
+            .filter { $0 == plan.proposerId || plan.memberStatus($0) == "accepted" }
+            .map { memberName($0) }
+        event.title = "🎬 \(movie?.title ?? "Movie night") with \(others.isEmpty ? "@\(friend.username)" : others.joined(separator: ", "))"
         event.startDate = at
         event.endDate = at.addingTimeInterval(2 * 3600)
         event.notes = "Planned on Cini"
@@ -239,9 +338,49 @@ struct PlanWatchSheet: View {
 
     private var planControls: some View {
         VStack(alignment: .leading, spacing: 14) {
+            inviteePicker
             timeControls(send: { sendInvite() },
-                         label: "Send invite to @\(friend.username)")
+                         label: invitees.count <= 1
+                             ? "Send invite to @\(friend.username)"
+                             : "Send invite to \(invitees.count) friends")
             draftTextButton
+        }
+    }
+
+    /// Movie night scales past two: tap friends to add them to the invite.
+    private var inviteePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Who's coming?")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Theme.ink)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(friendOptions) { option in
+                        let on = invitees.contains(option)
+                        Button {
+                            Haptics.tap()
+                            if on {
+                                // Never empty: the last friend stays.
+                                if invitees.count > 1 { invitees.removeAll { $0 == option } }
+                            } else {
+                                invitees.append(option)
+                            }
+                        } label: {
+                            HStack(spacing: 5) {
+                                if on { Image(systemName: "checkmark").font(.caption2.weight(.bold)) }
+                                Text("@\(option.username)")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .foregroundStyle(on ? Theme.background : Theme.ink)
+                            .background(Capsule().fill(on ? Theme.marquee : Theme.fill))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(on ? "Remove @\(option.username) from the invite"
+                                               : "Add @\(option.username) to the invite")
+                    }
+                }
+            }
         }
     }
 
@@ -330,6 +469,10 @@ struct PlanWatchSheet: View {
     // MARK: Actions
 
     private func load() async {
+        // Seed the invite with the friend the sheet was opened for, and warm
+        // the friends cache so the picker has the rest.
+        if invitees.isEmpty { invitees = [friend] }
+        FriendsCache.shared.refreshIfStale()
         if let m = (try? await SupabaseService.shared.movies(ids: [context.movieID]))?.first?.asMovie {
             movie = m
         } else if let m = try? await TMDBService.shared.details(for: context.movieID) {
@@ -383,13 +526,25 @@ struct PlanWatchSheet: View {
     }
 
     private func sendInvite() {
+        guard !sending, !invitees.isEmpty else { return }
         sending = true
         Task {
             do {
-                try await SupabaseService.shared.proposeWatchPlan(
-                    movieID: context.movieID, inviteeID: friend.id, proposedAt: when)
+                let planID = try await SupabaseService.shared.proposeWatchPlan(
+                    movieID: context.movieID,
+                    inviteeIDs: invitees.map(\.id),
+                    proposedAt: when)
+                // nil = the server filtered every invitee (blocked/unknown) —
+                // nothing was sent, so don't pretend it was.
+                guard planID != nil else {
+                    ToastCenter.shared.show("Couldn't send that invite.")
+                    sending = false
+                    return
+                }
                 Haptics.success()
-                doneMessage = "Invite sent to @\(friend.username). They'll get a nudge to confirm."
+                doneMessage = invitees.count == 1
+                    ? "Invite sent to @\(friend.username). They'll get a nudge to confirm."
+                    : "Invite sent to \(invitees.count) friends. Each gets a nudge to confirm."
                 withAnimation(.snappy) { done = true }
             } catch {
                 ToastCenter.shared.saveFailed()
