@@ -374,3 +374,49 @@ and shipped on request only — Apple caps uploads per app per day
    questionnaire, demo account for review; see docs/APP_STORE_CHECKLIST.md
 4. Security hygiene: rotate `sb_secret` Supabase key, revoke old Apple key
    J4369F4GMF, eventually rotate ASC_KEY_P8 (all passed through chat)
+
+## Audit backlog (medium/low findings, verified but not yet fixed)
+
+Two multi-agent audits (July 2026: app-wide + theater) confirmed 84
+findings. All criticals & highs are FIXED (theater pass `2e22671`,
+app-wide pass `6c1345e`, migrations 0123/0124, showtime-alerts v10,
+phone-login v7). Remaining mediums/lows, roughly ranked:
+
+- Backgrounding right after the last comparison can drop a rank —
+  wrap the commit in a background-task assertion or persist a
+  pending-rank record replayed at launch (RankingStore.commit).
+- Tonight deck "shown today" uses UTC days while dismissals use local
+  days — evening picks vanish next morning (FeedView ~1211). Same UTC
+  day-boundary issue in tonight_pool rotation (migration 0117) and
+  showtime-alerts' datePhrase "today/tomorrow".
+- Reorder mode leaks across list sub-tabs and wipes saved filters
+  (YourListsView ~441); exit it on tab/category switch and snapshot
+  filters instead of clearing.
+- Watched/Watching/browse/profile screens map one failed fetch to
+  empty/zero states (YourListsView ~160/1029, SearchView ~327,
+  ProfileView ~826) — same do/catch + keep-prior-rows treatment the
+  custom lists/bell got.
+- Want to Watch remove-Undo loses the note + watch-by date — capture
+  the WatchlistItem and restore it fully.
+- PlanWatchSheet: failed plan load shows fresh-invite UI (server now
+  dedupes, but the client should show a retry state).
+- Swipe deck: failed refresh wipes the dismissed list (prune only on a
+  successful-but-empty load); in-flight watchlist toggle makes a quick
+  Undo silently fail (make toggleWatchlist awaitable); RecCardDeck
+  rank-during-fly-off acts on the departed card (guard !advancing);
+  deck index shifts when a pool title is ranked elsewhere (track by id).
+- Alert crons read whole tables unpaginated (PostgREST 1,000-row cap)
+  — alerts silently stop past row 1000; paginate or move to an RPC.
+- Badge doesn't clear on foreground (applicationDidBecomeActive is dead
+  under the SwiftUI lifecycle — observe scenePhase instead).
+- Cold-launch push tap on a failed TMDB fetch swallows the deep link.
+- Netflix CSV: UTF-8 BOM defeats detection; non-US date order
+  (d/M/yy) parses wrong. Import "Ranked X of Y" mixes global count
+  with category-scoped pending. Stop during download shows a generic
+  error toast on some paths.
+- Comment counts pin to a stale override after opening a thread
+  (clear commentCountOverrides on fresh loadFeed).
+- cini.pendingInviter never expires (add timestamp, clear on signout —
+  clearing now done; expiry not).
+- pc.f./pc.g. per-movie prediction caches are per-account but keyed
+  only by movie UUID — bleed across accounts and grow unbounded.
