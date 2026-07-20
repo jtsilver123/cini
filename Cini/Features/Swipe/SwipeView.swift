@@ -46,6 +46,9 @@ struct SwipeView: View {
     /// Identifies the in-flight pool load; a newer load supersedes an older one
     /// so two quick filter changes can't let stale results win the race.
     @State private var loadSeq = 0
+    /// Counts pull-to-refreshes; rotates the TMDB pages (and which favorites
+    /// drive "Because you liked") so every refresh brings FRESH titles.
+    @State private var refreshNonce = 0
     @Namespace private var posterZoom
 
     /// The current pool minus dismissed / already-watched, filtered to the
@@ -476,31 +479,35 @@ struct SwipeView: View {
     }
 
     private func reloadPool() async {
-        candidates = []
-        loaded = false
         dismissed = []
         gridHistory = []
-        let responded = await load()
+        // Rotate the sources so the refresh actually brings NEW titles —
+        // rebuilding page 1 of the same feeds produced an identical pool.
+        refreshNonce += 1
+        // Build the new pool WITHOUT tearing the visible grid down first:
+        // blanking `candidates`/`loaded` mid refresh-gesture swapped the
+        // ScrollView for a spinner and visibly glitched the animation. The
+        // old grid stays until the fresh one lands in one assignment.
+        let responded = await load(force: true)
         // "Refresh recs" must actually GIVE MORE CARDS: a power user can have
         // dismissed everything the pool serves, and a refresh that comes back
         // empty is a dead end. Forget the oldest local dismissals and try
         // once more — the server-side pass signal (taste) is untouched.
         // ONLY when the sources actually answered, though: pruning after an
         // offline refresh would wipe the dismissed list for nothing.
-        if responded, candidates.isEmpty, !dismissedRaw.isEmpty {
+        if responded, visible.isEmpty, !dismissedRaw.isEmpty {
             let recent = persistedDismissedOrdered.suffix(200)
             dismissedRaw = recent.map(String.init).joined(separator: ",")
-            candidates = []
-            loaded = false
-            _ = await load()
+            _ = await load(force: true)
         }
     }
 
     /// Returns whether any pool source actually ANSWERED (success, even if
     /// empty) — false means the fetches failed and emptiness proves nothing.
+    /// `force` rebuilds even over a live pool (pull-to-refresh).
     @discardableResult
-    private func load() async -> Bool {
-        guard candidates.isEmpty else { return true }
+    private func load(force: Bool = false) async -> Bool {
+        guard force || candidates.isEmpty else { return true }
         // Filters active → fetch a pool that MATCHES them (discovery). Otherwise
         // the automatic, taste-based pool.
         if filters.isActive { return await loadFiltered() }
@@ -512,12 +519,15 @@ struct SwipeView: View {
     private func loadFiltered() async -> Bool {
         loadSeq += 1
         let token = loadSeq
+        let page = 1 + (refreshNonce % 5)
         async let moviePool = TMDBService.shared.discover(
             genre: filters.genre, decade: filters.decade,
-            maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: false)
+            maxRuntime: filters.runtime, provider: filters.streamingProvider,
+            wantTV: false, page: page)
         async let tvPool = TMDBService.shared.discover(
             genre: filters.genre, decade: filters.decade,
-            maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: true)
+            maxRuntime: filters.runtime, provider: filters.streamingProvider,
+            wantTV: true, page: page)
         let movieResults = try? await moviePool
         let tvResults = try? await tvPool
         let responded = movieResults != nil || tvResults != nil
@@ -560,10 +570,16 @@ struct SwipeView: View {
         let token = loadSeq
         // The user's top few favorites (highest-scored across movies + TV), so
         // "Because you liked X" can reason across their taste, not just their #1.
-        let favorites = Array(store.watchedItems.sorted { $0.score > $1.score }.prefix(3))
+        // On refresh, pick a different trio from the top shelf so the
+        // "Because you liked" lanes change too.
+        let topShelf = store.watchedItems.sorted { $0.score > $1.score }.prefix(8)
+        let favorites = refreshNonce == 0
+            ? Array(topShelf.prefix(3))
+            : Array(topShelf.shuffled().prefix(3))
+        let page = 1 + (refreshNonce % 5)
         async let friendRecsTask = SupabaseService.shared.recsForUser()
-        async let trendingTask = TMDBService.shared.trending()
-        async let popularTask = TMDBService.shared.popular()
+        async let trendingTask = TMDBService.shared.trending(page: page)
+        async let popularTask = TMDBService.shared.popular(page: page)
         let similarByFavorite = await similarToFavorites(favorites)
 
         var pending: [(id: Int, reason: String)] = []

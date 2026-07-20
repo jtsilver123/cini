@@ -71,6 +71,8 @@ struct FeedView: View {
     // twice in a day; stale entries are pruned on each load.
     @AppStorage("tonight.shownLog") private var tonightShownLog = ""
     @State private var watchPlanContext: WatchPlanContext?
+    /// Ticket-alert push tap → this movie's showtimes sheet.
+    @State private var showtimesMovie: Movie?
     @State private var friendsWatchingRows: [FriendWatchingRow] = []
     @State private var watchingStory: FriendWatchingRow?
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
@@ -163,6 +165,10 @@ struct FeedView: View {
             .onChange(of: tabRouter.pendingPushMember) { _, _ in consumePush() }
             .onChange(of: tabRouter.pendingPushCommentEvent) { _, _ in consumePush() }
             .onChange(of: tabRouter.pendingWatchPlan) { _, _ in consumePush() }
+            .onChange(of: tabRouter.pendingShowtimesMovieID) { _, _ in consumePush() }
+            .sheet(item: $showtimesMovie) { movie in
+                ShowtimesSheet(movie: movie)
+            }
             .sheet(item: $watchPlanContext) { ctx in
                 PlanWatchSheet(context: ctx)
                     .presentationDetents([.medium, .large])
@@ -1005,6 +1011,24 @@ struct FeedView: View {
                     detailMovie = movie
                 } else {
                     ToastCenter.shared.show("Couldn't open that — check your connection.")
+                }
+            }
+        }
+        if let movieID = tabRouter.pendingShowtimesMovieID {
+            tabRouter.pendingShowtimesMovieID = nil
+            Task {
+                // Same resilience as the movie-page path: retry, cached
+                // fallback, and never a silent swallow.
+                var movie = try? await TMDBService.shared.details(for: movieID)
+                if movie == nil { movie = store.movie(movieID) }
+                if movie == nil {
+                    movie = (try? await SupabaseService.shared.movies(ids: [movieID]))?.first?.asMovie
+                }
+                if let movie {
+                    store.cache(movie)
+                    showtimesMovie = movie
+                } else {
+                    ToastCenter.shared.show("Couldn't open showtimes — check your connection.")
                 }
             }
         }
@@ -2479,6 +2503,7 @@ struct NotificationsView: View {
     @State private var memberTarget: MemberRef?
     @State private var commentsLink: CommentsLink?
     @State private var showRespondRecs = false
+    @State private var showtimesMovie: Movie?
     @State private var resolvedFollowReqs: [UUID: Bool] = [:]   // actorId → accepted
 
     private func respondFollow(_ requester: UUID, accept: Bool) {
@@ -2560,6 +2585,9 @@ struct NotificationsView: View {
         }
         .sheet(isPresented: $showRespondRecs) {
             RespondRecSheet()
+        }
+        .sheet(item: $showtimesMovie) { movie in
+            ShowtimesSheet(movie: movie)
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
@@ -2716,6 +2744,16 @@ struct NotificationsView: View {
                     }
                 } else {
                     await MainActor.run { detailMovie = movieStub(row) }
+                }
+            }
+        } else if row.kind == "watchlist_showing", let movieId = row.movieId {
+            // Ticket alert → straight to showtimes (same as tapping the push).
+            // Fetch the full record so year/format matching works; the stub
+            // is the offline fallback.
+            Task {
+                let movie = (try? await TMDBService.shared.details(for: movieId)) ?? movieStub(row)
+                await MainActor.run {
+                    if let movie { showtimesMovie = movie } else { detailMovie = movieStub(row) }
                 }
             }
         } else if let stub = movieStub(row) {

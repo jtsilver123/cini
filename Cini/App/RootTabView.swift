@@ -68,6 +68,9 @@ final class TabRouter {
     var pendingPushCommentEvent: UUID?
     /// A tapped watch-match / invite → open the Plan-a-Watch sheet.
     var pendingWatchPlan: WatchPlanContext?
+    /// A tapped ticket alert → open that movie's SHOWTIMES (the whole point
+    /// of the push is "grab tickets", not the plain movie page).
+    var pendingShowtimesMovieID: Int?
 
     /// Route a tapped push by its payload: movie pushes (likes, comments,
     /// recs, watchlist alerts) open the movie page; follower pushes open
@@ -111,6 +114,12 @@ final class TabRouter {
         if kind == "comment" || kind == "mention",
            let eventID = (userInfo["event_id"] as? String).flatMap(UUID.init) {
             pendingPushCommentEvent = eventID
+            return
+        }
+        // "Tickets are on sale near you" → the showtimes sheet for that
+        // title, ready to buy — matching what the push promised.
+        if kind == "watchlist_showing", let movieID {
+            pendingShowtimesMovieID = movieID
             return
         }
         if let movieID {

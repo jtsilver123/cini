@@ -55,16 +55,26 @@ final class TMDBService {
         return movies
     }
 
-    func trending() async throws -> [Movie] {
+    func trending(page: Int = 1) async throws -> [Movie] {
         // /trending/all: movies AND shows, like the conversation actually is.
-        let page: MultiSearchPage = try await get("/trending/all/week")
-        return page.results.compactMap(\.asMovie)
+        // `page` lets Recs' pull-to-refresh surface FRESH titles instead of
+        // rebuilding the identical pool.
+        let result: MultiSearchPage = try await get(
+            "/trending/all/week",
+            query: [URLQueryItem(name: "page", value: String(max(1, page)))])
+        return result.results.compactMap(\.asMovie)
     }
 
     /// Popular movies AND shows, merged by popularity — TV is first-class.
-    func popular(year: Int? = nil) async throws -> [Movie] {
-        var movieItems: [URLQueryItem] = [URLQueryItem(name: "sort_by", value: "popularity.desc")]
-        var tvItems: [URLQueryItem] = [URLQueryItem(name: "sort_by", value: "popularity.desc")]
+    func popular(year: Int? = nil, page: Int = 1) async throws -> [Movie] {
+        var movieItems: [URLQueryItem] = [
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+            URLQueryItem(name: "page", value: String(max(1, page))),
+        ]
+        var tvItems: [URLQueryItem] = [
+            URLQueryItem(name: "sort_by", value: "popularity.desc"),
+            URLQueryItem(name: "page", value: String(max(1, page))),
+        ]
         if let year {
             movieItems.append(URLQueryItem(name: "primary_release_year", value: String(year)))
             tvItems.append(URLQueryItem(name: "first_air_date_year", value: String(year)))
@@ -315,10 +325,11 @@ final class TMDBService {
     /// movie vs TV endpoint. Adjusting a filter fetches a fresh, matching pool
     /// instead of narrowing a fixed one.
     func discover(genre: String?, decade: Int?, maxRuntime: Int?,
-                  provider: String?, wantTV: Bool) async throws -> [Movie] {
+                  provider: String?, wantTV: Bool, page: Int = 1) async throws -> [Movie] {
         var q: [URLQueryItem] = [
             URLQueryItem(name: "sort_by", value: "popularity.desc"),
             URLQueryItem(name: "vote_count.gte", value: "25"),
+            URLQueryItem(name: "page", value: String(max(1, page))),
         ]
         if let genre, let gid = Self.genreID(matching: genre) {
             q.append(URLQueryItem(name: "with_genres",
