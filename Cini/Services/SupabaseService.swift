@@ -1658,10 +1658,9 @@ final class SupabaseService {
             .execute().value) ?? []
     }
 
-    /// Propose watching a title together at a time; notifies the invitee.
-    @discardableResult
-    /// Invite one or several friends to watch a title. Returns the plan id
-    /// (nil when every invitee was filtered server-side — blocked, unknown).
+    /// Invite one or several friends to watch a title at a time; notifies
+    /// each invitee. Returns the plan id (nil when every invitee was
+    /// filtered server-side — blocked, unknown).
     @discardableResult
     func proposeWatchPlan(movieID: Int, inviteeIDs: [UUID], proposedAt: Date?) async throws -> UUID? {
         struct Params: Encodable {
@@ -1675,6 +1674,7 @@ final class SupabaseService {
             .execute().value
     }
 
+    @discardableResult
     func proposeWatchPlan(movieID: Int, inviteeID: UUID, proposedAt: Date?) async throws -> UUID? {
         try await proposeWatchPlan(movieID: movieID, inviteeIDs: [inviteeID], proposedAt: proposedAt)
     }
