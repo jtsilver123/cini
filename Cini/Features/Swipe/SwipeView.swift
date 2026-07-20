@@ -49,6 +49,10 @@ struct SwipeView: View {
     /// Counts pull-to-refreshes; rotates the TMDB pages (and which favorites
     /// drive "Because you liked") so every refresh brings FRESH titles.
     @State private var refreshNonce = 0
+    /// Everything on screen when a refresh started — the rebuilt pool
+    /// EXCLUDES these, so refreshing visibly replaces the whole page
+    /// (they return only as tail filler when the fresh pool runs thin).
+    @State private var excludeIDs: Set<Int> = []
     @Namespace private var posterZoom
 
     /// The current pool minus dismissed / already-watched, filtered to the
@@ -151,7 +155,7 @@ struct SwipeView: View {
             .onChange(of: tabRouter.pendingRecsTV) { _, _ in consumeDeepLink() }
             // Filters drive the pool here — changing them fetches a fresh,
             // matching set (or the automatic pool when cleared).
-            .onChange(of: filters) { _, _ in Task { await reloadPool() } }
+            .onChange(of: filters) { _, _ in Task { await reloadPool(excludeShown: false) } }
             // Cards swiped in the deck persist to `dismissedRaw` but the deck
             // handles its own advance, so the session `dismissed` set doesn't
             // hear about them. Fold them in when the view rebuilds (kind or
@@ -478,7 +482,14 @@ struct SwipeView: View {
         }
     }
 
-    private func reloadPool() async {
+    /// `excludeShown` = pull-to-refresh semantics (replace the page).
+    /// Filter changes pass false: a visible title that matches the new
+    /// filter should stay, not be banished for having been on screen.
+    private func reloadPool(excludeShown: Bool = true) async {
+        // A refresh must REPLACE what's on screen, not re-deal it: remember
+        // the visible pool and build the next one without it.
+        let previous = visible
+        excludeIDs = excludeShown ? Set(previous.map(\.movie.tmdbID)) : []
         dismissed = []
         gridHistory = []
         // Rotate the sources so the refresh actually brings NEW titles —
@@ -500,6 +511,16 @@ struct SwipeView: View {
             dismissedRaw = recent.map(String.init).joined(separator: ",")
             _ = await load(force: true)
         }
+        // Thin fresh pool (small library, sparse sources)? Backfill the TAIL
+        // with what was showing before, so a refresh never strands the user
+        // on a near-empty page — the top is still all-new.
+        if excludeShown, responded, visible.count < 8 {
+            let have = Set(candidates.map(\.movie.tmdbID))
+            candidates += previous.filter {
+                !have.contains($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
+            }
+        }
+        excludeIDs = []
     }
 
     /// Returns whether any pool source actually ANSWERED (success, even if
@@ -541,7 +562,7 @@ struct SwipeView: View {
         let dismissed = persistedDismissed
         for movie in pool where movie.posterPath != nil
             && seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID)
-            && !dismissed.contains(movie.tmdbID) {
+            && !dismissed.contains(movie.tmdbID) && !excludeIDs.contains(movie.tmdbID) {
             store.cache(movie)
             built.append(YourListsView.RecCandidate(movie: movie, reason: filterReason()))
         }
@@ -628,7 +649,8 @@ struct SwipeView: View {
         guard token == loadSeq else { return responded }   // a newer reload superseded this one
         let dismissed = persistedDismissed
         candidates = pending.compactMap { candidate in
-            guard !dismissed.contains(candidate.id) else { return nil }
+            guard !dismissed.contains(candidate.id),
+                  !excludeIDs.contains(candidate.id) else { return nil }
             return store.movie(candidate.id).map {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
             }

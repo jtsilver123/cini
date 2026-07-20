@@ -448,15 +448,28 @@ final class RankingStore {
         func attempt() async -> Bool {
             let work = Task { () -> Bool in
                 do {
-                    if let movie = movies[session.newItemID] {
-                        try await supabase.cacheMovie(movie)   // rank_insert FKs onto movies
-                    }
+                    // Optimistic single round-trip: the movie row usually
+                    // already exists server-side, so don't pay a serial
+                    // cacheMovie on every rank — that doubled the wait
+                    // between the last comparison and the score reveal.
                     _ = try await supabase.rankInsert(
                         movieID: session.newItemID, bucket: session.sentiment,
                         position: bucketPosition, watchDate: watchDate, stealth: stealth)
                     return true
                 } catch {
-                    return false
+                    // Most misses are the movies FK (a title ranked straight
+                    // from a TMDB pool that prod never cached) — cache it and
+                    // retry once, still inside this attempt's timeout.
+                    guard let movie = movies[session.newItemID], !Task.isCancelled else { return false }
+                    do {
+                        try await supabase.cacheMovie(movie)
+                        _ = try await supabase.rankInsert(
+                            movieID: session.newItemID, bucket: session.sentiment,
+                            position: bucketPosition, watchDate: watchDate, stealth: stealth)
+                        return true
+                    } catch {
+                        return false
+                    }
                 }
             }
             let timeout = Task { try? await Task.sleep(for: .seconds(12)); work.cancel() }
