@@ -1024,7 +1024,10 @@ struct TheaterCalendarView: View {
                     }
                 }
             }
-            checkedZip = zipcode
+            // Only the NEAR-TERM window unlocks exact-marks mode: if window 0
+            // failed but a far window landed, flipping this would blank today
+            // and this week (released films would mark only far days).
+            if index == 0 { checkedZip = zipcode }
         } catch {
             // Failed windows may retry on the next visit.
             fetchedWindows.remove(index)
@@ -1045,7 +1048,17 @@ struct TheaterCalendarView: View {
                         title: listing.title, year: listing.year)
                     let candidates = (try? await TMDBService.shared.search(
                         query: listing.title, year: listing.year)) ?? []
-                    return (listing, LetterboxdImporter.bestMatch(for: imported, in: candidates))
+                    var match = LetterboxdImporter.bestMatch(for: imported, in: candidates)
+                    if match == nil, listing.year != nil {
+                        // The year filter is EXACT and Gracenote/TMDB disagree
+                        // by a year all the time — retry unfiltered (the
+                        // import pipeline does the same) so the film doesn't
+                        // silently vanish from the grid.
+                        let fallback = (try? await TMDBService.shared.search(
+                            query: listing.title)) ?? []
+                        match = LetterboxdImporter.bestMatch(for: imported, in: fallback)
+                    }
+                    return (listing, match)
                 }
             }
             for _ in 0..<4 { addNext() }
