@@ -996,9 +996,9 @@ struct FeedView: View {
                 // open, SAY so instead of landing on a blank feed.
                 var movie = try? await TMDBService.shared.details(for: movieID)
                 if movie == nil { movie = try? await TMDBService.shared.details(for: movieID) }
+                if movie == nil { movie = store.movie(movieID) }
                 if movie == nil {
-                    movie = store.movie(movieID)
-                        ?? (try? await SupabaseService.shared.movies(ids: [movieID]))?.first?.asMovie
+                    movie = (try? await SupabaseService.shared.movies(ids: [movieID]))?.first?.asMovie
                 }
                 if let movie {
                     store.cache(movie)
