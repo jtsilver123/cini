@@ -13,6 +13,20 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// PostgREST caps every response at 1,000 rows — page with .range so alerts
+// don't silently stop for users/titles past row 1000.
+async function allRows(build: (from: number, to: number) => any): Promise<any[]> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build(from, from + 999);
+    if (error) { console.error("paginate:", error); break; }
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
 function tmdbPath(id: number, suffix = ""): string {
   return id < 0 ? `/tv/${-id}${suffix}` : `/movie/${id}${suffix}`;
 }
@@ -27,12 +41,13 @@ Deno.serve(async (_req: Request) => {
     let seasonNotified = 0;
 
     // ---- 1. Streaming alerts ----
-    const { data: alerts } = await supabase
+    const alerts = await allRows((f, t) => supabase
       .from("streaming_alerts")
       .select("user_id, movie_id")
-      .is("notified_at", null);
+      .is("notified_at", null)
+      .range(f, t));
     const byMovie = new Map<number, string[]>();
-    for (const a of alerts ?? []) {
+    for (const a of alerts) {
       if (!byMovie.has(a.movie_id)) byMovie.set(a.movie_id, []);
       byMovie.get(a.movie_id)!.push(a.user_id);
     }
@@ -51,22 +66,32 @@ Deno.serve(async (_req: Request) => {
           .eq("user_id", userID).eq("movie_id", movieID)
           .is("notified_at", null);
         if (error) continue;
-        await supabase.from("notifications").insert({
+        // If the notification row doesn't land, un-mark the alert so the
+        // next run retries — otherwise the one-shot alert vanishes.
+        const { data: ins, error: nErr } = await supabase.from("notifications").insert({
           recipient_id: userID,
           kind: "streaming_now",
           movie_id: movieID,
-        });
+        }).select("id");
+        if (nErr || !ins?.length) {
+          if (nErr) console.error("availability-alerts streaming insert:", nErr);
+          await supabase.from("streaming_alerts")
+            .update({ notified_at: null })
+            .eq("user_id", userID).eq("movie_id", movieID);
+          continue;
+        }
         streamingNotified++;
       }
     }
 
     // ---- 2. Season premieres for ranked shows ----
-    const { data: tvRankings } = await supabase
+    const tvRankings = await allRows((f, t) => supabase
       .from("rankings")
       .select("user_id, movie_id")
-      .lt("movie_id", 0);
+      .lt("movie_id", 0)
+      .range(f, t));
     const byShow = new Map<number, string[]>();
-    for (const r of tvRankings ?? []) {
+    for (const r of tvRankings) {
       if (!byShow.has(r.movie_id)) byShow.set(r.movie_id, []);
       byShow.get(r.movie_id)!.push(r.user_id);
     }
@@ -94,11 +119,18 @@ Deno.serve(async (_req: Request) => {
           season: next.season_number,
         });
         if (error) continue; // duplicate = already notified
-        await supabase.from("notifications").insert({
+        const { data: ins, error: nErr } = await supabase.from("notifications").insert({
           recipient_id: userID,
           kind: "season_premiere",
           movie_id: showID,
-        });
+        }).select("id");
+        if (nErr || !ins?.length) {
+          if (nErr) console.error("availability-alerts season insert:", nErr);
+          await supabase.from("season_notices").delete()
+            .eq("user_id", userID).eq("movie_id", showID)
+            .eq("season", next.season_number);
+          continue;
+        }
         seasonNotified++;
       }
     }
@@ -109,8 +141,9 @@ Deno.serve(async (_req: Request) => {
     // in the US, nudge once. Rate-limited to one per user per ~3 days,
     // one TMDB call per user per run, one nudge per title ever.
     let rateNudged = 0;
-    const { data: tokens2 } = await supabase.from("device_tokens").select("user_id");
-    const pushable = [...new Set((tokens2 ?? []).map((t: any) => t.user_id))];
+    const tokens2 = await allRows((f, t) => supabase
+      .from("device_tokens").select("user_id").range(f, t));
+    const pushable = [...new Set(tokens2.map((t: any) => t.user_id))];
     const tenDaysAgo = new Date(Date.now() - 10 * 86400_000).toISOString();
     const threeDaysAgo = new Date(Date.now() - 3 * 86400_000).toISOString();
 
@@ -131,12 +164,12 @@ Deno.serve(async (_req: Request) => {
         .limit(8);
       if (!saved?.length) continue;
 
-      const { data: ranked } = await supabase
-        .from("rankings").select("movie_id").eq("user_id", userID);
-      const isRanked = new Set((ranked ?? []).map((r: any) => r.movie_id));
-      const { data: nudged } = await supabase
-        .from("rate_nudges").select("movie_id").eq("user_id", userID);
-      const wasNudged = new Set((nudged ?? []).map((n: any) => n.movie_id));
+      const ranked = await allRows((f, t) => supabase
+        .from("rankings").select("movie_id").eq("user_id", userID).range(f, t));
+      const isRanked = new Set(ranked.map((r: any) => r.movie_id));
+      const nudged = await allRows((f, t) => supabase
+        .from("rate_nudges").select("movie_id").eq("user_id", userID).range(f, t));
+      const wasNudged = new Set(nudged.map((n: any) => n.movie_id));
 
       for (const row of saved) {
         if (isRanked.has(row.movie_id) || wasNudged.has(row.movie_id)) continue;
@@ -151,9 +184,15 @@ Deno.serve(async (_req: Request) => {
         const { error } = await supabase.from("rate_nudges")
           .insert({ user_id: userID, movie_id: row.movie_id });
         if (error) continue;
-        await supabase.from("notifications").insert({
+        const { data: ins, error: nErr } = await supabase.from("notifications").insert({
           recipient_id: userID, kind: "rate_nudge", movie_id: row.movie_id,
-        });
+        }).select("id");
+        if (nErr || !ins?.length) {
+          if (nErr) console.error("availability-alerts nudge insert:", nErr);
+          await supabase.from("rate_nudges").delete()
+            .eq("user_id", userID).eq("movie_id", row.movie_id);
+          continue;
+        }
         rateNudged++;
         break;   // one per user per run
       }

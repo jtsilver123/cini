@@ -72,8 +72,13 @@ struct RecCardDeck: View {
     /// True while a card is flying off + the deck advances — blocks a second
     /// swipe from re-firing on the same card.
     @State private var advancing = false
-    /// (deckIndex, movie?, wasSave) — movie nil for demo cards.
-    @State private var history: [(index: Int, movie: Movie?, saved: Bool)] = []
+    /// (item id, movie?, wasSave) — movie nil for demo cards. Keyed by ID,
+    /// not deck index: the pool can shrink under the deck (a title ranked
+    /// from another screen drops out), which would shift every raw index.
+    @State private var history: [(id: String, movie: Movie?, saved: Bool)] = []
+    /// The id of the card currently on top — used to re-anchor `index` when
+    /// the items array mutates externally.
+    @State private var topItemID: String?
 
     private enum DeckItem: Identifiable {
         case demo(id: Int, title: String, subtitle: String, save: Bool)
@@ -114,7 +119,29 @@ struct RecCardDeck: View {
             deck
             controls
         }
-        .onAppear { includeDemos = !demoSeen }
+        .onAppear {
+            includeDemos = !demoSeen
+            topItemID = items.indices.contains(index) ? items[index].id : nil
+        }
+        .onChange(of: index) { _, newIndex in
+            topItemID = items.indices.contains(newIndex) ? items[newIndex].id : nil
+        }
+        .onChange(of: items.map(\.id)) { _, ids in
+            // The pool can mutate under the deck (a title ranked from another
+            // screen drops out of candidates). Re-anchor to the card the user
+            // is actually looking at, not its old offset — otherwise the top
+            // card is silently skipped and Undo restores the wrong card.
+            if let top = topItemID, let at = ids.firstIndex(of: top) {
+                if at != index {
+                    var t = Transaction(); t.disablesAnimations = true
+                    withTransaction(t) { index = at }
+                }
+            } else {
+                // Top card itself left the pool — clamp and re-stamp.
+                if index > ids.count { index = ids.count }
+                topItemID = index < ids.count ? ids[index] : nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -322,7 +349,10 @@ struct RecCardDeck: View {
     /// Rank the top card (you've already seen it) — opens the head-to-head flow
     /// via the parent. The card leaves the deck once it's marked watched.
     private func rankCurrent() {
-        guard index < items.count, case .rec(let c) = items[index] else { return }
+        // `!advancing` matters: during the fly-off the index still points at
+        // the departing card, so a fast Rank tap would open the head-to-head
+        // flow for the card that just left the deck.
+        guard !advancing, index < items.count, case .rec(let c) = items[index] else { return }
         Haptics.tap()
         onRank(c.movie)
     }
@@ -346,9 +376,9 @@ struct RecCardDeck: View {
             // The card flying off is the confirmation — no toast, so a fast
             // streak isn't interrupted.
             if save { onSave(c.movie) } else { onPass(c.movie) }
-            history.append((index, c.movie, save))
+            history.append((item.id, c.movie, save))
         } else {
-            history.append((index, nil, save))
+            history.append((item.id, nil, save))
             // Past the last demo → don't show them again next time.
             if index + 1 >= demos.count { demoSeen = true }
         }
@@ -387,11 +417,15 @@ struct RecCardDeck: View {
             onUndo(movie)
             if last.saved { onUnsave(movie) }
         }
+        // Resolve the card's CURRENT position — the pool may have shifted
+        // since it was swiped. Gone entirely (ranked elsewhere)? The records
+        // above are reversed, but there's no card to fly back in.
+        guard let restored = items.firstIndex(where: { $0.id == last.id }) else { return }
         // Bring the card back: drop it in off-screen on the side it flew to
         // (no animation), then slide it home — so undo reads as "fly back in".
         var t = Transaction(); t.disablesAnimations = true
         withTransaction(t) {
-            index = last.index
+            index = restored
             drag = .zero
             flyOff = last.saved ? 700 : -700
         }

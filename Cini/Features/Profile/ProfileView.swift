@@ -15,6 +15,16 @@ enum ProfileCountsCache {
         d.set(followers, forKey: "pc.f.\(id.uuidString)")
         d.set(following, forKey: "pc.g.\(id.uuidString)")
     }
+
+    /// Sign-out: drop every cached count — the keys grow unbounded (two per
+    /// profile ever viewed) and a fresh account shouldn't inherit them.
+    static func clear() {
+        let d = UserDefaults.standard
+        for key in d.dictionaryRepresentation().keys
+        where key.hasPrefix("pc.f.") || key.hasPrefix("pc.g.") {
+            d.removeObject(forKey: key)
+        }
+    }
 }
 
 /// One profile UI for everyone: your own tab and any member you tap into.
@@ -286,7 +296,9 @@ struct ProfileScreen: View {
 
         if isSelf {
             profile = try? await profileTask.asProfile
-            rankings = (try? await rankingsTask) ?? []
+            // A failed fetch must not blank the own-profile grid/count to 0 —
+            // keep whatever's showing (the live store still has the truth).
+            if let fresh = try? await rankingsTask { rankings = fresh }
             movies = store.movies
             watchlistCount = store.watchlistCount
         } else {
@@ -825,7 +837,10 @@ struct ProfileScreen: View {
     /// already land there).
     private var ownListRows: some View {
         VStack(spacing: 0) {
-            jumpRow(icon: "checkmark.circle", title: "Watched", count: rankings.count, tab: .watched)
+            // Own profile: the LIVE store is the truth for the count — the
+            // server fetch can lag a just-made rank (or fail entirely).
+            jumpRow(icon: "checkmark.circle", title: "Watched",
+                    count: max(rankings.count, store.watchedItems.count), tab: .watched)
             Divider()
             jumpRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount, tab: .watchlist)
             Divider()

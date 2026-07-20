@@ -17,12 +17,9 @@ final class PushManager: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    /// Clear the red app-icon badge whenever the app comes to the foreground —
-    /// opening Cini means you've seen what's waiting, so a stale "5" on the
-    /// icon after you've already been in the app reads as broken.
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        Self.clearBadge()
-    }
+    // NOTE: no applicationDidBecomeActive here — that delegate method never
+    // fires under the SwiftUI scene lifecycle. The foreground badge clear
+    // lives in FeedView's scenePhase observer instead.
 
     /// Zero out the app-icon badge (no-op error handling — a failed badge
     /// clear is cosmetic and must never surface to the user).

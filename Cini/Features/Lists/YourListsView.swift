@@ -41,6 +41,10 @@ struct YourListsView: View {
     @State private var showFilterSheet = false
     @State private var listQuery = ""
     @State private var reorderMode = false
+    /// Filters + sort as they were before entering reorder mode, restored on
+    /// exit — entering reorder used to permanently WIPE the saved filters.
+    @State private var preReorderFilters: (genre: String?, decade: Int?, runtime: Int?,
+                                           provider: String?, metric: String, desc: Bool)?
     @State private var pendingDeleteRating: Movie?
     @State private var showAllPending = false
     @State private var showImport = false
@@ -158,8 +162,16 @@ struct YourListsView: View {
             }
             .task(id: subTab) {
                 if subTab == .watching, let me = SupabaseService.shared.currentUserID {
-                    watchingRows = await SupabaseService.shared.watching(for: me)
-                    watchingLoaded = true
+                    // A failed fetch keeps whatever's showing (and never flips
+                    // to the "nothing tracked" zero-state over real rows).
+                    do {
+                        watchingRows = try await SupabaseService.shared.watchingThrows(for: me)
+                        watchingLoaded = true
+                    } catch {
+                        if !Task.isCancelled, !watchingLoaded {
+                            ToastCenter.shared.show("Couldn't load what you're watching — check your connection.")
+                        }
+                    }
                 }
             }
             .alert("Currently Watching", isPresented: $showWatchingInfo) {
@@ -224,6 +236,7 @@ struct YourListsView: View {
             // Category switch with a list of the OTHER kind selected: its
             // tab just vanished — deselect rather than render a ghost.
             .onChange(of: category) { _, newCategory in
+                exitReorder()   // the reordered list just changed out from under it
                 if let selectedListID,
                    let list = store.customLists.first(where: { $0.id == selectedListID }),
                    list.kind != newCategory.mediaKind {
@@ -296,12 +309,35 @@ struct YourListsView: View {
         tabRouter.pendingReorder = false
         category = tabRouter.pendingReorderTV ? .tvShows : .movies
         subTab = .watched
-        reorderMode = true
-        listQuery = ""; showListSearch = false
+        enterReorder()
+    }
+
+    /// Enter reorder: snapshot filters + sort, then clear them (drag offsets
+    /// map onto the canonical ranked order — any other arrangement would move
+    /// the wrong rows).
+    private func enterReorder() {
+        preReorderFilters = (genreFilter, decadeFilter, runtimeFilter,
+                             streamingProviderFilter, sortMetricRaw, sortDescending)
+        listQuery = ""
+        showListSearch = false
         genreFilter = nil; decadeFilter = nil
         runtimeFilter = nil; streamingProviderFilter = nil
-        sortMetricRaw = ListSortMetric.score.rawValue   // drag = your ranked order
-        sortDescending = true   // drag offsets need canonical order
+        sortMetricRaw = ListSortMetric.score.rawValue
+        sortDescending = true
+        reorderMode = true
+    }
+
+    /// Leave reorder (Done, or navigating anywhere else) and put the user's
+    /// filters + sort back exactly as they were.
+    private func exitReorder() {
+        guard reorderMode else { return }
+        reorderMode = false
+        if let f = preReorderFilters {
+            genreFilter = f.genre; decadeFilter = f.decade
+            runtimeFilter = f.runtime; streamingProviderFilter = f.provider
+            sortMetricRaw = f.metric; sortDescending = f.desc
+            preReorderFilters = nil
+        }
     }
 
     /// Selecting a list also lands on its category — a TV list's tab
@@ -379,18 +415,7 @@ struct YourListsView: View {
                     if subTab == .watched && selectedListID == nil {
                         Button {
                             withAnimation(.snappy) {
-                                reorderMode.toggle()
-                                if reorderMode {   // reorder works on the full list
-                                    listQuery = ""
-                                    showListSearch = false
-                                    genreFilter = nil; decadeFilter = nil
-                                    runtimeFilter = nil; streamingProviderFilter = nil
-                                    // Drag offsets map onto the canonical
-                                    // ranked order — any other sort would move
-                                    // the wrong rows.
-                                    sortMetricRaw = ListSortMetric.score.rawValue
-                                    sortDescending = true
-                                }
+                                if reorderMode { exitReorder() } else { enterReorder() }
                             }
                         } label: {
                             Label(reorderMode ? "Done reordering" : "Reorder",
@@ -438,6 +463,7 @@ struct YourListsView: View {
                     let isOn = subTab == tab && selectedListID == nil
                     Button {
                         withAnimation(.snappy) {
+                            exitReorder()   // reorder is a Watched-only mode
                             subTab = tab
                             selectedListID = nil
                         }
@@ -473,7 +499,10 @@ struct YourListsView: View {
                 ForEach(store.customLists.filter { $0.kind == category.mediaKind }) { list in
                     let isOn = selectedListID == list.id
                     Button {
-                        withAnimation(.snappy) { selectedListID = list.id }
+                        withAnimation(.snappy) {
+                            exitReorder()
+                            selectedListID = list.id
+                        }
                     } label: {
                         VStack(spacing: 6) {
                             Text(list.name)
@@ -919,7 +948,7 @@ struct YourListsView: View {
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Theme.marquee))
             Spacer()
-            Text("Ranked \(importQueue.rankedFromImport) of \(importQueue.totalImported)")
+            Text("Ranked \(importQueue.rankedFromImport(tv: category == .tvShows)) of \(importQueue.totalImported(tv: category == .tvShows))")
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
         }
@@ -1033,6 +1062,16 @@ struct YourListsView: View {
                     tabRouter.pendingRecsTV = (category == .tvShows)
                     // Respect the user's last card/grid mode — don't force one.
                     tabRouter.selection = .swipe
+                }
+            } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
+                      watchedCount(in: category) > 0 {
+                // Titles exist in THIS category but a filter/search hid them
+                // all — say that, don't claim they're filed elsewhere.
+                emptyList("Nothing matches these filters — loosen one.",
+                          actionTitle: "Clear filters",
+                          actionIcon: "xmark.circle") {
+                    filtersBinding.wrappedValue = MovieFilters()
+                    listQuery = ""
                 }
             } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
                       watchedCount(in: otherCategory) > 0 {
@@ -1226,13 +1265,16 @@ struct YourListsView: View {
                     .task { await store.enrich(item.movieID) }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
+                            // Capture the full row first — Undo restores the
+                            // note and "watch by" date, not just the bookmark.
+                            let captured = item
                             Task {
                                 await store.toggleWatchlist(movie: movie)   // remove
                                 // Only offer Undo if it actually came off — a
                                 // failed remove reverts and shows its own error.
                                 if !store.isOnWatchlist(movie.tmdbID) {
                                     ToastCenter.shared.showUndo("Removed from Want to Watch") {
-                                        Task { await store.toggleWatchlist(movie: movie) }   // re-add
+                                        Task { await store.restoreWatchlistItem(captured, movie: movie) }
                                     }
                                 }
                             }

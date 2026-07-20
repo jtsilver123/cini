@@ -1733,8 +1733,14 @@ final class SupabaseService {
 
     /// A member's current shows (mine, or a friend's if I can view them).
     func watching(for userID: UUID) async -> [WatchingRow] {
+        (try? await watchingThrows(for: userID)) ?? []
+    }
+
+    /// Throwing variant, so the Watching tab can tell "no shows" from
+    /// "the fetch failed" instead of blanking a real in-progress list.
+    func watchingThrows(for userID: UUID) async throws -> [WatchingRow] {
         struct Params: Encodable { let p_user: UUID }
-        return (try? await client.rpc("watching_for", params: Params(p_user: userID)).execute().value) ?? []
+        return try await client.rpc("watching_for", params: Params(p_user: userID)).execute().value
     }
 
     /// Shows BOTH I and this member are currently watching.

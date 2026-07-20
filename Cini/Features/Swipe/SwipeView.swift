@@ -354,10 +354,10 @@ struct SwipeView: View {
                     onLog: { watchedCountAtRank = store.watchedCount; lastRanked = $0; logMovie = $0 },
                     onSave: { m in
                         recordDismiss(m.tmdbID)
-                        if !store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                        Task { await store.setWatchlist(movie: m, saved: true) }
                     },
                     onUnsave: { m in
-                        if store.isOnWatchlist(m.tmdbID) { Task { await store.toggleWatchlist(movie: m) } }
+                        Task { await store.setWatchlist(movie: m, saved: false) }
                     },
                     onPass: { m in
                         recordDismiss(m.tmdbID)
@@ -428,24 +428,30 @@ struct SwipeView: View {
     /// Reload the pool from scratch — used when the filters change (they drive
     /// a different pool on the Swipe page) or on a manual refresh.
     /// Titles passed/saved in Recs before, excluded when (re)building the pool.
+    /// `dismissedRaw` keeps INSERTION ORDER (oldest first), so pruning
+    /// genuinely drops the oldest dismissals — a Set round-trip made
+    /// `suffix()` keep a random subset instead of the most recent.
+    private var persistedDismissedOrdered: [Int] {
+        dismissedRaw.split(separator: ",").compactMap { Int($0) }
+    }
     private var persistedDismissed: Set<Int> {
-        Set(dismissedRaw.split(separator: ",").compactMap { Int($0) })
+        Set(persistedDismissedOrdered)
     }
     private func recordDismiss(_ id: Int) {
-        var s = persistedDismissed
-        guard s.insert(id).inserted else { return }
+        var list = persistedDismissedOrdered
+        guard !list.contains(id) else { return }
+        list.append(id)
         // Bounded: the server-side pass keeps the taste signal permanently;
         // this local list only prevents quick re-shows, and unpruned it grew
         // forever (and was re-parsed per candidate before the hoists above).
-        if s.count > 2000 {
-            s = Set(Array(s).suffix(1500) + [id])
-        }
-        dismissedRaw = s.map(String.init).joined(separator: ",")
+        if list.count > 2000 { list = Array(list.suffix(1500)) }
+        dismissedRaw = list.map(String.init).joined(separator: ",")
     }
     private func unrecordDismiss(_ id: Int) {
-        var s = persistedDismissed
-        guard s.remove(id) != nil else { return }
-        dismissedRaw = s.map(String.init).joined(separator: ",")
+        var list = persistedDismissedOrdered
+        guard let index = list.firstIndex(of: id) else { return }
+        list.remove(at: index)
+        dismissedRaw = list.map(String.init).joined(separator: ",")
     }
 
     /// Reverse the most recent grid action: the tile returns, and a
@@ -458,16 +464,11 @@ struct SwipeView: View {
         if last.saved {
             // Only take the bookmark back off if this action actually ADDED it
             // — undoing a tap on an already-bookmarked title keeps the save.
+            // setWatchlist waits out any in-flight toggle, so an instant Undo
+            // can't race the save and silently no-op.
             if last.toggled,
                let movie = store.movie(last.id) ?? candidates.first(where: { $0.movie.tmdbID == last.id })?.movie {
-                Task {
-                    // Let the save toggle settle first (the store guards
-                    // concurrent toggles per id — racing it would no-op).
-                    try? await Task.sleep(for: .milliseconds(400))
-                    if store.isOnWatchlist(movie.tmdbID) {
-                        await store.toggleWatchlist(movie: movie)
-                    }
-                }
+                Task { await store.setWatchlist(movie: movie, saved: false) }
             }
         } else {
             Task { await SupabaseService.shared.unpassRec(last.id) }
@@ -479,30 +480,36 @@ struct SwipeView: View {
         loaded = false
         dismissed = []
         gridHistory = []
-        await load()
+        let responded = await load()
         // "Refresh recs" must actually GIVE MORE CARDS: a power user can have
         // dismissed everything the pool serves, and a refresh that comes back
         // empty is a dead end. Forget the oldest local dismissals and try
         // once more — the server-side pass signal (taste) is untouched.
-        if candidates.isEmpty, !dismissedRaw.isEmpty {
-            let recent = persistedDismissed.suffix(200)
+        // ONLY when the sources actually answered, though: pruning after an
+        // offline refresh would wipe the dismissed list for nothing.
+        if responded, candidates.isEmpty, !dismissedRaw.isEmpty {
+            let recent = persistedDismissedOrdered.suffix(200)
             dismissedRaw = recent.map(String.init).joined(separator: ",")
             candidates = []
             loaded = false
-            await load()
+            _ = await load()
         }
     }
 
-    private func load() async {
-        guard candidates.isEmpty else { return }
+    /// Returns whether any pool source actually ANSWERED (success, even if
+    /// empty) — false means the fetches failed and emptiness proves nothing.
+    @discardableResult
+    private func load() async -> Bool {
+        guard candidates.isEmpty else { return true }
         // Filters active → fetch a pool that MATCHES them (discovery). Otherwise
         // the automatic, taste-based pool.
-        if filters.isActive { await loadFiltered() } else { await loadAutomatic() }
+        if filters.isActive { return await loadFiltered() }
+        return await loadAutomatic()
     }
 
     /// A filter-driven pool: TMDB discover for both movies and shows matching the
     /// active filters, so the deck is full of on-target picks.
-    private func loadFiltered() async {
+    private func loadFiltered() async -> Bool {
         loadSeq += 1
         let token = loadSeq
         async let moviePool = TMDBService.shared.discover(
@@ -511,8 +518,11 @@ struct SwipeView: View {
         async let tvPool = TMDBService.shared.discover(
             genre: filters.genre, decade: filters.decade,
             maxRuntime: filters.runtime, provider: filters.streamingProvider, wantTV: true)
-        let pool = ((try? await moviePool) ?? []) + ((try? await tvPool) ?? [])
-        guard token == loadSeq else { return }   // a newer reload superseded this one
+        let movieResults = try? await moviePool
+        let tvResults = try? await tvPool
+        let responded = movieResults != nil || tvResults != nil
+        let pool = (movieResults ?? []) + (tvResults ?? [])
+        guard token == loadSeq else { return responded }   // a newer reload superseded this one
 
         var seen = Set<Int>()
         var built: [YourListsView.RecCandidate] = []
@@ -530,10 +540,11 @@ struct SwipeView: View {
         poolVersion += 1
         bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
         await enrich(built.prefix(16).map(\.movie.tmdbID))
-        guard token == loadSeq else { return }
+        guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
         }
+        return responded
     }
 
     /// A short "why this is here" line for a filtered pool.
@@ -544,7 +555,7 @@ struct SwipeView: View {
         return "Matches your filters"
     }
 
-    private func loadAutomatic() async {
+    private func loadAutomatic() async -> Bool {
         loadSeq += 1
         let token = loadSeq
         // The user's top few favorites (highest-scored across movies + TV), so
@@ -557,8 +568,12 @@ struct SwipeView: View {
 
         var pending: [(id: Int, reason: String)] = []
         var seen = Set<Int>()
+        // Did ANY source answer? False = every fetch failed, so an empty
+        // pool proves nothing (and must not trigger the dismissal prune).
+        var responded = !similarByFavorite.isEmpty
 
         if let friendRecs = try? await friendRecsTask {
+            responded = true
             let rows = (try? await SupabaseService.shared.movies(ids: friendRecs.map(\.movieId))) ?? []
             for row in rows { store.cache(row.asMovie) }
             for rec in friendRecs where seen.insert(rec.movieId).inserted {
@@ -578,6 +593,7 @@ struct SwipeView: View {
             }
         }
         if let trending = try? await trendingTask {
+            responded = true
             for movie in trending
             where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
                 store.cache(movie)
@@ -585,6 +601,7 @@ struct SwipeView: View {
             }
         }
         if let popular = try? await popularTask {
+            responded = true
             for movie in popular
             where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
                 store.cache(movie)
@@ -592,7 +609,7 @@ struct SwipeView: View {
             }
         }
 
-        guard token == loadSeq else { return }   // a newer reload superseded this one
+        guard token == loadSeq else { return responded }   // a newer reload superseded this one
         let dismissed = persistedDismissed
         candidates = pending.compactMap { candidate in
             guard !dismissed.contains(candidate.id) else { return nil }
@@ -610,10 +627,11 @@ struct SwipeView: View {
         // (and so the genre/streaming filters have something to match) — in the
         // background so the deck shows immediately.
         await enrich(pending.prefix(16).map(\.id))
-        guard token == loadSeq else { return }
+        guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
         }
+        return responded
     }
 
     /// At most six detail fetches in flight (polite to TMDB).

@@ -23,8 +23,12 @@ final class ImportQueue {
     }
 
     private(set) var entries: [Entry] = []
-    /// How many imported titles have been ranked so far ("Ranked 52 of 93").
-    private(set) var rankedFromImport = 0
+    /// How many imported titles have been ranked so far ("Ranked 52 of 93"),
+    /// split by kind — the Pending section is category-scoped, so its progress
+    /// line must be too (a global count visibly disagreed with the badge).
+    private(set) var rankedMoviesFromImport = 0
+    private(set) var rankedTVFromImport = 0
+    var rankedFromImport: Int { rankedMoviesFromImport + rankedTVFromImport }
 
     private let fileURL: URL
 
@@ -37,6 +41,14 @@ final class ImportQueue {
 
     var isEmpty: Bool { entries.isEmpty }
     var totalImported: Int { entries.count + rankedFromImport }
+
+    /// Category-scoped progress (TV entries carry negative ids).
+    func rankedFromImport(tv: Bool) -> Int {
+        tv ? rankedTVFromImport : rankedMoviesFromImport
+    }
+    func totalImported(tv: Bool) -> Int {
+        entries.filter { ($0.movieID < 0) == tv }.count + rankedFromImport(tv: tv)
+    }
 
     func seed(with matches: [LetterboxdImporter.MatchedTitle], store: RankingStore) {
         let existing = Set(entries.map(\.movieID))
@@ -65,7 +77,7 @@ final class ImportQueue {
     func markRanked(_ movieID: Int) {
         guard entries.contains(where: { $0.movieID == movieID }) else { return }
         entries.removeAll { $0.movieID == movieID }
-        rankedFromImport += 1
+        if movieID < 0 { rankedTVFromImport += 1 } else { rankedMoviesFromImport += 1 }
         save()
     }
 
@@ -79,7 +91,8 @@ final class ImportQueue {
     /// the previous user's import queue.
     func clear() {
         entries = []
-        rankedFromImport = 0
+        rankedMoviesFromImport = 0
+        rankedTVFromImport = 0
         save()
     }
 
@@ -87,18 +100,31 @@ final class ImportQueue {
 
     private struct Snapshot: Codable {
         var entries: [Entry]
+        /// Legacy single counter — kept so old snapshots still decode.
         var rankedFromImport: Int
+        var rankedMovies: Int?
+        var rankedTV: Int?
     }
 
     private func load() {
         guard let data = try? Data(contentsOf: fileURL),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else { return }
         entries = snapshot.entries
-        rankedFromImport = snapshot.rankedFromImport
+        if let movies = snapshot.rankedMovies {
+            rankedMoviesFromImport = movies
+            rankedTVFromImport = snapshot.rankedTV ?? 0
+        } else {
+            // Pre-split snapshot: file the legacy total under Movies (imports
+            // are overwhelmingly movies; the split self-corrects as they rank).
+            rankedMoviesFromImport = snapshot.rankedFromImport
+        }
     }
 
     private func save() {
-        let snapshot = Snapshot(entries: entries, rankedFromImport: rankedFromImport)
+        let snapshot = Snapshot(entries: entries,
+                                rankedFromImport: rankedFromImport,
+                                rankedMovies: rankedMoviesFromImport,
+                                rankedTV: rankedTVFromImport)
         if let data = try? JSONEncoder().encode(snapshot) {
             try? data.write(to: fileURL, options: .atomic)
         }

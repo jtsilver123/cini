@@ -19,6 +19,20 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// PostgREST caps every response at 1,000 rows — page with .range so alerts
+// don't silently stop for users/titles past row 1000.
+async function allRows(build: (from: number, to: number) => any): Promise<any[]> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build(from, from + 999);
+    if (error) { console.error("paginate:", error); break; }
+    if (!data?.length) break;
+    out.push(...data);
+    if (data.length < 1000) break;
+  }
+  return out;
+}
+
 // ---- fuzzy title match (mirrors the app's FuzzyMatch.swift) ----
 function editDistance(a: string, b: string): number {
   const m = a.length, n = b.length;
@@ -64,16 +78,19 @@ const VARIANT_PATTERNS = [
   /[:\-–—]?\s*\(?\b(re-?release|remastered|restoration|extended\s+(edition|version|cut)|director'?s\s+cut)\)?\s*$/i,
   /\s*\(\d{4}\)\s*$/,
 ];
-// "today" / "tomorrow" / "Fri, Jul 24" — when the first showing is.
+// "Fri, Jul 24" — when the first showing is. Always the absolute date:
+// "today"/"tomorrow" needed a day boundary, and the server only has UTC —
+// an evening run would call tomorrow's showing "today" for US users.
+// Showtime strings are theater-local ("2026-07-24T19:30"), so the date
+// PREFIX is already the right calendar day; format it verbatim.
 function datePhrase(iso: string): string {
-  const d = new Date(iso);
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "";
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   if (isNaN(d.getTime())) return "";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const that = new Date(d); that.setHours(0, 0, 0, 0);
-  const diff = Math.round((that.getTime() - today.getTime()) / 86400e3);
-  if (diff <= 0) return "today";
-  if (diff === 1) return "tomorrow";
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+  });
 }
 
 function canonicalTitle(raw: string): string {
@@ -100,37 +117,42 @@ Deno.serve(async (_req: Request) => {
 
     // Users who can receive alerts: saved zip AND a registered device.
     // ZIPs live in the private user_locations table (service role reads it).
-    const { data: locations } = await supabase
+    const locations = await allRows((f, t) => supabase
       .from("user_locations")
       .select("user_id, home_zip")
-      .not("home_zip", "is", null);
-    if (!locations?.length) return new Response("no users with zips", { status: 200 });
+      .not("home_zip", "is", null)
+      .range(f, t));
+    if (!locations.length) return new Response("no users with zips", { status: 200 });
     const profiles = locations.map((l: any) => ({ id: l.user_id, home_zip: l.home_zip }));
 
-    const { data: tokens } = await supabase.from("device_tokens").select("user_id");
-    const pushable = new Set((tokens ?? []).map((t: any) => t.user_id));
+    const tokens = await allRows((f, t) => supabase
+      .from("device_tokens").select("user_id").range(f, t));
+    const pushable = new Set(tokens.map((t: any) => t.user_id));
     // Users with this alert kind muted are skipped BEFORE the once-ever
     // notice is recorded — the mute trigger silently drops the notification
     // row, so recording a notice for them would burn their only alert and
     // unmuting later would never bring it back.
-    const { data: muted } = await supabase
+    const muted = await allRows((f, t) => supabase
       .from("profiles")
       .select("id")
-      .contains("muted_notification_kinds", ["watchlist_showing"]);
-    const mutedIDs = new Set((muted ?? []).map((m: any) => m.id));
+      .contains("muted_notification_kinds", ["watchlist_showing"])
+      .range(f, t));
+    const mutedIDs = new Set(muted.map((m: any) => m.id));
     const candidates = profiles.filter((p: any) => pushable.has(p.id) && !mutedIDs.has(p.id));
     if (!candidates.length) return new Response("no pushable users", { status: 200 });
 
     const userIDs = candidates.map((p: any) => p.id);
-    const { data: watchlists } = await supabase
+    const watchlists = await allRows((f, t) => supabase
       .from("watchlist")
       .select("user_id, movie_id, movies(title, release_year, media_kind)")
-      .in("user_id", userIDs);
-    const { data: noticed } = await supabase
+      .in("user_id", userIDs)
+      .range(f, t));
+    const noticed = await allRows((f, t) => supabase
       .from("showtime_notices")
       .select("user_id, movie_id")
-      .in("user_id", userIDs);
-    const alreadyNoticed = new Set((noticed ?? []).map((n: any) => `${n.user_id}:${n.movie_id}`));
+      .in("user_id", userIDs)
+      .range(f, t));
+    const alreadyNoticed = new Set(noticed.map((n: any) => `${n.user_id}:${n.movie_id}`));
 
     // One Gracenote request per DISTINCT zip.
     const byZip = new Map<string, any[]>();
@@ -183,7 +205,7 @@ Deno.serve(async (_req: Request) => {
       if (!playing.length) continue;
 
       for (const user of users) {
-        const entries = (watchlists ?? []).filter((w: any) => w.user_id === user.id);
+        const entries = watchlists.filter((w: any) => w.user_id === user.id);
         for (const entry of entries) {
           const movie = entry.movies as any;
           if (!movie?.title) continue;

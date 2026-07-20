@@ -18,6 +18,10 @@ struct PlanWatchSheet: View {
     @State private var when: Date = PlanWatchSheet.defaultTime()
     @State private var sending = false
     @State private var done = false
+    /// The existing-plan lookup FAILED — showing the fresh-invite UI then
+    /// would let a duplicate plan override an accepted one.
+    @State private var loadFailed = false
+    @State private var loadKey = 0
     @State private var doneMessage = ""
     @State private var showMessages = false
 
@@ -50,7 +54,7 @@ struct PlanWatchSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
-        .task { await load() }
+        .task(id: loadKey) { await load() }
         .sheet(isPresented: $showMessages) {
             MessageComposeView(body: draftText) { showMessages = false }
                 .ignoresSafeArea()
@@ -85,7 +89,9 @@ struct PlanWatchSheet: View {
         // The respond/waiting split keys on who suggested the CURRENT time
         // (lastProposer) — after a counter-propose the ball is back in the
         // original inviter's court, and they must get the Accept button.
-        if let plan, plan.status == "accepted" {
+        if loadFailed {
+            retryState
+        } else if let plan, plan.status == "accepted" {
             acceptedState(plan)
         } else if let plan, plan.status == "proposed", plan.currentProposerId == friend.id {
             respondState(plan)            // their suggested time — I respond
@@ -214,6 +220,23 @@ struct PlanWatchSheet: View {
         }
     }
 
+    /// The existing-plan check failed — retry rather than risking a
+    /// duplicate invite over a plan we couldn't see.
+    private var retryState: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HairlineCard {
+                HStack(spacing: 10) {
+                    Image(systemName: "wifi.exclamationmark").foregroundStyle(Theme.gray)
+                    Text("Couldn't check for an existing plan — try again.")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.gray)
+                    Spacer()
+                }
+            }
+            PillButton(title: "Try again", systemImage: "arrow.clockwise") { loadKey += 1 }
+        }
+    }
+
     private var planControls: some View {
         VStack(alignment: .leading, spacing: 14) {
             timeControls(send: { sendInvite() },
@@ -314,8 +337,15 @@ struct PlanWatchSheet: View {
             // header shows the real title instead of staying on "…".
             movie = m
         }
-        // The latest plan in either direction drives which UI we show.
-        plan = try? await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id)
+        // The latest plan in either direction drives which UI we show. A FAILED
+        // lookup is not "no plan" — flag it so the UI offers retry instead of
+        // a fresh invite that could stomp an accepted plan.
+        do {
+            plan = try await SupabaseService.shared.latestWatchPlan(movieID: context.movieID, withUser: friend.id)
+            loadFailed = false
+        } catch {
+            if !Task.isCancelled { loadFailed = true }
+        }
         if let at = plan?.proposedAt, at > Date() { when = at }
         // Unreleased film: the default "tonight at 8" would be before its
         // opening — move the selection up to opening night.

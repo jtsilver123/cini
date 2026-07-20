@@ -226,6 +226,9 @@ struct CiniApp: App {
             return
         }
         pendingInviter = username
+        // Stamped so onboarding can EXPIRE it — an invite tapped weeks ago
+        // must not auto-follow a stranger on some later signup.
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "cini.pendingInviterAt")
         // Redeem right away ONLY for a fully onboarded user. Mid-signup the
         // profile is still the placeholder handle — onboarding's profile-save
         // step redeems from pendingInviter AFTER the real name is set, so the
@@ -416,6 +419,7 @@ final class AppSession {
                 ImportRunner.shared.cancel()
                 ImportHistory.clear()
                 ImportTransfer.clear()
+                ProfileCountsCache.clear()
                 // And every per-account default: search history, hidden recs,
                 // invite state, list filters, Tonight's Pick logs, the stashed
                 // phone number. Leaving any of these behind bleeds one
@@ -423,7 +427,8 @@ final class AppSession {
                 let defaults = UserDefaults.standard
                 for key in ["cini.pendingPhoneE164", "cini.pendingPhoneTries",
                             "cini.pendingPhoneUID",
-                            "cini.pendingInviter", "cini.recentSearches",
+                            "cini.pendingInviter", "cini.pendingInviterAt",
+                            "cini.recentSearches",
                             "cini.invitedPhones", "cini.dismissedContacts",
                             "swipe.dismissedIDs", "swipe.importBannerHidden",
                             "recs.demoSeen", "feed.nudgeDismissed",

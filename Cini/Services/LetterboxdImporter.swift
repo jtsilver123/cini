@@ -107,8 +107,12 @@ enum LetterboxdImporter {
         if fileURL.pathExtension.lowercased() == "zip" || data.starts(with: [0x50, 0x4B]) {
             (titles, lists) = try parseZip(data)
         } else {
-            guard let text = String(data: data, encoding: .utf8)
+            guard var text = String(data: data, encoding: .utf8)
                 ?? String(data: data, encoding: .isoLatin1) else { throw ImportError.unreadableFile }
+            // Excel and some browsers save CSVs with a UTF-8 BOM. Left in,
+            // it glues onto the first header ("\u{FEFF}Title"), defeats the
+            // Netflix-CSV detection, and the file imports as garbage.
+            if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
             if isNetflixCSV(text) {
                 // Netflix viewing history — episodes collapse to one show.
                 titles = parseNetflix(text)
@@ -427,6 +431,9 @@ enum LetterboxdImporter {
         let cols = header.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
         guard let titleIdx = cols.firstIndex(of: "title") else { return [] }
         let dateIdx = cols.firstIndex(of: "date")
+        // Day-first vs month-first, decided from the file itself (one row
+        // with a component > 12 settles it for every row).
+        let dayFirst = netflixDayFirst(rows, dateIdx: dateIdx)
 
         var byKey: [String: ImportedTitle] = [:]
         var order: [String] = []
@@ -437,7 +444,7 @@ enum LetterboxdImporter {
             let title = netflixShowTitle(raw)
             let k = normalize(title)
             guard !k.isEmpty else { continue }
-            let date = dateIdx.flatMap { fields.indices.contains($0) ? netflixDate(fields[$0]) : nil }
+            let date = dateIdx.flatMap { fields.indices.contains($0) ? netflixDate(fields[$0], dayFirst: dayFirst) : nil }
             let season = netflixSeason(raw)
             if var existing = byKey[k] {
                 if let date { existing.watchDates.insert(date); existing.watchedOn = existing.watchDates.max() }
@@ -513,19 +520,41 @@ enum LetterboxdImporter {
         return s.range(of: #" \d+$"#, options: .regularExpression) != nil
     }
 
-    private static func netflixDate(_ raw: String) -> String? {
+    /// Detect the file's slash-date order ONCE: any row with a component > 12
+    /// disambiguates the whole file ("25/1/24" proves day-first, "1/25/24"
+    /// proves month-first). nil = every row is ambiguous.
+    static func netflixDayFirst(_ rows: [[String]], dateIdx: Int?) -> Bool? {
+        guard let dateIdx else { return nil }
+        for fields in rows.dropFirst() {
+            guard fields.indices.contains(dateIdx) else { continue }
+            let parts = fields[dateIdx].trimmingCharacters(in: .whitespaces).split(separator: "/")
+            guard parts.count == 3, let a = Int(parts[0]), let b = Int(parts[1]) else { continue }
+            if a > 12 && b <= 12 { return true }
+            if b > 12 && a <= 12 { return false }
+        }
+        return nil
+    }
+
+    private static func netflixDate(_ raw: String, dayFirst: Bool?) -> String? {
         let t = raw.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return nil }
         // Netflix localizes the viewing-activity date to the account's region,
         // so a US export reads M/d/yy but others read d/M/yy (and some yyyy-MM-dd).
-        // Try each; the title still imports as watched even if no date parses —
-        // only the diary date is at stake.
+        // The file's own rows disambiguate when they can (dayFirst); otherwise
+        // the device locale breaks the tie — a UK phone importing "5/1/24"
+        // almost certainly means 5 January.
+        let preferDayFirst = dayFirst
+            ?? (DateFormatter.dateFormat(fromTemplate: "dM", options: 0, locale: .current)?
+                    .hasPrefix("d") ?? false)
+        let slashFormats = preferDayFirst
+            ? ["d/M/yy", "M/d/yy", "d/M/yyyy", "M/d/yyyy"]
+            : ["M/d/yy", "d/M/yy", "M/d/yyyy", "d/M/yyyy"]
         let parser = DateFormatter()
         parser.locale = Locale(identifier: "en_US_POSIX")
         let out = DateFormatter()
         out.locale = Locale(identifier: "en_US_POSIX")
         out.dateFormat = "yyyy-MM-dd"
-        for format in ["M/d/yy", "d/M/yy", "yyyy-MM-dd", "M/d/yyyy", "d/M/yyyy"] {
+        for format in slashFormats + ["yyyy-MM-dd"] {
             parser.dateFormat = format
             if let date = parser.date(from: t) { return out.string(from: date) }
         }
@@ -534,6 +563,10 @@ enum LetterboxdImporter {
 
     /// RFC-4180-ish CSV: quoted fields, escaped quotes (""), newlines in quotes.
     static func parseCSVRows(_ text: String) -> [[String]] {
+        // Strip a UTF-8 BOM here too — pasted text and per-entry ZIP decodes
+        // reach this without going through the file path's strip.
+        var text = text
+        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
         var rows: [[String]] = []
         var field = ""
         var row: [String] = []

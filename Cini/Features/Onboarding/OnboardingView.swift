@@ -31,6 +31,15 @@ struct OnboardingView: View {
     @State private var inviterUsername = ""
     /// Set when the user arrived via a friend's invite link — prefilled above.
     @AppStorage("cini.pendingInviter") private var pendingInviter = ""
+
+    /// The stashed inviter, but only while it's FRESH (48h). An invite link
+    /// tapped weeks before some unrelated signup must not auto-follow a
+    /// stranger — expired stashes read as empty.
+    private var freshPendingInviter: String {
+        let at = UserDefaults.standard.double(forKey: "cini.pendingInviterAt")
+        guard at > 0, Date().timeIntervalSince1970 - at < 48 * 3600 else { return "" }
+        return pendingInviter
+    }
     @State private var firstName = ""
     @State private var lastName = ""
     @State private var usernameError: String?
@@ -335,7 +344,7 @@ struct OnboardingView: View {
                 username = suggestedUsername
                 checkAvailability()
             }
-            if inviterUsername.isEmpty, !pendingInviter.isEmpty { inviterUsername = pendingInviter }
+            if inviterUsername.isEmpty, !freshPendingInviter.isEmpty { inviterUsername = freshPendingInviter }
             focusAfterTransition(.firstName)
         }
         // Keep the @handle in step with the name until the user edits it.
@@ -493,7 +502,7 @@ struct OnboardingView: View {
             // people type it, and the server matches the bare handle.
             let typed = inviterUsername.trimmingCharacters(in: .whitespaces)
                 .replacingOccurrences(of: "@", with: "")
-            let inviter = (typed.isEmpty ? pendingInviter : typed)
+            let inviter = (typed.isEmpty ? freshPendingInviter : typed)
                 .trimmingCharacters(in: .whitespaces)
                 .replacingOccurrences(of: "@", with: "")
             if !inviter.isEmpty {

@@ -46,6 +46,9 @@ struct SearchView: View {
     @State private var browse: BrowseKind?
     @State private var browseResults: [Movie] = []
     @State private var browseLoaded = false
+    /// The browse fetch THREW (network) — emptiness proves nothing, so show
+    /// a retry instead of "Nothing playing under this filter".
+    @State private var browseFailed = false
     @FocusState private var searchFocused: Bool
     /// Drives the poster→detail zoom push (iOS 18+); a plain push below it.
     @Namespace private var posterZoom
@@ -324,7 +327,21 @@ struct SearchView: View {
                     && !dismissedMaybeSeen.contains($0.tmdbID)
             }
             if results.isEmpty {
-                if browseLoaded {
+                if browseLoaded, browseFailed, browseResults.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Couldn't load these — check your connection.")
+                            .font(.subheadline).foregroundStyle(Theme.gray)
+                        Button {
+                            Haptics.tap()
+                            Task { await loadBrowse() }
+                        } label: {
+                            Text("Try again").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Theme.marquee)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 12)
+                } else if browseLoaded {
                     Text("Nothing playing under this filter — try Movies, TV, or another genre.")
                         .font(.subheadline).foregroundStyle(Theme.gray)
                         .padding(.vertical, 12)
@@ -342,11 +359,15 @@ struct SearchView: View {
         guard let kind = browse else { return }
         browseResults = []
         browseLoaded = false
+        browseFailed = false
         var result: [Movie]
+        var failed = false
         switch kind {
         case .popular:
             // Classics most people have actually seen.
-            result = (try? await TMDBService.shared.mostWatched()) ?? []
+            let fetched = try? await TMDBService.shared.mostWatched()
+            failed = fetched == nil
+            result = fetched ?? []
         case .trending:
             // What Cini members are rating/bookmarking right now.
             let ids = await SupabaseService.shared.trendingTitles()
@@ -355,13 +376,20 @@ struct SearchView: View {
             for row in rows { byID[row.tmdbId] = row.asMovie }
             result = ids.compactMap { byID[$0] }   // preserve activity order
             // Fall back to TMDB buzz if Cini activity is still thin.
-            if result.count < 5 { result = (try? await TMDBService.shared.trending()) ?? result }
+            if result.count < 5 {
+                let buzz = try? await TMDBService.shared.trending()
+                if result.isEmpty { failed = buzz == nil }
+                result = buzz ?? result
+            }
         case .releases:
             // Only titles that are actually out now, newest first.
-            result = (try? await TMDBService.shared.nowOut()) ?? []
+            let fetched = try? await TMDBService.shared.nowOut()
+            failed = fetched == nil
+            result = fetched ?? []
         }
         guard browse == kind else { return }   // user switched mid-flight
         browseResults = result
+        browseFailed = failed && result.isEmpty
         browseLoaded = true
         for movie in result { store.cache(movie) }
     }

@@ -128,7 +128,12 @@ struct FeedView: View {
             // Coming back to the app after a while should show a fresh feed,
             // not yesterday's — throttled so a quick switch-away doesn't refetch.
             .onChange(of: scenePhase) { _, phase in
-                guard phase == .active, Date().timeIntervalSince(lastFeedLoad) > 45 else { return }
+                guard phase == .active else { return }
+                // The app-icon badge clears on every foreground. (The old
+                // AppDelegate applicationDidBecomeActive hook is dead code
+                // under the SwiftUI scene lifecycle — this is the real path.)
+                PushManager.clearBadge()
+                guard Date().timeIntervalSince(lastFeedLoad) > 45 else { return }
                 Task { await loadFeed() }
             }
             .task(id: store.isLoaded) { await loadTonightStack() }
@@ -986,9 +991,20 @@ struct FeedView: View {
         if let movieID = tabRouter.pendingPushMovieID {
             tabRouter.pendingPushMovieID = nil
             Task {
-                if let movie = try? await TMDBService.shared.details(for: movieID) {
+                // The tap on a push must never be silently swallowed: retry
+                // once, fall back to any cached copy, and if it still can't
+                // open, SAY so instead of landing on a blank feed.
+                var movie = try? await TMDBService.shared.details(for: movieID)
+                if movie == nil { movie = try? await TMDBService.shared.details(for: movieID) }
+                if movie == nil {
+                    movie = store.movie(movieID)
+                        ?? (try? await SupabaseService.shared.movies(ids: [movieID]))?.first?.asMovie
+                }
+                if let movie {
                     store.cache(movie)
                     detailMovie = movie
+                } else {
+                    ToastCenter.shared.show("Couldn't open that — check your connection.")
                 }
             }
         }
@@ -1206,9 +1222,13 @@ struct FeedView: View {
 
     private func todayKey() -> String { DateFormatter.localDay.string(from: Date()) }
 
-    /// Days since 2001-01-01 — stable within a calendar day, used for the
-    /// Tonight's Pick 14-day recency log.
-    private func todayDayNum() -> Int { Int(Date().timeIntervalSinceReferenceDate / 86400) }
+    /// LOCAL-calendar day ordinal, used for the Tonight's Pick 14-day recency
+    /// log. Must roll over at local midnight like the dismissal log
+    /// (todayKey) does — the old UTC arithmetic flipped at 5-8pm US time, so
+    /// an evening's picks were "shown today" all of the next morning.
+    private func todayDayNum() -> Int {
+        Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+    }
 
     /// Map of movieID → day number it was last shown in Tonight's Picks.
     private func tonightShownMap() -> [Int: Int] {
@@ -1294,6 +1314,9 @@ struct FeedView: View {
             let withNotes = await SupabaseService.shared.attachNotes(to: fresh)
             events = withNotes
             FeedDiskCache.save(withNotes)
+            // Fresh server counts supersede any per-thread overrides — keeping
+            // them pinned comment counts to a stale value all session.
+            commentCountOverrides = [:]
         }
         // Five independent queries — in flight TOGETHER, not one after
         // another (serially this added ~5 round trips of latency before the

@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import RankingEngine
+import UIKit
 
 /// Source of truth for the signed-in user's ranked list and watchlist.
 /// Wraps the pure RankingEngine and mirrors every mutation to Supabase via
@@ -464,6 +465,13 @@ final class RankingStore {
             return ok
         }
 
+        // Keep the process alive if the user backgrounds the app right after
+        // their last comparison — without this, suspension inside the ~25s
+        // write window silently dropped a rank they watched land on screen.
+        let bgTask = UIApplication.shared.beginBackgroundTask(withName: "rank-commit")
+        defer {
+            if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask) }
+        }
         var saved = await attempt()
         if !saved {
             try? await Task.sleep(for: .seconds(1))   // a transient blip shouldn't drop a rank
@@ -616,6 +624,19 @@ final class RankingStore {
         }
     }
 
+    /// Ensure a title's saved state, WAITING OUT any in-flight toggle for the
+    /// same title first. Undo paths need these queue semantics — the raw
+    /// toggle's double-tap guard makes a quick Undo silently no-op.
+    /// Target-state (not toggle) semantics also make it idempotent.
+    func setWatchlist(movie: Movie, saved: Bool) async {
+        // Bounded wait: the in-flight toggle resolves or times out in seconds.
+        for _ in 0..<300 where togglingWatchlist.contains(movie.tmdbID) {
+            try? await Task.sleep(for: .milliseconds(60))
+        }
+        guard isOnWatchlist(movie.tmdbID) != saved else { return }
+        await toggleWatchlist(movie: movie)
+    }
+
     /// Marking a show as "currently watching" supersedes Want to Watch — the
     /// `set_show_progress` RPC drops the watchlist row server-side. Mirror that
     /// in the shared cache so the bookmark and the Want to Watch list don't go
@@ -666,6 +687,20 @@ final class RankingStore {
         // Re-find by id after the await (the captured index may be stale).
         if !saved, let i = watchlist.firstIndex(where: { $0.movieID == movieID }) {
             watchlist[i].watchBy = previous
+        }
+    }
+
+    /// Undo of a watchlist removal: re-add AND replay the row's note and
+    /// "watch by" goal — a plain re-add silently loses both.
+    func restoreWatchlistItem(_ item: WatchlistItem, movie: Movie) async {
+        await setWatchlist(movie: movie, saved: true)
+        guard isOnWatchlist(item.movieID) else { return }   // re-add failed (already toasted)
+        if let note = item.note, !note.isEmpty {
+            await setWatchlistNote(movieID: item.movieID, note: note)
+        }
+        if let watchBy = item.watchBy,
+           let date = RankingStore.watchByFormatter.date(from: watchBy) {
+            await setWatchBy(movieID: item.movieID, date: date)
         }
     }
 
