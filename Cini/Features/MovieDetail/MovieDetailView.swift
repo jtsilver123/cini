@@ -1015,7 +1015,9 @@ struct MovieDetailView: View {
         let me = SupabaseService.shared.currentUserID
         switch plan.status {
         case "accepted": return ("Planned ✓", false)
-        case "proposed": return plan.proposerId == me ? ("Pending", false) : ("Respond", true)
+        // Keyed on who suggested the CURRENT time — after a counter-propose
+        // it's the original inviter who needs to respond.
+        case "proposed": return plan.currentProposerId == me ? ("Pending", false) : ("Respond", true)
         default:         return ("Invite", true)   // declined → can re-invite
         }
     }

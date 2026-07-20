@@ -77,10 +77,18 @@ struct LetterboxdImportView: View {
                 ImportTransfer.viewIsHandling = true
                 if startWithPaste { showPaste = true }
                 syncPhase(with: runner.state)
+                // Reopened while a desktop transfer is pending? Resume watching
+                // it — this screen blocks the app-wide watcher while open, so
+                // NOT polling here would deadlock the handoff.
+                if transferTask == nil, let pending = ImportTransfer.pendingCode {
+                    transferCode = pending
+                    startPolling(code: pending)
+                }
             }
             .onDisappear {
                 ImportTransfer.viewIsHandling = false
                 transferTask?.cancel()
+                transferTask = nil   // so a reappear knows to resume polling
                 // The runner keeps importing — that's the point.
             }
             .onChange(of: runner.state) { _, newState in
@@ -338,6 +346,12 @@ struct LetterboxdImportView: View {
                                        label: "couldn't be matched",
                                        detail: result.unmatched.prefix(5).map(\.title).joined(separator: ", ")
                                            + (result.unmatched.count > 5 ? "…" : ""))
+                        }
+                        if !result.errored.isEmpty {
+                            Divider()
+                            summaryRow(icon: "wifi.exclamationmark", count: result.errored.count,
+                                       label: "couldn't be checked (connection trouble)",
+                                       detail: "Run the import again to pick these up — already-imported titles are never duplicated.")
                         }
                     }
                     .padding(.vertical, 4)

@@ -35,6 +35,11 @@ enum ImportHistory {
             UserDefaults.standard.set(data, forKey: key)
         }
     }
+
+    /// Sign-out: the next account must not see the previous one's imports.
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
 }
 
 /// The import pipeline, running app-wide: download → parse → TMDB match →
@@ -61,10 +66,25 @@ final class ImportRunner {
     private(set) var result: LetterboxdImporter.Result?
     private(set) var pastedToWatchlist = false
     private(set) var detailsImportFailed = false
+    private(set) var watchlistImportFailed = false
 
     private var task: Task<Void, Never>?
     private var store: RankingStore?
     private var matchingStarted: Date?
+    /// Who started this run. Every server write re-checks it — a sign-out
+    /// mid-import must never dump this library into the next account.
+    private var ownerID: UUID?
+
+    /// True while the account that started the run is still the signed-in one.
+    private var ownerStillSignedIn: Bool {
+        ownerID != nil && SupabaseService.shared.currentUserID == ownerID
+    }
+
+    /// Stop-the-run check used at every write gate: cancelled, or the account
+    /// changed under us.
+    private var aborted: Bool {
+        Task.isCancelled || !ownerStillSignedIn
+    }
 
     // MARK: - Entry points
 
@@ -113,6 +133,7 @@ final class ImportRunner {
         task?.cancel()
         task = nil
         state = .idle
+        result = nil
         UIApplication.shared.isIdleTimerDisabled = false
     }
 
@@ -129,8 +150,10 @@ final class ImportRunner {
         guard state != .running else { return }
         task?.cancel()
         self.store = store
+        ownerID = SupabaseService.shared.currentUserID
         result = nil
         detailsImportFailed = false
+        watchlistImportFailed = false
         pastedToWatchlist = false
         progressText = "Reading export…"
         progressFraction = 0
@@ -147,6 +170,10 @@ final class ImportRunner {
             } catch is CancellationError {
                 // User tapped Stop — quiet return to idle happened in cancel().
             } catch {
+                // Stop during the download phase surfaces as URLError.cancelled
+                // (not CancellationError) — that's still a quiet cancel, not
+                // "something went wrong reading that file".
+                if Task.isCancelled || (error as? URLError)?.code == .cancelled { return }
                 let message = (error as? LocalizedError)?.errorDescription
                     ?? "Something went wrong reading that file."
                 Haptics.error()
@@ -202,13 +229,13 @@ final class ImportRunner {
             let pending = outcome.watched.filter {
                 !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
             }
-            if !pending.isEmpty, !Task.isCancelled {
+            if !pending.isEmpty, !aborted {
                 await saveWatchlistBulk(pending)
             }
-        } else if !Task.isCancelled {
+        } else if !aborted {
             ImportQueue.shared.seed(with: outcome.watched, store: store)
         }
-        guard !Task.isCancelled else { return }
+        guard !aborted else { return }
         finish(outcome)
     }
 
@@ -251,7 +278,7 @@ final class ImportRunner {
             outcome.stillWatching = inProgress
             progressText = "Marking shows you're still watching…"
             for match in inProgress {
-                if Task.isCancelled { break }
+                if aborted { break }
                 store.cache(match.movie)
                 try? await SupabaseService.shared.cacheMovie(match.movie)
                 try? await SupabaseService.shared.setShowProgress(
@@ -288,7 +315,7 @@ final class ImportRunner {
                 Array(detailItems[$0..<min($0 + 400, detailItems.count)])
             }
             for (index, chunk) in chunks.enumerated() {
-                if Task.isCancelled { break }
+                if aborted { break }
                 progressText = chunks.count > 1
                     ? "Saving your reviews and watch dates… (\(index + 1) of \(chunks.count))"
                     : "Saving your reviews and watch dates…"
@@ -314,18 +341,18 @@ final class ImportRunner {
         let pendingSaves = outcome.watchlist.filter {
             !store.isOnWatchlist($0.movie.tmdbID) && !store.isWatched($0.movie.tmdbID)
         }
-        if !pendingSaves.isEmpty, !Task.isCancelled {
+        if !pendingSaves.isEmpty, !aborted {
             await saveWatchlistBulk(pendingSaves)
         }
 
         // Letterboxd custom lists → Cini lists (same name reused). A failed
         // read of existing lists must NOT look like "you have none" — that
         // would re-create every list as new on a retry. Skip the phase then.
-        if !Task.isCancelled, !outcome.importedLists.isEmpty,
+        if !aborted, !outcome.importedLists.isEmpty,
            let existing = try? await SupabaseService.shared.myLists() {
             progressText = "Rebuilding your lists…"
             for list in outcome.importedLists {
-                if Task.isCancelled { break }
+                if aborted { break }
                 var target = existing.first {
                     $0.name.localizedCaseInsensitiveCompare(list.name) == .orderedSame
                 }
@@ -334,7 +361,7 @@ final class ImportRunner {
                 }
                 guard let target else { continue }
                 for match in list.matches {
-                    if Task.isCancelled { break }
+                    if aborted { break }
                     store.cache(match.movie)
                     try? await SupabaseService.shared.cacheMovie(match.movie)
                     try? await SupabaseService.shared.addToList(target.id, movieID: match.movie.tmdbID)
@@ -343,7 +370,7 @@ final class ImportRunner {
             await store.refreshCustomLists()
         }
 
-        guard !Task.isCancelled else { return }
+        guard !aborted else { return }
         finish(outcome)
     }
 
@@ -397,7 +424,7 @@ final class ImportRunner {
             Array(items[$0..<min($0 + 400, items.count)])
         }
         for (index, chunk) in chunks.enumerated() {
-            if Task.isCancelled { return }
+            if aborted { return }
             progressFraction = Double(index + 1) / Double(chunks.count)
             do {
                 try await SupabaseService.shared.importWatchlist(chunk)
@@ -406,6 +433,7 @@ final class ImportRunner {
                     try await SupabaseService.shared.importWatchlist(chunk)
                 } catch {
                     SupabaseService.logSwallowed("import_watchlist", error)
+                    watchlistImportFailed = true
                     ToastCenter.shared.saveFailed()
                     break
                 }
@@ -420,11 +448,15 @@ final class ImportRunner {
     func successLine(for outcome: LetterboxdImporter.Result) -> String {
         var parts: [String] = []
         if pastedToWatchlist {
-            parts.append("\(outcome.watched.count) saved to Want to Watch")
+            parts.append(watchlistImportFailed
+                         ? "some titles couldn't sync — run the import again"
+                         : "\(outcome.watched.count) saved to Want to Watch")
         } else {
             if !outcome.watched.isEmpty { parts.append("\(outcome.watched.count) to rank") }
             if !outcome.watchlist.isEmpty {
-                parts.append("\(outcome.watchlist.count) saved")
+                parts.append(watchlistImportFailed
+                             ? "some of \(outcome.watchlist.count) saves didn't sync — run the import again"
+                             : "\(outcome.watchlist.count) saved")
             }
         }
         if !outcome.stillWatching.isEmpty {
@@ -436,6 +468,9 @@ final class ImportRunner {
         }
         if !outcome.importedLists.isEmpty {
             parts.append("\(outcome.importedLists.count) list\(outcome.importedLists.count == 1 ? "" : "s")")
+        }
+        if !outcome.errored.isEmpty {
+            parts.append("\(outcome.errored.count) couldn't be checked (connection trouble) — run the import again")
         }
         return parts.isEmpty ? "Import complete" : "Imported: " + parts.joined(separator: " · ")
     }
@@ -478,6 +513,7 @@ final class ImportRunner {
         merged.watchlist = watchlistOrder.compactMap { watchlistByID[$0] }
         merged.importedLists = results.flatMap { $0.importedLists }
         merged.unmatched = results.flatMap { $0.unmatched }
+        merged.errored = results.flatMap { $0.errored }
         merged.totalParsed = results.reduce(0) { $0 + $1.totalParsed }
         return merged
     }
@@ -491,6 +527,12 @@ final class ImportRunner {
         imported.rating = imported.rating ?? b.imported.rating
         imported.liked = imported.liked || b.imported.liked
         imported.watchDates.formUnion(b.imported.watchDates)
+        // A mid-binge show in either file stays "still watching" — dropping
+        // the flag here would queue a half-watched show to rank.
+        imported.stillWatching = imported.stillWatching || b.imported.stillWatching
+        if let other = b.imported.lastSeason, other > (imported.lastSeason ?? 0) {
+            imported.lastSeason = other
+        }
         return LetterboxdImporter.MatchedTitle(imported: imported, movie: a.movie)
     }
 }

@@ -1526,15 +1526,22 @@ final class SupabaseService {
 
     /// Which of these feed events the current user already liked — one
     /// query for the whole visible feed, so hearts survive a refresh.
-    func myLikedEventIDs(_ eventIDs: [UUID]) async -> Set<UUID> {
+    /// Nil = the query FAILED (keep whatever liked-state is showing);
+    /// an empty set means the server really said "none liked".
+    func myLikedEventIDs(_ eventIDs: [UUID]) async -> Set<UUID>? {
         guard let me = currentUserID, !eventIDs.isEmpty else { return [] }
         struct Row: Decodable { let event_id: UUID }
-        let rows: [Row] = (try? await client.from("likes")
-            .select("event_id")
-            .eq("user_id", value: me)
-            .in("event_id", values: eventIDs)
-            .execute().value) ?? []
-        return Set(rows.map(\.event_id))
+        do {
+            let rows: [Row] = try await client.from("likes")
+                .select("event_id")
+                .eq("user_id", value: me)
+                .in("event_id", values: eventIDs)
+                .execute().value
+            return Set(rows.map(\.event_id))
+        } catch {
+            SupabaseService.logSwallowed("myLikedEventIDs", error)
+            return nil
+        }
     }
 
     /// Idempotent on the *intended* state (`like`), not the observed one — a
@@ -2608,6 +2615,14 @@ struct WatchPlanRow: Codable, Identifiable, Hashable {
     let inviteeId: UUID
     let proposedAt: Date?
     let status: String
+    /// Who suggested the CURRENT time — flips on a counter-propose, so the
+    /// respond/waiting UI always puts the Accept button on the right side.
+    /// Optional for rows from before the column existed.
+    let lastProposer: UUID?
+
+    /// Whose turn it is to respond to the current time: the participant who
+    /// did NOT suggest it.
+    var currentProposerId: UUID { lastProposer ?? proposerId }
 
     enum CodingKeys: String, CodingKey {
         case id, status
@@ -2615,6 +2630,7 @@ struct WatchPlanRow: Codable, Identifiable, Hashable {
         case proposerId = "proposer_id"
         case inviteeId = "invitee_id"
         case proposedAt = "proposed_at"
+        case lastProposer = "last_proposer"
     }
 }
 

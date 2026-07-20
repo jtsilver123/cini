@@ -1305,7 +1305,9 @@ struct FeedView: View {
         async let unread = SupabaseService.shared.unreadNotificationCount()
         async let asks = SupabaseService.shared.incomingRecRequests()
         async let watching = SupabaseService.shared.friendsWatching()
-        likedEventIDs = await liked
+        // nil = likes query failed — keep the hearts we have rather than
+        // silently un-filling every liked heart for the session.
+        if let liked = await liked { likedEventIDs = liked }
         savedCounts = await counts
         unreadCount = await unread
         pendingAsks = (try? await asks) ?? []
@@ -2448,6 +2450,8 @@ struct NotificationsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var rows: [NotificationRow] = []
     @State private var loaded = false
+    @State private var loadFailed = false
+    @State private var reloadKey = 0
     @State private var detailMovie: Movie?
     @State private var memberTarget: MemberRef?
     @State private var commentsLink: CommentsLink?
@@ -2475,7 +2479,18 @@ struct NotificationsView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Theme.background)
             }
-            if rows.isEmpty && loaded {
+            if rows.isEmpty && loadFailed {
+                // A failed fetch is NOT "nothing yet" — offer a retry instead
+                // of the friend-less zero state.
+                EmptyStateView(
+                    icon: "wifi.exclamationmark",
+                    title: "Couldn't load notifications",
+                    message: "Check your connection and try again.",
+                    actionTitle: "Try again") { reloadKey += 1 }
+                    .frame(maxWidth: .infinity)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
+            } else if rows.isEmpty && loaded {
                 EmptyStateView(
                     icon: "bell",
                     title: "Nothing yet",
@@ -2525,11 +2540,22 @@ struct NotificationsView: View {
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            rows = (try? await SupabaseService.shared.notifications()) ?? []
-            loaded = true
-            await SupabaseService.shared.markNotificationsRead()
-            try? await UNUserNotificationCenter.current().setBadgeCount(0)
+        .task(id: reloadKey) {
+            // Mark-read ONLY after a successful fetch. Marking on failure
+            // flagged every unread notification as read without the user
+            // ever seeing one.
+            do {
+                rows = try await SupabaseService.shared.notifications()
+                loaded = true
+                loadFailed = false
+                await SupabaseService.shared.markNotificationsRead()
+                try? await UNUserNotificationCenter.current().setBadgeCount(0)
+            } catch {
+                if !Task.isCancelled {
+                    loadFailed = true
+                    loaded = true
+                }
+            }
         }
     }
 

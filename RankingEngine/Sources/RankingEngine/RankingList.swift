@@ -92,10 +92,13 @@ public struct RankingList<ID: Hashable & Codable & Sendable>: Codable, Sendable 
     }
 
     /// Commit a finished session. Returns the new item's scored entry.
+    /// Idempotent for re-ranks: if the item re-appeared in the list mid-session
+    /// (e.g. a background sync restored it), the stale entry is replaced —
+    /// mirroring the server's delete-then-insert in rank_insert.
     @discardableResult
     public mutating func commit(_ session: InsertionSession<ID>) -> ScoredItem<ID> {
         precondition(session.isComplete, "Session has unanswered comparisons")
-        precondition(sentiments[session.newItemID] == nil, "Item already ranked")
+        remove(session.newItemID)
         var ids = buckets[session.sentiment] ?? []
         // The bucket may have changed since the session snapshot (e.g. a
         // background sync); clamp so the commit is always valid.

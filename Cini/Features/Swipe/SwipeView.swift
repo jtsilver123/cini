@@ -50,8 +50,10 @@ struct SwipeView: View {
 
     /// The current pool minus dismissed / already-watched, filtered to the
     /// selected media kind.
-    /// Grid-mode action history (movie id, was-bookmarked) — powers Undo.
-    @State private var gridHistory: [(id: Int, saved: Bool)] = []
+    /// Grid-mode action history — powers Undo. `saved` = the tap was the
+    /// bookmark button; `toggled` = it actually ADDED a bookmark (an
+    /// already-bookmarked title stays bookmarked, so undo must not remove it).
+    @State private var gridHistory: [(id: Int, saved: Bool, toggled: Bool)] = []
 
     private var visible: [YourListsView.RecCandidate] {
         // No client-side `filters.passes` here: when filters are active the pool
@@ -147,7 +149,21 @@ struct SwipeView: View {
             // Filters drive the pool here — changing them fetches a fresh,
             // matching set (or the automatic pool when cleared).
             .onChange(of: filters) { _, _ in Task { await reloadPool() } }
+            // Cards swiped in the deck persist to `dismissedRaw` but the deck
+            // handles its own advance, so the session `dismissed` set doesn't
+            // hear about them. Fold them in when the view rebuilds (kind or
+            // layout toggle) — otherwise every swiped card comes back.
+            .onChange(of: suggestTV) { _, _ in foldPersistedDismissals() }
+            .onChange(of: layout) { _, _ in foldPersistedDismissals() }
         }
+    }
+
+    /// Sync the session dismissed set with the persisted one for titles in the
+    /// current pool. Called at deck-rebuild moments only, never mid-animation.
+    private func foldPersistedDismissals() {
+        let persisted = persistedDismissed
+        let inPool = candidates.map(\.movie.tmdbID).filter { persisted.contains($0) }
+        dismissed.formUnion(inPool)
     }
 
     /// Honor a deep link into Swipe: it preselects the media kind (Movies/TV).
@@ -290,14 +306,17 @@ struct SwipeView: View {
                             // A bookmark HANDLES the tile: it leaves the grid
                             // (same as card mode) so the page always shows
                             // what's still undecided. Undo brings it back.
+                            // Already bookmarked? Keep it that way — toggling
+                            // here would silently REMOVE it from Want to Watch.
                             recordDismiss(movie.tmdbID)
-                            gridHistory.append((movie.tmdbID, true))
-                            Task { await store.toggleWatchlist(movie: movie) }
+                            let adding = !store.isOnWatchlist(movie.tmdbID)
+                            gridHistory.append((movie.tmdbID, true, adding))
+                            if adding { Task { await store.toggleWatchlist(movie: movie) } }
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         },
                         onDismiss: { movie in
                             recordDismiss(movie.tmdbID)
-                            gridHistory.append((movie.tmdbID, false))
+                            gridHistory.append((movie.tmdbID, false, false))
                             Task { await SupabaseService.shared.passRec(movie.tmdbID) }
                             withAnimation(.snappy) { _ = dismissed.insert(movie.tmdbID) }
                         }
@@ -437,7 +456,10 @@ struct SwipeView: View {
         unrecordDismiss(last.id)
         withAnimation(.snappy) { _ = dismissed.remove(last.id) }
         if last.saved {
-            if let movie = store.movie(last.id) ?? candidates.first(where: { $0.movie.tmdbID == last.id })?.movie {
+            // Only take the bookmark back off if this action actually ADDED it
+            // — undoing a tap on an already-bookmarked title keeps the save.
+            if last.toggled,
+               let movie = store.movie(last.id) ?? candidates.first(where: { $0.movie.tmdbID == last.id })?.movie {
                 Task {
                     // Let the save toggle settle first (the store guards
                     // concurrent toggles per id — racing it would no-op).

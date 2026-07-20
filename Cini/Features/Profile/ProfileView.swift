@@ -323,7 +323,9 @@ struct ProfileScreen: View {
         events = (try? await eventsTask) ?? []
         // Which of these activity events the viewer already liked, so the cards'
         // hearts are filled correctly.
-        likedEventIDs = await supabase.myLikedEventIDs(events.map(\.id))
+        if let liked = await supabase.myLikedEventIDs(events.map(\.id)) {
+            likedEventIDs = liked
+        }
         watches = (try? await watchesTask) ?? []
         // Pull metadata for any watch (e.g. an import) the store/events don't cover.
         let missing = Set(watches.map(\.movieId)).filter { movies[$0] == nil && store.movie($0) == nil }

@@ -384,14 +384,22 @@ struct AuthView: View {
             // if it still won't save, stash it so loadProfile finishes the job
             // (otherwise a tear-down toast no one sees was the only signal, and
             // friends couldn't find the user by number).
+            // Stash BEFORE trying — a process death mid-retry must not drop
+            // the number. Tagged with the new account's id so the flush can
+            // never attach it to a different account.
+            UserDefaults.standard.set(e164Phone, forKey: "cini.pendingPhoneE164")
+            if let uid = SupabaseService.shared.currentUserID {
+                UserDefaults.standard.set(uid.uuidString, forKey: "cini.pendingPhoneUID")
+            }
             var saved = false
             for attempt in 0..<3 {
                 saved = await SupabaseService.shared.setPhone(e164Phone)
                 if saved { break }
                 try? await Task.sleep(for: .seconds(Double(attempt + 1)))
             }
-            if !saved {
-                UserDefaults.standard.set(e164Phone, forKey: "cini.pendingPhoneE164")
+            if saved {
+                UserDefaults.standard.removeObject(forKey: "cini.pendingPhoneE164")
+                UserDefaults.standard.removeObject(forKey: "cini.pendingPhoneUID")
             }
         } catch {
             errorMessage = friendly(error)

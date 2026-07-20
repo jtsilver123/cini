@@ -50,7 +50,7 @@ final class RankingStore {
     /// The kind list as it stood when the current log-flow session began —
     /// restored if the commit's server write fails, since a re-rank has
     /// already removed the entry by then (see `beginSession`/`commit`).
-    private var preSessionList: (key: String, list: RankingList<Int>)?
+    private var preSessionList: (key: String, movieID: Int, list: RankingList<Int>)?
 
     private let supabase: SupabaseService
     private let tmdb: TMDBService
@@ -316,7 +316,14 @@ final class RankingStore {
         // Keep the pre-session list so a failed commit can restore it exactly
         // (a re-rank removes the entry below; without this, a dead connection
         // at commit time would leave the title missing or mis-ranked locally).
-        preSessionList = (key, lists[key] ?? RankingList())
+        // A repeat begin for the SAME title (Undo back to details → Okay)
+        // must keep the ORIGINAL snapshot — the first beginReranking already
+        // removed the entry, so re-snapshotting here would capture a list
+        // that's missing it, and a failed commit would then erase the title
+        // instead of restoring it.
+        if preSessionList?.key != key || preSessionList?.movieID != movie.tmdbID {
+            preSessionList = (key, movie.tmdbID, lists[key] ?? RankingList())
+        }
         var kindList = lists[key] ?? RankingList()
         // Smart head-to-heads: seed the search where the PREDICTED score would
         // slot (so the first opponent is a title you'd score similarly, and it
@@ -335,6 +342,20 @@ final class RankingStore {
         lists[key] = kindList
         listChanged()
         return session
+    }
+
+    /// Abandoning a session mid-flow: restore the exact pre-session list
+    /// locally FIRST — a re-rank already removed the entry, and when offline
+    /// the load() resync fails and keeps whatever is in memory, silently
+    /// unranking the title for the rest of the session — then best-effort
+    /// reconcile with the server.
+    func abandonSession() async {
+        if let snapshot = preSessionList {
+            lists[snapshot.key] = snapshot.list
+            preSessionList = nil
+            listChanged()
+        }
+        await load()
     }
 
     /// Where the predicted score would slot in a bucket of `bucketSize` (the

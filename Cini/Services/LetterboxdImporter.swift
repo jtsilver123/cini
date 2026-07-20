@@ -59,6 +59,10 @@ enum LetterboxdImporter {
         /// marked as Currently Watching, NOT queued to rank.
         var stillWatching: [MatchedTitle] = []
         var unmatched: [ImportedTitle] = []
+        /// Titles whose TMDB lookups FAILED (network trouble) — distinct from
+        /// unmatched, which means TMDB answered and had nothing. These should
+        /// be re-run, not reported as unmatchable.
+        var errored: [ImportedTitle] = []
         var importedLists: [ImportedList] = []
         /// Matches that exist only for list membership.
         var listPool: [MatchedTitle] = []
@@ -615,27 +619,44 @@ enum LetterboxdImporter {
         // Bounded concurrency: 10 in flight is still gentle on TMDB (their
         // limit is ~50 req/s) and roughly halves a 1,500-film library's
         // matching time vs the old 5.
-        try await withThrowingTaskGroup(of: (ImportedTitle, Movie?).self) { group in
+        try await withThrowingTaskGroup(of: (ImportedTitle, Movie?, Bool).self) { group in
             var iterator = titles.makeIterator()
             var inFlight = 0
+
+            // Search with one retry; the Bool reports whether every lookup
+            // THREW (network trouble) — a real "no results" answer from TMDB
+            // is [] without an error, and only that may count as unmatched.
+            func search(_ query: String, year: Int?) async -> (results: [Movie]?, failed: Bool) {
+                for attempt in 0..<2 {
+                    do { return (try await tmdb.search(query: query, year: year), false) }
+                    catch {
+                        if attempt == 0 { try? await Task.sleep(for: .seconds(1)) }
+                    }
+                }
+                return (nil, true)
+            }
 
             func addNext() {
                 guard let next = iterator.next() else { return }
                 inFlight += 1
                 group.addTask {
-                    let primary = (try? await tmdb.search(query: next.title, year: next.year)) ?? []
-                    var match = bestMatch(for: next, in: primary)
+                    let primary = await search(next.title, year: next.year)
+                    var failed = primary.failed
+                    var match = bestMatch(for: next, in: primary.results ?? [])
                     if match == nil, next.year != nil {
-                        let fallback = (try? await tmdb.search(query: next.title)) ?? []
-                        match = bestMatch(for: next, in: fallback)
+                        let fallback = await search(next.title, year: nil)
+                        failed = failed && fallback.failed
+                        match = bestMatch(for: next, in: fallback.results ?? [])
+                    } else if match != nil {
+                        failed = false
                     }
-                    return (next, match)
+                    return (next, match, match == nil && failed)
                 }
             }
 
             for _ in 0..<10 { addNext() }
             while inFlight > 0 {
-                guard let (imported, movie) = try await group.next() else { break }
+                guard let (imported, movie, errored) = try await group.next() else { break }
                 inFlight -= 1
                 done += 1
                 if let movie {
@@ -644,7 +665,8 @@ enum LetterboxdImporter {
                     else if imported.isWatchlist { result.watchlist.append(matched) }
                     else { result.watched.append(matched) }
                 } else if !imported.isListOnly {
-                    result.unmatched.append(imported)
+                    if errored { result.errored.append(imported) }
+                    else { result.unmatched.append(imported) }
                 }
                 await onProgress(.matching(done: done, total: total))
                 addNext()

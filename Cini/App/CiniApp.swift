@@ -411,6 +411,32 @@ final class AppSession {
                 ImportQueue.shared.clear()
                 FriendsCache.shared.clear()
                 PrefsCache.shared.clear()
+                // A half-done import must die with the account that started it
+                // — otherwise it dumps the old library into the next signup.
+                ImportRunner.shared.cancel()
+                ImportHistory.clear()
+                ImportTransfer.clear()
+                // And every per-account default: search history, hidden recs,
+                // invite state, list filters, Tonight's Pick logs, the stashed
+                // phone number. Leaving any of these behind bleeds one
+                // account's state into the next on a shared device.
+                let defaults = UserDefaults.standard
+                for key in ["cini.pendingPhoneE164", "cini.pendingPhoneTries",
+                            "cini.pendingPhoneUID",
+                            "cini.pendingInviter", "cini.recentSearches",
+                            "cini.invitedPhones", "cini.dismissedContacts",
+                            "swipe.dismissedIDs", "swipe.importBannerHidden",
+                            "recs.demoSeen", "feed.nudgeDismissed",
+                            "feed.hideWatchingStories", "watchingStoriesSeen",
+                            "lists.hiddenTabs", "lists.genreFilter",
+                            "lists.decadeFilter", "lists.runtimeFilter",
+                            "lists.streamingProvider", "lists.sortMetric",
+                            "lists.sortDescending",
+                            "showtimes.zipcode", "showtimes.radius",
+                            "tonight.dismissed.date", "tonight.dismissed.ids",
+                            "tonight.shownLog", "tonight.suppressedUntil"] {
+                    defaults.removeObject(forKey: key)
+                }
             default:
                 break
             }
@@ -438,16 +464,28 @@ final class AppSession {
     private func flushPendingPhone() async {
         let phoneKey = "cini.pendingPhoneE164"
         let triesKey = "cini.pendingPhoneTries"
+        let uidKey = "cini.pendingPhoneUID"
         guard let phone = UserDefaults.standard.string(forKey: phoneKey) else { return }
+        // The stash is tagged with the account that entered the number — never
+        // attach it to anyone else. An untagged or mismatched stash is stale.
+        guard let owner = UserDefaults.standard.string(forKey: uidKey),
+              owner == supabase.currentUserID?.uuidString else {
+            UserDefaults.standard.removeObject(forKey: phoneKey)
+            UserDefaults.standard.removeObject(forKey: triesKey)
+            UserDefaults.standard.removeObject(forKey: uidKey)
+            return
+        }
         if await supabase.setPhone(phone) {
             UserDefaults.standard.removeObject(forKey: phoneKey)
             UserDefaults.standard.removeObject(forKey: triesKey)
+            UserDefaults.standard.removeObject(forKey: uidKey)
             return
         }
         let tries = UserDefaults.standard.integer(forKey: triesKey) + 1
         if tries >= 5 {
             UserDefaults.standard.removeObject(forKey: phoneKey)
             UserDefaults.standard.removeObject(forKey: triesKey)
+            UserDefaults.standard.removeObject(forKey: uidKey)
         } else {
             UserDefaults.standard.set(tries, forKey: triesKey)
         }

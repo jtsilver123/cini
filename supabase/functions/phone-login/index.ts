@@ -32,12 +32,13 @@ Deno.serve(async (req: Request) => {
     let userId: string | null = null;
     const uname = String(username ?? "").trim().replace(/^@+/, "");
     if (uname) {
-      // Usernames are unique; ilike (no wildcards) makes the match
-      // case-insensitive so "Jake" logs in the same as "jake".
+      // Usernames are stored lowercase (format constraint), so exact-match on
+      // the lowercased input. ilike treated "_" in a username as a wildcard —
+      // "jake_s" could resolve to a different account entirely.
       const { data: rows } = await admin
         .from("profiles")
         .select("id")
-        .ilike("username", uname)
+        .eq("username", uname.toLowerCase())
         .limit(1);
       userId = rows?.[0]?.id ?? null;
     } else {

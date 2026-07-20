@@ -41,6 +41,22 @@ final class InsertionSessionTests: XCTestCase {
         XCTAssertEqual(list.count, 1)
     }
 
+    func testCommitReplacesEntryRestoredMidSession() {
+        // A background sync can put the item BACK into the list while a
+        // re-rank session is running. Commit must replace that stale entry
+        // (like the server's delete-then-insert), never crash or duplicate.
+        var list = makeList(loved: [1, 2, 3])
+        var session = list.beginReranking(of: 2, sentiment: .loved)
+        while !session.isComplete { session.choose(.preferNew) }
+        // Simulate the sync restoring the old entry mid-session.
+        _ = list.insertWithoutComparisons(2, sentiment: .disliked)
+        let scored = list.commit(session)
+        XCTAssertEqual(scored.id, 2)
+        XCTAssertEqual(list.bucket(.loved).first, 2)
+        XCTAssertTrue(list.bucket(.disliked).isEmpty)
+        XCTAssertEqual(list.count, 3)
+    }
+
     // MARK: - Binary search behavior
 
     func testAlwaysPreferNewLandsAtTopOfBucket() {

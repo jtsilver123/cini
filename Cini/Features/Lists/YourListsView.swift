@@ -840,13 +840,21 @@ struct YourListsView: View {
                 customListMovies = []
                 customListLoaded = false
             }
-            let ids = (try? await SupabaseService.shared.listMovieIDs(listID)) ?? []
-            let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
-            let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.tmdbId, $0.asMovie) })
-            customListMovies = ids.compactMap { byID[$0] ?? store.movie($0) }
-            for movie in customListMovies { store.cache(movie) }
-            customListLoaded = true
-            loadedListID = listID
+            // A transient fetch failure must NEVER read as "this list is
+            // empty" — keep what's showing (refresh case) or leave the
+            // skeleton up with a toast (first load) rather than presenting
+            // the blank-canvas state over a populated list.
+            do {
+                let ids = try await SupabaseService.shared.listMovieIDs(listID)
+                let rows = (try? await SupabaseService.shared.movies(ids: ids)) ?? []
+                let byID = Dictionary(uniqueKeysWithValues: rows.map { ($0.tmdbId, $0.asMovie) })
+                customListMovies = ids.compactMap { byID[$0] ?? store.movie($0) }
+                for movie in customListMovies { store.cache(movie) }
+                customListLoaded = true
+                loadedListID = listID
+            } catch {
+                if !Task.isCancelled { ToastCenter.shared.show("Couldn't load that list — check your connection.") }
+            }
         }
     }
 
@@ -1248,17 +1256,29 @@ struct YourListsView: View {
             // Empty for THIS category → always offer a one-tap path to Recs
             // (same media kind, card/swipe mode). If saves exist under the other
             // category, the message says so, but the action stays "go discover".
+            // If saves exist HERE and filters/search merely hid them all, say
+            // THAT — "Nothing saved yet" over a populated list reads as data loss.
             if filteredWatchlist.isEmpty {
+                let hiddenByFilters = watchlistCount(in: category) > 0
                 let otherCount = watchlistCount(in: otherCategory)
-                emptyList(
-                    otherCount > 0
-                        ? "No \(category == .movies ? "movies" : "shows") here yet — your other saves are under \(otherCategory.title)."
-                        : "Nothing saved to Want to Watch yet. Tap the bookmark on any title to save it for later.",
-                    actionTitle: "Find \(category == .movies ? "movies" : "shows") to watch",
-                    actionIcon: "rectangle.stack") {
-                    // Land on Recs with the active media kind, in the last mode.
-                    tabRouter.pendingRecsTV = (category == .tvShows)
-                    tabRouter.selection = .swipe
+                if hiddenByFilters {
+                    emptyList("Nothing matches these filters — loosen one.",
+                              actionTitle: "Clear filters",
+                              actionIcon: "xmark.circle") {
+                        filtersBinding.wrappedValue = MovieFilters()
+                        listQuery = ""
+                    }
+                } else {
+                    emptyList(
+                        otherCount > 0
+                            ? "No \(category == .movies ? "movies" : "shows") here yet — your other saves are under \(otherCategory.title)."
+                            : "Nothing saved to Want to Watch yet. Tap the bookmark on any title to save it for later.",
+                        actionTitle: "Find \(category == .movies ? "movies" : "shows") to watch",
+                        actionIcon: "rectangle.stack") {
+                        // Land on Recs with the active media kind, in the last mode.
+                        tabRouter.pendingRecsTV = (category == .tvShows)
+                        tabRouter.selection = .swipe
+                    }
                 }
             }
         }

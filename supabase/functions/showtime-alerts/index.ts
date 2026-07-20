@@ -109,7 +109,16 @@ Deno.serve(async (_req: Request) => {
 
     const { data: tokens } = await supabase.from("device_tokens").select("user_id");
     const pushable = new Set((tokens ?? []).map((t: any) => t.user_id));
-    const candidates = profiles.filter((p: any) => pushable.has(p.id));
+    // Users with this alert kind muted are skipped BEFORE the once-ever
+    // notice is recorded — the mute trigger silently drops the notification
+    // row, so recording a notice for them would burn their only alert and
+    // unmuting later would never bring it back.
+    const { data: muted } = await supabase
+      .from("profiles")
+      .select("id")
+      .contains("muted_notification_kinds", ["watchlist_showing"]);
+    const mutedIDs = new Set((muted ?? []).map((m: any) => m.id));
+    const candidates = profiles.filter((p: any) => pushable.has(p.id) && !mutedIDs.has(p.id));
     if (!candidates.length) return new Response("no pushable users", { status: 200 });
 
     const userIDs = candidates.map((p: any) => p.id);
@@ -217,12 +226,29 @@ Deno.serve(async (_req: Request) => {
             .from("showtime_notices")
             .insert({ user_id: user.id, movie_id: entry.movie_id });
           if (noticeError) continue;
-          await supabase.from("notifications").insert({
-            recipient_id: user.id,
-            kind: "watchlist_showing",
-            movie_id: entry.movie_id,
-            message: phrase ? `First showing ${phrase}` : null,
-          });
+          // If the notification row doesn't land (transient failure, or the
+          // mute trigger swallowed it), take the notice back so the NEXT run
+          // retries — otherwise the once-ever alert vanishes: no push, no
+          // bell, and no second chance. `.select()` exposes the mute case:
+          // the trigger drops the row, so insert "succeeds" with zero rows.
+          const { data: inserted, error: notifError } = await supabase
+            .from("notifications")
+            .insert({
+              recipient_id: user.id,
+              kind: "watchlist_showing",
+              movie_id: entry.movie_id,
+              message: phrase ? `First showing ${phrase}` : null,
+            })
+            .select("id");
+          if (notifError || !inserted?.length) {
+            if (notifError) console.error("showtime-alerts notification insert:", notifError);
+            await supabase
+              .from("showtime_notices")
+              .delete()
+              .eq("user_id", user.id)
+              .eq("movie_id", entry.movie_id);
+            continue;
+          }
           notified++;
         }
       }

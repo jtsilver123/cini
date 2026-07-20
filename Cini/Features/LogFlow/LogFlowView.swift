@@ -202,11 +202,12 @@ struct LogFlowView: View {
         }
     }
 
-    /// Abandoning mid-flow: re-sync from the server in case a re-rank
-    /// already removed the local entry.
+    /// Abandoning mid-flow: restore the pre-session list locally (a re-rank
+    /// already removed the entry — offline, a bare resync can't bring it
+    /// back), then reconcile with the server.
     private func cancel() {
         if scored == nil && sentiment != nil {
-            Task { await store.load() }
+            Task { await store.abandonSession() }
         }
         dismiss()
     }
@@ -699,12 +700,17 @@ struct LogFlowView: View {
                 dismiss()
                 return
             }
-            // Refresh the streak BEFORE unlocking the reveal so a milestone
-            // celebration sees the new value, then let the score spring in.
-            await appSession.loadProfile()
+            // The server confirmed — reveal NOW. Gating the reveal on the
+            // profile refresh let one slow/unbounded request strand the user
+            // on "Saving…" (and cost them the notes/date sitting in the
+            // draft). The streak refresh runs concurrently, best-effort: a
+            // milestone celebration may very occasionally read the prior
+            // value, which beats a hung reveal every time.
             commitConfirmed = true
             maybeRevealScore()
+            let streakRefresh = Task { await appSession.loadProfile() }
             await persistDraft()
+            await streakRefresh.value
             // Insurance: if a future change re-shows the comparison card instead
             // of dismissing, don't leave commit permanently locked.
             committing = false

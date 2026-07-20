@@ -82,12 +82,15 @@ struct PlanWatchSheet: View {
     /// actually responding to one, or when a plan already exists.
     @ViewBuilder
     private var stateContent: some View {
+        // The respond/waiting split keys on who suggested the CURRENT time
+        // (lastProposer) — after a counter-propose the ball is back in the
+        // original inviter's court, and they must get the Accept button.
         if let plan, plan.status == "accepted" {
             acceptedState(plan)
-        } else if let plan, plan.status == "proposed", plan.proposerId == friend.id {
-            respondState(plan)            // they invited me
-        } else if let plan, plan.status == "proposed", let myID, plan.proposerId == myID {
-            waitingState(plan)            // I invited them
+        } else if let plan, plan.status == "proposed", plan.currentProposerId == friend.id {
+            respondState(plan)            // their suggested time — I respond
+        } else if let plan, plan.status == "proposed", let myID, plan.currentProposerId == myID {
+            waitingState(plan)            // my suggested time — waiting on them
         } else {
             planControls                  // no plan (or declined) → fresh invite
         }

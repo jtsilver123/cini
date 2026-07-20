@@ -135,10 +135,16 @@ struct CustomListScreen: View {
         // Keyed on listsRevision (like the inline Lists tab) so an add from
         // another screen — a movie page, Chat — shows up while this is open.
         .task(id: store.listsRevision) {
-            movieIDs = (try? await SupabaseService.shared.listMovieIDs(list.id)) ?? []
-            let rows = (try? await SupabaseService.shared.movies(ids: movieIDs)) ?? []
-            for row in rows { movies[row.tmdbId] = row.asMovie }
-            loaded = true
+            // A failed fetch must not blank a populated list (or flip an
+            // unloaded one to the empty state) — keep what's showing and say so.
+            do {
+                movieIDs = try await SupabaseService.shared.listMovieIDs(list.id)
+                let rows = (try? await SupabaseService.shared.movies(ids: movieIDs)) ?? []
+                for row in rows { movies[row.tmdbId] = row.asMovie }
+                loaded = true
+            } catch {
+                if !Task.isCancelled { ToastCenter.shared.show("Couldn't load that list — check your connection.") }
+            }
         }
     }
 
