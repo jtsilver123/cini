@@ -395,13 +395,17 @@ East, City Cinemas 1-2-3, Maysles, Firehouse DCTV, Florence Gould.
 These are at practical parity — their sites don't publish further out.
 
 *** MISSING ENTIRELY — the real gaps vs Fandango/nyc.com ***
-1. REGAL: absent from Gracenote on our key (verified: Regal Union Sq
-   invisible in a 2-mi query). That's Union Square 14, E-Walk 42nd St,
-   Battery Park, Essex Crossing, Kaufman Astoria, UA Court St, Atlas
-   Park, Staten Island. regmovies.com AND its JSON API are
-   Cloudflare-walled to servers. Biggest single parity gap; needs a
-   licensed feed (MovieGlu / Webedia) or a Gracenote key tier that
-   includes Regal.
+1. REGAL: excluded from our Gracenote key NATIONWIDE, not just NYC —
+   verified zero Regal theaters in Knoxville (their HQ market), LA, and
+   Chicago while AMC/Cinemark appear normally. This is a LICENSE-TIER
+   restriction (Regal/Cineworld limits which aggregator tiers carry
+   their data). regmovies.com and its JSON API are Cloudflare-walled to
+   servers (Googlebot spoofing included — CF verifies by IP), as is
+   nyc.com itself. THE FIX IS COMMERCIAL, NOT TECHNICAL: contact
+   Gracenote/TMS about enabling Regal on the key (nyc.com's movie IDs
+   are TMS-format — they run a full-tier license of the same feed), or
+   license MovieGlu/Webedia as a secondary source. Everything scrapable
+   has been scraped; this is the one remaining delta of any size.
 2. Cinépolis Chelsea — site Cloudflare-walled.
 3. Look Cinemas W57 — JS-only site, no server-readable data.
 4. iPic Fulton Market — app-driven site.
