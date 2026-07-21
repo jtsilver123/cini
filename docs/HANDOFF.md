@@ -375,20 +375,21 @@ and shipped on request only — Apple caps uploads per app per day
 4. Security hygiene: rotate `sb_secret` Supabase key, revoke old Apple key
    J4369F4GMF, eventually rotate ASC_KEY_P8 (all passed through chat)
 
-## Known data-source gap: Gracenote misses NYC institutional venues
+## Known data-source behavior: indie theaters publish showtimes late
 
-Verified live (Jul 20, 2026): a Basic Instinct screening listed on nyc.com
-for Jul 26 does not exist anywhere in Gracenote's feed — the app's exact
-window query (zip 10001, radius up to 50 mi, 14 days) returns 131-133
-listings across 51+ theaters with zero hits for the title. Gracenote's NYC
-coverage includes every commercial + most repertory houses (Film Forum,
-Metrograph, IFC, Paris, Nitehawk, Quad, BAM, Alamo, Angelika…) but OMITS
-the nonprofit/institutional venues: Film at Lincoln Center, MoMA,
-Anthology Film Archives, Museum of the Moving Image. One-off screenings at
-those venues (where this one almost certainly is) will never appear in the
-app regardless of client logic. Fix requires a second data source for
-those venues (scrape or license); until then this is an upstream gap, not
-an app bug.
+Verified live (Jul 20, 2026) while chasing "Basic Instinct @ Metrograph
+Jul 26 shows on nyc.com but not in the app": Gracenote DOES carry
+Metrograph (26 listings that week), but its per-venue horizon differs
+wildly — every AMC/Alamo/chain publishes through ~Aug 2 (2 weeks out),
+while most independents (Metrograph, Film Forum, IFC, Paris, Angelika,
+Cinema Village…) end at ~Jul 23 (≈3 days out). The Jul 26 screening will
+flow in automatically once Metrograph's feed extends, and the hourly
+showtime-alerts sweep will fire the once-ever ticket alert for anyone who
+saved the title. Client mitigation shipped: the calendar's footnote now
+says chains publish 1-2 weeks out and indie theaters just a few days.
+Separately, Gracenote does NOT carry the nonprofit institutional venues
+at all (Film at Lincoln Center, MoMA, Anthology Film Archives, Museum of
+the Moving Image) — screenings there need a second data source.
 
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 

@@ -739,7 +739,11 @@ struct TheaterCalendarView: View {
                         .padding(.horizontal, 32)
                 } else if !nowPlaying.isEmpty,
                    cal.isDate(visibleMonth, equalTo: Date(), toGranularity: .month) {
-                    Text("Days fill in as theaters post showtimes — usually one to two weeks ahead.")
+                    // Verified live: big chains publish ~2 weeks of showtimes,
+                    // but independents (Metrograph, Film Forum, IFC…) often
+                    // post only ~3 days ahead — a blank day next weekend can
+                    // still gain a one-off screening closer to the date.
+                    Text("Days fill in as theaters post showtimes — chains publish a week or two out, indie theaters often just a few days.")
                         .font(.caption2)
                         .foregroundStyle(Theme.gray)
                         .multilineTextAlignment(.center)
