@@ -375,6 +375,21 @@ and shipped on request only — Apple caps uploads per app per day
 4. Security hygiene: rotate `sb_secret` Supabase key, revoke old Apple key
    J4369F4GMF, eventually rotate ASC_KEY_P8 (all passed through chat)
 
+## Known data-source gap: Gracenote misses NYC institutional venues
+
+Verified live (Jul 20, 2026): a Basic Instinct screening listed on nyc.com
+for Jul 26 does not exist anywhere in Gracenote's feed — the app's exact
+window query (zip 10001, radius up to 50 mi, 14 days) returns 131-133
+listings across 51+ theaters with zero hits for the title. Gracenote's NYC
+coverage includes every commercial + most repertory houses (Film Forum,
+Metrograph, IFC, Paris, Nitehawk, Quad, BAM, Alamo, Angelika…) but OMITS
+the nonprofit/institutional venues: Film at Lincoln Center, MoMA,
+Anthology Film Archives, Museum of the Moving Image. One-off screenings at
+those venues (where this one almost certainly is) will never appear in the
+app regardless of client logic. Fix requires a second data source for
+those venues (scrape or license); until then this is an upstream gap, not
+an app bug.
+
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 
 Two multi-agent audits (July 2026: app-wide + theater) confirmed 84
