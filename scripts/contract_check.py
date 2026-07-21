@@ -188,6 +188,8 @@ RPCS = [
     ("set_timezone", {"p_tz": "America/New_York"}),
     ("set_home_zip", {"p_zip": "10001"}),
     ("set_home_area", {"p_zip": "10001", "p_radius": 15}),
+    # Indie-venue showings for the calendar/sheet/alerts merge.
+    ("supplemental_showings", {"p_metro": "nyc"}),
     # Muting then unmuting a kind the demo doesn't use leaves state unchanged.
     ("set_notification_kind_muted", {"p_kind": "contract_check_probe", "p_muted": False}),
     # Empty array stores nothing; forget clears the caller's own hashes.

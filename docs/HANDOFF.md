@@ -375,6 +375,20 @@ and shipped on request only — Apple caps uploads per app per day
 4. Security hygiene: rotate `sb_secret` Supabase key, revoke old Apple key
    J4369F4GMF, eventually rotate ASC_KEY_P8 (all passed through chat)
 
+## Indie showtimes: SOLVED via direct venue fetcher (indie-showtimes)
+
+Update: the horizon gap below is now closed for Metrograph, Film Forum,
+IFC Center, and Anthology Film Archives. The `indie-showtimes` edge
+function (6-hourly cron) reads each venue's public calendar directly into
+`supplemental_showtimes`; the app merges those rows into the theater
+calendar, showtimes sheet (with real ticket links, sold-out shows
+included), and ticket alerts via `supplemental_showings(p_metro)`.
+Verified at deploy: 548 showings, exact 166/166 parity with Metrograph's
+box office, Basic Instinct Jul 26 present with the correct Vista session.
+Adapters keep previous rows when a site's markup changes (stale beats
+empty) and log loudly. Still uncovered: Film at Lincoln Center, MoMA,
+MoMI (Cloudflare-walled — need a licensed source).
+
 ## Known data-source behavior: indie theaters publish showtimes late
 
 Verified live (Jul 20, 2026) while chasing "Basic Instinct @ Metrograph

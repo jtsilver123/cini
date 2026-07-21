@@ -142,7 +142,7 @@ final class ShowtimesService: ShowtimesProviding {
             }
         }
 
-        return byTheatre
+        var theaters = byTheatre
             .map { id, value in
                 TheaterShowtimes(
                     id: id,
@@ -151,7 +151,62 @@ final class ShowtimesService: ShowtimesProviding {
                     showtimes: value.times.sorted { $0.startTime < $1.startTime }
                 )
             }
-            .sorted { $0.theaterName < $1.theaterName }
+        // Indie venues publish direct — merge their showings for THIS movie
+        // on THIS day, with real ticket links. Near-term days can exist in
+        // both feeds: times within the same minute at the same venue dedupe.
+        if let metro = Self.metro(forZip: zipcode) {
+            let dayPrefix = day
+            let supplemental = await supplementalRows(metro: metro).filter {
+                $0.startsAt.hasPrefix(dayPrefix) && Self.supplementalMatches($0, movie: movie)
+            }
+            for row in supplemental {
+                guard let start = DateFormatter.gracenoteDateTime.date(from: row.startsAt) else { continue }
+                let showtime = Showtime(
+                    id: "supp-\(row.venue)-\(row.startsAt)",
+                    startTime: start,
+                    format: row.format,
+                    isBargain: false,
+                    bookingURL: row.ticketUrl.flatMap(URL.init)
+                )
+                if let index = theaters.firstIndex(where: {
+                    $0.theaterName.caseInsensitiveCompare(row.venue) == .orderedSame
+                }) {
+                    let existing = theaters[index]
+                    guard !existing.showtimes.contains(where: {
+                        abs($0.startTime.timeIntervalSince(start)) < 60
+                    }) else { continue }
+                    theaters[index] = TheaterShowtimes(
+                        id: existing.id,
+                        theaterName: existing.theaterName,
+                        amenities: existing.amenities,
+                        showtimes: (existing.showtimes + [showtime])
+                            .sorted { $0.startTime < $1.startTime }
+                    )
+                } else {
+                    theaters.append(TheaterShowtimes(
+                        id: "supp-\(row.venue)",
+                        theaterName: row.venue,
+                        amenities: [],
+                        showtimes: [showtime]
+                    ))
+                }
+            }
+            // A new venue may have arrived with multiple times — re-collapse.
+            var merged: [String: TheaterShowtimes] = [:]
+            for theater in theaters {
+                if let existing = merged[theater.id] {
+                    merged[theater.id] = TheaterShowtimes(
+                        id: existing.id, theaterName: existing.theaterName,
+                        amenities: existing.amenities,
+                        showtimes: (existing.showtimes + theater.showtimes)
+                            .sorted { $0.startTime < $1.startTime })
+                } else {
+                    merged[theater.id] = theater
+                }
+            }
+            theaters = Array(merged.values)
+        }
+        return theaters.sorted { $0.theaterName < $1.theaterName }
     }
 
     /// One film playing nearby: canonical title (variants merged), year, and
@@ -202,6 +257,96 @@ final class ShowtimesService: ShowtimesProviding {
         }
     }
 
+    // MARK: - Supplemental indie venues
+
+    /// Metro key for supplemental indie-venue showtimes, from a US zip.
+    /// nil = no supplemental coverage for this area yet. (All v1 venues are
+    /// in Manhattan; the prefixes cover the five boroughs + Hudson-county NJ.)
+    static func metro(forZip zip: String) -> String? {
+        guard zip.count == 5 else { return nil }
+        let p3 = String(zip.prefix(3))
+        let nyc = ["100", "101", "102", "103", "104", "110", "111", "112",
+                   "113", "114", "116", "070", "071", "072", "073"]
+        return nyc.contains(p3) ? "nyc" : nil
+    }
+
+    private struct CachedSupplemental: Codable {
+        let savedAt: Date
+        let rows: [SupabaseService.SupplementalShowingRow]
+    }
+
+    /// Indie-venue showings for a metro, cached 6h (the server fetcher runs
+    /// on the same cadence). Best-effort: a failed fetch returns the stale
+    /// cache if any, else [] — Gracenote results must never be blocked on it.
+    private func supplementalRows(metro: String) async -> [SupabaseService.SupplementalShowingRow] {
+        let key = "supp.\(metro)"
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: key),
+           let cached = try? JSONDecoder().decode(CachedSupplemental.self, from: data),
+           Date().timeIntervalSince(cached.savedAt) < 6 * 3600 {
+            return cached.rows
+        }
+        guard let rows = try? await SupabaseService.shared.supplementalShowings(metro: metro) else {
+            if let data = defaults.data(forKey: key),
+               let cached = try? JSONDecoder().decode(CachedSupplemental.self, from: data) {
+                return cached.rows
+            }
+            return []
+        }
+        if let data = try? JSONEncoder().encode(CachedSupplemental(savedAt: Date(), rows: rows)) {
+            defaults.set(data, forKey: key)
+        }
+        return rows
+    }
+
+    private static func yearCompatible(_ a: Int?, _ b: Int?) -> Bool {
+        guard let a, let b else { return true }
+        return abs(a - b) <= 1
+    }
+
+    /// Does a supplemental showing belong to this movie? Strict canonical
+    /// title match (venue sites use ALL-CAPS/variant dressing) + year
+    /// tolerance when both sides know one.
+    static func supplementalMatches(_ row: SupabaseService.SupplementalShowingRow,
+                                    movie: Movie) -> Bool {
+        normalizeForMatch(canonicalTitle(row.title)) == normalizeForMatch(movie.title)
+            && yearCompatible(movie.releaseYear, row.releaseYear)
+    }
+
+    /// Union indie-venue showings into the Gracenote slate so calendar marks
+    /// match what the venues' own box offices sell.
+    static func mergeSupplemental(_ rows: [SupabaseService.SupplementalShowingRow],
+                                  into listings: [LocalListing]) -> [LocalListing] {
+        guard !rows.isEmpty else { return listings }
+        let cal = Calendar.current
+        var out = listings
+        struct Key: Hashable { let norm: String; let year: Int? }
+        var grouped: [Key: (title: String, year: Int?, days: Set<Date>)] = [:]
+        for row in rows {
+            guard let start = DateFormatter.gracenoteDateTime.date(from: row.startsAt) else { continue }
+            let canonical = canonicalTitle(row.title)
+            guard !canonical.isEmpty else { continue }
+            let key = Key(norm: normalizeForMatch(canonical), year: row.releaseYear)
+            var entry = grouped[key] ?? (canonical, row.releaseYear, [])
+            entry.days.insert(cal.startOfDay(for: start))
+            grouped[key] = entry
+        }
+        for (key, extra) in grouped {
+            if let index = out.firstIndex(where: {
+                normalizeForMatch(canonicalTitle($0.title)) == key.norm
+                    && yearCompatible($0.year, extra.year)
+            }) {
+                let existing = out[index]
+                out[index] = LocalListing(title: existing.title,
+                                          year: existing.year ?? extra.year,
+                                          days: existing.days.union(extra.days))
+            } else {
+                out.append(LocalListing(title: extra.title, year: extra.year, days: extra.days))
+            }
+        }
+        return out
+    }
+
     /// The COMPLETE local slate: every film with a posted showing near this
     /// zip over the posted window, with the days each one plays. This is the
     /// exhaustive source for the "All releases" calendar — Gracenote returns
@@ -241,9 +386,15 @@ final class ShowtimesService: ShowtimesProviding {
             }
             merged[key] = entry
         }
-        let result = merged.values
+        var result = merged.values
             .filter { !$0.days.isEmpty }
             .map { LocalListing(title: $0.title, year: $0.year, days: $0.days) }
+        // Indie venues publish direct (indie-showtimes fetcher) weeks past
+        // their Gracenote feed — union them in so the calendar sells what
+        // their box offices sell. Best-effort: a miss caches Gracenote-only.
+        if let metro = Self.metro(forZip: zipcode) {
+            result = Self.mergeSupplemental(await supplementalRows(metro: metro), into: result)
+        }
         cacheSchedule(result, key: cacheKey)
         return result
     }
@@ -256,6 +407,10 @@ final class ShowtimesService: ShowtimesProviding {
     func playingDays(for movies: [Movie], zipcode: String, radius: Int = 15,
                      days: Int = 14) async throws -> [Int: Set<Date>] {
         let listings = try await fetchShowings(zipcode: zipcode, radius: radius, days: days)
+        var supplemental: [SupabaseService.SupplementalShowingRow] = []
+        if let metro = Self.metro(forZip: zipcode) {
+            supplemental = await supplementalRows(metro: metro)
+        }
         let cal = Calendar.current
         var result: [Int: Set<Date>] = [:]
         for movie in movies where movie.tmdbID > 0 {
@@ -265,6 +420,12 @@ final class ShowtimesService: ShowtimesProviding {
                         .date(from: showing.dateTime ?? "") else { continue }
                     result[movie.tmdbID, default: []].insert(cal.startOfDay(for: start))
                 }
+            }
+            // Indie venues too — a saved movie's one-off repertory screening
+            // must mark the calendar like any chain showing.
+            for row in supplemental where Self.supplementalMatches(row, movie: movie) {
+                guard let start = DateFormatter.gracenoteDateTime.date(from: row.startsAt) else { continue }
+                result[movie.tmdbID, default: []].insert(cal.startOfDay(for: start))
             }
         }
         return result

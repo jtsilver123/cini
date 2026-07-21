@@ -245,6 +245,35 @@ final class SupabaseService {
         _ = try await client.rpc("set_home_zip", params: Params(p_zip: zip)).execute()
     }
 
+    /// One showing at an independent theater covered by the indie-showtimes
+    /// fetcher — venues whose Gracenote feeds lag days behind their own box
+    /// offices. Merged into the calendar, showtimes sheet, and alerts.
+    struct SupplementalShowingRow: Codable, Hashable {
+        let venue: String
+        let venueZip: String
+        let title: String
+        let releaseYear: Int?
+        let format: String?
+        /// Venue-local 'YYYY-MM-DDTHH:mm' (Gracenote's dateTime shape).
+        let startsAt: String
+        let ticketUrl: String?
+
+        enum CodingKeys: String, CodingKey {
+            case venue, title, format
+            case venueZip = "venue_zip"
+            case releaseYear = "release_year"
+            case startsAt = "starts_at"
+            case ticketUrl = "ticket_url"
+        }
+    }
+
+    /// Every upcoming indie-venue showing in a metro (see supplemental_venues).
+    func supplementalShowings(metro: String) async throws -> [SupplementalShowingRow] {
+        struct Params: Encodable { let p_metro: String }
+        return try await client.rpc("supplemental_showings",
+                                    params: Params(p_metro: metro)).execute().value
+    }
+
     /// ZIP + alert radius together — the server's ticket-alert sweep honors
     /// the radius the user picked (it used to be hardcoded to 15 mi).
     func setHomeArea(zip: String, radius: Int) async throws {

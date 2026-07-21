@@ -159,6 +159,49 @@ Deno.serve(async (_req: Request) => {
       .range(f, t));
     const alreadyNoticed = new Set(noticed.map((n: any) => `${n.user_id}:${n.movie_id}`));
 
+    // Indie-venue showings (indie-showtimes fetcher) — weeks past what
+    // Gracenote carries for these theaters. Grouped by metro; merged into
+    // each zip group's slate below so one-off repertory screenings fire
+    // ticket alerts like any chain showing. Mirrors the app's zip→metro map.
+    const METRO_PREFIXES: Record<string, string[]> = {
+      nyc: ["100", "101", "102", "103", "104", "110", "111", "112",
+            "113", "114", "116", "070", "071", "072", "073"],
+    };
+    const metroOf = (zip: string): string | null => {
+      const p3 = String(zip).slice(0, 3);
+      for (const [metro, prefixes] of Object.entries(METRO_PREFIXES)) {
+        if (prefixes.includes(p3)) return metro;
+      }
+      return null;
+    };
+    const { data: suppVenues } = await supabase
+      .from("supplemental_venues").select("id, metro");
+    const venueMetro = new Map((suppVenues ?? []).map((v: any) => [v.id, v.metro]));
+    const suppRows = await allRows((f, t) => supabase
+      .from("supplemental_showtimes")
+      .select("venue_id, title, release_year, starts_at")
+      .range(f, t));
+    const suppByMetro = new Map<string, { title: string; releaseYear?: number; earliest: string | null }[]>();
+    {
+      const grouped = new Map<string, { title: string; releaseYear?: number; earliest: string | null }>();
+      for (const r of suppRows) {
+        const metro = venueMetro.get(r.venue_id);
+        if (!metro) continue;
+        const key = `${metro}|${r.title}|${r.release_year ?? ""}`;
+        const existing = grouped.get(key);
+        if (existing) {
+          if (!existing.earliest || r.starts_at < existing.earliest) existing.earliest = r.starts_at;
+        } else {
+          grouped.set(key, { title: r.title, releaseYear: r.release_year ?? undefined, earliest: r.starts_at });
+        }
+      }
+      for (const [key, val] of grouped) {
+        const metro = key.split("|")[0];
+        if (!suppByMetro.has(metro)) suppByMetro.set(metro, []);
+        suppByMetro.get(metro)!.push(val);
+      }
+    }
+
     // One Gracenote request per DISTINCT (zip, radius) pair.
     const byZip = new Map<string, any[]>();
     for (const p of candidates) {
@@ -209,6 +252,9 @@ Deno.serve(async (_req: Request) => {
           playing.push({ title: listing.title, releaseYear: listing.releaseYear, earliest });
         }
       }
+      // Indie-venue slate joins the Gracenote slate for metro zips.
+      const metro = metroOf(zip);
+      if (metro && suppByMetro.has(metro)) playing.push(...suppByMetro.get(metro)!);
       if (!playing.length) continue;
 
       for (const user of users) {
