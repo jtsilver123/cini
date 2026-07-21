@@ -375,6 +375,39 @@ and shipped on request only — Apple caps uploads per app per day
 4. Security hygiene: rotate `sb_secret` Supabase key, revoke old Apple key
    J4369F4GMF, eventually rotate ASC_KEY_P8 (all passed through chat)
 
+## NYC theater-coverage audit (Jul 21, 2026) — parity vs Fandango/nyc.com
+
+Audited every NYC venue against our merged feed (Gracenote + supplemental).
+State of coverage:
+
+AT PARITY via Gracenote (2-week horizons): every AMC (14 locations),
+Alamo x3, Angelika, BAM, Roxy, Williamsburg Cinemas, Cobble Hill, Kew
+Gardens, Cinemart, CityPlex Newark, and 20+ more chains/indies.
+
+AT PARITY via the supplemental fetcher (their own box-office horizon):
+Metrograph (166/166 verified), Film Forum, IFC Center, Anthology Film
+Archives, Nitehawk Williamsburg + Prospect Park (site publishes ~10
+days vs ~2 in their Gracenote feed) — 880+ showings, refreshed 6-hourly.
+
+GRACENOTE-ONLY with short (~3-day) horizons, site adds nothing more
+(checked): Quad, Cinema Village (homepage is today-only), Paris, Village
+East, City Cinemas 1-2-3, Maysles, Firehouse DCTV, Florence Gould.
+These are at practical parity — their sites don't publish further out.
+
+*** MISSING ENTIRELY — the real gaps vs Fandango/nyc.com ***
+1. REGAL: absent from Gracenote on our key (verified: Regal Union Sq
+   invisible in a 2-mi query). That's Union Square 14, E-Walk 42nd St,
+   Battery Park, Essex Crossing, Kaufman Astoria, UA Court St, Atlas
+   Park, Staten Island. regmovies.com AND its JSON API are
+   Cloudflare-walled to servers. Biggest single parity gap; needs a
+   licensed feed (MovieGlu / Webedia) or a Gracenote key tier that
+   includes Regal.
+2. Cinépolis Chelsea — site Cloudflare-walled.
+3. Look Cinemas W57 — JS-only site, no server-readable data.
+4. iPic Fulton Market — app-driven site.
+5. Institutions: Film at Lincoln Center, MoMA, Museum of the Moving
+   Image (Cloudflare) + occasional venues (United Palace, Japan Society).
+
 ## Indie showtimes: SOLVED via direct venue fetcher (indie-showtimes)
 
 Update: the horizon gap below is now closed for Metrograph, Film Forum,

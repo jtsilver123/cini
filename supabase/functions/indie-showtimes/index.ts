@@ -265,12 +265,54 @@ async function anthology(): Promise<Row[]> {
   return rows;
 }
 
+// ---- Nitehawk (Williamsburg + Prospect Park): per-day pages at
+// /{location}/{YYYY-MM-DD}/{offset}/ with show-container blocks — a
+// screen-reader-text title and showtime anchors with purchase links.
+// Their site publishes ~10 days; their Gracenote feed only ~2.
+async function nitehawk(venueID: string, slug: string): Promise<Row[]> {
+  const rows: Row[] = [];
+  const today = nyToday();
+  for (let offset = 0; offset < 12; offset++) {
+    const date = isoDay(addDays(today, offset));
+    const html = await fetchText(
+      `https://nitehawkcinema.com/${slug}/${date}/${offset}/`,
+    );
+    if (!html) continue;
+    let sawAny = false;
+    for (const block of html.split(/class="show-container/).slice(1)) {
+      const title = block.match(/class="screen-reader-text">([^<]+)</)?.[1];
+      if (!title) continue;
+      const timeRe = /<a href="(https:\/\/nitehawkcinema\.com\/[^"]*purchase[^"]*)"[^>]*class="showtime[^"]*">\s*([\d:]+\s*[ap]m)/gi;
+      let t;
+      while ((t = timeRe.exec(block))) {
+        const hm = to24h(t[2]);
+        if (!hm) continue;
+        sawAny = true;
+        rows.push({
+          venue_id: venueID,
+          title: decodeEntities(title),
+          release_year: null,
+          format: null,
+          starts_at: `${date}T${hm}`,
+          ticket_url: t[1],
+        });
+      }
+    }
+    // Past their published horizon the pages come back empty — stop
+    // burning fetches once two consecutive days have nothing.
+    if (!sawAny && offset > 6) break;
+  }
+  return rows;
+}
+
 Deno.serve(async (_req: Request) => {
   const adapters: [string, () => Promise<Row[]>][] = [
     ["metrograph", metrograph],
     ["filmforum", filmforum],
     ["ifc", ifc],
     ["anthology", anthology],
+    ["nitehawk-wb", () => nitehawk("nitehawk-wb", "williamsburg")],
+    ["nitehawk-pp", () => nitehawk("nitehawk-pp", "prospectpark")],
   ];
   const counts: Record<string, number> = {};
   for (const [venue, run] of adapters) {
