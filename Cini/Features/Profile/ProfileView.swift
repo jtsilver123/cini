@@ -307,7 +307,7 @@ struct ProfileScreen: View {
             async let followingState = supabase.isFollowing(id)
             async let pendingState = supabase.followRequestPending(id)
             async let match = supabase.tasteMatch(with: id)
-            async let memberWatchlistTask = supabase.watchlist(userID: id)
+            async let memberWatchlistTask = supabase.watchlistSlim(userID: id)
             async let blockedTask = supabase.blockedIDs()
             profile = try? await profileTask.asProfile
             rankings = (try? await rankingsTask) ?? []
@@ -325,7 +325,13 @@ struct ProfileScreen: View {
             blocked = await blockedTask.contains(id)
             let memberWatchlist = (try? await memberWatchlistTask) ?? []
             watchlistCount = memberWatchlist.count
-            bothWantToWatch = memberWatchlist.filter { store.isOnWatchlist($0.movieId) }
+            // The "you both want to watch" screen only needs each title's id
+            // (it renders from the store) — build minimal rows from the slim
+            // fetch rather than downloading every note/watch-by we won't show.
+            bothWantToWatch = memberWatchlist
+                .filter { store.isOnWatchlist($0.movieId) }
+                .map { WatchlistRow(id: UUID(), userId: id, movieId: $0.movieId,
+                                    createdAt: $0.createdAt, note: nil, watchBy: nil) }
         }
 
         // Best -> worst across buckets.

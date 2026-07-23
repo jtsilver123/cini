@@ -449,6 +449,27 @@ final class SupabaseService {
             .execute().value
     }
 
+    /// Just the ids + dates of a watchlist — for a MEMBER's profile, which
+    /// only needs a count and the viewer-intersection, not the full rows
+    /// (note/watch-by). A power user's 2,000-row watchlist was downloaded in
+    /// full just to show a number.
+    struct WatchlistSlimRow: Decodable {
+        let movieId: Int
+        let createdAt: Date
+        enum CodingKeys: String, CodingKey {
+            case movieId = "movie_id"
+            case createdAt = "created_at"
+        }
+    }
+
+    func watchlistSlim(userID: UUID) async throws -> [WatchlistSlimRow] {
+        try await client.from("watchlist")
+            .select("movie_id, created_at")
+            .eq("user_id", value: userID)
+            .order("created_at", ascending: false)
+            .execute().value
+    }
+
     /// Optional "watch by" goal date (ISO yyyy-MM-dd, or nil to clear).
     /// Returns true on success so the caller can revert its optimistic edit.
     @discardableResult

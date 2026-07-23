@@ -1143,9 +1143,23 @@ struct FeedView: View {
         // Recomputed below: true only if eligible picks remain past the 3-deck cap.
         tonightHasMore = false
 
+        // Both source RPCs are independent — fetch them concurrently instead
+        // of one-then-the-other (the assembly order below still leads with
+        // continue-watching).
+        async let inProgressTask = SupabaseService.shared.continueWatchingPicks()
+        async let picksTask = SupabaseService.shared.tonightPicks(limit: 15)
+        let inProgress = (try? await inProgressTask) ?? []
+        let picks = (try? await picksTask) ?? []
+
+        // Which titles will we need streaming providers for? A provider fetch
+        // gates every card (only streamable titles qualify), and doing them
+        // one-at-a-time meant up to a dozen serial TMDB round trips to fill a
+        // 3-card deck. Prefetch them ALL concurrently up front.
+        let providerIDs = Array(Set(inProgress.map(\.showId) + picks.map(\.movieId)))
+        let providersByID = await prefetchProviders(providerIDs)
+
         // 1) Continue watching — shows you're mid-binge on lead the deck, since
         // "pick up where you left off" is the strongest watch-tonight signal.
-        let inProgress = (try? await SupabaseService.shared.continueWatchingPicks()) ?? []
         if !inProgress.isEmpty {
             let rows = (try? await SupabaseService.shared.movies(ids: inProgress.map(\.showId))) ?? []
             var byID: [Int: Movie] = [:]
@@ -1156,7 +1170,7 @@ struct FeedView: View {
                 if store.isWatched(show.showId) { continue }
                 guard let movie = byID[show.showId] ?? store.movie(show.showId),
                       movie.posterPath != nil else { continue }
-                guard let providers = try? await TMDBService.shared.watchProviders(for: show.showId),
+                guard let providers = providersByID[show.showId],
                       let provider = tonightProvider(providers) else { continue }
                 store.cache(movie)
                 let ep = episodeLabel(season: show.season, episode: show.episode)
@@ -1175,7 +1189,7 @@ struct FeedView: View {
         // picks shown 1–3 days ago are used only as fallback. We always evaluate
         // eligibility (even if continue-watching already filled the deck) so the
         // "more waiting?" signal is correct.
-        if let picks = try? await SupabaseService.shared.tonightPicks(limit: 15), !picks.isEmpty {
+        if !picks.isEmpty {
             // Partition the eligible pool first — cheap, no movie rows needed yet.
             var primary: [TonightPickRow] = []
             var deferred: [TonightPickRow] = []
@@ -1213,7 +1227,7 @@ struct FeedView: View {
                     if cards.contains(where: { $0.id == pick.movieId }) { continue }
                     guard let movie = byID[pick.movieId] ?? store.movie(pick.movieId),
                           movie.posterPath != nil else { continue }
-                    guard let providers = try? await TMDBService.shared.watchProviders(for: pick.movieId),
+                    guard let providers = providersByID[pick.movieId],
                           let provider = tonightProvider(providers) else { continue }
                     store.cache(movie)
                     cards.append(TonightCardItem(movie: movie,
@@ -1232,6 +1246,32 @@ struct FeedView: View {
         // Got cards → we're not exhausted (e.g. a new day, or a pull-to-refresh),
         // and we've now shown at least one card this session.
         if !cards.isEmpty { tonightExhausted = false; tonightEverHadCards = true }
+    }
+
+    /// Fetch streaming providers for many titles at once (bounded to 6 in
+    /// flight, polite to TMDB) — replaces the per-card serial provider fetch
+    /// that gated the Tonight deck.
+    private func prefetchProviders(_ ids: [Int]) async -> [Int: WatchProviders] {
+        guard !ids.isEmpty else { return [:] }
+        return await withTaskGroup(of: (Int, WatchProviders?).self) { group in
+            var iterator = ids.makeIterator()
+            var inFlight = 0
+            func addNext() {
+                guard let id = iterator.next() else { return }
+                inFlight += 1
+                group.addTask { (id, try? await TMDBService.shared.watchProviders(for: id)) }
+            }
+            for _ in 0..<min(6, ids.count) { addNext() }
+            var result: [Int: WatchProviders] = [:]
+            while inFlight > 0 {
+                if let (id, providers) = await group.next() {
+                    if let providers { result[id] = providers }
+                }
+                inFlight -= 1
+                addNext()
+            }
+            return result
+        }
     }
 
     /// "Show more" on the cleared deck: lift today's 24h hold and rebuild from the

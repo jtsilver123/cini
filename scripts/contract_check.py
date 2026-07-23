@@ -88,6 +88,7 @@ READS = [
     ("movies_by_ids", "movies", "*"),
     ("my_rankings", "rankings", "*"),
     ("watchlist", "watchlist", "*"),
+    ("watchlist_slim", "watchlist", "movie_id, created_at"),
     ("my_note", "notes", "body, is_private, contains_spoilers"),
     ("my_performances", "favorite_performances", "tmdb_person_id, person_name, profile_path"),
     ("my_rank_details", "rankings", "watch_date, watched_with, watched_where, ranking_labels(labels(name))"),
