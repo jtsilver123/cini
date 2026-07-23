@@ -789,7 +789,10 @@ struct YourListsView: View {
 
     /// One of the user's own lists, inline — same rows, swipe to remove.
     private var customListContent: some View {
-        List {
+        // Filter once per render — used by the empty check, the ForEach, and
+        // the delete handler.
+        let items = filteredCustomList
+        return List {
             listTopAnchor
             if !customListLoaded {
                 ListSkeleton(rows: 6)
@@ -804,7 +807,7 @@ struct YourListsView: View {
                     .padding(.vertical, 32)
                     .listRowBackground(Theme.background)
                     .listRowSeparator(.hidden)
-            } else if filteredCustomList.isEmpty {
+            } else if items.isEmpty {
                 Text("Nothing matches these filters — loosen one.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
@@ -813,7 +816,7 @@ struct YourListsView: View {
                     .listRowBackground(Theme.background)
                     .listRowSeparator(.hidden)
             }
-            ForEach(filteredCustomList) { movie in
+            ForEach(items) { movie in
                 WatchlistRowView(movie: movie,
                                  predicted: store.predictedScores[movie.tmdbID]) {
                     logMovie = movie
@@ -826,8 +829,7 @@ struct YourListsView: View {
                 guard let listID = selectedListID else { return }
                 // Offsets index the FILTERED view — map to titles, then
                 // remove by id from the source array.
-                let filtered = filteredCustomList
-                let doomed = offsets.compactMap { filtered.indices.contains($0) ? filtered[$0] : nil }
+                let doomed = offsets.compactMap { items.indices.contains($0) ? items[$0] : nil }
                 let doomedIDs = Set(doomed.map(\.tmdbID))
                 customListMovies.removeAll { doomedIDs.contains($0.tmdbID) }
                 Task {
@@ -1000,7 +1002,10 @@ struct YourListsView: View {
     }
 
     private var watchedList: some View {
-        List {
+        // Sort+filter the (up to 1,000-row) list ONCE per render — it was
+        // recomputed for the ForEach and twice more in the overlay below.
+        let items = filteredWatched
+        return List {
             listTopAnchor
             // Discovery lives in the zero state now (the "you may have seen" bar
             // was removed to declutter a populated list).
@@ -1015,7 +1020,7 @@ struct YourListsView: View {
                     .listRowBackground(Theme.background)
                     .listRowSeparator(.hidden)
             }
-            ForEach(filteredWatched, id: \.id) { item in
+            ForEach(items, id: \.id) { item in
                 if let movie = store.movie(item.id) {
                     WatchedRowView(rank: item.rank, movie: movie, score: item.score)
                         .contentShape(Rectangle())
@@ -1063,7 +1068,7 @@ struct YourListsView: View {
                     // Respect the user's last card/grid mode — don't force one.
                     tabRouter.selection = .swipe
                 }
-            } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
+            } else if items.isEmpty, pendingEntries.isEmpty,
                       watchedCount(in: category) > 0 {
                 // Titles exist in THIS category but a filter/search hid them
                 // all — say that, don't claim they're filed elsewhere.
@@ -1073,7 +1078,7 @@ struct YourListsView: View {
                     filtersBinding.wrappedValue = MovieFilters()
                     listQuery = ""
                 }
-            } else if filteredWatched.isEmpty, pendingEntries.isEmpty,
+            } else if items.isEmpty, pendingEntries.isEmpty,
                       watchedCount(in: otherCategory) > 0 {
                 // The count on the profile spans both categories — never
                 // open onto a blank list without saying where they are.
@@ -1220,12 +1225,15 @@ struct YourListsView: View {
     }
 
     private var watchlistList: some View {
-        List {
+        // Filter the (up to 2,000-row) watchlist ONCE per render — used by the
+        // theater shortcut, the ForEach, and the empty-state overlay.
+        let items = filteredWatchlist
+        return List {
             listTopAnchor
             // "In theaters" shortcut — the saved MOVIES that are playing now or
             // coming soon, with tickets/showtimes. Only for the Movies category
             // (TV has no theatrical showtimes) and only once something's saved.
-            if category == .movies, !filteredWatchlist.isEmpty {
+            if category == .movies, !items.isEmpty {
                 NavigationLink {
                     TheaterCalendarView(scope: .mine)
                 } label: {
@@ -1247,7 +1255,7 @@ struct YourListsView: View {
             }
             // Discovery lives in the zero state now (the "find to watch" bar was
             // removed to declutter a populated list).
-            ForEach(filteredWatchlist) { item in
+            ForEach(items) { item in
                 if let movie = store.movie(item.movieID) {
                     // Prefetched at launch — badges render instantly.
                     let context = WatchlistRowView.contextLine(for: movie, savedAt: item.createdAt)
@@ -1294,6 +1302,9 @@ struct YourListsView: View {
             }
         }
         .listStyle(.plain)
+        // Only fetch scores for newly-added titles — the store now skips ids
+        // it already has, so this no longer re-hits the RPC for the whole
+        // watchlist on every toggle.
         .task(id: store.watchlist.count) {
             await store.refreshPredictedScores()
         }
@@ -1303,7 +1314,7 @@ struct YourListsView: View {
             // category, the message says so, but the action stays "go discover".
             // If saves exist HERE and filters/search merely hid them all, say
             // THAT — "Nothing saved yet" over a populated list reads as data loss.
-            if filteredWatchlist.isEmpty {
+            if items.isEmpty {
                 let hiddenByFilters = watchlistCount(in: category) > 0
                 let otherCount = watchlistCount(in: otherCategory)
                 if hiddenByFilters {

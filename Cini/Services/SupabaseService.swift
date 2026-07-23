@@ -368,11 +368,29 @@ final class SupabaseService {
         let chunks = stride(from: 0, to: ids.count, by: 200).map {
             Array(ids[$0..<min($0 + 200, ids.count)])
         }
+        // Fetch the chunks CONCURRENTLY (bounded), not one after another — a
+        // 2,000-title library was up to 10 serial round trips on the launch
+        // critical path; six-in-flight cuts that to ~2 waves. Order is
+        // irrelevant (callers build a dictionary).
         var rows: [MovieRow] = []
         rows.reserveCapacity(ids.count)
-        for chunk in chunks {
-            rows += try await client.from("movies").select()
-                .in("tmdb_id", values: chunk).execute().value as [MovieRow]
+        try await withThrowingTaskGroup(of: [MovieRow].self) { group in
+            var iterator = chunks.makeIterator()
+            var inFlight = 0
+            func addNext() {
+                guard let chunk = iterator.next() else { return }
+                inFlight += 1
+                group.addTask { [client] in
+                    try await client.from("movies").select()
+                        .in("tmdb_id", values: chunk).execute().value as [MovieRow]
+                }
+            }
+            for _ in 0..<min(6, chunks.count) { addNext() }
+            while inFlight > 0 {
+                if let batch = try await group.next() { rows += batch }
+                inFlight -= 1
+                addNext()
+            }
         }
         return rows
     }

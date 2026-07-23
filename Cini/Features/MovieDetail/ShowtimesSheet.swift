@@ -520,44 +520,42 @@ struct ShowtimesSheet: View {
         return (1...14).compactMap { cal.date(byAdding: .day, value: $0, to: selected) }
     }
 
-    /// Probe day-by-day (up to two weeks) for the first date with a matching
-    /// showing, then jump the picker there.
+    /// Find the first upcoming date with a matching showing, then jump the
+    /// picker there. ONE cached 14-day window fetch answers the whole scan —
+    /// this used to be up to 14 serial full-feed downloads (10-30s and MBs of
+    /// data to answer one question).
     private func findNextAvailable() async {
         guard zipcode.count == 5, !searchingNext else { return }
         searchGen += 1
         let gen = searchGen
         searchingNext = true
         defer { searchingNext = false }
-        for probe in probeDates {
-            do {
-                // An empty result is "no showings that day" → keep probing; a
-                // thrown error is a real failure (network/config) → stop, don't
-                // hammer the API 14 times on an outage.
-                let found = try await ShowtimesService.shared.showtimes(
-                    for: movie, zipcode: zipcode, date: probe, radius: radius)
-                // The user started a fresh search (chip tap, new radius)
-                // mid-probe — theirs wins, this probe stands down.
-                guard gen == searchGen else { return }
-                // Honor the active filters: someone hunting IMAX recliners
-                // wants the next date WITH such a showing, not just any.
-                let matches = found.contains { matchesFilters($0) }
-                if matches {
-                    suppressSearch = true   // we already have this date's showtimes
-                    date = probe
-                    theaters = found
-                    state = .loaded
-                    return
-                }
-            } catch {
-                guard gen == searchGen else { return }
-                // A real failure (network/config) — say so, rather than
-                // claiming there's nothing playing for two weeks.
-                state = .error("Couldn't check upcoming dates — try again.")
+        do {
+            // Cover today → +14: a running film's showings live near today,
+            // and a future pick's nearest date is within that window.
+            let byDay = try await ShowtimesService.shared.showtimesByDay(
+                for: movie, zipcode: zipcode, radius: radius, days: 14,
+                from: cal.startOfDay(for: Date()))
+            guard gen == searchGen else { return }
+            // Scan the probe order locally for the first day whose showings
+            // pass the active filters (someone hunting IMAX wants the next
+            // IMAX date, not just any).
+            for probe in probeDates {
+                let day = cal.startOfDay(for: probe)
+                guard let found = byDay[day], found.contains(where: { matchesFilters($0) }) else { continue }
+                suppressSearch = true   // we already have this date's showtimes
+                date = probe
+                theaters = found
+                state = .loaded
                 return
             }
+            noNextFound = true
+        } catch {
+            guard gen == searchGen else { return }
+            // A real failure (network/config) — say so, rather than claiming
+            // there's nothing playing for two weeks.
+            state = .error("Couldn't check upcoming dates — try again.")
         }
-        guard gen == searchGen else { return }
-        noNextFound = true
     }
 
     /// All zero/error states share the app-wide EmptyStateView look.

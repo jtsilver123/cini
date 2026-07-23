@@ -9,6 +9,9 @@ final class TMDBService {
     enum ImageSize: String {
         case poster = "w342"
         case backdrop = "w780"
+        /// Small backdrop for strips rendered under ~300pt wide (feed cards) —
+        /// a w780 there was ~6x the pixels actually shown.
+        case backdropSmall = "w300"
         case profile = "w185"
     }
 

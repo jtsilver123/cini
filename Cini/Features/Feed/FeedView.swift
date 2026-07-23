@@ -1775,7 +1775,7 @@ struct FeedCard: View {
                         .frame(width: 150)
                         .frame(maxHeight: .infinity)
                         .overlay {
-                            CachedAsyncImage(url: movie.backdropURL ?? movie.posterURL) { image in
+                            CachedAsyncImage(url: movie.backdropSmallURL ?? movie.posterURL) { image in
                                 image.resizable().scaledToFill()
                             } placeholder: {
                                 Color.clear

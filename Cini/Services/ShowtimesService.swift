@@ -78,135 +78,15 @@ final class ShowtimesService: ShowtimesProviding {
     }()
 
     func showtimes(for movie: Movie, zipcode: String, date: Date, radius: Int = 15) async throws -> [TheaterShowtimes] {
-        guard let apiKey = AppConfig.showtimesAPIKey else {
-            throw ShowtimesError.notConfigured
-        }
         // TV shows (negative ids) have no theatrical showtimes — a fuzzy
         // match against whatever's playing would invent some.
         guard movie.tmdbID > 0 else { return [] }
-
-        // The user's LOCAL calendar day — a UTC day here would query tomorrow's
-        // showtimes for any US user browsing in the evening.
-        let day = DateFormatter.localDay.string(from: date)
-        var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "startDate", value: day),
-            URLQueryItem(name: "zip", value: zipcode),
-            URLQueryItem(name: "radius", value: String(max(1, min(radius, 100)))),
-            URLQueryItem(name: "units", value: "mi"),
-            URLQueryItem(name: "api_key", value: apiKey),
-        ]
-        guard let url = components.url else { throw URLError(.badURL) }
-        let (data, response) = try await session.data(from: url)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        if http.statusCode == 400 { throw ShowtimesError.zipcodeNotFound }
-        guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
-        // Gracenote's NORMAL "no theaters in range" answer is 200 with a
-        // ZERO-BYTE body (verified live across rural zips) — decoding it
-        // throws and turned every search in a low-density area into
-        // "Something went wrong". Empty body = empty slate.
-        guard !data.isEmpty else { return [] }
-
-        let listings = try JSONDecoder().decode([GNMovie].self, from: data)
-        let matches = Self.variantMatches(for: movie, in: listings)
-
-        // Group all matched showtimes by theatre, collecting seat-comfort perks.
-        var byTheatre: [String: (name: String, perks: Set<String>, times: [Showtime])] = [:]
-        var seenIDs: Set<String> = []
-        for listing in matches {
-            // A variant listing often carries its format in the TITLE
-            // ("…: The IMAX 2D Experience") while its showings' quals stay
-            // silent — fall back to the title so the screen filter sees it.
-            let titleFormat = GNMovie.Showing.premiumFormat(in: listing.title)
-            for showing in listing.showtimes ?? [] {
-                guard let theatre = showing.theatre,
-                      let start = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
-                let key = theatre.id ?? theatre.name ?? "?"
-                let format = showing.format ?? titleFormat
-                // Same theatre + time can exist per FORMAT (IMAX room and a
-                // standard room both at 7:30) — distinct; true dupes are dropped.
-                let id = "\(key)-\(showing.dateTime ?? "")-\(format ?? "std")"
-                guard seenIDs.insert(id).inserted else { continue }
-                let entry = Showtime(
-                    id: id,
-                    startTime: start,
-                    format: format,
-                    isBargain: showing.barg ?? false,
-                    bookingURL: showing.secureTicketURL
-                )
-                var bucket = byTheatre[key] ?? (theatre.name ?? "Theater", [], [])
-                bucket.name = theatre.name ?? bucket.name
-                bucket.perks.formUnion(showing.perks)
-                bucket.times.append(entry)
-                byTheatre[key] = bucket
-            }
-        }
-
-        var theaters = byTheatre
-            .map { id, value in
-                TheaterShowtimes(
-                    id: id,
-                    theaterName: value.name,
-                    amenities: value.perks.sorted(),
-                    showtimes: value.times.sorted { $0.startTime < $1.startTime }
-                )
-            }
-        // Indie venues publish direct — merge their showings for THIS movie
-        // on THIS day, with real ticket links. Near-term days can exist in
-        // both feeds: times within the same minute at the same venue dedupe.
-        if let metro = Self.metro(forZip: zipcode) {
-            let dayPrefix = day
-            let supplemental = await supplementalRows(metro: metro).filter {
-                $0.startsAt.hasPrefix(dayPrefix) && Self.supplementalMatches($0, movie: movie)
-            }
-            for row in supplemental {
-                guard let start = DateFormatter.gracenoteDateTime.date(from: row.startsAt) else { continue }
-                let showtime = Showtime(
-                    id: "supp-\(row.venue)-\(row.startsAt)",
-                    startTime: start,
-                    format: row.format,
-                    isBargain: false,
-                    bookingURL: row.ticketUrl.flatMap(URL.init)
-                )
-                if let index = theaters.firstIndex(where: {
-                    $0.theaterName.caseInsensitiveCompare(row.venue) == .orderedSame
-                }) {
-                    let existing = theaters[index]
-                    guard !existing.showtimes.contains(where: {
-                        abs($0.startTime.timeIntervalSince(start)) < 60
-                    }) else { continue }
-                    theaters[index] = TheaterShowtimes(
-                        id: existing.id,
-                        theaterName: existing.theaterName,
-                        amenities: existing.amenities,
-                        showtimes: (existing.showtimes + [showtime])
-                            .sorted { $0.startTime < $1.startTime }
-                    )
-                } else {
-                    theaters.append(TheaterShowtimes(
-                        id: "supp-\(row.venue)",
-                        theaterName: row.venue,
-                        amenities: [],
-                        showtimes: [showtime]
-                    ))
-                }
-            }
-            // A new venue may have arrived with multiple times — re-collapse.
-            var merged: [String: TheaterShowtimes] = [:]
-            for theater in theaters {
-                if let existing = merged[theater.id] {
-                    merged[theater.id] = TheaterShowtimes(
-                        id: existing.id, theaterName: existing.theaterName,
-                        amenities: existing.amenities,
-                        showtimes: (existing.showtimes + theater.showtimes)
-                            .sorted { $0.startTime < $1.startTime })
-                } else {
-                    merged[theater.id] = theater
-                }
-            }
-            theaters = Array(merged.values)
-        }
-        return theaters.sorted { $0.theaterName < $1.theaterName }
+        // ONE cached window fetch answers this day (and any nearby-date chip
+        // tap / next-date probe) — no per-open re-download of the whole feed.
+        let byDay = try await showtimesByDay(for: movie, zipcode: zipcode,
+                                             radius: radius, days: 1, from: date)
+        let day = Calendar.current.startOfDay(for: date)
+        return byDay[day] ?? []
     }
 
     /// One film playing nearby: canonical title (variants merged), year, and
@@ -431,17 +311,38 @@ final class ShowtimesService: ShowtimesProviding {
         return result
     }
 
+    /// In-memory raw-feed cache: the same zip/day feed is asked for by the
+    /// calendar, every showtimes-sheet open, every date-chip tap, and the
+    /// "find next date" probe — often within seconds. Each is a hundreds-of-KB
+    /// download of EVERY movie near the zip, so caching it for 30 min turns
+    /// all those repeats into local filters and stops hammering the shared
+    /// Gracenote key (transient rate limiting used to empty users' grids).
+    private struct FeedCacheEntry { let at: Date; let listings: [GNMovie] }
+    private let feedLock = NSLock()
+    private var feedCache: [String: FeedCacheEntry] = [:]
+    private static let feedTTL: TimeInterval = 30 * 60
+
     /// The raw multi-day showings feed for a zip — shared by every consumer
-    /// so the query (and its clamps) can't drift between them.
+    /// so the query (and its clamps) can't drift between them. Cached 30 min.
     private func fetchShowings(zipcode: String, radius: Int, days: Int,
                                start: Date = Date()) async throws -> [GNMovie] {
         guard let apiKey = AppConfig.showtimesAPIKey else {
             throw ShowtimesError.notConfigured
         }
+        let numDays = max(1, min(days, 14))
+        let startDay = DateFormatter.localDay.string(from: start)
+        let cacheKey = "\(zipcode)|\(radius)|\(startDay)|\(numDays)"
+        feedLock.lock()
+        if let hit = feedCache[cacheKey], Date().timeIntervalSince(hit.at) < Self.feedTTL {
+            feedLock.unlock()
+            return hit.listings
+        }
+        feedLock.unlock()
+
         var components = URLComponents(string: "https://data.tmsapi.com/v1.1/movies/showings") ?? URLComponents()
         components.queryItems = [
-            URLQueryItem(name: "startDate", value: DateFormatter.localDay.string(from: start)),
-            URLQueryItem(name: "numDays", value: String(max(1, min(days, 14)))),
+            URLQueryItem(name: "startDate", value: startDay),
+            URLQueryItem(name: "numDays", value: String(numDays)),
             URLQueryItem(name: "zip", value: zipcode),
             URLQueryItem(name: "radius", value: String(max(1, min(radius, 100)))),
             URLQueryItem(name: "units", value: "mi"),
@@ -454,8 +355,78 @@ final class ShowtimesService: ShowtimesProviding {
         guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
         // 200 + zero bytes is Gracenote's normal "no theaters here" (see
         // showtimes(for:)) — an empty slate, not an error to retry.
-        guard !data.isEmpty else { return [] }
-        return try JSONDecoder().decode([GNMovie].self, from: data)
+        let listings = data.isEmpty ? [] : try JSONDecoder().decode([GNMovie].self, from: data)
+        feedLock.lock()
+        feedCache[cacheKey] = FeedCacheEntry(at: Date(), listings: listings)
+        feedLock.unlock()
+        return listings
+    }
+
+    /// All theaters+showtimes for a movie on a range of days from `start`,
+    /// keyed by day (local calendar). Backed by ONE cached window fetch, so
+    /// the sheet's "find the next date" scan (up to 14 days) is a single
+    /// download instead of one per day. Supplemental indie venues merged in.
+    func showtimesByDay(for movie: Movie, zipcode: String, radius: Int,
+                        days: Int, from start: Date = Date()) async throws -> [Date: [TheaterShowtimes]] {
+        guard movie.tmdbID > 0 else { return [:] }
+        let listings = try await fetchShowings(zipcode: zipcode, radius: radius, days: days, start: start)
+        let cal = Calendar.current
+        var byDay: [Date: [TheaterShowtimes]] = [:]
+        // Group the matched showings per calendar day, then build theaters.
+        let matches = Self.variantMatches(for: movie, in: listings)
+        var perDay: [Date: [String: (name: String, perks: Set<String>, times: [Showtime])]] = [:]
+        var seen: Set<String> = []
+        for listing in matches {
+            let titleFormat = GNMovie.Showing.premiumFormat(in: listing.title)
+            for showing in listing.showtimes ?? [] {
+                guard let theatre = showing.theatre,
+                      let at = DateFormatter.gracenoteDateTime.date(from: showing.dateTime ?? "") else { continue }
+                let day = cal.startOfDay(for: at)
+                let key = theatre.id ?? theatre.name ?? "?"
+                let format = showing.format ?? titleFormat
+                let id = "\(key)-\(showing.dateTime ?? "")-\(format ?? "std")"
+                guard seen.insert(id).inserted else { continue }
+                var buckets = perDay[day] ?? [:]
+                var bucket = buckets[key] ?? (theatre.name ?? "Theater", [], [])
+                bucket.name = theatre.name ?? bucket.name
+                bucket.perks.formUnion(showing.perks)
+                bucket.times.append(Showtime(id: id, startTime: at, format: format,
+                                             isBargain: showing.barg ?? false,
+                                             bookingURL: showing.secureTicketURL))
+                buckets[key] = bucket
+                perDay[day] = buckets
+            }
+        }
+        for (day, buckets) in perDay {
+            byDay[day] = buckets.map { id, v in
+                TheaterShowtimes(id: id, theaterName: v.name, amenities: v.perks.sorted(),
+                                 showtimes: v.times.sorted { $0.startTime < $1.startTime })
+            }.sorted { $0.theaterName < $1.theaterName }
+        }
+        // Supplemental indie venues (their own box-office horizon).
+        if let metro = Self.metro(forZip: zipcode) {
+            let rows = await supplementalRows(metro: metro).filter { Self.supplementalMatches($0, movie: movie) }
+            for row in rows {
+                guard let at = DateFormatter.gracenoteDateTime.date(from: row.startsAt) else { continue }
+                let day = cal.startOfDay(for: at)
+                let show = Showtime(id: "supp-\(row.venue)-\(row.startsAt)", startTime: at,
+                                    format: row.format, isBargain: false,
+                                    bookingURL: row.ticketUrl.flatMap(URL.init))
+                var theaters = byDay[day] ?? []
+                if let i = theaters.firstIndex(where: { $0.theaterName.caseInsensitiveCompare(row.venue) == .orderedSame }) {
+                    if !theaters[i].showtimes.contains(where: { abs($0.startTime.timeIntervalSince(at)) < 60 }) {
+                        theaters[i] = TheaterShowtimes(id: theaters[i].id, theaterName: theaters[i].theaterName,
+                                                       amenities: theaters[i].amenities,
+                                                       showtimes: (theaters[i].showtimes + [show]).sorted { $0.startTime < $1.startTime })
+                    }
+                } else {
+                    theaters.append(TheaterShowtimes(id: "supp-\(row.venue)", theaterName: row.venue,
+                                                     amenities: [], showtimes: [show]))
+                }
+                byDay[day] = theaters.sorted { $0.theaterName < $1.theaterName }
+            }
+        }
+        return byDay
     }
 
     /// Find our film among everything playing nearby. Gracenote lists

@@ -999,9 +999,14 @@ struct MovieDetailView: View {
     // MARK: Data
 
     private func loadWatchPlans(_ movieID: Int) async {
-        // nil = the fetch failed — keep the previous map rather than showing
-        // "Invite" over live plans for the session.
-        guard let plans = await SupabaseService.shared.watchPlans(movieID: movieID) else { return }
+        applyWatchPlans(await SupabaseService.shared.watchPlans(movieID: movieID))
+    }
+
+    /// Build the per-friend plan map from a (possibly prefetched) result.
+    /// nil = the fetch failed — keep the previous map rather than showing
+    /// "Invite" over live plans for the session.
+    private func applyWatchPlans(_ plans: [WatchPlanRow]?) {
+        guard let plans else { return }
         let me = SupabaseService.shared.currentUserID
         var map: [UUID: WatchPlanRow] = [:]
         // LIVE plans first: re-proposals update rows in place, so a newer
@@ -1315,6 +1320,12 @@ struct MovieDetailView: View {
         async let extendedTask = TMDBService.shared.extendedDetails(for: movie.tmdbID)
         async let publicNotesTask = SupabaseService.shared.publicNotes(movieID: movie.tmdbID)
         async let predictedTask = SupabaseService.shared.predictedScores(movieIDs: [pid])
+        // The friend-interest reads are independent — start them WITH the
+        // batch above instead of three serial round trips after it, so the
+        // page's cast/histogram/notes don't wait behind them.
+        async let watchlistFriendsTask = SupabaseService.shared.watchlistFriends(movieID: pid)
+        async let watchingFriendsTask = SupabaseService.shared.watchingFriends(movieID: pid)
+        async let watchPlansTask = SupabaseService.shared.watchPlans(movieID: pid)
 
         if let detailed = try? await detail {
             var enriched = detailed
@@ -1340,9 +1351,9 @@ struct MovieDetailView: View {
         community = stats?.community
         friends = (try? await friendsTask) ?? []
         friendsLoaded = true
-        watchlistFriends = (try? await SupabaseService.shared.watchlistFriends(movieID: pid)) ?? []
-        watchingFriends = await SupabaseService.shared.watchingFriends(movieID: pid)
-        await loadWatchPlans(pid)
+        watchlistFriends = (try? await watchlistFriendsTask) ?? []
+        watchingFriends = await watchingFriendsTask
+        applyWatchPlans(await watchPlansTask)
         histogram = stats?.histogram ?? []
         performances = SupabaseService.tallyPerformances(stats?.performances ?? [])
         cast = (try? await castTask) ?? []

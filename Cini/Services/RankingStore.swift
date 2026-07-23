@@ -89,7 +89,7 @@ final class RankingStore {
         guard let userID = supabase.currentUserID else { return }
         // Cold start: the last-synced snapshot renders lists instantly
         // while the fresh data loads (same idea as FeedDiskCache).
-        if !isLoaded, let snapshot = RankingDiskCache.load(for: userID) {
+        if !isLoaded, let snapshot = await RankingDiskCache.load(for: userID) {
             lists = snapshot.lists
             watchlist = snapshot.watchlist
             movies = snapshot.movies
@@ -184,8 +184,16 @@ final class RankingStore {
         return id < 0 ? "tv" : "movie"
     }
 
-    func refreshPredictedScores() async {
-        let scores = await supabase.predictedScores(movieIDs: watchlist.map(\.movieID))
+    /// Fetch Rec Scores only for saved titles we DON'T already have — a
+    /// bookmark toggle was refetching predictions for the entire watchlist
+    /// (a full RPC on every add/remove). `force` refetches everything (a
+    /// deliberate pull-to-refresh).
+    func refreshPredictedScores(force: Bool = false) async {
+        let ids = force
+            ? watchlist.map(\.movieID)
+            : watchlist.map(\.movieID).filter { predictedScores[$0] == nil }
+        guard !ids.isEmpty else { return }
+        let scores = await supabase.predictedScores(movieIDs: ids)
         predictedScores.merge(scores) { _, new in new }
     }
 
@@ -766,7 +774,7 @@ final class RankingStore {
 /// blank-until-network. Refreshed after every successful load, cleared
 /// at sign-out alongside FeedDiskCache.
 enum RankingDiskCache {
-    struct Snapshot: Codable {
+    struct Snapshot: Codable, Sendable {
         let userID: UUID
         let lists: [String: RankingList<Int>]
         let watchlist: [WatchlistItem]
@@ -778,16 +786,25 @@ enum RankingDiskCache {
             .appendingPathComponent("rankings-cache.json")
     }
 
-    static func load(for userID: UUID) -> Snapshot? {
-        guard let data = try? Data(contentsOf: url),
-              let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
-              snapshot.userID == userID else { return nil }
-        return snapshot
+    /// Decode OFF the main actor — a power user's snapshot is multiple MB of
+    /// JSON, and decoding it on the main thread stalled the very first frame
+    /// at launch. Snapshot is all-Sendable value types, so it crosses back
+    /// cleanly.
+    static func load(for userID: UUID) async -> Snapshot? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url),
+                  let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data),
+                  snapshot.userID == userID else { return nil }
+            return snapshot
+        }.value
     }
 
+    /// Encode + write off-main and fire-and-forget — the caller doesn't wait.
     static func save(_ snapshot: Snapshot) {
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: url, options: .atomic)
+        Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     static func clear() {

@@ -569,8 +569,11 @@ struct SwipeView: View {
         candidates = built
         loaded = true
         poolVersion += 1
-        bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
+        // Counts and enrichment are independent — overlap them so the cards
+        // don't wait on the bookmark-count round trip before enriching.
+        async let counts = SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
         await enrich(built.prefix(16).map(\.movie.tmdbID))
+        bookmarkCounts = await counts
         guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
@@ -658,13 +661,15 @@ struct SwipeView: View {
         loaded = true
         poolVersion += 1
 
-        // How many people have each title bookmarked — social proof on the cards.
-        bookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
+        // How many people have each title bookmarked — social proof on the
+        // cards. Overlapped with enrichment below.
+        async let counts = SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
 
         // Fill in runtime, streaming, and a plot summary for the richer cards
         // (and so the genre/streaming filters have something to match) — in the
         // background so the deck shows immediately.
         await enrich(pending.prefix(16).map(\.id))
+        bookmarkCounts = await counts
         guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)

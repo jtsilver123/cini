@@ -195,7 +195,9 @@ struct WatchingStorySheet: View {
     private var posterURL: URL? {
         guard let path = row.posterPath, !path.isEmpty else { return nil }
         if path.hasPrefix("http") { return URL(string: path) }
-        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
+        // Reuse the standard poster variant (w342) so this hero shares the
+        // already-cached poster instead of forcing a fresh w500 download.
+        return TMDBService.imageURL(path: path, size: .poster)
     }
 }
 

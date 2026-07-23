@@ -68,6 +68,10 @@ struct Movie: Identifiable, Codable, Hashable {
 
     var posterURL: URL? { TMDBService.imageURL(path: posterPath, size: .poster) }
     var backdropURL: URL? { TMDBService.imageURL(path: backdropPath, size: .backdrop) }
+    /// For backdrops shown in narrow strips (feed cards) — a fraction of the
+    /// full-hero download, and it shares no variant with the hero so both
+    /// caches stay warm for their own use.
+    var backdropSmallURL: URL? { TMDBService.imageURL(path: backdropPath, size: .backdropSmall) }
 
     /// "PG-13 | Sci-Fi, Drama"
     var metadataLine: String {
