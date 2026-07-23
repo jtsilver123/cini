@@ -281,6 +281,11 @@ struct ShowtimesSheet: View {
                         .accessibilityLabel("Pick another date")
                     }
                 }
+                // The strip is HORIZONTAL-only: pin its height to the chips
+                // and kill vertical bounce, so a slightly-vertical drag can't
+                // wiggle the row up and down (it read as broken scrolling).
+                .frame(height: chipSize)
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
                 .onChange(of: date) { _, newValue in
                     // One-tick defer: a far-future date APPENDS its chip in
                     // this same update — scrolling immediately targets a row
@@ -351,6 +356,9 @@ struct ShowtimesSheet: View {
                         }
                     }
                 }
+                // Same treatment as the day strip: horizontal only, no
+                // vertical give under a diagonal drag.
+                .scrollBounceBehavior(.basedOnSize, axes: .vertical)
             }
         }
         .screenHPadding()
