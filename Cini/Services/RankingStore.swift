@@ -746,12 +746,20 @@ final class RankingStore {
     /// same movie don't each hit TMDB.
     @ObservationIgnored private var enriching: Set<Int> = []
 
+    /// Caps how many detail-enrich round trips run at once. Scrolling a
+    /// 2,000-row Want to Watch used to spawn an unbounded fan-out (2 TMDB
+    /// requests + a write PER row); bounding it keeps the network calm and
+    /// the battery/rate-limit cost sane without changing what gets filled in.
+    private static let enrichLimiter = ConcurrencyLimiter(4)
+
     /// Fill in detail fields (runtime, certification, director, providers)
     /// for a movie we only know from search results.
     func enrich(_ movieID: Int) async {
         guard movies[movieID]?.runtimeMinutes == nil, !enriching.contains(movieID) else { return }
         enriching.insert(movieID)
         defer { enriching.remove(movieID) }
+        await Self.enrichLimiter.acquire()
+        defer { Task { await Self.enrichLimiter.release() } }
         async let detailsTask = tmdb.details(for: movieID)
         async let providersTask = tmdb.watchProviders(for: movieID)
         guard var detailed = try? await detailsTask else { return }
@@ -766,6 +774,28 @@ final class RankingStore {
         movies[movieID] = detailed
         do { try await supabase.cacheMovie(detailed) }
         catch { SupabaseService.logSwallowed("enrich_cache_movie", error) }
+    }
+}
+
+/// A fair async concurrency cap (token-transfer semaphore): `acquire`
+/// suspends when `limit` tokens are held and resumes FIFO as `release`
+/// hands its token to the next waiter.
+actor ConcurrencyLimiter {
+    private let limit: Int
+    private var active = 0
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(_ limit: Int) { self.limit = max(1, limit) }
+
+    func acquire() async {
+        if active < limit { active += 1; return }
+        // Wait for a transferred token — `active` is unchanged on wake.
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func release() {
+        if waiters.isEmpty { active -= 1 }
+        else { waiters.removeFirst().resume() }   // hand the token over
     }
 }
 

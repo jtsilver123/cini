@@ -1686,9 +1686,21 @@ struct WatchlistScreen: View {
                 for row in rows { movies[row.tmdbId] = row.asMovie }
             }
             listLoaded = true
-            // Rec Score: how much we think YOU'LL like each saved title.
-            predicted = await SupabaseService.shared.predictedScores(
-                movieIDs: entries.map(\.movieID))
+            // Rec Score: how much we think YOU'LL like each saved title. Seed
+            // from the shared store (the Lists tab already fetched these) and
+            // only hit the RPC for ids it doesn't have — the same score no
+            // longer gets fetched independently here and on the Lists tab.
+            var seeded: [Int: Double] = [:]
+            for id in entries.map(\.movieID) where store.predictedScores[id] != nil {
+                seeded[id] = store.predictedScores[id]
+            }
+            predicted = seeded
+            let missing = entries.map(\.movieID).filter { store.predictedScores[$0] == nil }
+            if !missing.isEmpty {
+                let fresh = await SupabaseService.shared.predictedScores(movieIDs: missing)
+                store.mergePredicted(fresh)
+                predicted.merge(fresh) { _, new in new }
+            }
         }
     }
 

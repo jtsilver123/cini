@@ -1001,17 +1001,22 @@ struct LogFlowView: View {
     @MainActor
     private func prepareShareCard(_ scored: ScoredItem<Int>) async {
         guard shareImage == nil else { return }
-        var poster: UIImage?
-        if let url = movie.posterURL,
-           let (data, _) = try? await URLSession.shared.data(from: url) {
-            poster = UIImage(data: data)
-        }
         let profile = appSession.profile
-        var avatar: UIImage?
-        if let url = profile?.avatarURL,
-           let (data, _) = try? await URLSession.shared.data(from: url) {
-            avatar = UIImage(data: data)
-        }
+        // Pull both through the shared image cache, concurrently — the poster
+        // was just shown on the result ticket so it's a memory-cache hit, and
+        // this no longer re-downloads it (or the avatar) over the network.
+        let posterURL = movie.posterURL
+        let avatarURL = profile?.avatarURL
+        async let posterTask: UIImage? = { () async -> UIImage? in
+            guard let posterURL else { return nil }
+            return await ImageLoader.shared.image(for: posterURL)
+        }()
+        async let avatarTask: UIImage? = { () async -> UIImage? in
+            guard let avatarURL else { return nil }
+            return await ImageLoader.shared.image(for: avatarURL)
+        }()
+        let poster = await posterTask
+        let avatar = await avatarTask
         let name = firstName(profile?.displayName, profile?.username) ?? ""
         let card = RankShareCard(movie: movie, scored: scored, poster: poster,
                                  name: name, handle: profile?.username ?? "",

@@ -122,8 +122,18 @@ struct TheaterCalendarView: View {
     /// the now-playing strip fills in when the watchlist set finishes loading.)
     private var scopeLoaded: Bool { scope == .mine ? myLoaded : releasesLoaded }
 
+    /// Parsed release dates, memoized by their string — `releaseDate` is
+    /// called inside the nowPlaying/coming/datedComing sort comparators, which
+    /// re-run every render, so re-parsing the same string with a DateFormatter
+    /// each time (n·log n per render) was measurable jank on a full calendar.
+    private static var releaseDateCache: [String: Date] = [:]
+
     private func releaseDate(_ movie: Movie) -> Date? {
-        movie.releaseDateFull.flatMap { DateFormatter.localDay.date(from: $0) }
+        guard let s = movie.releaseDateFull else { return nil }
+        if let cached = Self.releaseDateCache[s] { return cached }
+        guard let d = DateFormatter.localDay.date(from: s) else { return nil }
+        Self.releaseDateCache[s] = d
+        return d
     }
 
     private var nowPlaying: [Movie] {
