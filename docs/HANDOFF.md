@@ -442,6 +442,28 @@ Separately, Gracenote does NOT carry the nonprofit institutional venues
 at all (Film at Lincoln Center, MoMA, Anthology Film Archives, Museum of
 the Moving Image) — screenings there need a second data source.
 
+## Performance audit (Jul 2026) — COMPLETE
+
+A 5-finder perf audit (posters/scores/network/rendering/launch, 25 confirmed
+findings) shipped in commits 884d446 + 3493df7. Fixed: sync image-cache
+read (no skeleton flash), off-main JPEG decode, ref-counted download
+cancellation, right-sized backdrops (w300) + poster reuse, off-main
+rankings-snapshot decode, concurrent metadata-chunk fetch, 30-min Gracenote
+feed cache + single-window "find next date", once-per-render list
+sort/filter, missing-only prediction fetch, shared prediction cache across
+Profile/Lists, movie-page async-let friend queries, Recs count/enrich
+overlap, capped enrich fan-out (ConcurrencyLimiter), share-card via image
+cache, calendar release-date parse memoization.
+Deliberately NOT done (low value / high churn): filter-bar option-list
+derivation (it's a header, not in the per-frame scroll path — the
+MovieFilterBar API change across all callers wasn't worth it); member-profile
+slim watchlist fetch (needs a new count+intersection RPC for a marginal
+gain on a rarely-huge path); FeedDiskCache off-main (small payload, and
+FeedEventRow Sendable conformance is unproven). Nine verifier agents hit a
+usage-credit limit mid-run; their claims (RankingStore.load full refetch,
+serial metadata healing — already bounded 6-wide, feed cache re-encode)
+were not independently confirmed and were left for a future pass.
+
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 
 Two multi-agent audits (July 2026: app-wide + theater) confirmed 84
