@@ -1371,7 +1371,7 @@ struct FeedView: View {
         lastFeedLoad = Date()
         // Cold start: show the last feed from disk instantly while the
         // fresh one loads — the app never opens to a blank screen.
-        if events.isEmpty, let cached = FeedDiskCache.load() {
+        if events.isEmpty, let cached = await FeedDiskCache.load() {
             events = cached
         }
         if let fresh = try? await SupabaseService.shared.feed() {
@@ -1410,18 +1410,25 @@ enum FeedDiskCache {
             .appendingPathComponent("feed-cache.json")
     }
 
-    static func load() -> [FeedEventRow]? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode([FeedEventRow].self, from: data)
+    /// Decode off the main actor — the feed cache decode ran on the main
+    /// thread on the feed-load path.
+    static func load() async -> [FeedEventRow]? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try? decoder.decode([FeedEventRow].self, from: data)
+        }.value
     }
 
+    /// Encode + write off-main, fire-and-forget.
     static func save(_ events: [FeedEventRow]) {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        if let data = try? encoder.encode(events) {
-            try? data.write(to: url, options: .atomic)
+        Task.detached(priority: .utility) {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if let data = try? encoder.encode(events) {
+                try? data.write(to: url, options: .atomic)
+            }
         }
     }
 
