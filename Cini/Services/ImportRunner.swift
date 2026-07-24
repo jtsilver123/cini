@@ -163,8 +163,17 @@ final class ImportRunner {
         // A 1,500-film library works for a couple of minutes — the screen
         // must not auto-lock and suspend it mid-run.
         UIApplication.shared.isIdleTimerDisabled = true
+        // Switching apps mid-import suspends the process within seconds
+        // (isIdleTimerDisabled does nothing once backgrounded) — a background
+        // task assertion buys the ~30s grace window that finishes small
+        // imports and lets big ones checkpoint instead of freezing mid-phase.
+        // Same pattern as RankingStore.commit's rank-write protection.
+        let bgTask = UIApplication.shared.beginBackgroundTask(withName: "letterboxd-import")
         task = Task {
-            defer { UIApplication.shared.isIdleTimerDisabled = false }
+            defer {
+                UIApplication.shared.isIdleTimerDisabled = false
+                if bgTask != .invalid { UIApplication.shared.endBackgroundTask(bgTask) }
+            }
             do {
                 try await work()
             } catch is CancellationError {

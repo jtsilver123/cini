@@ -109,6 +109,55 @@ struct ToastOverlay: View {
     }
 }
 
+// MARK: - Toast window (always on top)
+
+/// The toast lives in its OWN passthrough UIWindow at alert level, so it
+/// renders above every sheet and full-screen cover. Mounted as a plain
+/// overlay on RootTabView it drew UNDER presented sheets — a failed save
+/// inside a sheet (Your Details, Save-to-List, Rewatch…) toasted invisibly,
+/// which reads as success and loses the user's edit.
+@MainActor
+enum ToastWindow {
+    private static var window: PassthroughWindow?
+
+    /// Idempotent — call once the scene exists (RootTabView.onAppear).
+    static func install() {
+        guard window == nil else { return }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive })
+            ?? scenes.first else { return }
+        let host = UIHostingController(rootView: ToastOverlay())
+        host.view.backgroundColor = .clear
+        let w = PassthroughWindow(windowScene: scene)
+        w.windowLevel = .alert
+        w.backgroundColor = .clear
+        w.rootViewController = host
+        w.isHidden = false
+        window = w
+        syncAppearance()
+    }
+
+    /// A separate window doesn't inherit SwiftUI's preferredColorScheme —
+    /// mirror the in-app appearance setting (called again when it changes).
+    static func syncAppearance() {
+        let raw = UserDefaults.standard.string(forKey: "cini.appearance") ?? "dark"
+        window?.overrideUserInterfaceStyle = switch raw {
+        case "light": .light
+        case "system": .unspecified
+        default: .dark
+        }
+    }
+}
+
+/// Transparent window that only intercepts the toast's actionable content
+/// (Undo / tap-to-open); everything else falls through to the app below.
+private final class PassthroughWindow: UIWindow {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let view = super.hitTest(point, with: event) else { return nil }
+        return view === rootViewController?.view ? nil : view
+    }
+}
+
 // MARK: - Haptics, consistently
 
 /// The rank flow always buzzed; now everything that changes state does.

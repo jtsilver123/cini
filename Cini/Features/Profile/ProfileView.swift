@@ -248,6 +248,13 @@ struct ProfileScreen: View {
             Task { await loadCounts() }
             if !loaded { Task { await load() } }
         }
+        // Ranking or deleting a rating elsewhere invalidates this screen's
+        // server snapshot (Top 3, taste card) — drop the 10s throttle so the
+        // next appearance refetches instead of showing the pre-rank profile.
+        .onChange(of: store.watchedCount) { _, _ in
+            guard isSelf else { return }
+            lastLoaded = .distantPast
+        }
     }
 
     // MARK: Data
@@ -269,8 +276,10 @@ struct ProfileScreen: View {
         let supabase = SupabaseService.shared
         async let followers = supabase.followCount(of: id, direction: "following_id")
         async let following = supabase.followCount(of: id, direction: "follower_id")
-        let f = await followers
-        let g = await following
+        // nil = the count query failed. Keep what's showing (and cached) —
+        // assigning would flash "0 Followers / 0 Following" over real counts
+        // AND persist the zeros into the very cache meant to prevent that.
+        guard let f = await followers, let g = await following else { return }
         followerCount = f
         followingCount = g
         hasCounts = true
@@ -310,7 +319,9 @@ struct ProfileScreen: View {
             async let memberWatchlistTask = supabase.watchlistSlim(userID: id)
             async let blockedTask = supabase.blockedIDs()
             profile = try? await profileTask.asProfile
-            rankings = (try? await rankingsTask) ?? []
+            // Same guard as the self path: a failed fetch must not render a
+            // member with hundreds of ranks as "just getting started".
+            if let fresh = try? await rankingsTask { rankings = fresh }
             let rows = (try? await supabase.movies(ids: rankings.map(\.movieId))) ?? []
             for row in rows { movies[row.tmdbId] = row.asMovie }
             // Don't let a (possibly stale) read overwrite a follow/unfollow the
@@ -323,15 +334,17 @@ struct ProfileScreen: View {
             }
             matchPct = await match
             blocked = await blockedTask.contains(id)
-            let memberWatchlist = (try? await memberWatchlistTask) ?? []
-            watchlistCount = memberWatchlist.count
-            // The "you both want to watch" screen only needs each title's id
-            // (it renders from the store) — build minimal rows from the slim
-            // fetch rather than downloading every note/watch-by we won't show.
-            bothWantToWatch = memberWatchlist
-                .filter { store.isOnWatchlist($0.movieId) }
-                .map { WatchlistRow(id: UUID(), userId: id, movieId: $0.movieId,
-                                    createdAt: $0.createdAt, note: nil, watchBy: nil) }
+            // Keep the prior count on failure rather than collapsing to 0.
+            if let memberWatchlist = try? await memberWatchlistTask {
+                watchlistCount = memberWatchlist.count
+                // The "you both want to watch" screen only needs each title's id
+                // (it renders from the store) — build minimal rows from the slim
+                // fetch rather than downloading every note/watch-by we won't show.
+                bothWantToWatch = memberWatchlist
+                    .filter { store.isOnWatchlist($0.movieId) }
+                    .map { WatchlistRow(id: UUID(), userId: id, movieId: $0.movieId,
+                                        createdAt: $0.createdAt, note: nil, watchBy: nil) }
+            }
         }
 
         // Best -> worst across buckets.
@@ -843,12 +856,14 @@ struct ProfileScreen: View {
     /// already land there).
     private var ownListRows: some View {
         VStack(spacing: 0) {
-            // Own profile: the LIVE store is the truth for the count — the
-            // server fetch can lag a just-made rank (or fail entirely).
+            // Own profile: the LIVE store is the truth for the counts — the
+            // server snapshot can lag a just-made rank, a deleted rating
+            // (max() let the stale higher number win), or a bookmark toggled
+            // on a pushed movie page.
             jumpRow(icon: "checkmark.circle", title: "Watched",
-                    count: max(rankings.count, store.watchedItems.count), tab: .watched)
+                    count: store.watchedItems.count, tab: .watched)
             Divider()
-            jumpRow(icon: "bookmark", title: "Want to Watch", count: watchlistCount, tab: .watchlist)
+            jumpRow(icon: "bookmark", title: "Want to Watch", count: store.watchlistCount, tab: .watchlist)
             Divider()
             jumpRow(icon: "play.tv", title: "Watching", count: watchingRows.count, tab: .watching)
             Divider()
@@ -1344,9 +1359,25 @@ struct ActivityMovieRow: View {
                 }
                 if showsQuickActions {
                     if store.isWatched(movie.tmdbID) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.title3)
-                            .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                        // Tappable, like the same check on artwork — "tap to
+                        // rank again" behaves identically everywhere.
+                        if let onLog {
+                            Button {
+                                onLog(movie)
+                            } label: {
+                                Image(systemName: "checkmark.circle")
+                                    .font(.title3)
+                                    .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                                    .frame(width: 40, height: 40)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Ranked — rank \(movie.title) again")
+                        } else {
+                            Image(systemName: "checkmark.circle")
+                                .font(.title3)
+                                .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                        }
                     } else {
                         quickActions
                     }

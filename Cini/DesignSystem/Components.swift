@@ -588,12 +588,25 @@ struct SaveToListSheet: View {
                         Text(movie.title)
                             .font(.subheadline.weight(.bold))
                             .lineLimit(1)
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Bookmarked to Want to Watch")
+                        // Live store state, not a hard-coded success: the
+                        // bookmark write is still in flight when this sheet
+                        // opens, and on a dead connection it REVERTS — a
+                        // green check over a failed save reads as saved.
+                        if store.isOnWatchlist(movie.tmdbID) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Bookmarked to Want to Watch")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(Theme.scoreGreen)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "bookmark")
+                                Text("Saving to Want to Watch…")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(Theme.gray)
                         }
-                        .font(.caption)
-                        .foregroundStyle(Theme.scoreGreen)
                     }
                     Spacer()
                 }
@@ -1022,12 +1035,19 @@ struct MovieFilterBar: View {
     @State private var providerLogos: [String: URL] = [:]
     @State private var showStreamingPicker = false
 
+    /// Derived menu options, MEMOIZED on the movie count: computing them in
+    /// body (a flatMap + Set + sort over every cached movie) re-ran on every
+    /// store mutation — a visible main-thread hitch while scrolling a big
+    /// Want to Watch, stacked on the list's own re-sort.
+    @State private var derivedGenres: [String] = []
+    @State private var derivedProviders: [String] = []
+
     private var genres: [String] {
-        allOptions ? MovieFilters.allGenres : Array(Set(movies.flatMap(\.genres))).sorted()
+        allOptions ? MovieFilters.allGenres : derivedGenres
     }
 
     private var providers: [String] {
-        allOptions ? MovieFilters.majorProviders : MovieFilters.presentProviders(in: movies)
+        allOptions ? MovieFilters.majorProviders : derivedProviders
     }
 
     var body: some View {
@@ -1040,6 +1060,11 @@ struct MovieFilterBar: View {
             } else {
                 bar
             }
+        }
+        .onChange(of: movies.count, initial: true) { _, _ in
+            guard !allOptions else { return }
+            derivedGenres = Array(Set(movies.flatMap(\.genres))).sorted()
+            derivedProviders = MovieFilters.presentProviders(in: movies)
         }
         // Hard cap to the offered width. The inner horizontal ScrollView (and,
         // on iOS 26, the GlassEffectContainer) otherwise report their full

@@ -305,6 +305,9 @@ struct CiniApp: App {
             // breaking. Tunable — raise once specific screens are verified.
             .dynamicTypeSize(...DynamicTypeSize.xLarge)
             .preferredColorScheme(colorScheme)
+            // The toast window is a separate UIWindow — keep its appearance
+            // in step when the user flips dark/light in Settings.
+            .onChange(of: appearance) { _, _ in ToastWindow.syncAppearance() }
             .animation(.easeInOut(duration: 0.25), value: session.didResolveAuth)
             .task { await session.bootstrap() }
             .onOpenURL { handleURL($0) }
@@ -325,8 +328,14 @@ struct CiniApp: App {
                         }
                 }
                 // Same shared router the tab bar uses, so a tapped movie/profile
-                // inside the list navigates correctly.
+                // inside the list navigates correctly. These sheets attach
+                // OUTSIDE the .environment(session/store) injections above, so
+                // they inherit NEITHER — without re-injecting, the content's
+                // @Environment(RankingStore.self) lookup traps on present
+                // (same mechanism as the chat sheet fix in RootTabView).
                 .environment(TabRouter.shared)
+                .environment(session)
+                .environment(session.rankingStore)
             }
             // A shared profile link (/u/?u=) opens that member's profile.
             .sheet(item: $sharedProfile) { member in
@@ -339,6 +348,8 @@ struct CiniApp: App {
                         }
                 }
                 .environment(TabRouter.shared)
+                .environment(session)
+                .environment(session.rankingStore)
             }
             // A shared title link (/m/?id=) opens that title's page.
             .sheet(item: $sharedMovie) { movie in
@@ -351,6 +362,8 @@ struct CiniApp: App {
                         }
                 }
                 .environment(TabRouter.shared)
+                .environment(session)
+                .environment(session.rankingStore)
             }
             // Opened from a password-recovery link — must finish before doing
             // anything else, so it's a non-dismissable cover.

@@ -46,6 +46,11 @@ struct SwipeView: View {
     /// Identifies the in-flight pool load; a newer load supersedes an older one
     /// so two quick filter changes can't let stale results win the race.
     @State private var loadSeq = 0
+    /// Same idea one level up: identifies the in-flight reloadPool call, so a
+    /// superseded reload skips its post-load steps (dismissal clear, prune
+    /// retry, tail backfill, excludeIDs reset) instead of corrupting the
+    /// newer call's freshly built pool.
+    @State private var reloadSeq = 0
     /// Counts pull-to-refreshes; rotates the TMDB pages (and which favorites
     /// drive "Because you liked") so every refresh brings FRESH titles.
     @State private var refreshNonce = 0
@@ -297,9 +302,10 @@ struct SwipeView: View {
     @ViewBuilder
     private var content: some View {
         if !loaded {
-            Spacer()
-            ProgressView()
-            Spacer()
+            // Shaped skeleton, matching the active layout — every sibling tab
+            // shows one while loading (DESIGN.md: "a skeleton, not a blank"),
+            // and Recs was the lone bare-spinner holdout.
+            loadingSkeleton
         } else if visible.isEmpty {
             emptyState
         } else {
@@ -388,6 +394,48 @@ struct SwipeView: View {
                 .screenHPadding()
                 Spacer(minLength: 0)
             }
+        }
+    }
+
+    /// Loading placeholder shaped like the content it becomes: a big card
+    /// with control circles in deck mode, a poster grid in grid mode.
+    @ViewBuilder
+    private var loadingSkeleton: some View {
+        switch layout {
+        case .cards:
+            VStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(Theme.surface2)
+                    .overlay(RoundedRectangle(cornerRadius: 22)
+                        .fill(Theme.fill).modifier(SkeletonPulse()))
+                    .frame(maxHeight: .infinity)
+                HStack(spacing: 28) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Circle()
+                            .fill(Theme.fill)
+                            .frame(width: 54, height: 54)
+                            .modifier(SkeletonPulse())
+                    }
+                }
+                .padding(.bottom, 10)
+            }
+            .screenHPadding()
+        case .grid:
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 12)],
+                          spacing: 14) {
+                    ForEach(0..<9, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Theme.surface2)
+                            .overlay(RoundedRectangle(cornerRadius: 12)
+                                .fill(Theme.fill).modifier(SkeletonPulse()))
+                            .aspectRatio(2 / 3, contentMode: .fit)
+                    }
+                }
+                .screenHPadding()
+                .padding(.top, 8)
+            }
+            .allowsHitTesting(false)
         }
     }
 
@@ -486,12 +534,16 @@ struct SwipeView: View {
     /// Filter changes pass false: a visible title that matches the new
     /// filter should stay, not be banished for having been on screen.
     private func reloadPool(excludeShown: Bool = true) async {
+        // A newer reload (e.g. a filter change while a pull-to-refresh is
+        // mid-flight) supersedes this one: without the generation check, the
+        // older call's backfill appends its pre-refresh unfiltered page onto
+        // the newer call's freshly filtered pool.
+        reloadSeq += 1
+        let myReload = reloadSeq
         // A refresh must REPLACE what's on screen, not re-deal it: remember
         // the visible pool and build the next one without it.
         let previous = visible
         excludeIDs = excludeShown ? Set(previous.map(\.movie.tmdbID)) : []
-        dismissed = []
-        gridHistory = []
         // Rotate the sources so the refresh actually brings NEW titles —
         // rebuilding page 1 of the same feeds produced an identical pool.
         refreshNonce += 1
@@ -500,6 +552,12 @@ struct SwipeView: View {
         // ScrollView for a spinner and visibly glitched the animation. The
         // old grid stays until the fresh one lands in one assignment.
         let responded = await load(force: true)
+        guard myReload == reloadSeq else { return }
+        // Session dismissals clear only AFTER the fresh pool lands — clearing
+        // them before the fetch resurrected every just-swiped tile for the
+        // duration of the network round trip.
+        dismissed = []
+        gridHistory = []
         // "Refresh recs" must actually GIVE MORE CARDS: a power user can have
         // dismissed everything the pool serves, and a refresh that comes back
         // empty is a dead end. Forget the oldest local dismissals and try
@@ -510,6 +568,7 @@ struct SwipeView: View {
             let recent = persistedDismissedOrdered.suffix(200)
             dismissedRaw = recent.map(String.init).joined(separator: ",")
             _ = await load(force: true)
+            guard myReload == reloadSeq else { return }
         }
         // Thin fresh pool (small library, sparse sources)? Backfill the TAIL
         // with what was showing before, so a refresh never strands the user
@@ -554,6 +613,9 @@ struct SwipeView: View {
         let responded = movieResults != nil || tvResults != nil
         let pool = (movieResults ?? []) + (tvResults ?? [])
         guard token == loadSeq else { return responded }   // a newer reload superseded this one
+        // Total failure (offline refresh/filter change): keep the pool we
+        // have instead of replacing the visible grid with an empty state.
+        guard responded else { loaded = true; return false }
 
         var seen = Set<Int>()
         var built: [YourListsView.RecCandidate] = []
@@ -573,7 +635,7 @@ struct SwipeView: View {
         // don't wait on the bookmark-count round trip before enriching.
         async let counts = SupabaseService.shared.watchlistCounts(movieIDs: built.map(\.movie.tmdbID))
         await enrich(built.prefix(16).map(\.movie.tmdbID))
-        bookmarkCounts = await counts
+        if let counts = await counts { bookmarkCounts = counts }
         guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)
@@ -650,6 +712,9 @@ struct SwipeView: View {
         }
 
         guard token == loadSeq else { return responded }   // a newer reload superseded this one
+        // Every source failed (offline pull-to-refresh): keep the current
+        // pool — an empty `pending` proves nothing about the user's recs.
+        guard responded else { loaded = true; return false }
         let dismissed = persistedDismissed
         candidates = pending.compactMap { candidate in
             guard !dismissed.contains(candidate.id),
@@ -669,7 +734,7 @@ struct SwipeView: View {
         // (and so the genre/streaming filters have something to match) — in the
         // background so the deck shows immediately.
         await enrich(pending.prefix(16).map(\.id))
-        bookmarkCounts = await counts
+        if let counts = await counts { bookmarkCounts = counts }
         guard token == loadSeq else { return responded }
         candidates = candidates.map {
             YourListsView.RecCandidate(movie: store.movie($0.movie.tmdbID) ?? $0.movie, reason: $0.reason)

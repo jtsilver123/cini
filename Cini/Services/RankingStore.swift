@@ -85,6 +85,16 @@ final class RankingStore {
         isLoaded = false
     }
 
+    /// Bumped by every local mutation (rank commit, bookmark toggle, reorder,
+    /// delete, note/goal edit). load() captures it before its fetches and skips
+    /// the wholesale lists/watchlist overwrite if it moved — otherwise a load
+    /// landing mid-use (import finish, Siri intent, profile save) replaces
+    /// state with a PRE-mutation server snapshot and the rank or bookmark the
+    /// user just watched land visibly vanishes, potentially inverting local
+    /// vs server until the next refresh.
+    @ObservationIgnored private var mutationEpoch = 0
+    private func noteMutation() { mutationEpoch += 1 }
+
     func load() async {
         guard let userID = supabase.currentUserID else { return }
         // Cold start: the last-synced snapshot renders lists instantly
@@ -96,14 +106,17 @@ final class RankingStore {
             listChanged()
             isLoaded = true
         }
+        let epoch = mutationEpoch
         do {
             async let rankingRows = supabase.rankings(userID: userID)
             async let watchlistRows = supabase.watchlist(userID: userID)
             let (rankings, watching) = try await (rankingRows, watchlistRows)
 
-            watchlist = watching.map {
-                WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId,
-                              createdAt: $0.createdAt, note: $0.note, watchBy: $0.watchBy)
+            if mutationEpoch == epoch {
+                watchlist = watching.map {
+                    WatchlistItem(id: $0.id, userID: $0.userId, movieID: $0.movieId,
+                                  createdAt: $0.createdAt, note: $0.note, watchBy: $0.watchBy)
+                }
             }
 
             // Movies must be known before partitioning rankings, since the
@@ -134,11 +147,17 @@ final class RankingStore {
                 }
             }
 
-            lists = buildLists(from: rankings)
-            // When each title was ranked — powers the "Date added" sort on the
-            // Watched list (the scored items themselves carry no timestamp).
-            rankedAt = Dictionary(rankings.map { ($0.movieId, $0.createdAt) },
-                                  uniquingKeysWith: { a, b in max(a, b) })
+            // The heal fan-out above can take seconds — re-check the epoch:
+            // a mutation that landed while this load was in flight must not
+            // be overwritten by the pre-mutation server snapshot. (The next
+            // successful load reconciles; local state is already correct.)
+            if mutationEpoch == epoch {
+                lists = buildLists(from: rankings)
+                // When each title was ranked — powers the "Date added" sort on the
+                // Watched list (the scored items themselves carry no timestamp).
+                rankedAt = Dictionary(rankings.map { ($0.movieId, $0.createdAt) },
+                                      uniquingKeysWith: { a, b in max(a, b) })
+            }
             listChanged()
             isLoaded = true
             RankingDiskCache.save(.init(userID: userID, lists: lists,
@@ -434,6 +453,7 @@ final class RankingStore {
         let otherKey = key == "movie" ? "tv" : "movie"
         let previousOtherList = lists[otherKey]
         let previousWatchlistItem = watchlist.first { $0.movieID == session.newItemID }
+        noteMutation()
         var kindList = lists[key] ?? RankingList()
         let scored = kindList.commit(session)
         lists[key] = kindList
@@ -504,6 +524,7 @@ final class RankingStore {
             // position; the watchlist entry comes back), then best-effort resync
             // from the server in case the connection recovered. nil tells the
             // log flow to show an error instead of the result ticket.
+            noteMutation()
             lists[key] = previousKindList ?? RankingList()
             lists[otherKey] = previousOtherList ?? RankingList()
             if let item = previousWatchlistItem,
@@ -559,22 +580,45 @@ final class RankingStore {
         let items = ids.map {
             RankedItem(id: $0, sentiment: $0 == moving ? newSentiment : (sentimentOf[$0] ?? .fine))
         }
-        lists[key] = RankingList(items: items)
+        noteMutation()
+        let installed = RankingList(items: items)
+        lists[key] = installed
         listChanged()
 
         let bucketPosition = ids[0..<to].filter {
             ($0 == moving ? newSentiment : sentimentOf[$0]) == newSentiment
         }.count
-        do {
+        // Serialize the server writes: two quick drags fire two concurrent
+        // rank_insert RPCs whose server-side order is otherwise arbitrary —
+        // the persisted order could differ from what the user arranged.
+        let previousWrite = reorderWriteChain
+        let write = Task { [supabase] in
+            _ = await previousWrite?.result
             _ = try await supabase.rankInsert(movieID: moving, bucket: newSentiment,
                                               position: bucketPosition)
+        }
+        reorderWriteChain = write
+        do {
+            try await write.value
         } catch {
-            // The move didn't persist — restore the prior order rather than
-            // let the next refresh silently undo it.
-            if let prior { lists[key] = prior; listChanged() }
+            // The move didn't persist. Only restore the prior order if the
+            // list is still exactly what THIS call installed — a later drag
+            // has since superseded it, and reverting to a pre-both-drags
+            // snapshot would wipe the user's successful second move. In that
+            // case resync from the server instead.
+            noteMutation()
+            if lists[key]?.scoredItems.map(\.id) == installed.scoredItems.map(\.id) {
+                if let prior { lists[key] = prior; listChanged() }
+            } else {
+                await load()
+            }
             ToastCenter.shared.saveFailed()
         }
     }
+
+    /// Tail of the reorder write chain — each drag's rank_insert awaits the
+    /// previous one so the server applies moves in the order they were made.
+    @ObservationIgnored private var reorderWriteChain: Task<Void, Error>?
 
     /// Server-first: a delete that failed remotely must not vanish locally
     /// only to resurrect on the next refresh.
@@ -582,6 +626,7 @@ final class RankingStore {
     func removeRanking(movieID: Int) async -> Bool {
         do {
             try await supabase.rankRemove(movieID: movieID)
+            noteMutation()
             let key = kindKey(forMovie: movieID)
             var kindList = lists[key] ?? RankingList()
             kindList.remove(movieID)
@@ -610,6 +655,7 @@ final class RankingStore {
         defer { togglingWatchlist.remove(movie.tmdbID) }
         cache(movie)
         Haptics.tap()
+        noteMutation()
         let wasSaved: Bool
         var removedItem: WatchlistItem?
         if let index = watchlist.firstIndex(where: { $0.movieID == movie.tmdbID }) {
@@ -629,11 +675,29 @@ final class RankingStore {
             // Adding requires the movie row to exist — a failed cache means
             // the toggle would hit the FK, so it fails the whole save.
             if !wasSaved { try await supabase.cacheMovie(movie) }
-            _ = try await supabase.watchlistToggle(movieID: movie.tmdbID)
+            let nowSaved = try await supabase.watchlistToggle(movieID: movie.tmdbID)
+            // The RPC returns the authoritative end state (true = saved). If
+            // it disagrees with the optimistic flip (another device, a racing
+            // refresh), adopt the server's answer — otherwise local and
+            // server invert and every future tap toggles the wrong way.
+            if nowSaved != !wasSaved {
+                noteMutation()
+                if nowSaved {
+                    if !watchlist.contains(where: { $0.movieID == movie.tmdbID }),
+                       let userID = supabase.currentUserID {
+                        watchlist.insert(WatchlistItem(id: UUID(), userID: userID,
+                                                       movieID: movie.tmdbID, createdAt: .now),
+                                         at: 0)
+                    }
+                } else {
+                    watchlist.removeAll { $0.movieID == movie.tmdbID }
+                }
+            }
             // A satisfying confirm that the save stuck (only on add, not remove).
             if !wasSaved { Haptics.success() }
         } catch {
             // Revert the optimistic flip and say so — silence feels broken.
+            noteMutation()
             if wasSaved, let original = removedItem {
                 // Restore the EXACT item (id, date, note) — a fresh stand-in
                 // would drift from the server row it still mirrors.
@@ -663,6 +727,7 @@ final class RankingStore {
     /// in the shared cache so the bookmark and the Want to Watch list don't go
     /// stale. No network call: the RPC already did the delete.
     func watchlistSuperseded(movieID: Int) {
+        noteMutation()
         watchlist.removeAll { $0.movieID == movieID }
     }
 
@@ -685,6 +750,7 @@ final class RankingStore {
             return
         }
         let previous = watchlist[index].note
+        noteMutation()
         watchlist[index].note = trimmed.isEmpty ? nil : trimmed
         let saved = await supabase.setWatchlistNote(movieID: movieID, note: trimmed)
         // Re-find by id after the await — the list may have changed during the
@@ -703,6 +769,7 @@ final class RankingStore {
             return
         }
         let previous = watchlist[index].watchBy
+        noteMutation()
         watchlist[index].watchBy = iso
         let saved = await supabase.setWatchBy(movieID: movieID, date: iso)
         // Re-find by id after the await (the captured index may be stale).
@@ -752,10 +819,18 @@ final class RankingStore {
     /// the battery/rate-limit cost sane without changing what gets filled in.
     private static let enrichLimiter = ConcurrencyLimiter(4)
 
+    /// IDs whose enrich already completed this session. Some titles
+    /// legitimately come back with nil runtime (TV with no episode_run_time,
+    /// upcoming films) — gating on runtime alone refires the same 2 TMDB
+    /// calls + a server write for those titles on EVERY scroll pass, forever.
+    @ObservationIgnored private var enrichAttempted: Set<Int> = []
+
     /// Fill in detail fields (runtime, certification, director, providers)
     /// for a movie we only know from search results.
     func enrich(_ movieID: Int) async {
-        guard movies[movieID]?.runtimeMinutes == nil, !enriching.contains(movieID) else { return }
+        guard movies[movieID]?.runtimeMinutes == nil,
+              !enriching.contains(movieID),
+              !enrichAttempted.contains(movieID) else { return }
         enriching.insert(movieID)
         defer { enriching.remove(movieID) }
         await Self.enrichLimiter.acquire()
@@ -763,13 +838,18 @@ final class RankingStore {
         async let detailsTask = tmdb.details(for: movieID)
         async let providersTask = tmdb.watchProviders(for: movieID)
         guard var detailed = try? await detailsTask else { return }
-        // A user's kind override (TV movie, miniseries) survives
-        // enrichment — TMDB's label must not quietly undo it.
-        if let kind = movies[movieID]?.mediaKind {
-            detailed.mediaKind = kind
-        }
+        // Details fetched successfully — never refetch this session, even if
+        // the record's runtime is legitimately nil. (A FAILED fetch is not
+        // marked, so a network blip can retry on the next appearance.)
+        enrichAttempted.insert(movieID)
         if let providers = try? await providersTask {
             detailed.streamingOn = providers.streamingNames
+        }
+        // Re-read the kind AFTER the last await: a user's kind override
+        // (TV movie, miniseries) tapped during the round-trip must survive —
+        // reading it before the suspension wrote the stale kind back.
+        if let kind = movies[movieID]?.mediaKind {
+            detailed.mediaKind = kind
         }
         movies[movieID] = detailed
         do { try await supabase.cacheMovie(detailed) }

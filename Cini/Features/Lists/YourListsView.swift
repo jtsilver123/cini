@@ -540,8 +540,21 @@ struct YourListsView: View {
     private var friendRecsList: some View {
         friendRecsAsList
         .task {
-            directRecs = (try? await SupabaseService.shared.directRecs()) ?? []
-            directRecsLoaded = true
+            // A failed fetch must not render "No picks from friends yet" over
+            // recs the user saw a minute ago (the transient-failure-poisoning
+            // pattern the watching/custom-list loads already guard against).
+            do {
+                directRecs = try await SupabaseService.shared.directRecs()
+                directRecsLoaded = true
+            } catch {
+                if !Task.isCancelled {
+                    // Only claim "loaded" when there's something to show —
+                    // otherwise keep the skeleton and let the next visit retry.
+                    if !directRecs.isEmpty { directRecsLoaded = true }
+                    ToastCenter.shared.show("Couldn't load friend recs — check your connection.")
+                }
+                return
+            }
             let ids = directRecs.compactMap { $0.movies?.asMovie.tmdbID }
             let map = await SupabaseService.shared.predictedScores(movieIDs: ids)
             predicted.merge(map) { _, new in new }
@@ -1484,11 +1497,17 @@ struct WatchlistRowView: View {
                 }
                 if store.isWatched(movie.tmdbID) {
                     // Already seen (a member's list can hold titles you've
-                    // ranked) — say so instead of offering save/rank.
-                    Image(systemName: "checkmark.circle")
-                        .font(.title3)
-                        .foregroundStyle(Theme.scoreGreen.opacity(0.85))
-                        .frame(width: 40, height: 40)
+                    // ranked). Tappable — "tap the check to rank again" is
+                    // what the same control does on artwork everywhere else.
+                    Button(action: onQuickRank) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.title3)
+                            .foregroundStyle(Theme.scoreGreen.opacity(0.85))
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Ranked — rank \(movie.title) again")
                 } else {
                     HStack(spacing: 6) {
                         // Same 40pt hit targets as MovieSuggestionRow — the glyphs

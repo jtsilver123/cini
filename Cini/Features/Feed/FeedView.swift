@@ -12,6 +12,9 @@ struct FeedView: View {
     @State private var events: [FeedEventRow] = []
     @State private var likedEventIDs: Set<UUID> = []
     @State private var feedLoaded = false
+    // The last feed fetch threw — with nothing to show, render a retry state
+    // instead of the first-run copy (which reads as "your friends vanished").
+    @State private var feedFailed = false
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     /// Set just before `detailMovie` when the open came from a "watch tonight"
@@ -116,7 +119,14 @@ struct FeedView: View {
                             .screenHPadding()
                             .id("feedTop")
                     }
-                    .refreshable { await loadFeed(); await loadTonightStack(force: true) }
+                    .refreshable {
+                        // The recovery path the load-failed toast promises
+                        // ("pull to refresh"): retry the library load — without
+                        // this, a failed initial load strands the whole session
+                        // on an empty Rank/Lists page with no onboarding.
+                        if !store.isLoaded { await store.load() }
+                        await loadFeed(); await loadTonightStack(force: true)
+                    }
                     // Tapping the Feed tab while on Feed jumps back to the top.
                     .onChange(of: tabRouter.retap[.feed]) { _, _ in
                         withAnimation(.snappy) { proxy.scrollTo("feedTop", anchor: .top) }
@@ -135,6 +145,9 @@ struct FeedView: View {
                 // AppDelegate applicationDidBecomeActive hook is dead code
                 // under the SwiftUI scene lifecycle — this is the real path.)
                 PushManager.clearBadge()
+                // A library that never loaded (launch on a dead connection)
+                // retries on every foreground until it succeeds.
+                if !store.isLoaded { Task { await store.load() } }
                 guard Date().timeIntervalSince(lastFeedLoad) > 45 else { return }
                 Task { await loadFeed() }
             }
@@ -198,7 +211,12 @@ struct FeedView: View {
                 )
             }
             .navigationDestination(item: $detailMovie) { movie in
+                // Per-title identity: a push tap for a DIFFERENT movie while a
+                // page is open swaps the item in place — without .id the old
+                // page's @State (scores, cast, trailer) survives under the new
+                // title's header. Fresh identity = fresh state + fresh loads.
                 MovieDetailView(movie: movie, autoShowWhereToWatch: detailAutoWatch)
+                    .id(movie.tmdbID)
             }
             // The auto-open-Where-to-Watch intent belongs to one swipe-right open
             // only. Clear it when the detail closes so a later tap (a feed row,
@@ -815,11 +833,13 @@ struct FeedView: View {
 
             if events.isEmpty {
                 if feedLoaded {
-                    // The friends nudge above already covers the thin-graph cases.
-                    // Here we only show the first-run "rank your first movie"
-                    // state when no friends card is being shown (brand-new user,
-                    // or a user with enough friends but a momentarily quiet feed).
-                    if friendsNudgeMode == nil {
+                    if feedFailed {
+                        failedState
+                    } else if friendsNudgeMode == nil {
+                        // The friends nudge above already covers the thin-graph cases.
+                        // Here we only show the first-run "rank your first movie"
+                        // state when no friends card is being shown (brand-new user,
+                        // or a user with enough friends but a momentarily quiet feed).
                         emptyState
                     }
                 } else {
@@ -908,6 +928,24 @@ struct FeedView: View {
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// The feed fetch failed and there's nothing cached to show.
+    private var failedState: some View {
+        HairlineCard {
+            VStack(spacing: 12) {
+                Image(systemName: "wifi.slash").font(.title2).foregroundStyle(Theme.gray)
+                Text("Couldn't load your feed")
+                    .font(.subheadline.weight(.bold))
+                Text("Check your connection and try again.")
+                    .font(.caption)
+                    .foregroundStyle(Theme.gray)
+                PillButton(title: "Try again") {
+                    Task { await loadFeed() }
                 }
             }
             .frame(maxWidth: .infinity)
@@ -1038,7 +1076,15 @@ struct FeedView: View {
         }
         if let plan = tabRouter.pendingWatchPlan {
             tabRouter.pendingWatchPlan = nil
-            watchPlanContext = plan
+            if var open = watchPlanContext, open.id == plan.id {
+                // The sheet is already open on this exact plan ("waiting for
+                // them" while the accept push arrives) — assigning an equal
+                // item is a no-op, so bump the token to force a refetch.
+                open.reloadToken += 1
+                watchPlanContext = open
+            } else {
+                watchPlanContext = plan
+            }
         }
     }
 
@@ -1148,8 +1194,15 @@ struct FeedView: View {
         // continue-watching).
         async let inProgressTask = SupabaseService.shared.continueWatchingPicks()
         async let picksTask = SupabaseService.shared.tonightPicks(limit: 15)
-        let inProgress = (try? await inProgressTask) ?? []
-        let picks = (try? await picksTask) ?? []
+        let inProgressResult = try? await inProgressTask
+        let picksResult = try? await picksTask
+        // A cancelled run (.task(id:) restarts cancel this mid-flight) or a
+        // total fetch failure (offline pull-to-refresh) must not blank a deck
+        // the user is looking at — bail and keep the current cards.
+        if Task.isCancelled { return }
+        if inProgressResult == nil, picksResult == nil, !tonightCards.isEmpty { return }
+        let inProgress = inProgressResult ?? []
+        let picks = picksResult ?? []
 
         // Which titles will we need streaming providers for? A provider fetch
         // gates every card (only streamable titles qualify), and doing them
@@ -1193,13 +1246,19 @@ struct FeedView: View {
             // Partition the eligible pool first — cheap, no movie rows needed yet.
             var primary: [TonightPickRow] = []
             var deferred: [TonightPickRow] = []
+            let onScreen = Set(tonightCards.map(\.id))
             for pick in picks {
                 if dismissed.contains(pick.movieId) { continue }
                 if cards.contains(where: { $0.id == pick.movieId }) { continue }
                 if store.isWatched(pick.movieId) { continue }
                 let lastDay = shownMap[pick.movieId]
-                if lastDay == today { continue }  // shown today → hard skip
-                if let d = lastDay, today - d <= 3 {
+                if lastDay == today {
+                    // Shown today → hard skip, EXCEPT picks currently on
+                    // screen: a forced rebuild (pull-to-refresh) is re-showing
+                    // them, not repeating them — without this exemption a
+                    // small pool vanishes for the day and reads as "cleared".
+                    if onScreen.contains(pick.movieId) { primary.append(pick) } else { continue }
+                } else if let d = lastDay, today - d <= 3 {
                     deferred.append(pick)
                 } else {
                     primary.append(pick)
@@ -1239,6 +1298,9 @@ struct FeedView: View {
             }
         }
 
+        // Late cancellation check — the awaits above (movies/providers) can
+        // straddle a .task(id:) restart; don't record or blank on a dead run.
+        if Task.isCancelled { return }
         // Record which movies were shown so they're skipped on later reloads today.
         recordTonightShown(cards.map { $0.movie.tmdbID })
         tonightCards = cards
@@ -1377,10 +1439,16 @@ struct FeedView: View {
         if let fresh = try? await SupabaseService.shared.feed() {
             let withNotes = await SupabaseService.shared.attachNotes(to: fresh)
             events = withNotes
+            feedFailed = false
             FeedDiskCache.save(withNotes)
             // Fresh server counts supersede any per-thread overrides — keeping
             // them pinned comment counts to a stale value all session.
             commentCountOverrides = [:]
+        } else {
+            // A failed fetch over an empty feed must not masquerade as the
+            // first-run "your feed starts with you" state — that tells a
+            // user with real activity the app is empty.
+            feedFailed = true
         }
         // Five independent queries — in flight TOGETHER, not one after
         // another (serially this added ~5 round trips of latency before the
@@ -1395,16 +1463,28 @@ struct FeedView: View {
         // nil = likes query failed — keep the hearts we have rather than
         // silently un-filling every liked heart for the session.
         if let liked = await liked { likedEventIDs = liked }
-        savedCounts = await counts
-        unreadCount = await unread
-        pendingAsks = (try? await asks) ?? []
+        // Same rule for every parallel query: nil/throw = failed — keep what
+        // we're showing instead of blanking chips, the unread dot, or the
+        // rec-request banner over a network blip.
+        if let counts = await counts { savedCounts = counts }
+        if let unread = await unread { unreadCount = unread }
+        if let asks = try? await asks { pendingAsks = asks }
         friendsWatchingRows = await watching
         feedLoaded = true
     }
 }
 
 /// Last-known feed, persisted so launch shows content immediately.
+/// Snapshots are tagged with the owning account (like RankingDiskCache) so a
+/// different signer on the same device never sees the previous user's feed —
+/// the sign-out clear() alone can't cover a fire-and-forget save that lands
+/// after it, or the app being killed before the signed-out event runs.
 enum FeedDiskCache {
+    private struct Snapshot: Codable {
+        let ownerID: UUID
+        let events: [FeedEventRow]
+    }
+
     private static var url: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("feed-cache.json")
@@ -1413,20 +1493,27 @@ enum FeedDiskCache {
     /// Decode off the main actor — the feed cache decode ran on the main
     /// thread on the feed-load path.
     static func load() async -> [FeedEventRow]? {
-        await Task.detached(priority: .userInitiated) {
+        guard let me = SupabaseService.shared.currentUserID else { return nil }
+        return await Task.detached(priority: .userInitiated) {
             guard let data = try? Data(contentsOf: url) else { return nil }
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try? decoder.decode([FeedEventRow].self, from: data)
+            guard let snap = try? decoder.decode(Snapshot.self, from: data),
+                  snap.ownerID == me else { return nil }
+            return snap.events
         }.value
     }
 
     /// Encode + write off-main, fire-and-forget.
     static func save(_ events: [FeedEventRow]) {
+        guard let me = SupabaseService.shared.currentUserID else { return }
         Task.detached(priority: .utility) {
+            // Re-check at write time: this detached save must not resurrect
+            // the previous account's feed after sign-out cleared the file.
+            guard SupabaseService.shared.currentUserID == me else { return }
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
-            if let data = try? encoder.encode(events) {
+            if let data = try? encoder.encode(Snapshot(ownerID: me, events: events)) {
                 try? data.write(to: url, options: .atomic)
             }
         }
@@ -1518,6 +1605,10 @@ struct MemberRef: Identifiable, Hashable {
 struct WatchPlanContext: Identifiable, Equatable {
     let movieID: Int
     let friend: MemberRef
+    /// Bumped when a push for this same plan arrives while its sheet is
+    /// already open — not part of `id` (same sheet), but it changes equality
+    /// so the sheet content updates and PlanWatchSheet refetches.
+    var reloadToken = 0
     var id: String { "\(movieID)-\(friend.id.uuidString)" }
 }
 
@@ -1976,9 +2067,14 @@ struct CommentsSheet: View {
 
     private var activeContext: CommentContext? { context ?? fetchedContext }
 
+    // A just-posted comment's id — the list scrolls to it so tapping send
+    // visibly does something even when the thread is longer than the screen.
+    @State private var pendingScrollID: UUID?
+
     // Pushed onto the presenter's navigation stack, so it gets a native back
     // button and edge-swipe-back for free (like opening a profile).
     var body: some View {
+        ScrollViewReader { proxy in
         List {
                 // The post being discussed, pinned on top so the screen reads
                 // as a full thread (Beli-style) instead of a bare comment list.
@@ -2134,6 +2230,12 @@ struct CommentsSheet: View {
                 headerLikeCount = ctx.likeCount
                 headerSeeded = true
             }
+        }
+        .onChange(of: pendingScrollID) { _, id in
+            guard let id else { return }
+            pendingScrollID = nil
+            withAnimation { proxy.scrollTo(id, anchor: .bottom) }
+        }
         }
     }
 
@@ -2432,14 +2534,19 @@ struct CommentsSheet: View {
         guard !body.isEmpty else { return }
         draft = ""
         replyingTo = nil
+        var posted = false
         do {
             try await SupabaseService.shared.comment(eventID: eventID, body: body)
+            posted = true
             await notifyMentions(in: body)
         } catch {
             draft = body   // give the text back instead of eating it
             ToastCenter.shared.saveFailed()
         }
         await reload()
+        // Comments order oldest-first, so the new one lands at the bottom —
+        // scroll to it or a long thread shows no visible change on send.
+        if posted { pendingScrollID = comments.last?.id }
     }
 
     /// Reply prefills the composer with the commenter's @handle (which tags them
@@ -2622,6 +2729,7 @@ struct NotificationsView: View {
         })
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)
+                .id(movie.tmdbID)   // fresh state when the item swaps in place
         }
         .navigationDestination(item: $memberTarget) { member in
             MemberProfileView(userID: member.id, username: member.username)

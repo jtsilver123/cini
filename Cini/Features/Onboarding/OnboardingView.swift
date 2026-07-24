@@ -124,9 +124,11 @@ struct OnboardingView: View {
         .animation(.snappy, value: step)
         .nativeContentWidth()
         .background(Theme.background)
-        // Full-screen cover sits above RootTabView's overlay, so onboarding
-        // mounts its own toast surface.
-        .overlay { ToastOverlay() }
+        // Toasts render in ToastWindow (a top-level window above every
+        // presentation), so the cover no longer needs its own toast surface —
+        // but onboarding can show before RootTabView ever appears, so make
+        // sure the window exists.
+        .onAppear { ToastWindow.install() }
         .sheet(isPresented: $showImport, onDismiss: { advance() }) {
             LetterboxdImportView(startWithPaste: importStartsWithPaste)
         }
@@ -709,8 +711,11 @@ struct OnboardingView: View {
                     candidates: visibleRecCandidates,
                     onOpen: { _ in },
                     onLog: { logMovie = $0 },
-                    onSave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
-                    onUnsave: { movie in Task { await store.toggleWatchlist(movie: movie) } },
+                    // Target-state saves, like SwipeView — the raw toggle's
+                    // double-tap guard makes a quick Undo silently no-op, and
+                    // "save" on an already-bookmarked title would REMOVE it.
+                    onSave: { movie in Task { await store.setWatchlist(movie: movie, saved: true) } },
+                    onUnsave: { movie in Task { await store.setWatchlist(movie: movie, saved: false) } },
                     onRefresh: { Task { await loadOnboardingRecs(force: true) } },
                     showRank: true,
                     onRank: { logMovie = $0 },
@@ -741,17 +746,22 @@ struct OnboardingView: View {
         var pending: [(id: Int, reason: String)] = []
         var seen = Set<Int>()
 
+        // Skip titles already bookmarked (e.g. on the previous step's grid) —
+        // swiping right on one here says "Bookmark" but would otherwise be a
+        // toggle that silently REMOVES the existing save.
         if let topID, let similar = try? await TMDBService.shared.similar(to: topID) {
             let topTitle = store.movie(topID)?.title ?? "your favorite"
             for movie in similar.prefix(12)
-            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID)
+                && !store.isOnWatchlist(movie.tmdbID) {
                 store.cache(movie)
                 pending.append((movie.tmdbID, "Because you liked \(topTitle)"))
             }
         }
         if pending.count < 8, let trending = try? await TMDBService.shared.trending() {
             for movie in trending.prefix(12)
-            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID) {
+            where seen.insert(movie.tmdbID).inserted && !store.isWatched(movie.tmdbID)
+                && !store.isOnWatchlist(movie.tmdbID) {
                 store.cache(movie)
                 pending.append((movie.tmdbID, "Trending this week"))
             }
@@ -769,7 +779,9 @@ struct OnboardingView: View {
                 YourListsView.RecCandidate(movie: $0, reason: candidate.reason)
             }
         }
-        recBookmarkCounts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id))
+        if let counts = await SupabaseService.shared.watchlistCounts(movieIDs: pending.map(\.id)) {
+            recBookmarkCounts = counts
+        }
         recsLoaded = true
     }
 }

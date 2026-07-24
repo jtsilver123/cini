@@ -122,7 +122,9 @@ struct PlanWatchSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
-        .task(id: loadKey) { await load() }
+        // Keyed on the context's reloadToken too: a push for this plan while
+        // the sheet is open bumps it so the stale "waiting" card refetches.
+        .task(id: "\(context.reloadToken)-\(loadKey)") { await load() }
         .sheet(isPresented: $showMessages) {
             MessageComposeView(body: draftText) { showMessages = false }
                 .ignoresSafeArea()
@@ -530,6 +532,10 @@ struct PlanWatchSheet: View {
         // Unreleased film: the default "tonight at 8" would be before its
         // opening — move the selection up to opening night.
         if when < dateFloor { when = Self.eveningOf(dateFloor) }
+        // Opened after 8pm, "tonight at 8" has already passed (and for a
+        // released film the eveningOf fixup lands on the same past time) —
+        // roll to tomorrow 8pm so "Send invite" never proposes a gone time.
+        if when < Date() { when = max(Self.at(20, daysFromNow: 1), dateFloor) }
     }
 
     private func sendNewTime(_ plan: WatchPlanRow) {

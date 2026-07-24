@@ -43,6 +43,9 @@ struct SearchView: View {
     /// The query the last finished search ran with — empty-result messages
     /// only show once a search has actually completed for the current text.
     @State private var completedQuery = ""
+    /// The search fetch THREW (network) — emptiness proves nothing, so show
+    /// a retry instead of "No titles match" (which reads as "doesn't exist").
+    @State private var searchFailed = false
     @State private var browse: BrowseKind?
     @State private var browseResults: [Movie] = []
     @State private var browseLoaded = false
@@ -94,6 +97,8 @@ struct SearchView: View {
                                 SearchSkeleton(kind: .titles)
                             } else if !movieResults.isEmpty {
                                 resultsSection
+                            } else if searchFailed {
+                                searchFailedMessage
                             } else if !completedQuery.isEmpty {
                                 noResultsMessage(
                                     "No titles match \"\(completedQuery)\" — try a different spelling, a genre, or a director's name.")
@@ -107,6 +112,8 @@ struct SearchView: View {
                             SearchSkeleton(kind: .members)
                         } else if memberResults.isEmpty && query.trimmingCharacters(in: .whitespaces).isEmpty {
                             suggestedSection
+                        } else if memberResults.isEmpty && searchFailed {
+                            searchFailedMessage
                         } else if memberResults.isEmpty && !completedQuery.isEmpty {
                             noResultsMessage(
                                 "No members match \"\(completedQuery)\" — usernames are exact, so check the spelling.")
@@ -120,6 +127,18 @@ struct SearchView: View {
             }
             .nativeContentWidth()
             .background(Theme.background)
+            // Seed who you already follow (same fix as the leaderboard): the
+            // sets start empty, so without this every member row showed
+            // "Follow" for people you follow — and tapping it could actually
+            // UNFOLLOW them on the second tap.
+            .task {
+                if followedFromSearch.isEmpty {
+                    followedFromSearch = await SupabaseService.shared.followingIDs()
+                }
+                if requestedFromSearch.isEmpty {
+                    requestedFromSearch = await SupabaseService.shared.outgoingFollowRequestIDs()
+                }
+            }
             .fullScreenCover(item: $logMovie, onDismiss: {
                 // Ranked one of the suggestions → it's now in Watched; the card
                 // animates out of the grid and we confirm where it went (CIN-33).
@@ -299,6 +318,29 @@ struct SearchView: View {
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Theme.hairline))
         }
+    }
+
+    /// The fetch threw — offer a retry rather than claiming "no results"
+    /// (matching browseSection's failure handling).
+    private var searchFailedMessage: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+                .font(.title2)
+                .foregroundStyle(Theme.gray)
+            Text("Couldn't search — check your connection.")
+                .font(.subheadline)
+                .foregroundStyle(Theme.gray)
+                .multilineTextAlignment(.center)
+            Button {
+                scheduleSearch()
+            } label: {
+                Text("Try again").font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.marquee)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
     }
 
     private func noResultsMessage(_ text: String) -> some View {
@@ -847,6 +889,7 @@ struct SearchView: View {
         searchTask?.cancel()
         let text = query.trimmingCharacters(in: .whitespaces)
         completedQuery = ""
+        searchFailed = false
         guard !text.isEmpty else {
             movieResults = []
             memberResults = []
@@ -857,7 +900,10 @@ struct SearchView: View {
             try? await Task.sleep(for: .milliseconds(250))   // debounce
             guard !Task.isCancelled else { return }
             isSearching = true
-            defer { isSearching = false }
+            // A CANCELLED task's defer must not clear the loading state the
+            // replacement search just set — that flashed stale results for
+            // the old query mid-typing on slow networks.
+            defer { if !Task.isCancelled { isSearching = false } }
             if tab == 0 {
                 // Genre and director queries are first-class: "horror"
                 // fills with the genre's most popular, "nolan" with his
@@ -869,7 +915,8 @@ struct SearchView: View {
                 async let directorTask: [Movie] = text.count >= 4
                     ? ((try? await TMDBService.shared.directedMovies(matching: text)) ?? [])
                     : []
-                var results = (try? await TMDBService.shared.search(query: text, year: nil)) ?? []
+                let primary = try? await TMDBService.shared.search(query: text, year: nil)
+                var results = primary ?? []
                 // Subtitle queries ("new hope") match famous films via
                 // their alternative titles, but TMDB buries them on page 2.
                 // When page 1 has no notable title, pull the next page so
@@ -937,11 +984,21 @@ struct SearchView: View {
                     results = merged
                 }
                 guard !Task.isCancelled else { return }
+                // Primary search threw AND nothing rescued the query: that's a
+                // network failure, not "this movie doesn't exist" — show the
+                // retry state instead of the authoritative no-results copy.
+                if primary == nil, results.isEmpty {
+                    searchFailed = true
+                    return
+                }
                 movieResults = results
                 completedQuery = text
                 for movie in movieResults { store.cache(movie) }
             } else {
-                let found = (try? await SupabaseService.shared.searchMembers(query: text)) ?? []
+                guard let found = try? await SupabaseService.shared.searchMembers(query: text) else {
+                    if !Task.isCancelled { searchFailed = true }
+                    return
+                }
                 guard !Task.isCancelled else { return }
                 memberResults = found
                 completedQuery = text

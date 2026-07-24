@@ -228,8 +228,9 @@ struct RootTabView: View {
             }
         }
         .animation(.snappy, value: network.isOnline)
-        // Write failures and confirmations surface here, app-wide.
-        .overlay { ToastOverlay() }
+        // Write failures and confirmations surface app-wide via a dedicated
+        // top-level window, so they're visible even over presented sheets.
+        .onAppear { ToastWindow.install() }
         // Milestones, streaks, and other payoff moments rain confetti here —
         // above everything, never catching a touch.
         .overlay { CelebrationOverlay() }

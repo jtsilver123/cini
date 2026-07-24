@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 /// Poster/backdrop image view backed by a shared URLCache sized for a
 /// poster-forward app. Disk-cached so lists scroll warm offline.
@@ -126,22 +127,34 @@ final class ImageLoader: @unchecked Sendable {
             return created
         }()
 
+        // Exactly-once release, enforced STRUCTURALLY with a per-call flag —
+        // not inferred from Task.isCancelled. (A cancellation landing in the
+        // window after withTaskCancellationHandler uninstalls its handler but
+        // before a `!Task.isCancelled` check would skip BOTH release paths,
+        // leaking the waiter count and pinning a completed — possibly failed —
+        // download in `inFlight` forever, so that URL never loads again.)
+        let released = OSAllocatedUnfairLock(initialState: false)
+        let releaseOnce: @Sendable (Bool) -> Void = { cancelled in
+            let first = released.withLock { done -> Bool in
+                if done { return false }
+                done = true
+                return true
+            }
+            if first { self.releaseWaiter(url, cancelled: cancelled) }
+        }
+
         let result = await withTaskCancellationHandler {
             await task.value
         } onCancel: {
             // This waiter's cell went away mid-flight.
-            self.releaseWaiter(url, cancelled: true)
+            releaseOnce(true)
         }
 
-        // Exactly-once release: onCancel handled the cancelled path (and
-        // Task.isCancelled stays true through here), so only a non-cancelled
-        // waiter runs the normal completion.
-        if !Task.isCancelled {
-            releaseWaiter(url, cancelled: false)
-            if let result {
-                let cost = result.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
-                memoryCache.setObject(result, forKey: url as NSURL, cost: cost)
-            }
+        // Always runs (no-op if onCancel already released this waiter).
+        releaseOnce(false)
+        if let result {
+            let cost = result.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+            memoryCache.setObject(result, forKey: url as NSURL, cost: cost)
         }
         return result
     }

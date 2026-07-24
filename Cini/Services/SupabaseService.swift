@@ -424,12 +424,23 @@ final class SupabaseService {
         try await client.rpc("rank_remove", params: Params(p_movie_id: movieID)).execute()
     }
 
+    /// PostgREST caps every request at 1000 rows server-side, so any per-user
+    /// table that can outgrow that must page or a big library silently
+    /// truncates (the tail of the loved bucket — the favorites — vanishes).
+    private static let rowPageSize = 1000
+
     func rankings(userID: UUID) async throws -> [RankingRow] {
-        try await client.from("rankings")
-            .select()
-            .eq("user_id", value: userID)
-            .order("bucket").order("position")
-            .execute().value
+        var all: [RankingRow] = []
+        while true {
+            let page: [RankingRow] = try await client.from("rankings")
+                .select()
+                .eq("user_id", value: userID)
+                .order("bucket").order("position")
+                .range(from: all.count, to: all.count + Self.rowPageSize - 1)
+                .execute().value
+            all += page
+            if page.count < Self.rowPageSize { return all }
+        }
     }
 
     // MARK: - Watchlist
@@ -442,11 +453,17 @@ final class SupabaseService {
     }
 
     func watchlist(userID: UUID) async throws -> [WatchlistRow] {
-        try await client.from("watchlist")
-            .select()
-            .eq("user_id", value: userID)
-            .order("created_at", ascending: false)
-            .execute().value
+        var all: [WatchlistRow] = []
+        while true {
+            let page: [WatchlistRow] = try await client.from("watchlist")
+                .select()
+                .eq("user_id", value: userID)
+                .order("created_at", ascending: false)
+                .range(from: all.count, to: all.count + Self.rowPageSize - 1)
+                .execute().value
+            all += page
+            if page.count < Self.rowPageSize { return all }
+        }
     }
 
     /// Just the ids + dates of a watchlist — for a MEMBER's profile, which
@@ -463,11 +480,17 @@ final class SupabaseService {
     }
 
     func watchlistSlim(userID: UUID) async throws -> [WatchlistSlimRow] {
-        try await client.from("watchlist")
-            .select("movie_id, created_at")
-            .eq("user_id", value: userID)
-            .order("created_at", ascending: false)
-            .execute().value
+        var all: [WatchlistSlimRow] = []
+        while true {
+            let page: [WatchlistSlimRow] = try await client.from("watchlist")
+                .select("movie_id, created_at")
+                .eq("user_id", value: userID)
+                .order("created_at", ascending: false)
+                .range(from: all.count, to: all.count + Self.rowPageSize - 1)
+                .execute().value
+            all += page
+            if page.count < Self.rowPageSize { return all }
+        }
     }
 
     /// Optional "watch by" goal date (ISO yyyy-MM-dd, or nil to clear).
@@ -978,6 +1001,9 @@ final class SupabaseService {
         try await client.from("blocks")
             .upsert(Row(blocker_id: me, blocked_id: userID), onConflict: "blocker_id,blocked_id")
             .execute()
+        // A blocked user must leave the invite picker and @-mention
+        // suggestions immediately, not after the cache's 5-minute TTL.
+        await MainActor.run { FriendsCache.shared.warm() }
     }
 
     func unblock(_ userID: UUID) async throws {
@@ -1096,11 +1122,16 @@ final class SupabaseService {
 
     func listMovieIDs(_ listID: UUID) async throws -> [Int] {
         struct Row: Decodable { let movie_id: Int }
-        let rows: [Row] = try await client.from("custom_list_items")
-            .select("movie_id").eq("list_id", value: listID)
-            .order("created_at", ascending: true)
-            .execute().value
-        return rows.map(\.movie_id)
+        var all: [Row] = []
+        while true {
+            let page: [Row] = try await client.from("custom_list_items")
+                .select("movie_id").eq("list_id", value: listID)
+                .order("created_at", ascending: true)
+                .range(from: all.count, to: all.count + Self.rowPageSize - 1)
+                .execute().value
+            all += page
+            if page.count < Self.rowPageSize { return all.map(\.movie_id) }
+        }
     }
 
     // MARK: - Diary (every watch is its own row)
@@ -1383,12 +1414,14 @@ final class SupabaseService {
             .execute().value
     }
 
-    func followCount(of userID: UUID, direction: String) async -> Int {
+    /// nil = the count query failed — callers keep whatever number they had
+    /// instead of flashing (and caching) a bogus 0/0.
+    func followCount(of userID: UUID, direction: String) async -> Int? {
         let response = try? await client.from("follows")
             .select("*", head: true, count: .exact)
             .eq(direction, value: userID)
             .execute()
-        return response?.count ?? 0
+        return response?.count
     }
 
     /// Cached taste match with another user, if computed.
@@ -1453,6 +1486,11 @@ final class SupabaseService {
             .delete()
             .eq("follower_id", value: me).eq("following_id", value: userID)
             .execute()
+        // Every follow-graph mutation refreshes the shared friends cache here
+        // (the service layer) so no surface can forget: otherwise the invite
+        // picker, @-mention autocomplete, and friends nudge stay wrong for up
+        // to 5 minutes after a follow/unfollow/block.
+        await MainActor.run { FriendsCache.shared.warm() }
     }
 
     // MARK: Follow + approve (private accounts)
@@ -1462,8 +1500,13 @@ final class SupabaseService {
     @discardableResult
     func requestFollow(_ userID: UUID) async throws -> String {
         struct Params: Encodable { let p_target: UUID }
-        return try await client.rpc("request_follow", params: Params(p_target: userID))
+        let result: String = try await client.rpc("request_follow", params: Params(p_target: userID))
             .execute().value
+        // A new follow shows up in pickers/mentions right away (see unfollow).
+        if result == "followed" {
+            await MainActor.run { FriendsCache.shared.warm() }
+        }
+        return result
     }
 
     /// True if I have a pending follow request out to this (private) account.
@@ -1928,14 +1971,16 @@ final class SupabaseService {
             .execute().value
     }
 
-    func unreadNotificationCount() async -> Int {
+    /// nil = the query failed — the caller keeps the current badge instead of
+    /// clearing the unread dot over a network blip.
+    func unreadNotificationCount() async -> Int? {
         guard let me = currentUserID else { return 0 }
         let response = try? await client.from("notifications")
             .select("*", head: true, count: .exact)
             .eq("recipient_id", value: me)
             .is("read_at", value: nil)
             .execute()
-        return response?.count ?? 0
+        return response?.count
     }
 
     func markNotificationsRead() async {
@@ -1971,13 +2016,15 @@ final class SupabaseService {
 
     /// How many people have each title on their Want to Watch — privacy-safe
     /// aggregate counts (the `watchlist_counts` RPC).
-    func watchlistCounts(movieIDs: [Int]) async -> [Int: Int] {
+    /// nil = the query failed — the caller keeps the chips it has rather than
+    /// blanking every saved-count over a network blip.
+    func watchlistCounts(movieIDs: [Int]) async -> [Int: Int]? {
         guard !movieIDs.isEmpty else { return [:] }
         struct Row: Decodable { let movie_id: Int; let n: Int }
         struct Params: Encodable { let p_movie_ids: [Int] }
-        let rows: [Row] = (try? await client.rpc("watchlist_counts",
-                                                 params: Params(p_movie_ids: movieIDs))
-            .execute().value) ?? []
+        guard let rows: [Row] = try? await client.rpc("watchlist_counts",
+                                                      params: Params(p_movie_ids: movieIDs))
+            .execute().value else { return nil }
         return Dictionary(rows.map { ($0.movie_id, $0.n) }, uniquingKeysWith: { _, new in new })
     }
 

@@ -464,12 +464,58 @@ usage-credit limit mid-run; their claims (RankingStore.load full refetch,
 serial metadata healing — already bounded 6-wide, feed cache re-encode)
 were not independently confirmed and were left for a future pass.
 
+## End-to-end audit (Jul 24, 2026) — COMPLETE
+
+A 6-finder full-app audit (new-user journey, power-user journey, today's-code
+regressions, polish, cross-feature seams, concurrency) produced 41 findings;
+the verification phase was cut short on request, so each was hand-verified
+against the code while fixing. 38 fixed in one pass, including 3 criticals:
+
+- **PostgREST 1000-row cap** silently truncated rankings/watchlist/
+  watchlistSlim/listMovieIDs for big libraries (verified live against prod:
+  `content-range: 0-999/3233`) — all four now paginate via `.range()` loops.
+- **Deep-link share sheets crashed on open** (list/profile/title links):
+  presented outside the `.environment(session/store)` injections, so their
+  `@Environment(RankingStore.self)` lookups trapped — env now re-injected.
+- **A failed initial library load was never retried** (empty app all
+  session, onboarding skipped) — Feed pull-to-refresh and every foreground
+  now retry `store.load()` while `!isLoaded`.
+
+Highs: RankingStore mutation-epoch guard (a load landing mid-use no longer
+clobbers an in-flight rank/bookmark; watchlist_toggle's returned state now
+reconciled); toasts moved to a dedicated top-level UIWindow so they show
+over sheets; offline pull-to-refresh no longer wipes the Recs pool or the
+Tonight deck (cancellation + total-failure guards); onboarding deck uses
+target-state setWatchlist (Undo works, no accidental un-bookmark); search
+failures show retry copy instead of "no titles match"; member search seeds
+follow state (no accidental unfollows); follower counts / feed queries keep
+prior values on failure instead of blanking to 0 (and no longer poison the
+counts cache); member profiles keep prior rankings on a failed fetch;
+FeedDiskCache is account-scoped (no cross-account feed bleed).
+Mediums/lows: reorder writes serialized + revert-only-if-unchanged; enrich
+attempts memoized (no infinite TMDB refire on nil-runtime titles) and the
+kind-override race fixed; ImageLoader release made structurally exactly-once
+(waiter-leak window closed); import runner takes a background-task
+assertion; watch-plan push while its sheet is open forces a refetch;
+plan default time can't be in the past after 8pm; comment post scrolls to
+the new comment; Recs tab got a real skeleton; filter-bar menus memoized;
+movie page gets fresh identity per title on push-taps; self-profile counts
+read the live store; green ranked-check is tappable on list rows; Friend
+Recs keeps rows on a failed fetch; FriendsCache refreshes on every
+follow/unfollow/block (service-layer hook).
+Deliberately NOT changed: feed-card double-tap-to-like keeps the ~0.3s
+single-tap delay (making the gestures simultaneous would fire open+like
+together; the delay is the price of the feature).
+
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 
 Two multi-agent audits (July 2026: app-wide + theater) confirmed 84
 findings. All criticals & highs are FIXED (theater pass `2e22671`,
 app-wide pass `6c1345e`, migrations 0123/0124, showtime-alerts v10,
-phone-login v7). Remaining mediums/lows, roughly ranked:
+phone-login v7). NOTE: the Jul 24 end-to-end pass above has since fixed
+several items on this list (profile empty-state guards, the swipe-deck
+dismissed-list wipe, member-profile failed-fetch zeros). Remaining
+mediums/lows, roughly ranked:
 
 - Backgrounding right after the last comparison can drop a rank —
   wrap the commit in a background-task assertion or persist a
