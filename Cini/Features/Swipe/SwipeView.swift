@@ -95,7 +95,7 @@ struct SwipeView: View {
                 if loaded && !visible.isEmpty {
                     modeNote(layout == .grid
                              ? "Tap a poster to rank a \(suggestTV ? "show" : "movie") you've seen"
-                             : "Swipe right to bookmark · left to pass · + to rank")
+                             : "Swipe right to save for later · left to pass · seen it? Tap +")
                         .screenHPadding()
                         .padding(.top, 6)
                         .padding(.bottom, 6)

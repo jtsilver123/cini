@@ -65,6 +65,11 @@ struct RecCardDeck: View {
     }
 
     @AppStorage("recs.demoSeen") private var demoSeen = false
+    /// One-shot reinforcement fired on the very first REAL right-swipe: the
+    /// Tinder reflex reads right as "I like this / I've seen this", so the
+    /// exact moment it fires is the best time to say what right actually did
+    /// (saved for later) and where "I've seen it" lives (the + button).
+    @AppStorage("recs.firstSaveHintShown") private var firstSaveHintShown = false
     @State private var includeDemos = false
     @State private var index = 0
     @State private var drag: CGSize = .zero
@@ -81,23 +86,36 @@ struct RecCardDeck: View {
     @State private var topItemID: String?
 
     private enum DeckItem: Identifiable {
-        case demo(id: Int, title: String, subtitle: String, save: Bool)
+        case demo(id: Int, title: String, subtitle: String, icon: String, tint: Color)
         case rec(YourListsView.RecCandidate)
         var id: String {
             switch self {
-            case .demo(let id, _, _, _): return "demo\(id)"
+            case .demo(let id, _, _, _, _): return "demo\(id)"
             case .rec(let c): return "rec\(c.movie.tmdbID)"
             }
         }
     }
 
     private var demos: [DeckItem] {
-        includeDemos ? [
-            .demo(id: 1, title: "Swipe right to bookmark",
-                  subtitle: "It lands on your Want to Watch list.", save: true),
+        guard includeDemos else { return [] }
+        var cards: [DeckItem] = [
+            // "Haven't seen it" up front — the Tinder reflex reads a right
+            // swipe as "I like this / I've seen this", and that's exactly the
+            // misread that files watched titles onto Want to Watch.
+            .demo(id: 1, title: "Swipe right to save for later",
+                  subtitle: "Haven't seen it but want to? It lands on your Want to Watch list.",
+                  icon: "hand.point.right.fill", tint: Theme.marquee),
             .demo(id: 2, title: "Swipe left to pass",
-                  subtitle: "No one sees what you pass.", save: false),
-        ] : []
+                  subtitle: "Not interested — no one sees what you pass.",
+                  icon: "hand.point.left.fill", tint: Theme.scoreRed),
+        ]
+        if showRank {
+            cards.append(
+                .demo(id: 3, title: "Already seen it? Tap +",
+                      subtitle: "Don't swipe right on titles you've watched — the green + below ranks them head-to-head and gets you a score.",
+                      icon: "plus.circle.fill", tint: Theme.scoreGreen))
+        }
+        return cards
     }
     @Environment(\.horizontalSizeClass) private var hSize
     private var isPad: Bool { hSize == .regular }
@@ -214,22 +232,26 @@ struct RecCardDeck: View {
                 // defaults: gold "Bookmark" (the app's save color) and red "Pass"
                 // (a triage rejection — distinct from Tonight's slate "not tonight,"
                 // which is only a scheduling deferral).
-                rightStampText: "Bookmark", rightStampIcon: "bookmark.fill",
+                // The right stamp names the DESTINATION ("Want to Watch"), not
+                // the verb — countering the Tinder-style misread of a right
+                // swipe as "I like this / I've seen this".
+                rightStampText: "Want to Watch", rightStampIcon: "bookmark.fill",
                 leftStampText: "Pass", leftStampIcon: "xmark",
                 rightStampColor: Theme.marquee, rightStampFg: Theme.background,
                 leftStampColor: Theme.scoreRed, leftStampFg: .white,
                 onOpen: onOpen, onQuickAdd: onLog, onDismiss: nil)
-        case .demo(_, let title, let subtitle, let save):
-            demoCard(title: title, subtitle: subtitle, save: save, dragX: dragX)
+        case .demo(_, let title, let subtitle, let icon, let tint):
+            demoCard(title: title, subtitle: subtitle, icon: icon, tint: tint, dragX: dragX)
         }
     }
 
     /// An instructional practice card.
-    private func demoCard(title: String, subtitle: String, save: Bool, dragX: CGFloat) -> some View {
+    private func demoCard(title: String, subtitle: String, icon: String,
+                          tint: Color, dragX: CGFloat) -> some View {
         VStack(spacing: 10) {
-            Image(systemName: save ? "hand.point.right.fill" : "hand.point.left.fill")
+            Image(systemName: icon)
                 .font(.system(size: 40))
-                .foregroundStyle(save ? Theme.marquee : Theme.scoreRed)
+                .foregroundStyle(tint)
             Text(title).font(Theme.serif(24)).foregroundStyle(Theme.ink)
             Text(subtitle).font(.subheadline).foregroundStyle(Theme.gray)
                 .multilineTextAlignment(.center)
@@ -296,9 +318,11 @@ struct RecCardDeck: View {
             if showRank {
                 // Green = rank/rate (the "loved" color), now that save is gold —
                 // so the colors map cleanly: red pass · gold save · green rank.
+                // Captioned "Seen it" (not "Rank"): the caption's job is to
+                // route the "I've watched this" case AWAY from the right swipe.
                 controlButton(action: { rankCurrent() },
                               icon: "plus", size: 46,
-                              fg: .white, bg: Theme.scoreGreen, caption: "Rank")
+                              fg: .white, bg: Theme.scoreGreen, caption: "Seen it")
                     .disabled(index >= items.count)
                     .accessibilityLabel("Rank this — you've seen it")
             }
@@ -352,9 +376,14 @@ struct RecCardDeck: View {
         // `!advancing` matters: during the fly-off the index still points at
         // the departing card, so a fast Rank tap would open the head-to-head
         // flow for the card that just left the deck.
-        guard !advancing, index < items.count, case .rec(let c) = items[index] else { return }
-        Haptics.tap()
-        onRank(c.movie)
+        guard !advancing, index < items.count else { return }
+        if case .rec(let c) = items[index] {
+            Haptics.tap()
+            onRank(c.movie)
+        } else {
+            // A practice card: tapping + IS the lesson — advance the deck.
+            act(save: true, preRoll: true)
+        }
     }
 
     /// A tapped Pass/Bookmark button — same outcome as a swipe, but a tap has no
@@ -377,6 +406,12 @@ struct RecCardDeck: View {
             // streak isn't interrupted.
             if save { onSave(c.movie) } else { onPass(c.movie) }
             history.append((item.id, c.movie, save))
+            // First-ever real save: one reinforcement at the exact moment the
+            // "right = I've seen this" reflex would fire. Once, then silent.
+            if save, showRank, !firstSaveHintShown {
+                firstSaveHintShown = true
+                ToastCenter.shared.show("Saved to Want to Watch · Seen it already? Undo, then tap +")
+            }
         } else {
             history.append((item.id, nil, save))
             // Past the last demo → don't show them again next time.
