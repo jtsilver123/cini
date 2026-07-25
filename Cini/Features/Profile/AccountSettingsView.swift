@@ -283,7 +283,7 @@ private struct AppPreferencesScreen: View {
                     TheaterAlertsScreen()
                 } label: { Label("Theater alerts", systemImage: "popcorn") }
             } footer: {
-                Text("Tell Cini what you stream with and which screens you love — picks and showtimes lead with them.")
+                Text("Tell Cini what you stream with and which theater formats you love — recs and showtimes lead with them.")
             }
             Section("Your data") {
                 ExportRow()
@@ -348,9 +348,9 @@ private struct ViewingPrefsScreen: View {
                     .disabled(!loaded)
                 }
             } header: {
-                Text("Theater screens I love")
+                Text("Theater formats I love")
             } footer: {
-                Text("Showtimes opens pre-filtered to your favorite screen when it's playing nearby.")
+                Text("Showtimes opens pre-filtered to your favorite format when it's playing nearby.")
             }
 
             if loadFailed {

@@ -659,7 +659,7 @@ struct FeedView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.ink)
                     .lineLimit(2)
-                Text("It's been on your list a while. Watch it tonight?")
+                Text("It's been on your Want to Watch a while. Watch it tonight?")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
             }
@@ -877,7 +877,7 @@ struct FeedView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your \(weeks)-week streak ends Sunday")
                         .font(.subheadline.weight(.bold))
-                    Text("Rank one movie this week to keep it alive.")
+                    Text("Rank one movie or show this week to keep it alive.")
                         .font(.caption)
                         .foregroundStyle(Theme.gray)
                 }
@@ -897,12 +897,12 @@ struct FeedView: View {
                 Image(systemName: "film.stack").font(.title).foregroundStyle(Theme.gold)
                 Text("Your feed starts with you")
                     .font(Theme.serif(24))
-                Text("Rank one movie and Cini learns what you like. Follow friends to see their rankings here too.")
+                Text("Rank one movie or show and Cini learns what you like. Follow friends to see their rankings here too.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
 
-                PillButton(title: "Rank your first movie", systemImage: "plus.circle") {
+                PillButton(title: "Rank your first title", systemImage: "plus.circle") {
                     tabRouter.selection = .search
                 }
                 PillButton(title: "Import your history", systemImage: "square.and.arrow.down",
@@ -1398,7 +1398,7 @@ struct FeedView: View {
         if toast {
             Haptics.tap()
             // It stays on Want to Watch — this is just "not tonight," not a removal.
-            ToastCenter.shared.show("Not tonight — still on your list")
+            ToastCenter.shared.show("Not tonight — still on your Want to Watch")
         }
     }
 
@@ -1421,7 +1421,7 @@ struct FeedView: View {
             parts.append("\(pick.friendCount) friends loved it")
         }
         if pick.predicted >= 7.0 {
-            parts.append("We think you'll rate it \(pick.predicted.formatted(.number.precision(.fractionLength(1))))")
+            parts.append("We think you'll score it \(pick.predicted.formatted(.number.precision(.fractionLength(1))))")
         } else if parts.isEmpty {
             // Nothing strong to say — it's a title they already want to see.
             parts.append(pick.source == "watchlist" ? "On your Want to Watch" : "Picked for your taste")
@@ -1862,7 +1862,7 @@ struct FeedCard: View {
                     }
                     Spacer(minLength: 0)
                     if let savedCount, savedCount > 0 {
-                        Text("\(savedCount) \(savedCount == 1 ? "bookmark" : "bookmarks")")
+                        Text("\(savedCount) saved")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                     }
@@ -2949,7 +2949,7 @@ struct NotificationsView: View {
         let text: String
         switch row.kind {
         case "new_follower": text = "**\(name)** started following you"
-        case "like": text = "**\(who)** liked your activity on **\(movie)**"
+        case "like": text = "**\(who)** liked your post about **\(movie)**"
         case "comment": text = "**\(who)** commented on **\(movie)**"
         case "friend_ranked_watchlist_movie": text = "**\(who)** ranked **\(movie)** — it's on your Want to Watch list"
         case "watchlist_showing": text = "**\(movie)** from your Want to Watch is in theaters near you — tickets go fast 🎟️"
@@ -2959,16 +2959,16 @@ struct NotificationsView: View {
         case "follow_request": text = "**\(who)** asked to follow you"
         case "follow_request_approved": text = "**\(who)** accepted your follow request"
         case "contact_joined": text = "**\(name)** from your contacts just joined Cini 🎬"
-        case "saved_your_rank": text = "**\(who)** saved **\(movie)** — you ranked it 🔖"
+        case "saved_your_rank": text = "**\(who)** added **\(movie)** to their Want to Watch — you ranked it 🔖"
         case "streak_reminder": text = "Your streak ends Sunday — rank one title to keep it alive 🔥"
         case "tonight_pick": text = "Tonight's pick: **\(movie)** 🍿"
         case "watch_match": text = "**\(who)** also wants to watch **\(movie)** — plan a movie night? 🍿"
         case "watch_invite": text = "**\(who)** wants to watch **\(movie)** together — when works? 🎬"
-        case "watch_accept": text = "**\(who)** is in for **\(movie)** 🍿 You're on"
+        case "watch_accept": text = "**\(who)** is in for **\(movie)** 🍿 It's a plan"
         case "streaming_now": text = "**\(movie)** is streaming now — it's on your Want to Watch 🍿"
         case "season_premiere": text = "New season of **\(movie)** premieres this week 🎬"
         case "rate_nudge": text = "Seen **\(movie)** yet? Tap to rank it 🎬"
-        case "rec_passed": text = "**\(who)** passed on **\(movie)** you recommended"
+        case "rec_passed": text = "**\(who)** passed on your rec of **\(movie)**"
         case "rec_watched": text = "**\(who)** watched **\(movie)** you recommended 🎬"
         case "mention": text = "**\(who)** mentioned you in a comment on **\(movie)**"
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"

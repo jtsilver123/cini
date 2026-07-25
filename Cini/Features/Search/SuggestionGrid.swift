@@ -53,7 +53,7 @@ struct SuggestionGrid: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Dismiss \(movie.title)")
+                        .accessibilityLabel("Pass on \(movie.title)")
                     }
                 }
                 // Save to Want to Watch — a visible bookmark in the standard
@@ -86,7 +86,7 @@ struct SuggestionGrid: View {
                     Button { onRank(movie) } label: { Label("Rank it", systemImage: "star") }
                     Button { onSave(movie) } label: { Label("Bookmark to Want to Watch", systemImage: "bookmark") }
                     Button(role: .destructive) { onDismiss(movie) } label: {
-                        Label("Not interested", systemImage: "xmark")
+                        Label("Pass", systemImage: "xmark")
                     }
                 }
 

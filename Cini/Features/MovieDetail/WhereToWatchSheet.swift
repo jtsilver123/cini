@@ -25,7 +25,7 @@ struct WhereToWatchSheet: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("Watch")
+            .navigationTitle("Where to watch")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -80,7 +80,7 @@ struct WhereToWatchSheet: View {
                         } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: "play.circle")
-                                Text("Watch").font(.subheadline.weight(.semibold))
+                                Text("Open").font(.subheadline.weight(.semibold))
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)

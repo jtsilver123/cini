@@ -418,7 +418,7 @@ struct LogFlowView: View {
                     Button {
                         saveStillWatching(caughtUp: false)
                     } label: {
-                        Text("Add to Currently Watching")
+                        Text("Add to Watching")
                             .font(.subheadline.weight(.bold)).foregroundStyle(.white)
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
                             .background(Capsule().fill(Theme.velvet))
@@ -491,7 +491,7 @@ struct LogFlowView: View {
                                                                  season: s, episode: e,
                                                                  caughtUp: caughtUp)
                 store.watchlistSuperseded(movieID: movie.tmdbID)
-                ToastCenter.shared.show(caughtUp ? "All caught up 📺" : "Added to Currently Watching 📺")
+                ToastCenter.shared.show(caughtUp ? "All caught up 📺" : "Added to Watching 📺")
             } catch {
                 ToastCenter.shared.saveFailed()
             }
@@ -755,7 +755,7 @@ struct LogFlowView: View {
         }
         if anySaveFailed {
             // The rank itself landed; only extras missed. Be specific.
-            ToastCenter.shared.show("Some details didn't save — add them from the movie page.")
+            ToastCenter.shared.show("Some details didn't save — add them from its page.")
         }
     }
 

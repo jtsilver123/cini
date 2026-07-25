@@ -592,7 +592,7 @@ struct ProfileScreen: View {
             // Rank on Cini sits inline as a third stat (Beli-style) on every
             // profile — including your own, even though the stat card repeats it.
             Button { Haptics.tap(); showLeaderboard = true } label: {
-                stat(globalRank.map { "#\($0)" } ?? "Unranked", "Rank on Cini")
+                stat(globalRank.map { "#\($0)" } ?? "Unranked", "Leaderboard spot")
             }
             .buttonStyle(.plain)
         }
@@ -671,7 +671,7 @@ struct ProfileScreen: View {
                                 if result == "followed" {
                                     following = true
                                     Haptics.success()
-                                    ToastCenter.shared.show("Following @\(handle) — their picks are in your feed now")
+                                    ToastCenter.shared.show("Following @\(handle) — their rankings show up in your feed now")
                                 } else if result == "requested" {
                                     requested = true
                                     Haptics.success()
@@ -995,12 +995,12 @@ struct ProfileScreen: View {
                             Image(systemName: "chevron.right").font(.caption2.weight(.bold))
                                 .foregroundStyle(Theme.gray)
                         }
-                        Text("Rank on Cini").font(.subheadline).foregroundStyle(Theme.marquee)
+                        Text("Leaderboard spot").font(.subheadline).foregroundStyle(Theme.marquee)
                         Text(globalRank.map { "#\($0)" } ?? "Unranked")
                             .font(globalRank == nil ? .headline : .title2.weight(.bold))
                             .foregroundStyle(Theme.marquee)
                         if globalRank == nil && isSelf {
-                            Text("Rank a title to enter the board")
+                            Text("Rank a title to join the leaderboard")
                                 .font(.caption2)
                                 .foregroundStyle(Theme.gray)
                         }
@@ -1761,7 +1761,7 @@ struct BothWantToWatchScreen: View {
                 if let overlap {
                     OverlapHeader(overlap: overlap,
                                   title: "You both want to watch",
-                                  subtitle: "On both your Want to Watch lists — perfect for a watch night.")
+                                  subtitle: "On both your Want to Watch lists — perfect for a movie night.")
                 }
                 if rows.isEmpty {
                     Text("No overlap yet — save a few of @\(username)'s Want to Watch picks and they show up here.")
@@ -1791,7 +1791,7 @@ struct BothWantToWatchScreen: View {
         }
         .nativeContentWidth()
         .background(Theme.background)
-        .navigationTitle("You Both Want to Watch")
+        .navigationTitle("You both want to watch")
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $detailMovie) { movie in
             MovieDetailView(movie: movie)

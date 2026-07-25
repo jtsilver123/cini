@@ -458,7 +458,7 @@ final class ImportRunner {
         var parts: [String] = []
         if pastedToWatchlist {
             parts.append(watchlistImportFailed
-                         ? "some titles couldn't sync — run the import again"
+                         ? "some titles didn't come over — run the import again"
                          : "\(outcome.watched.count) saved to Want to Watch")
         } else {
             if !outcome.watched.isEmpty { parts.append("\(outcome.watched.count) to rank") }

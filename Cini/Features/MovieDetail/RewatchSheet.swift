@@ -17,7 +17,7 @@ struct RewatchSheet: View {
             HStack(spacing: 12) {
                 PosterView(url: movie.posterURL, width: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Log a rewatch").font(Theme.serif(22))
+                    Text("Watched it again").font(Theme.serif(22))
                     Text(movie.title).font(.caption).foregroundStyle(Theme.gray).lineLimit(1)
                 }
                 Spacer()

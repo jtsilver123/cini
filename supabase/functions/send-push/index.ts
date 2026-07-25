@@ -77,12 +77,12 @@ async function apnsJWT(): Promise<string> {
 function headline(kind: string, actor: string, name: string, movie: string | null): string {
   switch (kind) {
     case "new_follower": return `${name} started following you`;
-    case "like": return `@${actor} liked your activity on ${movie ?? "a movie"}`;
+    case "like": return `@${actor} liked your post about ${movie ?? "a movie"}`;
     case "comment": return `@${actor} commented on ${movie ?? "a movie"}`;
     case "friend_ranked_watchlist_movie":
       return `@${actor} ranked ${movie ?? "a movie"} — it's on your Want to Watch list`;
     case "watchlist_showing":
-      return `🎟️ Tickets are on sale near you for ${movie ?? "a movie on your list"} — good seats go fast`;
+      return `🎟️ Tickets are on sale near you for ${movie ?? "a movie on your Want to Watch"} — good seats go fast`;
     case "direct_rec":
       return `@${actor} recommended ${movie ?? "a movie"} to you 🎬`;
     case "invite_joined":
@@ -96,7 +96,7 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "contact_joined":
       return `${name} from your contacts just joined Cini 🎬`;
     case "saved_your_rank":
-      return `@${actor} saved ${movie ?? "a title"} — you ranked it 🔖`;
+      return `@${actor} added ${movie ?? "a title"} to their Want to Watch — you ranked it 🔖`;
     case "streak_reminder":
       return `Your streak ends Sunday — rank one title to keep it alive 🔥`;
     case "tonight_pick":
@@ -106,11 +106,11 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "watch_invite":
       return `@${actor} wants to watch ${movie ?? "a movie"} together — when works? 🎬`;
     case "watch_accept":
-      return `@${actor} is in for ${movie ?? "movie night"} 🍿 You're on`;
+      return `@${actor} is in for ${movie ?? "movie night"} 🍿 It's a plan`;
     case "streaming_now":
-      return `${movie ?? "A title you saved"} is streaming now 🍿`;
+      return `${movie ?? "A title you saved"} is streaming now — it's on your Want to Watch 🍿`;
     case "season_premiere":
-      return `New season incoming — ${movie ?? "a show you ranked"} returns this week 🎬`;
+      return `New season of ${movie ?? "a show you ranked"} premieres this week 🎬`;
     case "rate_nudge":
       return `Seen ${movie ?? "that movie you saved"} yet? Tap to rank it 🎬`;
     case "friend_loved":
@@ -122,10 +122,10 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
     case "mention":
       return `@${actor} mentioned you in a comment on ${movie ?? "a movie"} 💬`;
     case "rec_passed":
-      return `@${actor} passed on ${movie ?? "a rec"} you recommended`;
+      return `@${actor} passed on your rec${movie ? ` of ${movie}` : ""}`;
     case "rec_watched":
       return `@${actor} watched ${movie ?? "a movie"} you recommended 🎬`;
-    default: return `@${actor} did something new on Cini`;
+    default: return `New from @${actor} on Cini — tap to take a look`;
   }
 }
 
@@ -170,7 +170,7 @@ Deno.serve(async (req: Request) => {
       // The ticket alert embeds WHEN — these sell out, so the date is the
       // point: "…— first showing Fri, Jul 24. Tickets go fast".
       const when = String((n as any).message).replace(/^First showing /, "first showing ");
-      alertBody = `🎟️ ${(n.movies as any)?.title ?? "A movie on your list"} is in theaters near you — ${when}. Tickets go fast`;
+      alertBody = `🎟️ ${(n.movies as any)?.title ?? "A movie on your Want to Watch"} is in theaters near you — ${when}. Tickets go fast`;
     } else if ((n as any).message) alertBody += `: “${(n as any).message}”`;
     const body = {
       aps: {

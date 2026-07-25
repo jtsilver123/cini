@@ -268,7 +268,7 @@ struct WatchingControl: View {
                         Haptics.tap()
                         // Starting to watch moves it out of Want to Watch — say so.
                         if store.isOnWatchlist(movie.tmdbID) {
-                            ToastCenter.shared.show("Moved out of Want to Watch")
+                            ToastCenter.shared.show("Moved from Want to Watch to Watching")
                         }
                         watching = true
                         save(starting: true)
@@ -394,7 +394,7 @@ struct WatchingControl: View {
                         }
                     }
                 } label: {
-                    Label("Remove from Currently Watching", systemImage: "xmark.circle")
+                    Label("Remove from Watching", systemImage: "xmark.circle")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.gray)
                         .frame(maxWidth: .infinity)

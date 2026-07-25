@@ -947,7 +947,7 @@ function renderLists(){
     const lq2=(S.ui.listQ||"").trim().toLowerCase();
     if(lq2) wl=wl.filter(k=>MOVIES[k].t.toLowerCase().includes(lq2));
     content = S.watchlist.length===0
-      ? `<div class="empty"><span style="color:var(--marquee);">${I("bookmark",34,1.4)}</span><b>Watchlist is empty</b><span class="sub">Bookmark movies anywhere to save them for later.</span></div>`
+      ? `<div class="empty"><span style="color:var(--marquee);">${I("bookmark",34,1.4)}</span><b>Nothing on your Want to Watch yet</b><span class="sub">Bookmark movies anywhere to save them for later.</span></div>`
       : `<div class="pad" style="margin-bottom:6px;"><div class="card" style="display:flex; gap:12px; align-items:center; cursor:pointer; padding:12px 14px;" onclick="openReleaseCalendar('watchlist')">
           <span style="color:var(--marquee);">${I("ticket",20)}</span>
           <div style="flex:1;"><div style="font-weight:700; font-size:14px;">In theaters</div>
@@ -2238,7 +2238,7 @@ function openRankAgain(k){
       <div class="erow" onclick="closeOverlay(); openLog('${k}')"><span class="ic">${I("pencil",18)}</span><span style="flex:1;">Rerank this movie</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="closeOverlay(); S.ui.reorder=true; S.subTab='watched'; save(); go('lists')"><span class="ic">${I("sort",18)}</span><span style="flex:1;">Reorder within my list</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Log a rewatch</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" style="border-bottom:none; color:var(--red);" onclick="if(confirm('Delete your rating? It comes off your ranked list and your score clears. Notes and diary entries stay.')){ S.watched=S.watched.filter(w=>w.k!=='${k}'); save(); closeOverlay(); toast('Rating deleted'); render(); }"><span class="ic" style="color:var(--red);">${I("trash",18)}</span><span style="flex:1;">Delete my rating</span></div>
+      <div class="erow" style="border-bottom:none; color:var(--red);" onclick="if(confirm('Delete your ranking? It comes off your ranked list and your score clears. Notes and diary entries stay.')){ S.watched=S.watched.filter(w=>w.k!=='${k}'); save(); closeOverlay(); toast('Ranking deleted'); render(); }"><span class="ic" style="color:var(--red);">${I("trash",18)}</span><span style="flex:1;">Delete my ranking</span></div>
     </div>`);
 }
 function openRewatch(k){
@@ -2788,7 +2788,7 @@ function notifLine(n){
     case "like": return `${who} liked your activity on ${movie}`;
     case "comment": return `${who} commented on ${movie}`;
     case "mention": return `${who} mentioned you in a comment on ${movie}`;
-    case "friend_ranked_watchlist_movie": return `${who} ranked ${movie} — it's on your watchlist`;
+    case "friend_ranked_watchlist_movie": return `${who} ranked ${movie} — it's on your Want to Watch list`;
     case "watchlist_showing": return `${movie} — on your Want to Watch — is playing in theaters near you 🍿`;
     default: return `${who} did something new`;
   }
@@ -3101,7 +3101,7 @@ function chatComposer(){
     </div>
     <div style="display:flex; gap:10px; margin:0 16px 96px;">
       <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="askCini('What should I watch tonight?')">🍿 What to watch</button>
-      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="openChatReview()">✍️ Review something</button>
+      <button class="pill ghost" style="flex:1; justify-content:center; font-size:12px;" onclick="openChatReview()">✍️ Rank something</button>
     </div>`;
 }
 function renderChat(){
@@ -3141,10 +3141,10 @@ function openChatAttach(){
 }
 function openChatReview(){
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Review something</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Rank something</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="sub" style="margin-bottom:8px;">Pick one and the rating flow opens right here.</div>
+      <div class="sub" style="margin-bottom:8px;">Pick one and the ranking flow opens right here.</div>
       ${Object.keys(MOVIES).map(k=>`<div class="erow" onclick="closeOverlay(); openLog('${k}')">
         <div class="poster" style="width:30px;height:45px; background-image:url('${IMG(MOVIES[k].p)}');"></div>
         <span style="flex:1; font-weight:600;">${MOVIES[k].t} <span class="sub">${MOVIES[k].y}</span></span>
@@ -3177,7 +3177,7 @@ function askCini(q){
       a=`Done — <b>${MOVIES[namedKey].t}</b> (${MOVIES[namedKey].y}) is on your Want to Watch. ${MOVIES[namedKey].on?.[0]?`It's streaming on ${MOVIES[namedKey].on[0]} whenever you're ready.`:""}`;
       acts=[`Saved ${MOVIES[namedKey].t}`];
     }
-    else if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Review something</b> below and make it count.`;
+    else if(attached) a=`<b>${attached.t}</b> (${attached.y})? ${attached.ov||"Great pick."} Given your taste I'd bet you land around ${Math.min(10,attached.avg+0.3).toFixed(1)}. Seen it already? Tap <b>Rank something</b> below and make it count.`;
     else if(ql.includes("date")) a=`For date night: <b>Past Lives</b> (2023) — quiet, romantic, 1h 45m, on Paramount+. One pick, full confidence. Bring tissues.`;
     else if(ql.includes("short")&&top) a=`You loved <b>${top.t}</b> — same wavelength in under two hours: <b>The Zone of Interest</b> (1h 45m, on Max). Watch it tonight, thank me tomorrow.`;
     else if(wl) a=`Easy: <b>${wl.t}</b> is sitting right on your watchlist — ${wl.rt}, on ${wl.on[0]}, friends average ${wl.avg.toFixed(1)}. That's tonight's movie. Deal?`;

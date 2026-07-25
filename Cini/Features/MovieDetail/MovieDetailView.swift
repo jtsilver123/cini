@@ -159,24 +159,24 @@ struct MovieDetailView: View {
         }
         // Beli's "Rank again" menu: rerank, reorder, rewatch — or out.
         .confirmationDialog("Rank again", isPresented: $showRankAgainDialog) {
-            Button("Rerank this movie") { showLogFlow = true }
-            Button("Reorder within my list") {
+            Button("Rerank it") { showLogFlow = true }
+            Button("Reorder my Watched list") {
                 tabRouter.pendingReorderTV = (movie.mediaKind == "tv")
                 tabRouter.pendingReorder = true
                 tabRouter.selection = .lists
             }
-            Button("Log a rewatch") { showRewatchSheet = true }
-            Button("Delete my rating", role: .destructive) {
+            Button("Watched it again") { showRewatchSheet = true }
+            Button("Delete my ranking", role: .destructive) {
                 showDeleteRatingConfirm = true
             }
             Button("Cancel", role: .cancel) {}
         }
-        .alert("Delete your rating for \(movie.title)?", isPresented: $showDeleteRatingConfirm) {
-            Button("Delete my rating", role: .destructive) {
+        .alert("Delete your ranking for \(movie.title)?", isPresented: $showDeleteRatingConfirm) {
+            Button("Delete my ranking", role: .destructive) {
                 Task {
                     if await store.removeRanking(movieID: movie.tmdbID) {
                         Haptics.success()
-                        ToastCenter.shared.show("Rating deleted")
+                        ToastCenter.shared.show("Ranking deleted")
                         myDetails = await SupabaseService.shared.myMovieDetails(movieID: movie.tmdbID)
                     }
                 }
@@ -291,7 +291,7 @@ struct MovieDetailView: View {
                 HStack(spacing: 10) {
                     if let community {
                         ScoreChip(score: community.avgScore)
-                        Text("(\(community.ratingCount.formatted()) rating\(community.ratingCount == 1 ? "" : "s"))")
+                        Text("(\(community.ratingCount.formatted()) score\(community.ratingCount == 1 ? "" : "s"))")
                             .font(.subheadline)
                             .foregroundStyle(Theme.ink)
                             .lineLimit(1)
@@ -368,11 +368,11 @@ struct MovieDetailView: View {
     /// (The trailer link lives with the summary text above.)
     private var actionPills: some View {
         HStack(spacing: 10) {
-            PillButton(title: "Watch", systemImage: "play.rectangle", style: .outlined, fill: true) {
+            PillButton(title: "Streaming", systemImage: "play.rectangle", style: .outlined, fill: true) {
                 showWhereToWatch = true
             }
             if movie.mediaKind != "tv" {
-                PillButton(title: "Theater", systemImage: "ticket", style: .outlined, fill: true) {
+                PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined, fill: true) {
                     showShowtimes = true
                 }
             }
@@ -402,7 +402,7 @@ struct MovieDetailView: View {
                         emptyTint: Theme.marquee,
                         title: "Rec Score",
                         subtitle: predicted == nil
-                            ? "Rank a few movies to unlock"
+                            ? "Rank a few titles to unlock"
                             : "How much we think you'll like it"
                     )
                 }
@@ -698,7 +698,7 @@ struct MovieDetailView: View {
         Group {
             if !histogram.isEmpty, let community {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Ratings Breakdown").font(.title3.weight(.bold))
+                    Text("Score Breakdown").font(.title3.weight(.bold))
                     HStack(alignment: .center, spacing: 20) {
                         VStack(spacing: 2) {
                             Text(community.avgScore.formatted(.number.precision(.fractionLength(1))))
@@ -832,12 +832,12 @@ struct MovieDetailView: View {
     private func ratingCountLabel(_ count: Int) -> String {
         // Don't truncate 1,500 down to a misleading "1k": abbreviate with one
         // decimal in the thousands, drop the decimal only at 10k+.
-        if count >= 10_000 { return "\(count / 1000)k ratings" }
+        if count >= 10_000 { return "\(count / 1000)k scores" }
         if count >= 1_000 {
             let k = (Double(count) / 1000).formatted(.number.precision(.fractionLength(1)))
-            return "\(k)k ratings"
+            return "\(k)k scores"
         }
-        return "\(count) rating\(count == 1 ? "" : "s")"
+        return "\(count) score\(count == 1 ? "" : "s")"
     }
 
     /// "What people think" — Friends (everyone you follow who ranked it)
@@ -907,7 +907,7 @@ struct MovieDetailView: View {
                     Divider()
                 }
             case .everyone:
-                Text("Ratings that came with a note show here.")
+                Text("Scores that came with a note show here.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                 if publicNotes.isEmpty {
@@ -1395,11 +1395,11 @@ struct ScoreInfoSheet: View {
     private var explanation: String {
         switch info {
         case .rec:
-            return "How much we think YOU'LL like this title. It blends three signals: scores from friends whose taste matches yours (weighted by your taste match), how you've scored this title's genres before, and the Cini community average. It gets sharper with every movie you rank."
+            return "How much we think YOU'LL like this title. It blends three signals: scores from friends whose taste matches yours (weighted by your taste match), how you've scored this title's genres before, and the Cini community average. It gets sharper with every title you rank."
         case .friend:
-            return "The average score from people you follow who've ranked this title. The small number shows how many friends it's based on — tap into What People Think below to see each one."
+            return "The average score from people you follow who've ranked this title. The small number shows how many friends it's based on — tap into What people think below to see each one."
         case .average:
-            return "The average score from everyone on Cini who's ranked this title. Titles with only a few ratings are pulled gently toward the middle, so one enthusiastic stranger can't define a movie."
+            return "The average score from everyone on Cini who's ranked this title. Titles with only a few scores are pulled gently toward the middle, so one enthusiastic stranger can't define a movie."
         }
     }
 

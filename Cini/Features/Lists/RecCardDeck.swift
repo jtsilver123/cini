@@ -359,8 +359,8 @@ struct RecCardDeck: View {
     private var exhausted: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.circle").font(.largeTitle).foregroundStyle(Theme.gray)
-            Text("You're all caught up").font(.subheadline.weight(.bold))
-            Text("Pull in new picks, or adjust your filters.")
+            Text("That's all your recs for now").font(.subheadline.weight(.bold))
+            Text("Pull in new recs, or adjust your filters.")
                 .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
             PillButton(title: "Refresh recs", systemImage: "arrow.clockwise") {
                 history.removeAll(); index = 0; drag = .zero; flyOff = 0; onRefresh()

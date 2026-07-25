@@ -659,7 +659,7 @@ struct OnboardingView: View {
             VStack(spacing: 4) {
                 // Reads as a payoff once they've ranked — "here's what your taste
                 // gets you" — and a plain intro otherwise.
-                Text(rankedAnySeen ? "Your recs, ready" : "Meet your Recs")
+                Text(rankedAnySeen ? "Your Recs, ready" : "Meet your Recs")
                     .font(Theme.serif(30))
                     .minimumScaleFactor(0.8)
                 if rankedAnySeen {

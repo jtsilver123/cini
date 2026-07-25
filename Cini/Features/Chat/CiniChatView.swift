@@ -215,7 +215,7 @@ struct CiniChatAvailableView: View {
             }
         }
         .sheet(isPresented: $showReviewPicker) {
-            ChatReviewPicker(title: "Review something") { movie in
+            ChatReviewPicker(title: "Rank something") { movie in
                 // Let the picker finish dismissing before presenting the log
                 // cover — two presentations in one runloop can swallow the
                 // second on device.
@@ -338,7 +338,7 @@ struct CiniChatAvailableView: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.pencil")
-                    Text("Review something")
+                    Text("Rank something")
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(Theme.marquee)
@@ -845,7 +845,7 @@ struct ThinkingTicker: View {
 /// "Review a movie" from the chat: quick picker over your Want to Watch
 /// plus full TMDB search — picking one opens the standard log flow.
 struct ChatReviewPicker: View {
-    var title: String = "Review something"
+    var title: String = "Rank something"
     var onPick: (Movie) -> Void
 
     @Environment(RankingStore.self) private var store

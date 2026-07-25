@@ -143,7 +143,7 @@ struct LetterboxdImportView: View {
                             }
                             .pickerStyle(.segmented)
                             Text(pasteDestination == .watched
-                                 ? "They'll join your ranking queue so you can score them head-to-head."
+                                 ? "They'll be saved for you to rank head-to-head — favorites first."
                                  : "They'll land straight on your Want to Watch list.")
                                 .font(.caption)
                                 .foregroundStyle(Theme.gray)
@@ -239,14 +239,14 @@ struct LetterboxdImportView: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "clock.arrow.circlepath")
-                            Text("Import history").font(.subheadline.weight(.semibold))
+                            Text("Past imports").font(.subheadline.weight(.semibold))
                         }
                         .foregroundStyle(Theme.marquee)
                     }
                     .buttonStyle(.plain)
                 }
 
-                Text("Star ratings are never copied — on Cini your list comes from head-to-head ranking. We just use them to order your queue.")
+                Text("Star ratings are never copied — on Cini your scores come from head-to-head ranking. We only use them to pick which titles you rank first.")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
                     .multilineTextAlignment(.center)
@@ -308,7 +308,7 @@ struct LetterboxdImportView: View {
                                        detail: "Find them under My Lists → Want to Watch.")
                         } else {
                             summaryRow(icon: "film.stack", count: result.watched.count,
-                                       label: "films queued to rank",
+                                       label: "films waiting to rank",
                                        detail: "Find them under My Lists → Watched → Pending — your favorites are first.")
                             Divider()
                             summaryRow(icon: "bookmark.fill", count: result.watchlist.count,
@@ -325,7 +325,7 @@ struct LetterboxdImportView: View {
                             Divider()
                             if runner.detailsImportFailed {
                                 summaryRow(icon: "exclamationmark.triangle", count: reviewCount,
-                                           label: "reviews couldn't sync",
+                                           label: "reviews didn't come over",
                                            detail: "Run the same import again to retry — nothing else is affected.")
                             } else {
                                 summaryRow(icon: "square.and.pencil", count: reviewCount,
@@ -648,7 +648,7 @@ struct ImportHistoryScreen: View {
             ForEach(entries) { entry in
                 Section(entry.date.formatted(date: .abbreviated, time: .shortened)) {
                     if entry.toRank > 0 {
-                        statRow(icon: "film.stack", text: "\(entry.toRank) films queued to rank")
+                        statRow(icon: "film.stack", text: "\(entry.toRank) films waiting to rank")
                     }
                     if entry.saved > 0 {
                         statRow(icon: "bookmark.fill", text: "\(entry.saved) saved to Want to Watch")
@@ -656,7 +656,7 @@ struct ImportHistoryScreen: View {
                     if entry.reviews > 0 {
                         statRow(icon: "square.and.pencil",
                                 text: entry.detailsFailed
-                                    ? "\(entry.reviews) reviews (some couldn't sync)"
+                                    ? "\(entry.reviews) reviews (some didn't come over)"
                                     : "\(entry.reviews) reviews brought over")
                     }
                     if entry.lists > 0 {
@@ -685,7 +685,7 @@ struct ImportHistoryScreen: View {
         }
         .scrollContentBackground(.hidden)
         .background(Theme.background)
-        .navigationTitle("Import history")
+        .navigationTitle("Past imports")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             if entries.isEmpty {

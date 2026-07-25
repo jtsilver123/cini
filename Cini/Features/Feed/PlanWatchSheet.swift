@@ -116,7 +116,7 @@ struct PlanWatchSheet: View {
                 .padding(20)
             }
             .background(Theme.background)
-            .navigationTitle("Movie night")
+            .navigationTitle("Watch together")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

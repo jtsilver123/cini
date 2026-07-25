@@ -174,7 +174,7 @@ struct YourListsView: View {
                     }
                 }
             }
-            .alert("Currently Watching", isPresented: $showWatchingInfo) {
+            .alert("Watching", isPresented: $showWatchingInfo) {
                 Button("Got it", role: .cancel) {}
             } message: {
                 Text("A show lands here when you tap “I'm watching this” on its page, and leaves when you rank it or tap Remove. Friends can see what you're watching.")
@@ -1057,18 +1057,18 @@ struct YourListsView: View {
         }
         .listStyle(.plain)
         .environment(\.editMode, .constant(reorderMode ? .active : .inactive))
-        .alert("Delete this rating?",
+        .alert("Delete this ranking?",
                isPresented: Binding(get: { pendingDeleteRating != nil },
                                     set: { if !$0 { pendingDeleteRating = nil } }),
                presenting: pendingDeleteRating) { movie in
-            Button("Delete rating", role: .destructive) {
+            Button("Delete ranking", role: .destructive) {
                 // removeRanking surfaces its own saveFailed() toast on error.
                 Task { await store.removeRanking(movieID: movie.tmdbID) }
                 pendingDeleteRating = nil
             }
             Button("Cancel", role: .cancel) { pendingDeleteRating = nil }
         } message: { movie in
-            Text("“\(movie.title)” will be removed from your ranking. This can't be undone.")
+            Text("“\(movie.title)” comes off your Watched list and your score clears. This can't be undone.")
         }
         .overlay {
             if store.watchedItems.isEmpty && pendingEntries.isEmpty {

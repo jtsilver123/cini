@@ -310,7 +310,7 @@ struct TheaterCalendarView: View {
             // Row 2: scope filter on its own line so it never crowds the
             // toggle. The default (On my list) leads, like Month does.
             HStack(spacing: 8) {
-                FilterPill(title: "On my list", hasChevron: false, active: scope == .mine) {
+                FilterPill(title: "Want to Watch", hasChevron: false, active: scope == .mine) {
                     Haptics.tap(); scope = .mine
                 }
                 FilterPill(title: "All releases", hasChevron: false, active: scope == .all) {
@@ -395,7 +395,7 @@ struct TheaterCalendarView: View {
                         .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Ticket alerts").font(.subheadline.weight(.semibold))
-                        Text("One push when tickets go on sale near you for a movie you've saved — IMAX pre-sales included.")
+                        Text("One alert when tickets go on sale near you for a movie you've saved — IMAX pre-sales included.")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                             .fixedSize(horizontal: false, vertical: true)
@@ -460,7 +460,7 @@ struct TheaterCalendarView: View {
                             // denied, SAY so instead of silently never firing.
                             let granted = await PushManager.request()
                             if !granted {
-                                ToastCenter.shared.show("Notifications are off for Cini — turn them on in Settings to get ticket alerts. You'll still see them in your bell.")
+                                ToastCenter.shared.show("Notifications are off for Cini — turn them on in Settings to get ticket alerts. You'll still see them in Notifications in the app.")
                             }
                         }
                     } catch {
@@ -592,7 +592,7 @@ struct TheaterCalendarView: View {
             // Find one film fast in a hundred-row list.
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(Theme.gray)
-                TextField("Search theaters near you", text: $listSearch)
+                TextField("Search movies", text: $listSearch)
                 if !listSearch.isEmpty {
                     Button {
                         listSearch = ""
@@ -659,7 +659,7 @@ struct TheaterCalendarView: View {
                 // No Tickets for a film with no release date anywhere — the
                 // sheet could only dead-end.
                 if movie.tmdbID > 0, movie.isReleased || releaseDate(movie) != nil {
-                    PillButton(title: "Tickets", systemImage: "ticket", style: .outlined) {
+                    PillButton(title: "Showtimes", systemImage: "ticket", style: .outlined) {
                         activeSheet = .tickets(movie, movie.isReleased ? nil : releaseDate(movie))
                     }
                 }
@@ -1019,7 +1019,7 @@ struct TheaterCalendarView: View {
                                 } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: "ticket").font(.caption2)
-                                        Text("Tickets").font(.caption.weight(.semibold))
+                                        Text("Showtimes").font(.caption.weight(.semibold))
                                     }
                                     .foregroundStyle(Theme.marquee)
                                     .frame(maxWidth: .infinity)

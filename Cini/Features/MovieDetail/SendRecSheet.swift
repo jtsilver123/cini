@@ -42,7 +42,7 @@ struct SendRecSheet: View {
                 }
             }
             .background(Theme.background)
-            .navigationTitle("Recommend")
+            .navigationTitle("Send a Rec")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -199,7 +199,7 @@ struct SendRecSheet: View {
                 Spacer()
                 if seen {
                     // Already ranked it — can't be recommended this title.
-                    Text("Already ranked")
+                    Text("Already seen it")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(Theme.gray)
                 } else {
@@ -239,7 +239,7 @@ struct SendRecSheet: View {
         guard let selected, !sending else { return }
         // Defensive: never send a rec for something they've already seen.
         guard !seenByFriendIDs.contains(selected.id) else {
-            errorMessage = "\(firstName(selected.displayName, selected.username) ?? selected.username) has already seen this."
+            errorMessage = "\(firstName(selected.displayName, selected.username) ?? selected.username) has already seen it."
             return
         }
         errorMessage = nil

@@ -410,7 +410,7 @@ struct SwipeView: View {
                 }
                 .buttonStyle(.plain).padding(.top, 2)
             } else {
-                Text(suggestTV ? "Fresh shows are on the way" : "Fresh picks are on the way")
+                Text(suggestTV ? "Fresh shows are on the way" : "Fresh recs are on the way")
                     .font(.subheadline.weight(.bold))
                 Text("Rank a few titles and Cini dials in your taste — your personalized deck shows up right here.")
                     .font(.caption).foregroundStyle(Theme.gray)

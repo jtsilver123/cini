@@ -319,7 +319,7 @@ struct EnrichmentCard: View {
         HStack(spacing: 14) {
             Image(systemName: "lock").frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Stealth mode")
+                Text("Keep it private")
                 Text("Hide this from your friends' feeds")
                     .font(.caption)
                     .foregroundStyle(Theme.gray)
