@@ -1525,7 +1525,7 @@ const LB_META=[["Watched","How many titles you've ranked", p=>p.watched],
   ["Influence","How often your rankings convert to friends’ watchlist adds", p=>Math.round(p.watched*0.12)],
   ["Notes","Number of public notes written", p=>Math.round(p.watched*0.18)],
   ["Photos","Stills and tickets posted — coming soon", ()=>null]];
-let swipeIdx=0, swipeGrid=(S.ui&&S.ui.swipeGrid)||false, swipeTV=false, swipeImport=true;
+let swipeIdx=0, swipeGrid=(S.ui&&S.ui.swipeGrid)||false, swipeTV=false;
 function setSwipeGrid(v){ swipeGrid=v; S.ui=S.ui||{}; S.ui.swipeGrid=v; save(); renderSwipe(); }
 function swipePool(){ return Object.keys(MOVIES).filter(k=>!S.watched.some(w=>w.k===k)&&!S.queue.includes(k)); }
 function swipeSave(k){ buzz(); if(!S.queue.includes(k)) S.queue.push(k); save(); swipeIdx++; renderSwipe(); }
@@ -1591,14 +1591,9 @@ function renderSwipe(){
       </div>
     </div>`;
   }
-  const banner = swipeImport ? `<div class="pad" style="margin-top:10px;">
-    <div class="card" style="display:flex; gap:12px; align-items:center; padding:10px 15px; position:relative; cursor:pointer;" onclick="openImport()">
-      <span style="color:var(--marquee);">${I("download",22)}</span>
-      <div style="flex:1;"><div style="font-weight:700; font-size:14px;">Import your history</div>
-        <div class="sub" style="margin-top:0;">Bring your ratings from Letterboxd, IMDb, or Netflix</div></div>
-      <button class="iconbtn" style="position:absolute; top:6px; right:8px; color:var(--gray);" onclick="event.stopPropagation(); swipeImport=false; renderSwipe();">${I("x",15)}</button>
-    </div></div>` : "";
-  $("screen-swipe").innerHTML = head + banner + body;
+  // No import banner here — it pushed the swipe controls too low and
+  // crowded the deck. Import lives on the Feed / Lists / Profile menus.
+  $("screen-swipe").innerHTML = head + body;
 }
 function renderLeaderboard(){
   const [label,copy,fn]=LB_META[S.lbMetric];

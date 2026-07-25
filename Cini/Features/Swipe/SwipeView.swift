@@ -32,14 +32,12 @@ struct SwipeView: View {
     @State private var filters = MovieFilters()
     @State private var showFilterSheet = false
     @State private var bookmarkCounts: [Int: Int] = [:]
-    @AppStorage("swipe.importBannerHidden") private var importBannerHidden = false
     @State private var logMovie: Movie?
     @State private var detailMovie: Movie?
     @State private var watchedCountAtRank = 0
     /// The title most recently sent into the rank flow — so the post-rank toast
     /// can offer to open its page.
     @State private var lastRanked: Movie?
-    @State private var showImport = false
     /// Bumped each time the pool reloads (filter change / refresh) so the deck
     /// resets to the first card instead of keeping a stale index.
     @State private var poolVersion = 0
@@ -91,11 +89,6 @@ struct SwipeView: View {
                 filterPills
                     .padding(.bottom, 6)
                     .background(Theme.background)
-                if !importBannerHidden {
-                    importBanner
-                        .screenHPadding()
-                        .padding(.bottom, 4)
-                }
                 // The helper note is FIXED here — a steady gap below the filter,
                 // right above the cards/grid — so it doesn't shift or scroll when
                 // you switch between card and grid views.
@@ -140,9 +133,6 @@ struct SwipeView: View {
             .navigationDestination(item: $detailMovie) { movie in
                 MovieDetailView(movie: movie)
                     .zoomDestination(id: movie.tmdbID, in: posterZoom)
-            }
-            .sheet(isPresented: $showImport) {
-                LetterboxdImportView()
             }
             .sheet(isPresented: $showFilterSheet) {
                 MovieFilterSheet(
@@ -249,45 +239,6 @@ struct SwipeView: View {
     private var filterPills: some View {
         MovieFilterBar(filters: $filters, movies: candidates.map(\.movie),
                        onFilterTap: { showFilterSheet = true }, allOptions: true)
-    }
-
-    /// Dismissible nudge to bring a full history over — same look as the import
-    /// banner elsewhere.
-    private var importBanner: some View {
-        Button { showImport = true } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.title3).foregroundStyle(Theme.marquee)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Import your history")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.ink)
-                    Text("Bring your ratings from Letterboxd, IMDb, or Netflix")
-                        .font(.caption).foregroundStyle(Theme.gray)
-                        .fixedSize(horizontal: false, vertical: true)
-                    ImportSourceLogos().padding(.top, 2)
-                }
-                Spacer(minLength: 18)
-            }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-        }
-        .buttonStyle(.plain)
-        .floatingCard(cornerRadius: 16)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                Haptics.tap()
-                withAnimation { importBannerHidden = true }
-                ToastCenter.shared.show("You can import anytime from the menu on your Feed")
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Theme.gray)
-                    .padding(10)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Dismiss import suggestion")
-        }
-        .padding(.top, 6)
     }
 
     /// A small instructional note above the grid/deck, adapting to the toggle.
