@@ -168,6 +168,9 @@ struct Profile: Identifiable, Codable, Hashable {
     var memberSince: Date
     var isPrivate: Bool = false
     var streakWeeks: Int = 0
+    /// Banked Streak Freezes (earned by ranking 3 in a week, max 2) — one is
+    /// consumed automatically if a week is missed, saving the streak.
+    var streakFreezes: Int = 0
     /// Date-only "YYYY-MM-DD" anchor of the week the user last ranked, stamped
     /// by rank_insert in the user's local timezone. Kept as a String (date-only
     /// columns can't decode as Date) and compared lexicographically.

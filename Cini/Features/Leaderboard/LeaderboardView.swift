@@ -207,10 +207,10 @@ struct InviteSheet: View {
         AppLinks.invite(session.profile?.username ?? "")
     }
     private var inviteText: String {
-        "Join me on Cini — we rank every movie & show head-to-head 🎬\n\(inviteURL)"
+        "Join me on Cini and find out our Taste Match — we rank every movie & show head-to-head 🎬\n\(inviteURL)"
     }
     private var reminderText: String {
-        "Still want in on Cini? Here's my invite 🎬\n\(inviteURL)"
+        "Still want in on Cini? Join and see our Taste Match 🎬\n\(inviteURL)"
     }
     private func phoneDigits(_ p: String) -> String { p.filter(\.isNumber) }
     /// Matches the server's phone_key (last 10 digits) so we can look up the

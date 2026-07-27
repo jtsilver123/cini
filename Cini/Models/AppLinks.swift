@@ -29,6 +29,16 @@ enum AppLinks {
     static func titleLink(_ tmdbID: Int) -> String {
         "https://trycini.com/m/?id=\(tmdbID)"
     }
+
+    /// A movie-night invite for someone who may not have Cini: the /night/
+    /// page shows the title, the proposed time, and who's asking — then sends
+    /// them to the App Store (or deep-links installed users to the title).
+    static func nightLink(tmdbID: Int, at date: Date?, from username: String?) -> String {
+        var link = "https://trycini.com/night/?m=\(tmdbID)"
+        if let date { link += "&t=\(Int(date.timeIntervalSince1970))" }
+        if let username, !username.isEmpty { link += "&f=\(username.urlQueryValueEncoded)" }
+        return link
+    }
 }
 
 extension String {

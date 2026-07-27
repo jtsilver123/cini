@@ -1859,6 +1859,119 @@ final class SupabaseService {
         }
     }
 
+    // MARK: - Watch overlaps (feed "plan it together" card)
+
+    struct WatchOverlapRow: Decodable, Hashable {
+        let movieId: Int
+        let friendIds: [UUID]
+        let friendUsernames: [String]
+        enum CodingKeys: String, CodingKey {
+            case movieId = "movie_id"
+            case friendIds = "friend_ids"
+            case friendUsernames = "friend_usernames"
+        }
+    }
+
+    /// My Want to Watch titles that mutual friends also saved — the raw
+    /// material for "You and @sam both want to watch X". nil = query failed
+    /// (keep whatever card is showing).
+    func watchOverlaps(limit: Int = 5) async -> [WatchOverlapRow]? {
+        struct Params: Encodable { let p_limit: Int }
+        do {
+            return try await client.rpc("watch_overlaps", params: Params(p_limit: limit))
+                .execute().value
+        } catch {
+            SupabaseService.logSwallowed("watchOverlaps", error)
+            return nil
+        }
+    }
+
+    // MARK: - Crews (a small group's shared Want to Watch)
+
+    struct CrewRow: Decodable, Identifiable, Hashable {
+        let id: UUID
+        let name: String
+        let ownerId: UUID
+        let members: [CrewMemberRow]
+        enum CodingKeys: String, CodingKey {
+            case id, name
+            case ownerId = "owner_id"
+            case members = "crew_members"
+        }
+    }
+
+    struct CrewMemberRow: Decodable, Hashable {
+        let userId: UUID
+        let profile: ActorStub?
+        enum CodingKeys: String, CodingKey {
+            case userId = "user_id"
+            case profile = "profiles"
+        }
+        struct ActorStub: Decodable, Hashable {
+            let username: String
+            let displayName: String?
+            let avatarUrl: String?
+            enum CodingKeys: String, CodingKey {
+                case username
+                case displayName = "display_name"
+                case avatarUrl = "avatar_url"
+            }
+        }
+    }
+
+    struct CrewOverlapRow: Decodable, Hashable {
+        let movieId: Int
+        let wantCount: Int
+        let memberUsernames: [String]
+        enum CodingKeys: String, CodingKey {
+            case movieId = "movie_id"
+            case wantCount = "want_count"
+            case memberUsernames = "member_usernames"
+        }
+    }
+
+    /// Crews I'm in, with each crew's roster embedded. nil = fetch failed.
+    func myCrews() async -> [CrewRow]? {
+        do {
+            return try await client.from("crews")
+                .select("id, name, owner_id, crew_members(user_id, profiles!crew_members_user_id_fkey(username, display_name, avatar_url))")
+                .order("created_at", ascending: true)
+                .execute().value
+        } catch {
+            SupabaseService.logSwallowed("myCrews", error)
+            return nil
+        }
+    }
+
+    func crewCreate(name: String) async throws -> UUID {
+        struct Params: Encodable { let p_name: String }
+        return try await client.rpc("crew_create", params: Params(p_name: name))
+            .execute().value
+    }
+
+    func crewAddMember(crewID: UUID, userID: UUID) async throws {
+        struct Params: Encodable { let p_crew: UUID; let p_user: UUID }
+        try await client.rpc("crew_add_member",
+                             params: Params(p_crew: crewID, p_user: userID)).execute()
+    }
+
+    func crewLeave(crewID: UUID) async throws {
+        struct Params: Encodable { let p_crew: UUID }
+        try await client.rpc("crew_leave", params: Params(p_crew: crewID)).execute()
+    }
+
+    /// The crew's ballot: titles 2+ members want, strongest overlap first.
+    func crewOverlap(crewID: UUID) async -> [CrewOverlapRow]? {
+        struct Params: Encodable { let p_crew: UUID }
+        do {
+            return try await client.rpc("crew_overlap", params: Params(p_crew: crewID))
+                .execute().value
+        } catch {
+            SupabaseService.logSwallowed("crewOverlap", error)
+            return nil
+        }
+    }
+
     // MARK: - Currently Watching (binging signal)
 
     /// Mark/update where I am in a show (season/episode optional). Starting to
@@ -2135,6 +2248,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
     let memberSince: Date
     let isPrivate: Bool
     let streakWeeks: Int
+    let streakFreezes: Int?
     let lastLoggedWeek: String?
     let annualGoal: Int?
     let bio: String?
@@ -2151,6 +2265,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
         case memberSince = "member_since"
         case isPrivate = "is_private"
         case streakWeeks = "streak_weeks"
+        case streakFreezes = "streak_freezes"
         case lastLoggedWeek = "last_logged_week"
         case annualGoal = "annual_goal"
         case instagramHandle = "instagram_handle"
@@ -2164,6 +2279,7 @@ struct ProfileRow: Codable, Identifiable, Hashable {
                 avatarURL: avatarUrl.flatMap(URL.init),
                 memberSince: memberSince, isPrivate: isPrivate,
                 streakWeeks: streakWeeks,
+                streakFreezes: streakFreezes ?? 0,
                 lastLoggedWeek: lastLoggedWeek,   // date-only string, compared lexicographically
                 annualGoal: annualGoal,
                 bio: bio,

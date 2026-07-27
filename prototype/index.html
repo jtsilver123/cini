@@ -810,6 +810,18 @@ function renderFeed(){
     </div>
     ${watchingShelf}
     ${tonight}
+    ${(()=>{ S.matchDismissed=S.matchDismissed||[];
+      const mk=S.watchlist.find(k=>MOVIES[k]&&!S.matchDismissed.includes(k)&&!S.watched.some(w=>w.k===k));
+      if(!mk) return "";
+      const mm=MOVIES[mk];
+      return `<div class="pad" style="margin-top:14px;">
+      <div class="card" style="display:flex; gap:12px; align-items:center; position:relative; padding:12px 15px;">
+        <img class="poster" src="${mm.p}" style="width:44px;" alt="">
+        <div style="flex:1;"><div style="font-size:13.5px;">You and <b>@maya</b> both want to watch <b>${mm.t}</b></div>
+          <div class="sub" style="margin-top:2px;">Turn it into a movie night</div></div>
+        <button class="pill" style="padding:8px 15px; font-size:12px;" onclick="toast('Movie night invite sent to @maya 🍿')">Plan it</button>
+        <button class="iconbtn" style="position:absolute; top:4px; right:6px; color:var(--gray);" onclick="S.matchDismissed.push('${mk}'); save(); renderFeed();">${I("x",13)}</button>
+      </div></div>`; })()}
     ${S.me.school ? `
     <h2 class="section" style="display:flex; align-items:center; gap:6px;"><span style="color:var(--marquee);">🎓</span>WATCHING AT ${esc(S.me.school).toUpperCase()}</h2>
     <div style="display:flex; gap:12px; overflow-x:auto; padding:0 14px 2px; -webkit-overflow-scrolling:touch;">
@@ -1774,10 +1786,11 @@ function renderProfile(){
       ${listRow("calendar","Diary",null,"openDiary()")}
       ${isSelf?listRow("heart","Recs for You",null,"go('swipe')")
               :listRow("users","You both want to watch",bothWantToWatch(handle).length,`openBothList('${handle}')`)}
+      ${isSelf?listRow("users","Crews",null,"openCrews()"):""}
     </div>
     <div class="pad" style="display:flex; gap:12px; margin-top:14px;">
       <div class="card" style="flex:1; margin:0; cursor:pointer;" onclick="go('leaderboard')"><span style="color:var(--marquee);">${I("trophy",22)}</span>
-        <div style="color:var(--marquee); font-size:13px; font-weight:600; margin-top:6px;">Rank on Cini</div>
+        <div style="color:var(--marquee); font-size:13px; font-weight:600; margin-top:6px;">Leaderboard spot</div>
         <b class="serif" style="font-size:21px; color:var(--marquee);">${rank}</b></div>
       <div class="card" style="flex:1; margin:0;"><span style="color:var(--gold);">${I("flame",22,1.6)}</span>
         <div style="color:var(--marquee); font-size:13px; font-weight:600; margin-top:6px;">Current Streak</div>
@@ -2790,8 +2803,31 @@ function notifLine(n){
     case "mention": return `${who} mentioned you in a comment on ${movie}`;
     case "friend_ranked_watchlist_movie": return `${who} ranked ${movie} — it's on your Want to Watch list`;
     case "watchlist_showing": return `${movie} — on your Want to Watch — is playing in theaters near you 🍿`;
+    case "post_watch_nudge": return `How was ${movie}? Rank it — takes 20 seconds 🎬`;
+    case "weekly_recap": return `Your week on Cini: ${n.msg||"You ranked 3 titles · friends ranked 12 · 4-week streak 🔥"}`;
+    case "crew_added": return `${who} added you to their crew <b>${n.msg||"Friday Night Crew"}</b>`;
     default: return `${who} did something new`;
   }
+}
+function openCrews(){
+  // Crew ballot = overlap of members' Want to Watch lists; bookmarks are votes.
+  const picks = S.watchlist.slice(0,3);
+  renderSheet(`
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Friday Night Crew</b>
+      <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
+    <div class="sheet-body">
+      <div class="sub" style="margin-bottom:4px;">You · @maya · @sam · @leo</div>
+      <div class="sub" style="font-size:11px; letter-spacing:.14em; font-weight:800; margin:14px 0 6px;">WHAT YOU ALL WANT TO WATCH</div>
+      ${picks.length?picks.map((k,i)=>{const m=MOVIES[k]; const n=3-(i>1?1:i); return `
+        <div class="listrow" style="align-items:center; cursor:pointer;" onclick="closeOverlay(); openDetail('${k}')">
+          <img class="poster" src="${m.p}" style="width:44px;" alt="">
+          <div style="flex:1;"><b style="font-size:14px;">${m.t}</b>
+            <div class="sub" style="margin-top:1px; ${n>=3?"color:var(--scoregreen,#4ade80);":""}">${n} of 4 want this</div></div>
+          <button class="pill" style="padding:7px 14px; font-size:12px;" onclick="event.stopPropagation(); closeOverlay(); toast('Movie night invite sent to your crew 🍿')">Plan it</button>
+        </div>`;}).join("")
+      :`<div class="empty" style="padding:26px 8px;"><b>No shared picks yet</b><span class="sub">When two of you bookmark the same title, it lands here — ready to plan.</span></div>`}
+      <button class="pill ghost" style="width:100%; justify-content:center; margin-top:12px;" onclick="toast('Added @jordan to the crew')">${I("plus",14)} Add a friend</button>
+    </div>`);
 }
 function openNotifications(){
   renderSheet(`

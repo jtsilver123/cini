@@ -20,6 +20,7 @@ struct NotificationPreferencesView: View {
             ("contact_joined", "Contacts joining", "Someone from your contacts joins Cini"),
             ("invite_joined", "Invites accepted", "Someone joins Cini with your username"),
             ("friend_loved", "Friend ranked a favorite", "A friend ranks a movie or show you love"),
+            ("crew_added", "Crew invites", "A friend adds you to their crew"),
         ]),
         ("Recommendations", [
             ("tonight_pick", "Tonight's Pick", "A daily pick to watch, sent each evening"),
@@ -36,6 +37,8 @@ struct NotificationPreferencesView: View {
         ]),
         ("Reminders", [
             ("rate_nudge", "Rank reminders", "A nudge to rank a saved title once it's out to watch"),
+            ("post_watch_nudge", "After movie night", "The morning after a watch plan — how was it?"),
+            ("weekly_recap", "Weekly recap", "A Sunday wrap-up of your week on Cini"),
             ("streak_reminder", "Streak reminders", "A weekly heads-up before your streak resets"),
         ]),
         ("Releases & availability", [

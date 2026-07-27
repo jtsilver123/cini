@@ -130,6 +130,7 @@ struct CiniApp: App {
         let isInvite: Bool
         let isProfile: Bool
         let isMovie: Bool
+        var isNight = false
         if url.scheme == "cini" {
             isList = url.host == "list"
             isProfile = url.host == "user"
@@ -137,11 +138,21 @@ struct CiniApp: App {
             isInvite = !isList && !isProfile && !isMovie  // cini://invite or bare
         } else if url.scheme == "https",
                   url.host == "trycini.com" || url.host == "www.trycini.com" {
+            // A movie-night invite (/night/?m=) opens the title's page for
+            // installed users — checked before /m so prefixes can't collide.
+            isNight = url.path.hasPrefix("/night")
             isList = url.path.hasPrefix("/l")
             isProfile = url.path.hasPrefix("/u")
-            isMovie = url.path.hasPrefix("/m")
+            isMovie = !isNight && url.path.hasPrefix("/m")
             isInvite = url.path.hasPrefix("/i")
         } else {
+            return
+        }
+
+        if isNight {
+            guard let idStr = comps.queryItems?.first(where: { $0.name == "m" })?.value,
+                  let id = Int(idStr) else { return }
+            if session.isAuthenticated { openMovie(id) } else { pendingMovieID = id }
             return
         }
 
@@ -446,6 +457,8 @@ final class AppSession {
                             "swipe.dismissedIDs", "swipe.importBannerHidden",
                             "recs.demoSeen", "feed.nudgeDismissed",
                             "feed.hideWatchingStories", "watchingStoriesSeen",
+                            "watchingStoriesSeenDays", "feed.dismissedOverlaps",
+                            "recs.firstSaveHintShown",
                             "lists.hiddenTabs", "lists.genreFilter",
                             "lists.decadeFilter", "lists.runtimeFilter",
                             "lists.streamingProvider", "lists.sortMetric",

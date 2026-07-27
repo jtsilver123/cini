@@ -6,6 +6,9 @@ import SwiftUI
 struct StreakInfoSheet: View {
     let weeks: Int
     let atRisk: Bool
+    /// Banked Streak Freezes — earned by ranking 3 in a week (max 2); one is
+    /// used automatically if a week is missed, so the streak survives.
+    var freezes: Int = 0
     /// Called when they tap the CTA — dismisses and routes to ranking.
     var onRank: () -> Void
 
@@ -37,10 +40,13 @@ struct StreakInfoSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 28)
 
-            // The two rules, stated simply.
+            // The rules, stated simply.
             VStack(alignment: .leading, spacing: 12) {
                 ruleRow("calendar", "Rank at least one movie or show each week to keep your streak going.")
-                ruleRow("arrow.counterclockwise", "Miss a week and it resets to zero — so keep it alive.")
+                ruleRow("snowflake", freezes > 0
+                        ? "You have \(freezes) Streak Freeze\(freezes == 1 ? "" : "s") banked — one saves your streak automatically if you miss a week."
+                        : "Rank 3 titles in a week to earn a Streak Freeze (up to 2) — it saves your streak if you miss a week.")
+                ruleRow("arrow.counterclockwise", "Miss a week with no freeze banked and it resets to zero.")
             }
             .padding(.horizontal, 24)
             .padding(.top, 4)

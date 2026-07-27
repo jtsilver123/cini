@@ -16,18 +16,32 @@ func episodeLabel(season: Int?, episode: Int?) -> String? {
 /// sink to the back and dim — no manual dismiss. Keyed by member+show+progress,
 /// so a friend moving forward re-surfaces as fresh.
 enum WatchingStoriesSeen {
-    private static let key = "watchingStoriesSeen"
+    private static let key = "watchingStoriesSeenDays"
     private static let cap = 300
 
-    static func all() -> Set<String> {
-        Set((UserDefaults.standard.array(forKey: key) as? [String]) ?? [])
+    /// Local-calendar day ordinal — story lifetimes follow the user's day,
+    /// not UTC's.
+    static func today() -> Int {
+        Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+    }
+
+    /// Story key → the local day it was viewed. Snap-style lifecycle: viewed
+    /// today = dimmed at the back of the shelf; viewed before today = gone
+    /// entirely (until the friend advances, which mints a new story key).
+    static func seenDays() -> [String: Int] {
+        (UserDefaults.standard.dictionary(forKey: key) as? [String: Int]) ?? [:]
     }
     static func markSeen(_ id: String) {
-        var arr = (UserDefaults.standard.array(forKey: key) as? [String]) ?? []
-        guard !arr.contains(id) else { return }
-        arr.append(id)
-        if arr.count > cap { arr.removeFirst(arr.count - cap) }
-        UserDefaults.standard.set(arr, forKey: key)
+        var map = seenDays()
+        guard map[id] == nil else { return }
+        map[id] = today()
+        if map.count > cap {
+            // Drop the oldest views first.
+            for (k, _) in map.sorted(by: { $0.value < $1.value }).prefix(map.count - cap) {
+                map.removeValue(forKey: k)
+            }
+        }
+        UserDefaults.standard.set(map, forKey: key)
     }
 }
 
@@ -38,7 +52,7 @@ struct FriendsWatchingShelf: View {
     let rows: [FriendWatchingRow]
     var onTap: (FriendWatchingRow) -> Void
 
-    @State private var seen: Set<String> = WatchingStoriesSeen.all()
+    @State private var seenDays: [String: Int] = WatchingStoriesSeen.seenDays()
 
     /// Identity that also folds in the friend's progress timestamp, so when they
     /// advance, the story counts as new again.
@@ -46,22 +60,29 @@ struct FriendsWatchingShelf: View {
         "\(r.id)@\(Int(r.updatedAt.timeIntervalSince1970))"
     }
 
-    /// Unseen first (keeping their order), already-viewed sink to the back.
+    private func isSeen(_ r: FriendWatchingRow) -> Bool { seenDays[key(r)] != nil }
+
+    /// Snap-style lifecycle: unseen stories lead, stories viewed TODAY sink
+    /// to the back dimmed, and stories viewed before today are gone entirely
+    /// (the whole shelf disappears once everything has aged out). A friend
+    /// advancing their progress mints a new story key, so they reappear.
     private var ordered: [FriendWatchingRow] {
-        rows.filter { !seen.contains(key($0)) } + rows.filter { seen.contains(key($0)) }
+        let today = WatchingStoriesSeen.today()
+        let alive = rows.filter { (seenDays[key($0)] ?? today) >= today }
+        return alive.filter { !isSeen($0) } + alive.filter { isSeen($0) }
     }
 
     var body: some View {
-        if !rows.isEmpty {
+        if !ordered.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 14) {
                     ForEach(ordered) { row in
                         Button {
                             let k = key(row)
-                            seen.insert(k)
                             WatchingStoriesSeen.markSeen(k)
+                            seenDays[k] = WatchingStoriesSeen.today()
                             onTap(row)
-                        } label: { story(row, isSeen: seen.contains(key(row))) }
+                        } label: { story(row, isSeen: isSeen(row)) }
                             .buttonStyle(.plain)
                     }
                 }

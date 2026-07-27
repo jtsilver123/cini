@@ -15,6 +15,10 @@ struct FeedView: View {
     // The last feed fetch threw — with nothing to show, render a retry state
     // instead of the first-run copy (which reads as "your friends vanished").
     @State private var feedFailed = false
+    /// Want-to-Watch overlaps with mutual friends (the "plan it together" card).
+    @State private var watchOverlapRows: [SupabaseService.WatchOverlapRow] = []
+    /// Movie ids whose match card was ✕'d — never re-show those titles.
+    @AppStorage("feed.dismissedOverlaps") private var dismissedOverlapsRaw = ""
     @State private var unreadCount = 0
     @State private var detailMovie: Movie?
     /// Set just before `detailMovie` when the open came from a "watch tonight"
@@ -277,7 +281,8 @@ struct FeedView: View {
             }
             .sheet(isPresented: $showStreakInfo) {
                 StreakInfoSheet(weeks: session.profile?.streakWeeks ?? 0,
-                                atRisk: session.profile?.streakAtRisk ?? false) {
+                                atRisk: session.profile?.streakAtRisk ?? false,
+                                freezes: session.profile?.streakFreezes ?? 0) {
                     showStreakInfo = false
                     tabRouter.selection = .search
                 }
@@ -477,8 +482,8 @@ struct FeedView: View {
                             Text("Cini's better with more friends")
                                 .font(.subheadline.weight(.bold)).foregroundStyle(Theme.ink)
                             Text(friends == 0
-                                 ? "Invite a few to fill out your feed."
-                                 : "You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite a few more to fill out your feed.")
+                                 ? "Invite a few and see your Taste Match with each one."
+                                 : "You follow \(friends) \(friends == 1 ? "friend" : "friends") — invite more and see your Taste Match with each one.")
                                 .font(.caption).foregroundStyle(Theme.gray)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -806,6 +811,13 @@ struct FeedView: View {
                 askForRecsRow
             }
 
+            // "You and @sam both want to watch X" — the converter from passive
+            // saves into an actual movie night. One card at a time; ✕ skips
+            // that title and surfaces the next overlap.
+            if let match = watchMatchCard {
+                watchMatchRow(match.row, movie: match.movie)
+            }
+
             // Bring-friends-in card, shown until the friend graph is big enough
             // for a lively feed (gated on friend COUNT — see friendsNudgeMode).
             // Placed ABOVE the Popular shelf so the referral ask is the headline,
@@ -864,6 +876,59 @@ struct FeedView: View {
                     onShowLikers: { likersTarget = LikersTarget(id: $0) }
                 )
             }
+        }
+    }
+
+    /// First non-dismissed Want-to-Watch overlap with a mutual friend whose
+    /// title the shared cache can render (it's on MY list, so it can).
+    private var watchMatchCard: (row: SupabaseService.WatchOverlapRow, movie: Movie)? {
+        let dismissed = Set(dismissedOverlapsRaw.split(separator: ",").compactMap { Int($0) })
+        for row in watchOverlapRows
+        where !dismissed.contains(row.movieId) && !store.isWatched(row.movieId) {
+            if let movie = store.movie(row.movieId) { return (row, movie) }
+        }
+        return nil
+    }
+
+    private func watchMatchRow(_ row: SupabaseService.WatchOverlapRow, movie: Movie) -> some View {
+        HairlineCard {
+            HStack(spacing: 12) {
+                PosterView(url: movie.posterURL, width: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    let first = row.friendUsernames.first ?? "a friend"
+                    let extra = row.friendUsernames.count - 1
+                    Text("You and **@\(first)**\(extra > 0 ? " + \(extra) more" : "") both want to watch **\(movie.title)**")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Turn it into a movie night")
+                        .font(.caption)
+                        .foregroundStyle(Theme.gray)
+                }
+                Spacer(minLength: 8)
+                PillButton(title: "Plan it") {
+                    guard let friendID = row.friendIds.first,
+                          let username = row.friendUsernames.first else { return }
+                    watchPlanContext = WatchPlanContext(
+                        movieID: row.movieId,
+                        friend: MemberRef(id: friendID, username: username))
+                }
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                Haptics.tap()
+                dismissedOverlapsRaw += dismissedOverlapsRaw.isEmpty
+                    ? "\(row.movieId)" : ",\(row.movieId)"
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Theme.gray)
+                    .padding(8)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Hide this match")
         }
     }
 
@@ -1460,6 +1525,7 @@ struct FeedView: View {
         async let unread = SupabaseService.shared.unreadNotificationCount()
         async let asks = SupabaseService.shared.incomingRecRequests()
         async let watching = SupabaseService.shared.friendsWatching()
+        async let overlaps = SupabaseService.shared.watchOverlaps()
         // nil = likes query failed — keep the hearts we have rather than
         // silently un-filling every liked heart for the session.
         if let liked = await liked { likedEventIDs = liked }
@@ -1470,6 +1536,7 @@ struct FeedView: View {
         if let unread = await unread { unreadCount = unread }
         if let asks = try? await asks { pendingAsks = asks }
         friendsWatchingRows = await watching
+        if let overlaps = await overlaps { watchOverlapRows = overlaps }
         feedLoaded = true
     }
 }
@@ -2974,6 +3041,9 @@ struct NotificationsView: View {
         case "friend_loved": text = "**\(who)** just ranked **\(movie)** — one of your favorites 🍿"
         case "friend_watching": text = "**\(who)** started watching **\(movie)** — you're watching it too 📺"
         case "caught_up": text = "**\(who)** is all caught up on **\(movie)** 🎉"
+        case "post_watch_nudge": text = "How was **\(movie)**? Rank it — takes 20 seconds 🎬"
+        case "weekly_recap": text = "Your week on Cini: **\(row.message ?? "a fresh recap")**"
+        case "crew_added": text = "**\(who)** added you to their crew **\(row.message ?? "")**"
         default: text = "**\(who)** did something new"
         }
         var attr = (try? AttributedString(markdown: text)) ?? AttributedString(text)

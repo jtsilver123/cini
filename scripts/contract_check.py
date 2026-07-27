@@ -118,6 +118,7 @@ READS = [
     ("notifications", "notifications", "*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url), movies!notifications_movie_id_fkey(title, poster_path)"),
     ("watch_plans", "watch_plans", "*, watch_plan_members(user_id, status, profiles!watch_plan_members_user_id_fkey(username))"),
     ("my_show_progress", "show_progress", "season, episode"),
+    ("my_crews", "crews", "id, name, owner_id, crew_members(user_id, profiles!crew_members_user_id_fkey(username, display_name, avatar_url))"),
 ]
 
 # Read-only RPCs: (name, params). Param names/types verbatim from the app.
@@ -191,6 +192,8 @@ RPCS = [
     ("set_home_area", {"p_zip": "10001", "p_radius": 15}),
     # Indie-venue showings for the calendar/sheet/alerts merge.
     ("supplemental_showings", {"p_metro": "nyc"}),
+    # Want-to-Watch overlaps with mutual friends (the feed's "plan it" card).
+    ("watch_overlaps", {"p_limit": 5}),
     # Muting then unmuting a kind the demo doesn't use leaves state unchanged.
     ("set_notification_kind_muted", {"p_kind": "contract_check_probe", "p_muted": False}),
     # Empty array stores nothing; forget clears the caller's own hashes.

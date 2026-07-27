@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#131011">
+<title>Movie night on Cini</title>
+<meta property="og:title" content="You're invited to a movie night 🍿">
+<meta property="og:description" content="A friend is planning a watch on Cini — see what, when, and join them.">
+<meta property="og:image" content="https://trycini.com/og.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
+<link rel="icon" type="image/png" href="/favicon.png">
+<style>
+  :root{--marquee:#E8B64C;--velvet:#A8352A;--ink:#F5EEDF;--bg:#131011;--surface:#1D1719;--surface2:#262022;--gray:#A69C91;--hair:rgba(255,255,255,.12);}
+  *{box-sizing:border-box;margin:0;}
+  body{min-height:100vh;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);}
+  a{color:inherit;}
+  .hero{position:relative;min-height:230px;background:var(--surface2) center/cover no-repeat;}
+  .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg, rgba(19,16,17,.35) 0%, rgba(19,16,17,.85) 70%, var(--bg) 100%);}
+  .topbar{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:20px 16px;max-width:760px;margin:0 auto;}
+  .wordmark{font-family:"Limelight",Georgia,serif;font-size:30px;color:var(--marquee);line-height:1;text-decoration:none;}
+  .getcini{text-decoration:none;font-weight:700;font-size:13px;padding:9px 16px;border-radius:999px;background:var(--velvet);color:#fff;white-space:nowrap;}
+  .wrap{max-width:560px;margin:0 auto;padding:0 16px 60px;}
+  .head{position:relative;z-index:2;display:flex;gap:18px;margin-top:-40px;}
+  .poster{width:120px;flex:none;aspect-ratio:2/3;border-radius:12px;background:var(--surface2) center/cover no-repeat;box-shadow:0 10px 30px rgba(0,0,0,.5);}
+  .meta{padding-top:48px;}
+  .invite{font-size:13px;letter-spacing:.14em;font-weight:800;color:var(--marquee);}
+  .title{font-family:"DM Serif Display",Georgia,serif;font-weight:400;font-size:30px;line-height:1.1;margin-top:6px;}
+  .when{color:var(--ink);font-size:16px;font-weight:700;margin-top:10px;}
+  .sub{color:var(--gray);font-size:14px;margin-top:6px;line-height:1.5;}
+  .divider{height:1px;background:var(--hair);margin:28px 0;}
+  .cta{display:block;text-decoration:none;font-weight:700;font-size:16px;padding:15px 24px;border-radius:999px;margin:10px auto;max-width:340px;text-align:center;}
+  .primary{background:var(--velvet);color:#fff;box-shadow:0 10px 26px rgba(168,53,42,.32);}
+  .ghost{background:none;border:1px solid var(--hair);color:var(--ink);}
+  .pitch{text-align:center;color:var(--gray);font-size:13px;margin-top:14px;line-height:1.6;}
+  .msg{text-align:center;color:var(--gray);padding:64px 16px;font-size:16px;}
+</style>
+</head>
+<body>
+<div class="hero" id="hero">
+  <div class="topbar">
+    <a class="wordmark" href="/">cini</a>
+    <a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a>
+  </div>
+</div>
+<div class="wrap"><div id="content"><div class="msg">Loading…</div></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://npumchnkbcajyuhurgez.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wdW1jaG5rYmNhanl1aHVyZ2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDgxMTAsImV4cCI6MjA5NjY4NDExMH0.DahwElvj1oqZRbQbnocmxVm8Yb1y2i61tuLBW8AV4h8";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const APP_STORE = "https://apps.apple.com/us/app/cini-rank-every-film/id6778975898";
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const movieId = parseInt((params.get('m') || '').replace(/[^0-9-]/g, ''), 10);
+// The proposed time rides in the link (epoch seconds) so the page needs no
+// private plan data — everything shown is what the sender chose to share.
+const whenEpoch = parseInt((params.get('t') || '').replace(/[^0-9]/g, ''), 10);
+const fromHandle = (params.get('f') || '').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 30);
+
+function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+function img(path, size){ return path ? `https://image.tmdb.org/t/p/${size}${String(path).replace(/[^A-Za-z0-9/_.\-]/g,'')}` : null; }
+function notFound(){ $("content").innerHTML=""; $("content").appendChild(el("div","msg","This invite link looks incomplete — ask your friend to resend it.")); }
+
+async function load(){
+  if(!movieId && movieId !== 0){ notFound(); return; }
+  const { data: t } = await sb.rpc("public_title", { p_movie_id: movieId });
+  if(!t){ notFound(); return; }
+
+  document.title = `Movie night: ${t.title} · Cini`;
+  const back = img(t.backdrop_path, "w780");
+  if(back) $("hero").style.backgroundImage = `url("${back}")`;
+
+  const c = $("content"); c.innerHTML = "";
+  const head = el("div","head");
+  const p = el("div","poster"); const pi = img(t.poster_path,"w342");
+  if(pi) p.style.backgroundImage = `url("${pi}")`;
+  head.appendChild(p);
+  const meta = el("div","meta");
+  meta.appendChild(el("div","invite",
+      fromHandle ? `@${fromHandle} INVITED YOU 🍿` : "YOU'RE INVITED 🍿"));
+  meta.appendChild(el("div","title", t.title || "Movie night"));
+  if(whenEpoch){
+    const d = new Date(whenEpoch * 1000);
+    meta.appendChild(el("div","when",
+        d.toLocaleDateString(undefined,{weekday:"long", month:"short", day:"numeric"})
+        + " · " + d.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"})));
+  }
+  const bits = [t.release_year, t.runtime_minutes ? (t.runtime_minutes+" min") : null].filter(Boolean);
+  if(bits.length) meta.appendChild(el("div","sub", bits.join(" · ")));
+  head.appendChild(meta);
+  c.appendChild(head);
+
+  if(t.overview) c.appendChild(el("div","sub", t.overview));
+
+  c.appendChild(el("div","divider"));
+  const open = el("a","cta primary","Open in Cini"); open.href = "cini://movie?id=" + movieId;
+  c.appendChild(open);
+  const get = el("a","cta ghost","Get Cini to join the plan"); get.href = APP_STORE;
+  c.appendChild(get);
+  c.appendChild(el("div","pitch",
+      "Cini is where friends rank everything they watch and plan movie nights together."
+      + (fromHandle ? ` Join and see your Taste Match with @${fromHandle}.` : "")));
+}
+load().catch(notFound);
+</script>
+</body>
+</html>

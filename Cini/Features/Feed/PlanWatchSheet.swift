@@ -10,6 +10,7 @@ struct PlanWatchSheet: View {
     let context: WatchPlanContext
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppSession.self) private var session
 
     @State private var movie: Movie?
     /// The latest plan between us for this title (any direction), or nil.
@@ -632,7 +633,12 @@ struct PlanWatchSheet: View {
 
     private var draftText: String {
         let title = movie?.title ?? "a movie"
-        return "Want to watch \(title) together? I'm planning it on Cini 🎬 \(AppLinks.appStore)"
+        // The /night/ page shows the title, the time, and who's asking — a
+        // friend without Cini sees the actual plan, and joining IS onboarding.
+        let link = AppLinks.nightLink(tmdbID: context.movieID,
+                                      at: when,
+                                      from: session.profile?.username)
+        return "Want to watch \(title) together? I'm planning it on Cini 🎬 \(link)"
     }
 
     // MARK: Time helpers

@@ -507,6 +507,43 @@ Deliberately NOT changed: feed-card double-tap-to-like keeps the ~0.3s
 single-tap delay (making the gestures simultaneous would fire open+like
 together; the delay is the price of the feature).
 
+## Retention loops (Jul 24, 2026) — SHIPPED
+
+Built in one pass (migrations 0130 + 0131, send-push v27, crons
+`post-watch-nudges-daily` 14:00 UTC and `weekly-recap-sunday` 22:00 UTC Sun):
+
+- **Post-watch rank nudge** (`post_watch_nudge`): the morning after an
+  accepted watch plan's time passes, every participant (proposer + accepted
+  members) who hasn't ranked the title gets "How was X? Rank it". Respects
+  mutes; 7-day per-title dedupe; tap opens the movie page (default routing).
+- **Weekly recap** (`weekly_recap`): Sunday-evening one-liner ("You ranked
+  3 titles · friends ranked 12 · 5-week streak 🔥") for anyone with own or
+  friend activity that week. Message rides notifications.message.
+- **Streak Freezes**: rank 3 in a week → earn one (max 2, banked on
+  profiles.streak_freezes); miss exactly one week with a freeze banked →
+  consumed inside rank_insert, streak survives. StreakInfoSheet explains it.
+- **Watch-match feed card**: `watch_overlaps` RPC (mutual friends' shared
+  Want-to-Watch) renders "You and @sam both want to watch X — Plan it"
+  between the Tonight deck and the feed; ✕ hides per-title (AppStorage).
+- **Crews v1** (0131): crews + crew_members (RLS via is_crew_member),
+  RPCs crew_create/add_member/leave/overlap + my_crews embed read. The
+  overlap of members' Want to Watch IS the ballot. UI: Profile → Crews →
+  CrewsHomeScreen/CrewScreen (Cini/Features/Crews/). Adding notifies
+  ('crew_added'). Caps: 8/crew, 5 crews/user, mutuals only.
+- **Movie-night links for non-users**: /night/?m=&t=&f= landing page
+  (night/index.html, public_title RPC) shows the movie + time + who's
+  asking → App Store; installed users deep-link to the title (handleURL).
+  PlanWatchSheet's "Draft a text" now sends this link.
+- **Taste-match invite hook**: invite texts + the feed friends-nudge now
+  lead with "see your Taste Match" (the number only exists if they join).
+- Already existed (no work needed): daily Tonight's Pick push
+  (`tonight_pick`), milestone share card (LogFlow's milestoneJustHit),
+  ticket links opening the Fandango/AMC app via universal-link-first
+  (ShowtimesSheet.openTickets).
+- **Watching stories now expire like Snapchat**: viewed = dimmed at the
+  back for the rest of the day, gone the next day (WatchingStoriesSeen
+  stores key→local-day); a friend advancing progress mints a new story.
+
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 
 Two multi-agent audits (July 2026: app-wide + theater) confirmed 84

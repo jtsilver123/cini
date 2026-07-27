@@ -125,6 +125,14 @@ function headline(kind: string, actor: string, name: string, movie: string | nul
       return `@${actor} passed on your rec${movie ? ` of ${movie}` : ""}`;
     case "rec_watched":
       return `@${actor} watched ${movie ?? "a movie"} you recommended 🎬`;
+    case "post_watch_nudge":
+      return `How was ${movie ?? "movie night"}? Rank it — takes 20 seconds 🎬`;
+    // The recap line itself rides in `message` and is appended by the caller.
+    case "weekly_recap":
+      return `Your week on Cini`;
+    // The crew name rides in `message` and is appended by the caller.
+    case "crew_added":
+      return `@${actor} added you to their crew`;
     default: return `New from @${actor} on Cini — tap to take a look`;
   }
 }

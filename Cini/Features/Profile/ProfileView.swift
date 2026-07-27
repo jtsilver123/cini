@@ -871,6 +871,14 @@ struct ProfileScreen: View {
                 listRow(icon: "heart", title: "Recs for You", count: nil)
             }
             .buttonStyle(.plain)
+            Divider()
+            // Your movie-night group(s) — the shared Want to Watch ballot.
+            NavigationLink {
+                CrewsHomeScreen()
+            } label: {
+                listRow(icon: "person.3", title: "Crews", count: nil)
+            }
+            .buttonStyle(.plain)
         }
     }
 
