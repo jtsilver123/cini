@@ -69,6 +69,11 @@ jobs:
           mkdir -p _site/charts
           cp charts/index.html _site/charts/index.html
           cp favicon.png _site/charts/favicon.png
+          # Movie-night invite served from /night/?m=&t=&f= — the link the
+          # "Draft a text" flow sends to friends who don't have Cini yet.
+          mkdir -p _site/night
+          cp night/index.html _site/night/index.html
+          cp favicon.png _site/night/favicon.png
           # Public taste-match page served from /match/?a=&b=.
           mkdir -p _site/match
           cp match/index.html _site/match/index.html

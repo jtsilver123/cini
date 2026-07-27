@@ -15,17 +15,32 @@ struct StreakInfoSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 18) {
+        // Three rules (the freeze rule runs long) overflow a medium detent on
+        // smaller phones — scroll the explanatory block so the CTAs below can
+        // never be pushed off the sheet.
+        VStack(spacing: 14) {
+            ScrollView {
+                VStack(spacing: 14) { explainer }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            actions
+        }
+        .frame(maxWidth: .infinity)
+        .background(Theme.background)
+    }
+
+    private var explainer: some View {
+        Group {
             // Flame + current count.
             ZStack {
                 Circle()
                     .fill(Theme.gold.opacity(0.14))
-                    .frame(width: 84, height: 84)
+                    .frame(width: 72, height: 72)
                 Image(systemName: "flame.fill")
-                    .font(.system(size: 38))
+                    .font(.system(size: 32))
                     .foregroundStyle(Theme.gold)
             }
-            .padding(.top, 28)
+            .padding(.top, 20)
 
             Text(weeks > 0
                  ? "\(weeks)-week streak"
@@ -50,18 +65,19 @@ struct StreakInfoSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.top, 4)
+            .padding(.bottom, 8)
+        }
+    }
 
-            Spacer(minLength: 0)
-
+    private var actions: some View {
+        VStack(spacing: 10) {
             PillButton(title: "Rank something", style: .filled) { onRank() }
                 .padding(.horizontal, 24)
             Button("Got it") { dismiss() }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Theme.gray)
-                .padding(.bottom, 20)
         }
-        .frame(maxWidth: .infinity)
-        .background(Theme.background)
+        .padding(.bottom, 20)
     }
 
     private var streakLine: String {

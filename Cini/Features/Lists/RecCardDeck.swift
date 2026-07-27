@@ -363,6 +363,9 @@ struct RecCardDeck: View {
             Text("Pull in new recs, or adjust your filters.")
                 .font(.caption).foregroundStyle(Theme.gray).multilineTextAlignment(.center)
             PillButton(title: "Refresh recs", systemImage: "arrow.clockwise") {
+                // Re-sync the tutorial flag first: without this a refresh
+                // replays the practice cards the user just completed.
+                includeDemos = !demoSeen
                 history.removeAll(); index = 0; drag = .zero; flyOff = 0; onRefresh()
             }
         }

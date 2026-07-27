@@ -286,7 +286,10 @@ struct FeedView: View {
                     showStreakInfo = false
                     tabRouter.selection = .search
                 }
-                .presentationDetents([.medium])
+                // Three rules (the freeze rule runs long) overflow a medium
+                // detent on smaller phones — allow large so the CTAs stay
+                // reachable; the sheet itself scrolls as a backstop.
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showRespondRecs, onDismiss: {
@@ -921,10 +924,12 @@ struct FeedView: View {
                 dismissedOverlapsRaw += dismissedOverlapsRaw.isEmpty
                     ? "\(row.movieId)" : ",\(row.movieId)"
             } label: {
+                // 44pt target like every other dismiss in the feed — the glyph
+                // stays small, the tappable area doesn't.
                 Image(systemName: "xmark")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(Theme.gray)
-                    .padding(8)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -1413,13 +1418,9 @@ struct FeedView: View {
 
     private func todayKey() -> String { DateFormatter.localDay.string(from: Date()) }
 
-    /// LOCAL-calendar day ordinal, used for the Tonight's Pick 14-day recency
-    /// log. Must roll over at local midnight like the dismissal log
-    /// (todayKey) does — the old UTC arithmetic flipped at 5-8pm US time, so
-    /// an evening's picks were "shown today" all of the next morning.
-    private func todayDayNum() -> Int {
-        Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
-    }
+    /// LOCAL-calendar day ordinal for the Tonight's Pick 14-day recency log
+    /// (see Date.localDayOrdinal for why it must be local).
+    private func todayDayNum() -> Int { Date.localDayOrdinal }
 
     /// Map of movieID → day number it was last shown in Tonight's Picks.
     private func tonightShownMap() -> [Int: Int] {
@@ -2724,6 +2725,7 @@ struct NotificationsView: View {
     @State private var memberTarget: MemberRef?
     @State private var commentsLink: CommentsLink?
     @State private var showRespondRecs = false
+    @State private var showCrews = false
     @State private var showtimesMovie: Movie?
     @State private var resolvedFollowReqs: [UUID: Bool] = [:]   // actorId → accepted
 
@@ -2807,6 +2809,9 @@ struct NotificationsView: View {
         }
         .sheet(isPresented: $showRespondRecs) {
             RespondRecSheet()
+        }
+        .navigationDestination(isPresented: $showCrews) {
+            CrewsHomeScreen()
         }
         .sheet(item: $showtimesMovie) { movie in
             ShowtimesSheet(movie: movie)
@@ -2936,6 +2941,15 @@ struct NotificationsView: View {
     private func route(_ row: NotificationRow) {
         if row.kind == "rec_request" {
             showRespondRecs = true
+        } else if row.kind == "crew_added" {
+            // The notification is ABOUT the crew — land there, not on the
+            // adder's profile (which the actor fallback would have picked).
+            showCrews = true
+        } else if row.kind == "weekly_recap" {
+            // No actor, no movie — the recap is about your own week, so send
+            // them to their profile rather than letting the tap do nothing.
+            dismiss()
+            tabRouter.selection = .profile
         } else if row.kind == "streak_reminder" {
             // No movie/actor of its own — send them to Recs, where ranking the
             // streak-saver is one tap away (matches the push tap behavior).

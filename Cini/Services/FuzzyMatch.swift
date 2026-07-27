@@ -27,6 +27,17 @@ extension DateFormatter {
     }()
 }
 
+extension Date {
+    /// Today's LOCAL-calendar day ordinal — the app's unit for "same day?"
+    /// comparisons (Tonight's Pick recency, watching-story expiry). It must
+    /// roll over at local midnight: the UTC arithmetic this replaced flipped
+    /// at 5-8pm US time, so an evening's picks read as "shown today" all of
+    /// the next morning.
+    static var localDayOrdinal: Int {
+        Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
+    }
+}
+
 /// Typo-tolerant string matching for search: normalized edit distance with
 /// adjacent-transposition support ("teh" → "the"), measured against both
 /// the whole candidate and its typing prefix so partial queries score well.

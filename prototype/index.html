@@ -2248,16 +2248,16 @@ function openRankAgain(k){
     <div class="sheet-head"><b style="flex:1; font-size:17px;">Rank again</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
-      <div class="erow" onclick="closeOverlay(); openLog('${k}')"><span class="ic">${I("pencil",18)}</span><span style="flex:1;">Rerank this movie</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" onclick="closeOverlay(); S.ui.reorder=true; S.subTab='watched'; save(); go('lists')"><span class="ic">${I("sort",18)}</span><span style="flex:1;">Reorder within my list</span><span class="sub">${I("chevR",14)}</span></div>
-      <div class="erow" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Log a rewatch</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openLog('${k}')"><span class="ic">${I("pencil",18)}</span><span style="flex:1;">Rerank it</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); S.ui.reorder=true; S.subTab='watched'; save(); go('lists')"><span class="ic">${I("sort",18)}</span><span style="flex:1;">Reorder my Watched list</span><span class="sub">${I("chevR",14)}</span></div>
+      <div class="erow" onclick="closeOverlay(); openRewatch('${k}')"><span class="ic">${I("calendar",18)}</span><span style="flex:1;">Watched it again</span><span class="sub">${I("chevR",14)}</span></div>
       <div class="erow" style="border-bottom:none; color:var(--red);" onclick="if(confirm('Delete your ranking? It comes off your ranked list and your score clears. Notes and diary entries stay.')){ S.watched=S.watched.filter(w=>w.k!=='${k}'); save(); closeOverlay(); toast('Ranking deleted'); render(); }"><span class="ic" style="color:var(--red);">${I("trash",18)}</span><span style="flex:1;">Delete my ranking</span></div>
     </div>`);
 }
 function openRewatch(k){
   const m=MOVIES[k];
   renderSheet(`
-    <div class="sheet-head"><b style="flex:1; font-size:17px;">Log a rewatch</b>
+    <div class="sheet-head"><b style="flex:1; font-size:17px;">Watched it again</b>
       <button class="iconbtn" onclick="closeOverlay()">${I("x",18)}</button></div>
     <div class="sheet-body">
       <div class="sub" style="margin-bottom:10px;">${m.t} — your rank and score stay put; this just lands in your Diary.</div>
@@ -2669,7 +2669,8 @@ function openStreakInfo(){
     <div class="sub">${line}</div>
     <div style="display:flex; flex-direction:column; gap:12px; width:100%; margin-top:2px;">
       ${rule("calendar","Rank at least one movie or show each week to keep your streak going.")}
-      ${rule("history","Miss a week and it resets to zero — so keep it alive.")}
+      ${rule("star","Rank 3 titles in a week to earn a Streak Freeze (up to 2) — it saves your streak if you miss a week.")}
+      ${rule("history","Miss a week with no freeze banked and it resets to zero.")}
     </div>
     <button class="pill" style="justify-content:center; width:100%; margin-top:8px;" onclick="closeOverlay(); openSearchForRank();">Rank something</button>
   </div>`);
@@ -2798,7 +2799,7 @@ function notifLine(n){
   const movie=n.movie?`<b>${MOVIES[n.movie].t}</b>`:"";
   switch(n.kind){
     case "new_follower": return `${name} started following you`;
-    case "like": return `${who} liked your activity on ${movie}`;
+    case "like": return `${who} liked your post about ${movie}`;
     case "comment": return `${who} commented on ${movie}`;
     case "mention": return `${who} mentioned you in a comment on ${movie}`;
     case "friend_ranked_watchlist_movie": return `${who} ranked ${movie} — it's on your Want to Watch list`;

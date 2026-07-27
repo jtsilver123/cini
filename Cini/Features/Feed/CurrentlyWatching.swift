@@ -17,22 +17,35 @@ func episodeLabel(season: Int?, episode: Int?) -> String? {
 /// so a friend moving forward re-surfaces as fresh.
 enum WatchingStoriesSeen {
     private static let key = "watchingStoriesSeenDays"
+    /// Pre-expiry storage: a plain array of viewed story keys.
+    private static let legacyKey = "watchingStoriesSeen"
     private static let cap = 300
 
-    /// Local-calendar day ordinal — story lifetimes follow the user's day,
-    /// not UTC's.
-    static func today() -> Int {
-        Calendar.current.ordinality(of: .day, in: .era, for: Date()) ?? 0
-    }
+    /// Story lifetimes follow the user's local day, not UTC's.
+    static func today() -> Int { Date.localDayOrdinal }
 
     /// Story key → the local day it was viewed. Snap-style lifecycle: viewed
     /// today = dimmed at the back of the shelf; viewed before today = gone
     /// entirely (until the friend advances, which mints a new story key).
     static func seenDays() -> [String: Int] {
-        (UserDefaults.standard.dictionary(forKey: key) as? [String: Int]) ?? [:]
+        migrateLegacyIfNeeded()
+        return (UserDefaults.standard.dictionary(forKey: key) as? [String: Int]) ?? [:]
+    }
+
+    /// Upgrading users had a plain array of viewed story keys under the old
+    /// key. Fold it in as "viewed today" (so those stories dim and age out
+    /// normally instead of all resurfacing as unseen), then drop it.
+    private static func migrateLegacyIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard let legacy = defaults.array(forKey: legacyKey) as? [String] else { return }
+        var map = (defaults.dictionary(forKey: key) as? [String: Int]) ?? [:]
+        let day = today()
+        for id in legacy where map[id] == nil { map[id] = day }
+        defaults.set(map, forKey: key)
+        defaults.removeObject(forKey: legacyKey)
     }
     static func markSeen(_ id: String) {
-        var map = seenDays()
+        var map = seenDays()   // also runs the one-shot legacy migration
         guard map[id] == nil else { return }
         map[id] = today()
         if map.count > cap {

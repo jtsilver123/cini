@@ -161,20 +161,37 @@ struct CrewScreen: View {
     @Environment(RankingStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    /// The LIVE roster. Seeded from the passed-in crew, then refreshed after
+    /// every add — the passed value is a snapshot from the list screen, so
+    /// reading it directly left the avatars, the names line, and every
+    /// "N of M want this" denominator stale right after adding someone.
+    @State private var members: [SupabaseService.CrewMemberRow] = []
     @State private var overlap: [SupabaseService.CrewOverlapRow] = []
     @State private var movies: [Int: Movie] = [:]
     @State private var loaded = false
+    /// The overlap fetch failed — show a retry, never "no shared picks yet"
+    /// (a crew with ten picks must not be told it has none).
+    @State private var loadFailed = false
     @State private var showAddMember = false
     @State private var planContext: WatchPlanContext?
     @State private var detailMovie: Movie?
     @State private var showLeaveConfirm = false
+    @State private var loadKey = 0
+    /// Mutual-follow ids (they follow me back) — the server's own bar for
+    /// crew_add_member. nil until loaded, so the picker can show a skeleton
+    /// instead of claiming everyone's already in.
+    @State private var mutualIDs: Set<UUID>?
 
     private var myID: UUID? { SupabaseService.shared.currentUserID }
 
-    /// Mutual friends not already in the crew — offered by the add picker.
+    /// Mutual friends not already in the crew — the exact set the server will
+    /// accept, so no row in this picker can fail with "not mutuals".
     private var addableFriends: [ProfileRow] {
-        let memberIDs = Set(crew.members.map(\.userId))
-        return FriendsCache.shared.byTagFrequency.filter { !memberIDs.contains($0.id) }
+        guard let mutualIDs else { return [] }
+        let memberIDs = Set(members.map(\.userId))
+        return FriendsCache.shared.byTagFrequency.filter {
+            !memberIDs.contains($0.id) && mutualIDs.contains($0.id)
+        }
     }
 
     var body: some View {
@@ -188,12 +205,25 @@ struct CrewScreen: View {
                     ListSkeleton(rows: 4)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Theme.background)
+                } else if loadFailed && overlap.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "wifi.slash").font(.title2).foregroundStyle(Theme.gray)
+                        Text("Couldn't load this crew's picks")
+                            .font(.subheadline.weight(.bold))
+                        PillButton(title: "Try again") { loadKey += 1 }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 28)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Theme.background)
                 } else if overlap.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: "bookmark").font(.title2).foregroundStyle(Theme.gray)
                         Text("No shared picks yet")
                             .font(.subheadline.weight(.bold))
-                        Text("When two or more of you bookmark the same title, it shows up here — ready to plan.")
+                        Text(members.count <= 1
+                             ? "Add a friend — the titles you both bookmark show up here, ready to plan."
+                             : "When two or more of you bookmark the same title, it shows up here — ready to plan.")
                             .font(.caption)
                             .foregroundStyle(Theme.gray)
                             .multilineTextAlignment(.center)
@@ -209,7 +239,7 @@ struct CrewScreen: View {
                     }
                 }
             } header: {
-                Text("What you all want to watch")
+                Text(members.count <= 1 ? "On your Want to Watch" : "What you all want to watch")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(Theme.gray)
             }
@@ -232,7 +262,7 @@ struct CrewScreen: View {
                 }
             }
         }
-        .task { await load() }
+        .task(id: loadKey) { await load() }
         .sheet(isPresented: $showAddMember) { addMemberSheet }
         .sheet(item: $planContext) { ctx in
             PlanWatchSheet(context: ctx)
@@ -252,7 +282,7 @@ struct CrewScreen: View {
     private var membersHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: -8) {
-                ForEach(crew.members.prefix(8), id: \.userId) { member in
+                ForEach(members.prefix(8), id: \.userId) { member in
                     AvatarView(url: (member.profile?.avatarUrl).flatMap(URL.init), size: 38,
                                name: preferredName(member.profile?.displayName,
                                                    member.profile?.username))
@@ -269,7 +299,7 @@ struct CrewScreen: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Add a friend to the crew")
             }
-            Text(crew.members.compactMap { $0.profile.map { "@\($0.username)" } }
+            Text(members.compactMap { $0.profile.map { "@\($0.username)" } }
                     .joined(separator: " · "))
                 .font(.caption)
                 .foregroundStyle(Theme.gray)
@@ -285,19 +315,22 @@ struct CrewScreen: View {
                 Text(movies[row.movieId]?.title ?? "…")
                     .font(.subheadline.weight(.bold))
                     .lineLimit(2)
-                Text("\(row.wantCount) of \(crew.members.count) want this")
+                Text(members.count <= 1
+                     ? "On your Want to Watch"
+                     : "\(row.wantCount) of \(members.count) want this")
                     .font(.caption)
-                    .foregroundStyle(row.wantCount == crew.members.count ? Theme.scoreGreen : Theme.gray)
+                    .foregroundStyle(members.count > 1 && row.wantCount == members.count
+                                     ? Theme.scoreGreen : Theme.gray)
             }
             Spacer(minLength: 8)
-            PillButton(title: "Plan it") {
-                // Open the plan sheet on another member (the invite picker can
-                // add the rest of the crew from the top of its list).
-                guard let other = crew.members.first(where: { $0.userId != myID }),
-                      let username = other.profile?.username else { return }
-                planContext = WatchPlanContext(
-                    movieID: row.movieId,
-                    friend: MemberRef(id: other.userId, username: username))
+            // A one-person crew has nobody to plan with — offer the action that
+            // actually moves things forward instead of a button that no-ops.
+            if let target = planTarget(for: row) {
+                PillButton(title: "Plan it") {
+                    planContext = WatchPlanContext(movieID: row.movieId, friend: target)
+                }
+            } else {
+                PillButton(title: "Add a friend", style: .outlined) { showAddMember = true }
             }
         }
         .padding(.vertical, 4)
@@ -310,11 +343,29 @@ struct CrewScreen: View {
         }
     }
 
+    /// Who to open the plan sheet on: someone who actually bookmarked this
+    /// title (the row's own wanters), else any other member. nil for a
+    /// one-person crew, where "Plan it" would have nobody to invite.
+    private func planTarget(for row: SupabaseService.CrewOverlapRow) -> MemberRef? {
+        let others = members.filter { $0.userId != myID }
+        let wanters = Set(row.memberUsernames)
+        let pick = others.first { $0.profile.map { wanters.contains($0.username) } ?? false }
+            ?? others.first
+        guard let pick, let username = pick.profile?.username else { return nil }
+        return MemberRef(id: pick.userId, username: username)
+    }
+
     private var addMemberSheet: some View {
         NavigationStack {
             List {
-                if addableFriends.isEmpty {
-                    Text("Everyone you both follow is already in — follow more friends to grow the crew.")
+                if mutualIDs == nil {
+                    // Mutuals still resolving — a skeleton, not a claim that
+                    // there's nobody to add.
+                    ListSkeleton(rows: 4)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Theme.background)
+                } else if addableFriends.isEmpty {
+                    Text("Everyone who follows you back is already in this crew — follow more friends to grow it.")
                         .font(.subheadline)
                         .foregroundStyle(Theme.gray)
                         .listRowBackground(Theme.background)
@@ -358,10 +409,37 @@ struct CrewScreen: View {
                 Haptics.success()
                 ToastCenter.shared.show("Added @\(friend.username) to \(crew.name)")
                 showAddMember = false
+                // Refresh the roster on THIS screen too — the parent list
+                // reload doesn't reach the pushed screen the user is looking at.
+                await refreshMembers()
                 onChanged()
             } catch {
-                ToastCenter.shared.saveFailed()
+                // The server's caps and trust rules deserve real explanations;
+                // a bare "couldn't save" leaves the user retrying forever.
+                let message = "\(error)"
+                if message.contains("crew full") {
+                    ToastCenter.shared.show("A crew holds up to 8 people.")
+                } else if message.contains("crew limit") {
+                    ToastCenter.shared.show("@\(friend.username) is already in 5 crews — their limit.")
+                } else if message.contains("not mutuals") {
+                    ToastCenter.shared.show("You can only add friends who follow you back.")
+                } else {
+                    ToastCenter.shared.saveFailed()
+                }
             }
+        }
+    }
+
+    /// Re-read this crew's roster (after an add) so the avatars, the names
+    /// line, and every "N of M" denominator match reality immediately.
+    private func refreshMembers() async {
+        guard let fresh = await SupabaseService.shared.myCrews()?
+            .first(where: { $0.id == crew.id }) else { return }
+        members = fresh.members
+        // Denominators changed — the ballot's thresholds did too.
+        if let rows = await SupabaseService.shared.crewOverlap(crewID: crew.id) {
+            overlap = rows
+            await resolveTitles(rows)
         }
     }
 
@@ -379,23 +457,48 @@ struct CrewScreen: View {
 
     private func load() async {
         FriendsCache.shared.refreshIfStale()   // powers the add picker
+        if members.isEmpty { members = crew.members }   // seed from the snapshot
+        // Only offer people the server will actually accept (mutuals).
+        if mutualIDs == nil {
+            let following = await SupabaseService.shared.followingIDs()
+            let followers = await SupabaseService.shared.followerIDs()
+            mutualIDs = following.intersection(followers)
+        }
         guard let rows = await SupabaseService.shared.crewOverlap(crewID: crew.id) else {
-            if !Task.isCancelled, overlap.isEmpty { loaded = true }
+            // Keep whatever's on screen; flag the failure so an empty screen
+            // offers a retry instead of claiming there are no shared picks.
+            if !Task.isCancelled {
+                loadFailed = true
+                loaded = true
+            }
             return
         }
+        loadFailed = false
         overlap = rows
-        // Resolve titles: the store covers my own saves; fetch the rest.
+        await resolveTitles(rows)
+        loaded = true
+    }
+
+    /// Fill in posters/titles for the ballot — my own saves come from the
+    /// shared store, other members' need a fetch.
+    private func resolveTitles(_ rows: [SupabaseService.CrewOverlapRow]) async {
         var byID: [Int: Movie] = [:]
         var missing: [Int] = []
         for row in rows {
             if let movie = store.movie(row.movieId) { byID[row.movieId] = movie }
             else { missing.append(row.movieId) }
         }
-        if !missing.isEmpty,
-           let fetched = try? await SupabaseService.shared.movies(ids: missing) {
-            for row in fetched { byID[row.tmdbId] = row.asMovie }
+        if !missing.isEmpty {
+            do {
+                for row in try await SupabaseService.shared.movies(ids: missing) {
+                    byID[row.tmdbId] = row.asMovie
+                }
+            } catch {
+                // Don't swallow silently: without titles these rows render as
+                // "…" and don't open, and the cause would be invisible.
+                SupabaseService.logSwallowed("crewOverlapMovies", error)
+            }
         }
         movies = byID
-        loaded = true
     }
 }

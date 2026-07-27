@@ -635,8 +635,11 @@ struct PlanWatchSheet: View {
         let title = movie?.title ?? "a movie"
         // The /night/ page shows the title, the time, and who's asking — a
         // friend without Cini sees the actual plan, and joining IS onboarding.
+        // An existing plan's committed time wins: `when` is the composer's
+        // state and gets rolled forward past 8pm, which would advertise a
+        // time nobody agreed to.
         let link = AppLinks.nightLink(tmdbID: context.movieID,
-                                      at: when,
+                                      at: plan?.proposedAt ?? when,
                                       from: session.profile?.username)
         return "Want to watch \(title) together? I'm planning it on Cini 🎬 \(link)"
     }

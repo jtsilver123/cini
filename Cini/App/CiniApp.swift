@@ -138,12 +138,12 @@ struct CiniApp: App {
             isInvite = !isList && !isProfile && !isMovie  // cini://invite or bare
         } else if url.scheme == "https",
                   url.host == "trycini.com" || url.host == "www.trycini.com" {
-            // A movie-night invite (/night/?m=) opens the title's page for
-            // installed users — checked before /m so prefixes can't collide.
+            // A movie-night invite (/night/) carries its id in ?m= rather
+            // than ?id=, so it gets its own branch.
             isNight = url.path.hasPrefix("/night")
             isList = url.path.hasPrefix("/l")
             isProfile = url.path.hasPrefix("/u")
-            isMovie = !isNight && url.path.hasPrefix("/m")
+            isMovie = url.path.hasPrefix("/m")
             isInvite = url.path.hasPrefix("/i")
         } else {
             return

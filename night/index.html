@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#131011">
-<title>Movie night on Cini</title>
-<meta property="og:title" content="You're invited to a movie night 🍿">
+<title>Watch together on Cini</title>
+<meta property="og:title" content="You're invited to watch together 🍿">
 <meta property="og:description" content="A friend is planning a watch on Cini — see what, when, and join them.">
 <meta property="og:image" content="https://trycini.com/og.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Limelight&display=swap" rel="stylesheet">
@@ -43,7 +43,22 @@
     <a class="getcini" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini</a>
   </div>
 </div>
-<div class="wrap"><div id="content"><div class="msg">Loading…</div></div></div>
+<div class="wrap">
+  <div id="content">
+    <div class="head">
+      <div class="poster" id="sposter"></div>
+      <div class="meta">
+        <div class="invite" id="sinvite">YOU'RE INVITED 🍿</div>
+        <div class="title" id="stitle">Watch together on Cini</div>
+        <div class="when" id="swhen"></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <a class="cta primary" id="sopen" href="https://apps.apple.com/us/app/cini-rank-every-film/id6778975898">Get Cini to join the plan</a>
+    <div class="pitch">Cini is where friends rank everything they watch and plan movie nights together.</div>
+  </div>
+</div>
+<noscript><div class="pitch" style="padding:0 16px 40px;">Turn on JavaScript to see the film and showtime — or just tap “Get Cini” above.</div></noscript>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -61,15 +76,36 @@ const whenEpoch = parseInt((params.get('t') || '').replace(/[^0-9]/g, ''), 10);
 const fromHandle = (params.get('f') || '').replace(/[^A-Za-z0-9_.]/g, '').slice(0, 30);
 
 function el(tag, cls, text){ const e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e; }
+
+// Everything the URL already carries — renders with no network at all, so a
+// blocked CDN or a failed RPC still shows a usable invite.
+function paintStatic(){
+  if(fromHandle) $("sinvite").textContent = "@" + fromHandle + " INVITED YOU 🍿";
+  if(whenEpoch){
+    const d = new Date(whenEpoch * 1000);
+    $("swhen").textContent =
+      d.toLocaleDateString(undefined,{weekday:"long", month:"short", day:"numeric"})
+      + " · " + d.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"});
+  }
+}
+paintStatic();
 function img(path, size){ return path ? `https://image.tmdb.org/t/p/${size}${String(path).replace(/[^A-Za-z0-9/_.\-]/g,'')}` : null; }
-function notFound(){ $("content").innerHTML=""; $("content").appendChild(el("div","msg","This invite link looks incomplete — ask your friend to resend it.")); }
+// A malformed link is the sender's problem; a failed fetch is not — and
+// either way the static invite above stays on screen.
+function incomplete(){
+  $("stitle").textContent = "This invite link is incomplete";
+  $("swhen").textContent = "Ask your friend to resend it.";
+}
+function offline(){
+  if(!$("swhen").textContent) $("swhen").textContent = "Couldn't load the film — check your connection.";
+}
 
 async function load(){
-  if(!movieId && movieId !== 0){ notFound(); return; }
+  if(!movieId && movieId !== 0){ incomplete(); return; }
   const { data: t } = await sb.rpc("public_title", { p_movie_id: movieId });
-  if(!t){ notFound(); return; }
+  if(!t){ offline(); return; }
 
-  document.title = `Movie night: ${t.title} · Cini`;
+  document.title = `Watch together: ${t.title} · Cini`;
   const back = img(t.backdrop_path, "w780");
   if(back) $("hero").style.backgroundImage = `url("${back}")`;
 
@@ -81,7 +117,7 @@ async function load(){
   const meta = el("div","meta");
   meta.appendChild(el("div","invite",
       fromHandle ? `@${fromHandle} INVITED YOU 🍿` : "YOU'RE INVITED 🍿"));
-  meta.appendChild(el("div","title", t.title || "Movie night"));
+  meta.appendChild(el("div","title", t.title || "Watch together"));
   if(whenEpoch){
     const d = new Date(whenEpoch * 1000);
     meta.appendChild(el("div","when",
@@ -104,7 +140,7 @@ async function load(){
       "Cini is where friends rank everything they watch and plan movie nights together."
       + (fromHandle ? ` Join and see your Taste Match with @${fromHandle}.` : "")));
 }
-load().catch(notFound);
+load().catch(offline);
 </script>
 </body>
 </html>

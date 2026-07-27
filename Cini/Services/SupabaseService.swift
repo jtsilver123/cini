@@ -1337,6 +1337,22 @@ final class SupabaseService {
         return Set(edges.map(\.followingId))
     }
 
+    /// Just the IDs that follow ME — intersected with followingIDs() this
+    /// gives the mutual-friend set the crew RPCs require, so a picker never
+    /// offers someone the server will reject.
+    func followerIDs() async -> Set<UUID> {
+        guard let me = currentUserID else { return [] }
+        struct Edge: Decodable {
+            let followerId: UUID
+            enum CodingKeys: String, CodingKey { case followerId = "follower_id" }
+        }
+        let edges: [Edge] = (try? await client.from("follows")
+            .select("follower_id")
+            .eq("following_id", value: me)
+            .execute().value) ?? []
+        return Set(edges.map(\.followerId))
+    }
+
     /// IDs of (private) accounts I have an outstanding follow request to, so a
     /// list can show "Requested" — and keep showing it after a reopen.
     func outgoingFollowRequestIDs() async -> Set<UUID> {

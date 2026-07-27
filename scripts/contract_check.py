@@ -194,6 +194,9 @@ RPCS = [
     ("supplemental_showings", {"p_metro": "nyc"}),
     # Want-to-Watch overlaps with mutual friends (the feed's "plan it" card).
     ("watch_overlaps", {"p_limit": 5}),
+    # Crew ballot for a nonexistent crew: RLS gate fails → empty, which still
+    # exercises the signature and the is_crew_member gating.
+    ("crew_overlap", {"p_crew": "00000000-0000-0000-0000-000000000000"}),
     # Muting then unmuting a kind the demo doesn't use leaves state unchanged.
     ("set_notification_kind_muted", {"p_kind": "contract_check_probe", "p_muted": False}),
     # Empty array stores nothing; forget clears the caller's own hashes.
