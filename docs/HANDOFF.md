@@ -544,6 +544,23 @@ Built in one pass (migrations 0130 + 0131, send-push v27, crons
   back for the rest of the day, gone the next day (WatchingStoriesSeen
   stores key→local-day); a friend advancing progress mints a new story.
 
+## Calendar sync (Jul 27, 2026) — SHIPPED
+
+Opt-in (Settings → Your app → "Rank reminders from my calendar"):
+CalendarRankSync.swift reads the next 7 days of calendar events (EventKit
+full access, NSCalendarsFullAccessUsageDescription added — distinct from
+the plan sheet's write-only grant), matches event titles against the
+user's unranked Want to Watch (consecutive-token word-boundary match;
+one-word titles additionally require a film-signal word like
+movie/watch/AMC so "Heat" never matches "Heating repair"), and schedules
+a LOCAL notification ~30 min after each matched event ends ("How was X?
+Rank it — takes 20 seconds"). Entirely on-device — no calendar data is
+uploaded. Reminders carry kind=post_watch_nudge + movie_id so the
+existing push router opens the title's page. Rescans on foreground
+(6h throttle); ranking a title cancels its pending reminder immediately
+(RankingStore.commit → movieRanked); toggle-off and sign-out cancel all.
+Cini's own "🎬 …" plan events are skipped (the server nudge covers them).
+
 ## Audit backlog (medium/low findings, verified but not yet fixed)
 
 Two multi-agent audits (July 2026: app-wide + theater) confirmed 84

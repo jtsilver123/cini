@@ -152,6 +152,9 @@ struct FeedView: View {
                 // A library that never loaded (launch on a dead connection)
                 // retries on every foreground until it succeeds.
                 if !store.isLoaded { Task { await store.load() } }
+                // Calendar sync: re-check the next week of events (throttled
+                // to every 6h inside) and refresh the post-showing reminders.
+                Task { await CalendarRankSync.rescanIfDue(store: store) }
                 guard Date().timeIntervalSince(lastFeedLoad) > 45 else { return }
                 Task { await loadFeed() }
             }

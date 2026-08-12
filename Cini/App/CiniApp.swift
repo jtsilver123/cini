@@ -444,6 +444,9 @@ final class AppSession {
                 ImportHistory.clear()
                 ImportTransfer.clear()
                 ProfileCountsCache.clear()
+                // The next signer must not inherit this account's scheduled
+                // "rank it" calendar reminders.
+                CalendarRankSync.clearScheduled()
                 // And every per-account default: search history, hidden recs,
                 // invite state, list filters, Tonight's Pick logs, the stashed
                 // phone number. Leaving any of these behind bleeds one
@@ -459,6 +462,7 @@ final class AppSession {
                             "feed.hideWatchingStories", "watchingStoriesSeen",
                             "watchingStoriesSeenDays", "feed.dismissedOverlaps",
                             "recs.firstSaveHintShown",
+                            "cal.rankRemindersOn", "cal.lastScanAt",
                             "lists.hiddenTabs", "lists.genreFilter",
                             "lists.decadeFilter", "lists.runtimeFilter",
                             "lists.streamingProvider", "lists.sortMetric",

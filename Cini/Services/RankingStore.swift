@@ -545,6 +545,9 @@ final class RankingStore {
         // (doing this before the write would drop it from "pending to rate"
         // even if the rank failed and we reverted).
         ImportQueue.shared.markRanked(session.newItemID)
+        // A pending "rank it after your showing" calendar reminder for this
+        // title is now noise — cancel it right away.
+        CalendarRankSync.movieRanked(session.newItemID)
         // Tell friends who already love this title that you just rated it —
         // but never for a stealth rank, which must stay invisible to everyone.
         if !stealth {
