@@ -53,6 +53,8 @@ struct NotificationPreferencesView: View {
     @State private var loaded = false
     @State private var loadFailed = false
     @State private var errorMessage: String?
+    @AppStorage(CalendarRankSync.enabledKey) private var calRankReminders = false
+    @Environment(RankingStore.self) private var store
 
     var body: some View {
         Form {
@@ -69,6 +71,20 @@ struct NotificationPreferencesView: View {
                         }
                         .tint(Theme.velvet)
                         .disabled(!loaded)
+                    }
+                    // Calendar sync lives with its reminder siblings — it's a
+                    // LOCAL toggle (on-device scan + local notifications), so
+                    // it works even while the server switches above load.
+                    if section.title == "Reminders" {
+                        Toggle(isOn: calSyncBinding) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Movies on my calendar")
+                                Text("Spots titles from your Want to Watch on your calendar and nudges you to rank them after the event — needs calendar access, and nothing leaves your phone")
+                                    .font(.caption)
+                                    .foregroundStyle(Theme.gray)
+                            }
+                        }
+                        .tint(Theme.velvet)
                     }
                 }
             }
@@ -117,6 +133,34 @@ struct NotificationPreferencesView: View {
         } catch {
             loadFailed = true
         }
+    }
+
+    /// Turning calendar sync ON needs two grants (calendar read +
+    /// notifications) — the binding drives the whole dance and only lands in
+    /// the ON state once calendar access is actually granted.
+    private var calSyncBinding: Binding<Bool> {
+        Binding(
+            get: { calRankReminders },
+            set: { on in
+                if !on {
+                    calRankReminders = false
+                    CalendarRankSync.clearScheduled()
+                    return
+                }
+                Task {
+                    guard await CalendarRankSync.requestAccess() else {
+                        ToastCenter.shared.show("Calendar access is off for Cini — allow it in Settings to get rank reminders.")
+                        calRankReminders = false
+                        return
+                    }
+                    // Best-effort: the reminder still lands in Notification
+                    // Center history even if banners are declined.
+                    _ = await PushManager.request()
+                    calRankReminders = true
+                    await CalendarRankSync.rescan(store: store)
+                    ToastCenter.shared.show("Calendar sync is on — Cini will nudge you after a movie on your schedule.")
+                }
+            })
     }
 
     private func binding(for kind: String) -> Binding<Bool> {

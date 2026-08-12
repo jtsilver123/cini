@@ -259,36 +259,6 @@ private struct PrivacyScreen: View {
 private struct AppPreferencesScreen: View {
     @AppStorage("cini.appearance") private var appearance = "dark"
     @AppStorage("feed.hideWatchingStories") private var hideWatchingStories = false
-    @AppStorage(CalendarRankSync.enabledKey) private var calRankReminders = false
-    @Environment(RankingStore.self) private var store
-
-    /// Turning the calendar toggle ON needs two grants (calendar read +
-    /// notifications) — the binding drives the whole dance and only lands
-    /// in the ON state once both are actually granted.
-    private var calSyncBinding: Binding<Bool> {
-        Binding(
-            get: { calRankReminders },
-            set: { on in
-                if !on {
-                    calRankReminders = false
-                    CalendarRankSync.clearScheduled()
-                    return
-                }
-                Task {
-                    guard await CalendarRankSync.requestAccess() else {
-                        ToastCenter.shared.show("Calendar access is off for Cini — allow it in Settings to get rank reminders.")
-                        calRankReminders = false
-                        return
-                    }
-                    // Best-effort: the reminder still lands in Notification
-                    // Center history even if banners are declined.
-                    _ = await PushManager.request()
-                    calRankReminders = true
-                    await CalendarRankSync.rescan(store: store)
-                    ToastCenter.shared.show("Calendar sync is on — Cini will nudge you after a movie on your schedule.")
-                }
-            })
-    }
 
     var body: some View {
         Form {
@@ -304,14 +274,6 @@ private struct AppPreferencesScreen: View {
                     Label("Hide \u{201C}Friends are watching\u{201D}", systemImage: "circle.dashed")
                 }
                 .tint(Theme.velvet)
-            }
-            Section {
-                Toggle(isOn: calSyncBinding) {
-                    Label("Rank reminders from my calendar", systemImage: "calendar.badge.clock")
-                }
-                .tint(Theme.velvet)
-            } footer: {
-                Text("Cini spots movies from your Want to Watch on your calendar and reminds you to rank them after the showing ends. Everything stays on your phone — your events are never uploaded.")
             }
             Section {
                 NavigationLink {
